@@ -180,7 +180,7 @@ def run_vt100_mode(args) -> str | None:
     """
     import serial as _serial
 
-    from termapy.config import open_serial
+    from termapy.config import cap_folder_of, open_serial
     from termapy.vendor.serial.tools.miniterm import Miniterm
 
     return_to = getattr(args, "_vt100_return_to", None)
@@ -188,7 +188,7 @@ def run_vt100_mode(args) -> str | None:
     settings = _miniterm_settings(cfg)
 
     try:
-        port = open_serial(cfg)
+        port = open_serial(cfg, cap_folder=cap_folder_of(cfg.get("_config_path") or ""))
     except (_serial.SerialException, OSError, ValueError) as e:
         print(f"termapy: cannot open serial port: {e}", file=sys.stderr)
         sys.exit(1)

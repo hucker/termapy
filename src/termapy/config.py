@@ -29,6 +29,7 @@ from termapy.defaults import (
     default_cfg,
 )
 from termapy.folders import (
+    CAP,
     DEV,
     FOLDER_EXTS,
     FOLDER_MIGRATIONS,
@@ -1537,7 +1538,70 @@ def request_rx_buffer(port: Any) -> bool:
     return True
 
 
-def open_serial(cfg: dict) -> Any:
+def cap_folder_of(config_path: str) -> Path | None:
+    """The ``cap/`` folder of the config at ``config_path``; None with no config."""
+    return Path(config_path).parent / CAP if config_path else None
+
+
+def _spy_log_path(name: str, cap_folder: Path | None) -> Path:
+    """Where a ``spy://`` port's ``file=`` goes: under ``cap/``, or a refusal.
+
+    Raises:
+        ValueError: There is no config, or ``name`` is not a path relative to ``cap/``.
+    """
+    if cap_folder is None:
+        raise ValueError("A spy:// log file needs a config, for its cap/ folder")
+    given = Path(name)
+    root = cap_folder.resolve()
+    path = (cap_folder / name).resolve()
+    # A full path and any ".." are refused as typed, even one that ends up back
+    # in cap/.  Resolving catches what the text alone cannot: a symlink, and the
+    # Windows forms (\x, D:x) that are not absolute but leave the folder.
+    if given.is_absolute() or ".." in given.parts or path == root or not path.is_relative_to(root):
+        raise ValueError(f"Invalid spy file: {name} (use a path relative to cap/)")
+    return path
+
+
+def spy_log_url(url: str, cap_folder: Path | None) -> str:
+    """``url`` with a ``spy://`` port's ``file=`` moved under the config's ``cap/`` folder.
+
+    pyserial opens ``file=`` for writing as soon as it reads the port string,
+    so this is a file write that no path guard ever sees.  It takes only a
+    path relative to ``cap/``, in every frontend and under no flag (registry
+    ``spy-log-in-cap``).  Every other port string passes through untouched.
+
+    Args:
+        url: The resolved port string.
+        cap_folder: The config's ``cap/`` folder, created when a log goes in it;
+            None with no config.
+
+    Returns:
+        The port string to hand to pyserial.
+
+    Raises:
+        ValueError: A ``file=`` is not a path relative to ``cap/``, or there is
+            no config to hold it.  Nothing has been written.
+    """
+    from urllib.parse import parse_qsl, urlencode, urlsplit
+
+    parts = urlsplit(url)
+    if parts.scheme != "spy":
+        return url
+    options = parse_qsl(parts.query, keep_blank_values=True)
+    if not any(key == "file" for key, _ in options):
+        return url
+    # Read as pyserial reads it, so an encoded "..%2F" is seen decoded here too.
+    moved = [
+        (key, str(_spy_log_path(value, cap_folder)) if key == "file" else value)
+        for key, value in options
+    ]
+    for key, value in moved:
+        if key == "file":
+            ensure_folder(Path(value).parent)
+    return f"{url.partition('?')[0]}?{urlencode(moved)}"
+
+
+def open_serial(cfg: dict, *, cap_folder: Path | None = None) -> Any:
     """Open serial port from config dict.
 
     ``cfg["serial"]["port"]`` may be a plain device name (``"COM3"``,
@@ -1555,6 +1619,9 @@ def open_serial(cfg: dict) -> Any:
 
     Args:
         cfg: Config dict with serial settings.
+        cap_folder: Where a ``spy://`` port's log goes (``spy_log_url``).
+            Omitted, such a port is refused rather than written from the
+            working folder.
 
     Returns:
         A serial port object (real or simulated).
@@ -1564,6 +1631,7 @@ def open_serial(cfg: dict) -> Any:
             spec whose serial-number candidate matches two or more
             connected devices.  Surfaces through to the connect failure
             path so the user sees which devices collided.
+        ValueError: A ``spy://`` port's ``file=`` is refused.
     """
     from termapy.port_control import resolve_port
 
@@ -1589,7 +1657,7 @@ def open_serial(cfg: dict) -> Any:
     # serial_for_url handles both plain ports ("COM3", "/dev/ttyUSB0")
     # and URLs ("rfc2217://host:port", "socket://host:port", "loop://").
     port = serial.serial_for_url(
-        resolved,
+        spy_log_url(resolved, cap_folder),
         baudrate=serial_cfg["baud_rate"],
         bytesize=serial_cfg["byte_size"],
         parity=serial_cfg["parity"],

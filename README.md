@@ -136,7 +136,7 @@ Termapy runs with your privileges and does whatever you — or a connected MCP c
 
 Each flag takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outside that vocabulary refuses to start, naming the variable, rather than silently meaning off.
 
-No flag opens the rest to an MCP client: a shell (`/os`), renaming or deleting files, and writing into `plugin/` or `viz/` or over a file that exists. These limit termapy's own commands; a client that can write files some other way is outside them.
+No flag opens the rest to an MCP client: a shell (`/os`), renaming or deleting files, and writing into `plugin/` or `viz/` or over a file that exists. The one exception is a `spy://` traffic log, which starts its file in `cap/` over at every connect. These limit termapy's own commands; a client that can write files some other way is outside them.
 
 <details>
 <summary><strong>The basics</strong> - keyboard shortcuts, title bar, REPL commands</summary>
@@ -675,6 +675,15 @@ Capture serial data to files without interrupting normal terminal display.
 ```sh
 /cap.bin raw.bin bytes=256 cmd=read_all
 ```
+
+**Raw traffic log** (every byte in both directions, through pyserial's `spy://`):
+
+```sh
+/port spy://COM3?file=traffic.txt                      # reopens the port and logs to cap/traffic.txt
+/port COM3                                             # reopens it again, and logging stops
+```
+
+Or put the URL in the config's `port` key. [Logging the raw traffic](src/termapy/help/ports.md#logging-the-raw-traffic) shows the format and what to expect.
 
 **Structured capture** (binary data decoded via format spec to CSV):
 

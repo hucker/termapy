@@ -396,3 +396,41 @@ class TestAdapterIdentity:
         # the devnode climb to the USB device node finds it
         assert facts is not None, f"{loopback_device} is listed"
         assert facts.product, "the device's own product string reaches the facts"
+
+
+class TestSpyUrl:
+    """hw_loopback: pyserial's spy:// logs a real port's traffic, as help/ports.md says."""
+
+    def test_a_spy_port_logs_both_directions_and_each_connect_starts_over(
+        self, loopback_device, tmp_path
+    ):
+        """A spy:// port logs what went out and what came back in cap/, and a second connect erases the first log."""
+        # Arrange
+        cap = tmp_path / "cap"
+        log = cap / "traffic.txt"
+        port_text = f"spy://{loopback_device}?file=traffic.txt"
+        cfg = {"serial": {**DEFAULT_CFG["serial"], "port": port_text}}
+
+        for sent in (b"FIRST\r", b"SECOND\r"):
+            # Act
+            port = open_serial(cfg, cap_folder=cap)
+            received = b""
+            try:
+                port.write(sent)
+                port.flush()
+                deadline = time.monotonic() + 1.0
+                while time.monotonic() < deadline and received != sent:
+                    received += port.read(port.in_waiting or 1)
+            finally:
+                port.close()
+                port.formatter.output.close()  # spy never closes the file it opened
+
+            # Assert
+            assert received == sent, "the port still works with spy wrapped around it"
+
+        rows = log.read_text(encoding="utf-8").splitlines()
+        tx_rows = [row for row in rows if " TX " in row]
+        rx_rows = [row for row in rows if " RX " in row]
+        assert len(tx_rows) == 1, "only the second connect's send is left in the file"
+        assert "SECOND" in tx_rows[0], "the send is logged with its text"
+        assert rx_rows, "what came back is logged too"

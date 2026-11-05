@@ -15,7 +15,7 @@ from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
-from termapy.config import open_serial
+from termapy.config import cap_folder_of, open_serial
 from termapy.defaults import cfg_value
 from termapy.folders import ensure_folder
 from termapy.protocol.core import (
@@ -331,7 +331,7 @@ def run_proto_tests(
     script = result[1]
 
     # Open serial port
-    ser = open_serial(cfg)
+    ser = open_serial(cfg, cap_folder=cap_folder_of(cfg.get("_config_path", "")))
 
     # Resolve output directory
     if output_dir is None:

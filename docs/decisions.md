@@ -982,3 +982,28 @@ The chain needed `exclusive=True` on the open (registry `port-open-exclusive`). 
 only Windows refuses a second open, and on Linux or macOS a second server would share the
 first device and split its bytes. The chain loads each config before trying its port
 rather than trial-opening first, because an open and close can reset a board through DTR.
+
+## 2026-11-04 — A raw traffic log is pyserial's `spy://`, documented and not wrapped
+
+Chuck: "document it as a 'feature' and just allow pyserial to do its thing." termapy passes
+a port string to `serial_for_url`, so `spy://COM3?file=traffic.txt` already logs every byte
+in both directions, and `help/ports.md` says how to use it and what to expect. No code.
+
+Three ways to wrap it were considered and dropped, because each traded a free feature for
+code of our own: recording the bytes in `SerialEngine`, a `/cap.serial` command that reopens
+the port (a reset on an auto-reset board, at both start and stop), and a `spy_file` config
+key. So pyserial's limits are ours, stated rather than fixed: every connect starts the file
+over, a serial number is not resolved inside the URL, and `raw` fails on a file.
+
+The one thing termapy does change is where the file goes (registry `spy-log-in-cap`). Left
+alone, `file=traffic.txt` landed in the working folder, usually a project's root, against
+`writes-in-cfg-folder`. Chuck: "I would like for the user to ONLY provide a relative path and
+the file goes in the cap folder." So `config.open_serial` moves `file=` under the config's
+`cap/`, and refuses a full path or a `..`, in every frontend and under no flag.
+
+Under MCP that keeps the URL away from `plugin/`, `viz/` and the rest of the disk. Inside
+`cap/` a log may replace a file, and an agent may do that too: Chuck, "It is ok to overwrite
+files and send to a comport." So a `spy://` log is the one user-named exception to "a write
+never replaces a file" (registry `mcp-no-code-writes`). For the same reason there is no check
+on device names: `file=COM4` is a relative path like any other. On the Windows 11 bench it
+makes an ordinary file; other versions were not tried.

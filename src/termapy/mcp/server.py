@@ -46,7 +46,6 @@ from termapy.config import (
     mcp_dir,
     mcp_log_path,
     on_connect_commands,
-    open_serial,
 )
 from termapy.defaults import cfg_value
 from termapy.folder_ops import file_record
@@ -178,7 +177,7 @@ class MCPHost(TerminalHost):
         self._engine = SerialEngine(
             cfg=cfg,
             capture=self.capture,
-            open_fn=open_serial,
+            open_fn=self._open_serial,
             log=self._log,
         )
         # ReplEngine.write goes through self.write so the engine's own

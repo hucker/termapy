@@ -17,7 +17,7 @@ from pathlib import Path
 
 from termapy.config import cap_folder_of, open_serial
 from termapy.defaults import cfg_value
-from termapy.folders import ensure_folder
+from termapy.folders import ensure_folder, inside
 from termapy.protocol.core import (
     FrameCollector,
     ProtoScript,
@@ -220,9 +220,10 @@ def build_results(
 def result_path(output_dir: Path, template: str, proto_name: str, config_name: str = "") -> Path:
     """Where a results document goes: ``template``, expanded, names a file in ``output_dir``.
 
-    Only a name, never a folder (registry ``proto-results-name-only``): a
-    template often comes from a ``.pro`` someone else wrote, and running that
-    script must not choose where on the disk a file lands.
+    A name or a path under ``output_dir`` (``run2/x.json``), never one that
+    leaves it (registry ``proto-results-in-folder``): a template often comes
+    from a ``.pro`` someone else wrote, and running that script must not
+    choose where on the disk a file lands.
 
     Args:
         output_dir: The folder the document goes in.
@@ -245,9 +246,14 @@ def result_path(output_dir: Path, template: str, proto_name: str, config_name: s
             f"Invalid results file name: {template} "
             "(placeholders: {name} {proto_name} {datetime} {date} {time})"
         ) from None
-    if name in ("", ".", "..") or any(char in name for char in "/\\:"):
-        raise ValueError(f"Invalid results file name: {name} (a name only, no folder)")
-    return output_dir / name
+    # A backslash is a folder on every OS, so a template means one place
+    # everywhere; a colon is a drive, or on Windows a hidden stream in a file.
+    path = None if ":" in name else inside(output_dir, name.replace("\\", "/"))
+    if path is None or path == Path(output_dir).resolve():
+        raise ValueError(
+            f"Invalid results file name: {name} (it must stay inside {Path(output_dir).name}/)"
+        )
+    return path
 
 
 def write_results(results: dict, out_path: Path) -> None:

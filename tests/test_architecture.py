@@ -903,6 +903,58 @@ def test_matcher_guard_fires_on_a_probe():
     assert len(found) == 2, "both fnmatch imports flagged; the matcher import is not"
 
 
+# ── Whether a path stays in a folder has one check ──────────────────────────
+#
+# ``folders.inside`` (a name under a folder) and ``folders.is_inside`` (a path
+# where it stands).  Before them seven modules each resolved, compared and
+# caught the Windows OSError their own way, or not at all.  A path that only
+# needs shortening for display may call ``relative_to``; asking
+# ``is_relative_to`` anywhere else is a second check.
+CONTAINMENT_OWNER = "termapy/folders.py"
+
+
+def _is_relative_to_calls(tree: ast.AST, rel: str) -> list[str]:
+    """Every ``.is_relative_to(...)`` call in ``rel``."""
+    return [
+        f"{rel}:{node.lineno}  {ast.unparse(node)}"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "is_relative_to"
+    ]
+
+
+def test_containment_is_asked_only_of_folders():
+    """path-inside-one-check: only termapy/folders.py calls is_relative_to."""
+    # Arrange / Act
+    violations = [
+        line
+        for path in _package_python_files()
+        if (rel := path.relative_to(SRC.parent).as_posix()) != CONTAINMENT_OWNER
+        for line in _is_relative_to_calls(ast.parse(path.read_text(encoding="utf-8")), rel)
+    ]
+
+    # Assert
+    assert violations == [], (
+        "whether a path stays in a folder is termapy.folders' question:\n  "
+        + "\n  ".join(violations)
+        + "\n\nCall inside(folder, name) for a name under a folder, or"
+        "\nis_inside(path, folder) for a path where it stands."
+    )
+
+
+def test_containment_guard_fires_on_a_probe():
+    """The guard flags a hand-written containment check and passes a call to the owner."""
+    # Arrange
+    probe = "ok = path.resolve().is_relative_to(root)\ninside(root, name)\nis_inside(path, root)\n"
+
+    # Act
+    found = _is_relative_to_calls(ast.parse(probe), "probe")
+
+    # Assert
+    assert len(found) == 1, "the hand-written check is flagged; the two owner calls are not"
+
+
 # ── A text line goes out one way ──────────────────────────────────────────────
 #
 # A device line goes through ``ctx.serial.send``, which adds the line ending,

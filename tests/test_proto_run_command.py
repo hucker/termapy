@@ -78,9 +78,9 @@ class TestResultsDocument:
         assert document["tests"][0]["name"] == "AT basic"
         assert document["source"].startswith("json_file"), "the script text rides along"
 
-    @pytest.mark.parametrize("name", ["../up.json", "sub/x.json", "..\\up.json", "C:x.json"])
-    def test_json_file_names_a_file_never_a_folder(self, cli, tmp_path, capsys, name):
-        """proto-results-name-only: for a person too, a script cannot choose the folder, and nothing is sent first."""
+    @pytest.mark.parametrize("name", ["../up.json", "..\\up.json", "C:x.json"])
+    def test_json_file_cannot_leave_the_results_folder(self, cli, tmp_path, capsys, name):
+        """proto-results-in-folder: for a person too, a script cannot choose the folder, and nothing is sent first."""
         # Arrange
         script = _pro(tmp_path, "at.pro", f"json_file = {json.dumps(name)}\n" + _AT_OK)
         capsys.readouterr()

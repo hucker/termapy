@@ -66,7 +66,8 @@ Header (defaults for every test):
 - `json_file`: after `/proto.run`, write the results document to this
   file in `test/` beside the script. A filename template: `{name}` (the
   config), `{proto_name}` (the script's stem), `{datetime}`, `{date}`,
-  `{time}`. It names a file, so a folder in it (`../x.json`) is refused.
+  `{time}`. It may name a subfolder (`nightly/{name}.json`), but a name
+  that leaves `test/` (`../x.json`, a full path) is refused.
   The debug screen and `termapy --proto` write one whether or not the key
   is set; there it overrides the `proto_results_template` config value,
   which names a file the same way. Under MCP the results go in the
@@ -144,8 +145,8 @@ times, `Delay (ms)` waits between tests, and `JSON file` names the
 results file in the config's `proto/test/`. In that name `{name}` stands
 for the config and `{proto_name}` for the script, so the default
 `{name}_results.json` writes `demo_results.json` under the demo config.
-The name is checked as you type: one holding a folder or an unknown
-placeholder turns the field red, and the status line says why. The file
+The name is checked as you type: one that leaves `proto/test/` or names
+an unknown placeholder turns the field red, and the status line says why. The file
 is only written when the JSON option is on. The results pane can be
 selected with the mouse and copied with Ctrl+C.
 

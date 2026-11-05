@@ -1,5 +1,6 @@
 """Tests for termapy.folders -- folder/file constants."""
 
+import contextlib
 import sys
 
 import pytest
@@ -21,6 +22,8 @@ from termapy.folders import (
     SYMBOLS_SUFFIX,
     FolderSpec,
     default_file_name,
+    inside,
+    is_inside,
     new_file_name,
 )
 
@@ -223,3 +226,82 @@ class TestDefaultFileName:
 
         # Assert
         assert actual == tmp_path / "board.profile.json"
+
+
+class TestInside:
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            ("x.json", "x.json"),
+            ("sub/deep/x.json", "sub/deep/x.json"),
+            ("sub/../x.json", "x.json"),
+            (".", "."),
+        ],
+    )
+    def test_a_name_that_stays_answers_its_path(self, tmp_path, name, expected):
+        """path-inside-one-check: a name below the folder, one that climbs and comes back, and the folder itself."""
+        # Act
+        actual = inside(tmp_path / "box", name)
+
+        # Assert
+        assert actual == (tmp_path / "box" / expected).resolve(), "resolved, under the folder"
+
+    @pytest.mark.parametrize("name", ["../x.json", "sub/../../x.json", "..", "/etc/passwd"])
+    def test_a_name_that_leaves_answers_none(self, tmp_path, name):
+        """path-inside-one-check: a climb out and an absolute path, which replaces the folder when joined."""
+        assert inside(tmp_path / "box", name) is None, f"{name} leaves box/"
+
+    def test_an_absolute_path_back_inside_is_inside(self, tmp_path):
+        """An absolute path is judged by where it is, so one that names a file in the folder is inside."""
+        # Arrange
+        target = tmp_path / "box" / "x.json"
+
+        # Act / Assert
+        assert inside(tmp_path / "box", target) == target.resolve(), "absolute, but in box/"
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows path forms")
+    @pytest.mark.parametrize("form", ["rooted", "other drive"])
+    def test_the_windows_forms_that_are_not_absolute_still_leave(self, tmp_path, form):
+        """\\x and D:x are not absolute, so a text check passes them; resolving shows they leave."""
+        # Arrange
+        box = tmp_path / "box"
+        drive = "Z:" if box.drive.upper() != "Z:" else "Y:"
+        name = "\\Windows\\x.json" if form == "rooted" else f"{drive}x.json"
+
+        # Act / Assert
+        assert inside(box, name) is None, f"{name} leaves box/"
+
+    def test_a_link_out_of_the_folder_is_outside(self, tmp_path):
+        """A link inside the folder that points out of it is followed, so writing through it is refused."""
+        # Arrange
+        box = tmp_path / "box"
+        box.mkdir()
+        (tmp_path / "away").mkdir()
+        try:
+            (box / "door").symlink_to(tmp_path / "away", target_is_directory=True)
+        except OSError:
+            pytest.skip("this account cannot make symlinks")
+
+        # Act / Assert
+        assert inside(box, "door/x.json") is None, "the link leads out of box/"
+
+    def test_is_inside_measures_a_relative_path_from_the_working_folder(self, tmp_path):
+        """A relative path already means a place: is_inside reads it from the working folder, not the folder asked about."""
+        # Arrange -- the working folder is tmp_path, and box/x.txt would be inside box/
+        box = tmp_path / "box"
+        box.mkdir()
+
+        # Act
+        with contextlib.chdir(tmp_path):
+            relative = is_inside("x.txt", box)
+            joined = inside(box, "x.txt")
+
+        # Assert
+        assert relative is False, "x.txt here is tmp_path/x.txt, outside box/"
+        assert joined is not None, "the same name joined to box/ is inside it: the other function"
+
+    def test_is_inside_takes_a_path_in_the_folder(self, tmp_path):
+        """A path in the folder, at any depth, is inside; the folder's parent is not."""
+        box = tmp_path / "box"
+        assert is_inside(box / "a" / "b.txt", box) is True, "below box/"
+        assert is_inside(tmp_path, box) is False, "box/'s parent"

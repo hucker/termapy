@@ -39,7 +39,14 @@ from termapy.config import (
 from termapy.config_resolve import resolve_config
 from termapy.defaults import CFG_CHOICES, cfg_key, cfg_value
 from termapy.folder_ops import FILE_COLUMNS, edit_cfg_command, file_record, list_entries
-from termapy.folders import FOLDER_PATTERNS, FOLDERS, INFO_REPORT_SUFFIX, PLUGIN, file_suggestion
+from termapy.folders import (
+    FOLDER_PATTERNS,
+    FOLDERS,
+    INFO_REPORT_SUFFIX,
+    PLUGIN,
+    file_suggestion,
+    inside,
+)
 from termapy.help_dynamic import cfg_status, compose
 from termapy.matching import closest, did_you_mean
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
@@ -426,10 +433,10 @@ def _handler_file(ctx: PluginContext, args: str) -> CmdResult:
     name = ctx.arg("name")
     root = Path(ctx.config_path).parent.resolve()
     rel = Path(name)
-    path = (root / rel).resolve()
+    path = inside(root, rel)
     # One refusal for every way out: an absolute name, any "..", and a
     # symlink that resolves outside the folder.
-    if rel.is_absolute() or ".." in rel.parts or not path.is_relative_to(root):
+    if rel.is_absolute() or ".." in rel.parts or path is None:
         return CmdResult.fail(msg=f"Path must be relative to the config folder: {name}")
     if not path.is_file():
         # The folder is the cfg root or one under it: the containment check passed.

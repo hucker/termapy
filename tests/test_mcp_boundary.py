@@ -527,10 +527,10 @@ class TestProtoRunResults:
 
     @pytest.mark.parametrize(
         "name",
-        ["../../plugin/x.py", "..\\..\\plugin\\x.py", "sub/x.json", "C:x.json", "x.json:s", ".."],
+        ["../../plugin/x.py", "..\\..\\plugin\\x.py", "C:x.json", "x.json:s", ".."],
     )
     def test_a_script_cannot_choose_the_folder(self, connected, name):
-        """proto-results-name-only: a json_file holding a folder is refused before the script runs at all."""
+        """proto-results-in-folder: a json_file holding a folder is refused before the script runs at all."""
         # Arrange
         _script(_folder(connected) / "proto", name)
 
@@ -544,7 +544,7 @@ class TestProtoRunResults:
         assert not (_folder(connected) / "plugin" / "x.py").exists(), "least of all there"
 
     def test_a_script_cannot_write_by_absolute_path(self, connected, tmp_path):
-        """proto-results-name-only: an absolute json_file is a folder too, so the file outside stays as it was."""
+        """proto-results-in-folder: an absolute json_file leaves proto/test/, so the file outside stays as it was."""
         # Arrange
         victim = tmp_path / "victim.json"
         victim.write_text(_MINE, encoding="utf-8")
@@ -556,6 +556,19 @@ class TestProtoRunResults:
         # Assert
         assert "Invalid results file name" in result["error"], result["error"]
         assert victim.read_text(encoding="utf-8") == _MINE, "the file outside is untouched"
+
+    def test_results_may_go_in_a_subfolder(self, connected):
+        """proto-results-in-folder: a json_file below proto/test/ lands there, for an agent as for a person."""
+        # Arrange
+        _script(_folder(connected) / "proto", "nightly/out.json")
+
+        # Act
+        result = _call(connected, "/proto.run s")
+
+        # Assert
+        assert result["success"] is True, result["error"]
+        written = _folder(connected) / "proto" / "test" / "nightly" / "out.json"
+        assert written.exists(), "in proto/test/nightly/"
 
     def test_a_run_replaces_an_earlier_results_file(self, connected):
         """mcp-no-code-writes: json_file naming an existing file in proto/test/ writes over it."""

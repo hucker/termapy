@@ -16,7 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from termapy.folders import PLUGIN, VIZ
+from termapy.folders import PLUGIN, VIZ, inside, is_inside
 from termapy.plugins.capabilities import CapabilitySet, MissingCapability
 
 # The folders termapy imports Python from, in the case a typed path may use.
@@ -86,9 +86,9 @@ class FilesystemHandle:
         that escapes the folder is refused UNLESS the host grants
         ``filesystem_unconfined`` -- so an MCP client (a remote/automated
         peer) is confined to the config sandbox, while the operator at a
-        CLI/TUI keeps host-wide paths.  Reuses the same
-        ``resolve()`` + ``is_relative_to`` containment as the ``.dump``
-        commands and the MCP capture resource.
+        CLI/TUI keeps host-wide paths.  The containment is
+        ``folders.inside``, as for the ``.dump`` commands and the MCP
+        capture resource.
 
         Args:
             name: Caller-supplied file name or path.
@@ -108,13 +108,11 @@ class FilesystemHandle:
         if attr is None:
             raise ValueError(f"Unknown folder: {folder!r}")
         base = Path(getattr(self, attr))
-        target = (base / name).resolve()
-        try:
-            inside = target.is_relative_to(base.resolve())
-        except OSError:
-            inside = False
-        if inside or self.capabilities.filesystem_unconfined:
+        target = inside(base, name)
+        if target is not None:
             return target
+        if self.capabilities.filesystem_unconfined:
+            return (base / name).resolve()
         raise MissingCapability(
             f"Path {name!r} escapes the {base.name or folder}/ sandbox. The MCP host is "
             f"confined to the config directory; set TERMAPY_MCP_FS_UNCONFINED=1 "
@@ -172,7 +170,7 @@ class FilesystemHandle:
         cfg_root = config_folder.parent if config_folder else None
         parts = (
             resolved.relative_to(cfg_root).parts
-            if cfg_root and resolved.is_relative_to(cfg_root)
+            if cfg_root and is_inside(resolved, cfg_root)
             else (resolved.name,)
         )
         for part in parts:
@@ -200,7 +198,7 @@ class FilesystemHandle:
         if self.capabilities.interactive or not path.exists():
             return
         config_folder = self._config_folder()
-        if config_folder is None or not path.resolve().is_relative_to(config_folder):
+        if config_folder is None or not is_inside(path, config_folder):
             raise MissingCapability(
                 f"File exists: {path.name} "
                 "(an MCP client never replaces a file outside the config's folder)"

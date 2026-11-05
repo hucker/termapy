@@ -106,9 +106,9 @@ async def _disabled_after(pilot, button: Button, seconds: float) -> bool:
 
 
 class TestJsonFieldCheck:
-    @pytest.mark.parametrize("bad", ["../up.json", "sub/x.json", "{oops}.json"])
+    @pytest.mark.parametrize("bad", ["../up.json", "..\\up.json", "{oops}.json"])
     def test_a_bad_name_shows_as_it_is_typed(self, tmp_path, bad):
-        """proto-results-name-only: the field turns red and the status says why, and a fixed name clears both, twice."""
+        """proto-results-in-folder: the field turns red and the status says why, and a fixed name clears both, twice."""
 
         async def scenario():
             app, script = _make_app(tmp_path, _ONE_AT_TEST)
@@ -211,12 +211,13 @@ class TestJsonField:
         ("template", "lands", "says"),
         [
             ("out.json", True, "JSON: "),
+            ("sub/out.json", True, "JSON: "),
             ("../up.json", False, "Failed to write JSON results: Invalid results file name"),
             ("{oops}.json", False, "Failed to write JSON results: Invalid results file name"),
         ],
     )
-    def test_the_field_takes_a_name_never_a_folder(self, tmp_path, template, lands, says):
-        """proto-results-name-only: a name lands in proto/test/, a folder writes nothing, and the screen says which."""
+    def test_the_field_keeps_results_in_proto_test(self, tmp_path, template, lands, says):
+        """proto-results-in-folder: a name lands in proto/test/, a way out writes nothing, and the screen says which."""
 
         async def scenario():
             app, script = _make_app(tmp_path, _ONE_AT_TEST)

@@ -21,6 +21,7 @@ from termapy.dialogs._common import (
     _DISMISS_BINDINGS,
     _FILE_PICKER_WIDTH,
     _MODAL_BTN_CSS,
+    FileAction,
     FileOptionList,
     PathLink,
     _highlighted_file,
@@ -83,14 +84,15 @@ class ScriptPicker(ModalScreen[tuple | None]):
         gui_apps: bool = True,
         web: bool = False,
         opener: Callable[[str], None] = reveal_in_file_manager,
+        file_action: FileAction | None = None,
     ) -> None:
         """Build the picker for scripts living in ``scripts_dir``.
 
         Args:
             scripts_dir: Folder to enumerate (usually the cfg's
                 ``run/`` directory).
-            read_only: When ``True``, hides Edit and Delete so the
-                user can still pick a script to Run but cannot
+            read_only: When ``True``, disables Edit, Rename and Delete so
+                the user can still pick a script to Run but cannot
                 mutate the on-disk set.
             gui_apps: Whether this process can show a desktop app the user
                 will see (``ctx.capabilities.gui_apps``).  False leaves the
@@ -99,6 +101,8 @@ class ScriptPicker(ModalScreen[tuple | None]):
                 open on the server, so the path is shown but inert.
             opener: What a click on the path calls; injected so a test can
                 prove the click reaches it without a file manager appearing.
+            file_action: Renames or deletes a script while the picker stays
+                open (``FileAction``); ``None`` disables Rename and Delete.
         """
         super().__init__()
         self.scripts_dir = scripts_dir
@@ -106,6 +110,8 @@ class ScriptPicker(ModalScreen[tuple | None]):
         self.gui_apps = gui_apps
         self._live_link = gui_apps and not web
         self._opener = opener
+        self._file_action = file_action
+        self._can_change = not read_only and file_action is not None
 
     def compose(self) -> ComposeResult:
         """Build the modal layout: title, file list, action buttons.
@@ -160,7 +166,7 @@ class ScriptPicker(ModalScreen[tuple | None]):
                 rename_btn = Button(
                     "Rename",
                     id="script-rename",
-                    disabled=not has_scripts or self.read_only,
+                    disabled=not has_scripts or not self._can_change,
                 )
                 rename_btn.styles.background = "darkcyan"
                 yield rename_btn
@@ -168,7 +174,7 @@ class ScriptPicker(ModalScreen[tuple | None]):
                     "Delete",
                     id="script-delete",
                     variant="warning",
-                    disabled=not has_scripts or self.read_only,
+                    disabled=not has_scripts or not self._can_change,
                 )
                 yield Button("Cancel", id="script-cancel", variant="error")
 
@@ -189,17 +195,36 @@ class ScriptPicker(ModalScreen[tuple | None]):
 
     @on(Button.Pressed, "#script-delete")
     def delete_script(self) -> None:
-        """Dismiss with ``("delete", path)`` so the app can prompt + unlink."""
-        path = self._selected_path()
-        if path:
-            self.dismiss(("delete", path))
+        """Delete the highlighted script, staying open for the next one."""
+        self._act("delete")
 
     @on(Button.Pressed, "#script-rename")
     def rename_script(self) -> None:
-        """Dismiss with ``("rename", path)`` so the app can prompt for the new name."""
+        """Rename the highlighted script, staying open."""
+        self._act("rename")
+
+    def _act(self, verb: str) -> None:
+        """Hand the highlighted script to ``file_action``; it calls back to refresh the list."""
         path = self._selected_path()
-        if path:
-            self.dismiss(("rename", path))
+        if path and self._file_action is not None:
+            self._file_action(verb, path, self._refresh)
+
+    def _refresh(self, select: str | None) -> None:
+        """Re-list the folder after a rename or delete, keeping the place in the list."""
+        ol = self.query_one("#script-list", FileOptionList)
+        scripts = list_entries(self.scripts_dir, FOLDER_PATTERNS[RUN])
+        ol.refill(scripts, select)
+        has_scripts = bool(scripts)
+        for name, live in (
+            ("run", True),
+            ("edit", not self.read_only),
+            ("rename", self._can_change),
+            ("delete", self._can_change),
+        ):
+            self.query_one(f"#script-{name}", Button).disabled = not has_scripts or not live
+        self.query_one("#script-path", PathLink).set_path(
+            _option_path(_highlighted_file(ol), self.scripts_dir)
+        )
 
     @on(Button.Pressed, "#script-new")
     def new_script(self) -> None:

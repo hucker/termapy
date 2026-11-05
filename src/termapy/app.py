@@ -15,7 +15,7 @@ import threading
 import time
 import traceback
 from collections import OrderedDict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -2237,12 +2237,15 @@ class SerialTerminal(TerminalHost, App):
     def _btn_scripts(self) -> None:
         if not self._require_config():
             return
+        from termapy.pickers import file_action
+
         self.push_screen(
             ScriptPicker(
                 self.repl.scripts_dir,
                 read_only=cfg_value(self.cfg, "config_read_only"),
                 gui_apps=self.repl.ctx.capabilities.gui_apps,
                 web=self.is_web,
+                file_action=partial(file_action, self, "run"),
             ),
             callback=self._on_script_picked,
         )
@@ -2250,12 +2253,15 @@ class SerialTerminal(TerminalHost, App):
     def _btn_proto(self) -> None:
         if not self._require_config():
             return
+        from termapy.pickers import file_action
+
         self.push_screen(
             ProtoPicker(
                 self.repl.proto_dir,
                 read_only=cfg_value(self.cfg, "config_read_only"),
                 gui_apps=self.repl.ctx.capabilities.gui_apps,
                 web=self.is_web,
+                file_action=partial(file_action, self, "proto"),
             ),
             callback=self._on_proto_picked,
         )
@@ -3369,12 +3375,21 @@ class SerialTerminal(TerminalHost, App):
     # so blocking handlers (xmodem, ymodem, etc.) never freeze the TUI.
 
     @work(thread=True)
-    def _dispatch_on_thread(self, cmd: str) -> None:
-        """Run a command on a background thread."""
+    def _dispatch_on_thread(self, cmd: str, then: Callable[[], None] | None = None) -> None:
+        """Run a command on a background thread, then ``then`` on the main thread once it has finished.
+
+        ``then`` is how a dialog that stays open learns the command is done
+        (a picker re-listing its folder after a delete that asked first).
+        """
         try:
             self._dispatch_single(cmd)
         except RuntimeError:
-            pass
+            return
+        if then is not None:
+            try:
+                self.call_from_thread(then)
+            except RuntimeError:
+                pass
 
     @work(thread=True)
     def _dispatch_on_thread_interactive(self, cmd: str) -> None:

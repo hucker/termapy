@@ -72,6 +72,12 @@ _TITLE_ROW_CHROME = 6
 _TITLE_PATH_GAP = 4
 
 
+#: How a picker renames or deletes a file and stays open: ``(verb, path, done)``,
+#: where ``verb`` is ``"rename"`` or ``"delete"`` and ``done(select)`` runs on the
+#: main thread once the command has finished, with the file to highlight.
+FileAction = Callable[[str, str, Callable[[str | None], None]], None]
+
+
 class FileOptionList(OptionList):
     """A file picker's list: a header and one ``name  size  age  detail`` row per file.
 
@@ -117,26 +123,53 @@ class FileOptionList(OptionList):
             id: Widget id.
         """
         super().__init__(id=id)
+        self._detail = detail
+        self._detail_header = detail_header
+        self._label = label
+        self._row_width = _FILE_PICKER_ROW_WIDTH
+        self._load(files)
+        self._fill()
+
+    def _load(self, files: list[Path]) -> None:
+        """Compute the header and the rows for ``files``."""
         rows = file_columns(files)
-        self._header = format_file_header(rows, detail_header) if rows else ""
+        self._header = format_file_header(rows, self._detail_header) if rows else ""
         # (path, name and size/age cells, detail), computed once: a resize
         # only re-truncates the detail.
         self._rows = [
             (
                 path,
                 Text.assemble(
-                    label(path, row.name) if label else row.name,
+                    self._label(path, row.name) if self._label else row.name,
                     (f"  {row.size}  {row.age}", "dim"),
                 ),
-                detail(path) if detail else "",
+                self._detail(path) if self._detail else "",
             )
             for path, row in zip(files, rows, strict=True)
         ]
-        self._row_width = _FILE_PICKER_ROW_WIDTH
         #: Index of the first FILE option (past the header) -- what a picker
         #: highlights, offset by any index it computed over ``files``.
         self.first_file = 1 if files else 0
+
+    def refill(self, files: list[Path], select: str | None = None) -> None:
+        """Show ``files`` instead, keeping the place: ``select`` if it is listed, else the row the cursor was on.
+
+        A picker that renamed or deleted a file calls this and stays open.
+        After a delete the row under the cursor is the next file, so deleting
+        several is one press each; after a rename ``select`` is the new name.
+        """
+        index = self.highlighted
+        self._load(files)
+        self.clear_options()
         self._fill()
+        if not files:
+            return
+        names = [str(path) for path in files]
+        if select in names:
+            self.highlighted = self.first_file + names.index(select)
+            return
+        last = self.first_file + len(files) - 1
+        self.highlighted = max(self.first_file, min(index if index is not None else 0, last))
 
     def dialog_width(self) -> int:
         """The picker width that shows every row whole, never below ``_FILE_PICKER_WIDTH``.

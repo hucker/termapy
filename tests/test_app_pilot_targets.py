@@ -21,7 +21,7 @@ from pilot_wait import until
 from textual.widgets import Button, Input, OptionList, RichLog, Static
 
 from termapy.defaults import DEFAULT_CFG
-from termapy.dialogs import ConfirmDialog, FilenameDialog, PortPicker
+from termapy.dialogs import ConfirmDialog, FilenameDialog, PortPicker, ProtoPicker, ScriptPicker
 from termapy.dialogs.config_editor import ConfigEditor
 from termapy.dialogs.quick_setup import QuickSetup
 from termapy.port_control import reserved_serial
@@ -598,7 +598,84 @@ class TestConfigPicked:
 
 class TestScriptPickedDelete:
     def test_the_pickers_delete_is_run_delete(self, app_factory):
-        """one-handler-per-command: the Run picker's Delete is /run.delete, which asks, deletes and recounts the Scripts button."""
+        """one-handler-per-command: the Run picker's Delete is /run.delete, which asks, deletes and recounts the Scripts; the picker stays open."""
+
+        async def scenario():
+            app, _, path = app_factory()
+            _write_scripts(path, x="/print hi\n", y="/print hi\n")
+            run = Path(path).parent / "run"
+
+            def _scripts_tooltip() -> str:
+                return str(app.query_one("#btn-scripts").tooltip)
+
+            async with app.run_test(size=(140, 40)) as pilot:
+                await pilot.pause()
+                assert "2 available" in _scripts_tooltip(), "precondition: two scripts counted"
+                app._btn_scripts()
+                await pilot.pause()
+                picker = app.screen
+                assert isinstance(picker, ScriptPicker), "the Run button's picker is open"
+
+                # Act -- delete one, answering the command's question yes
+                await pilot.click("#script-delete")
+                asked = await until(pilot, lambda: _confirm_ready(app))
+                await pilot.click("#confirm-yes")
+                one_left = await until(pilot, lambda: len(list(run.glob("*.run"))) == 1)
+                refreshed = await until(
+                    pilot,
+                    lambda: (
+                        app.screen is picker
+                        and picker.query_one("#script-list", OptionList).option_count == 2
+                    ),
+                )
+                recounted = await until(pilot, lambda: "1 available" in _scripts_tooltip())
+
+                # Assert
+                assert asked, "the command asks before deleting a script someone wrote"
+                assert one_left, "Yes deletes one script"
+                assert refreshed, (
+                    "the picker is back in front, listing the one left under its header"
+                )
+                assert recounted, "folder_changed refreshes the Scripts tooltip"
+
+        _run(scenario)
+
+    def test_the_proto_pickers_rename_stays_open_on_the_new_name(self, app_factory):
+        """one-handler-per-command: the Proto picker's Rename is /proto.rename; the picker stays open with the new name highlighted."""
+
+        async def scenario():
+            app, _, path = app_factory()
+            proto = Path(path).parent / "proto"
+            proto.mkdir()
+            (proto / "old.pro").write_text("# x\n", encoding="utf-8")
+
+            async with app.run_test(size=(140, 40)) as pilot:
+                await pilot.pause()
+                app._btn_proto()
+                await pilot.pause()
+                picker = app.screen
+                assert isinstance(picker, ProtoPicker), "the Proto button's picker is open"
+
+                # Act
+                await pilot.click("#proto-rename")
+                prompted = await until(pilot, lambda: isinstance(app.screen, FilenameDialog))
+                app.screen.query_one("#filename-input", Input).value = "new"
+                await pilot.click("#filename-ok")
+                renamed = await until(pilot, lambda: (proto / "new.pro").exists())
+                back = await until(pilot, lambda: app.screen is picker)
+
+                # Assert
+                assert prompted, "Rename asks for the new name"
+                assert renamed, "and /proto.rename keeps the .pro"
+                assert back, "the picker is in front again"
+                ol = picker.query_one("#proto-list", OptionList)
+                highlighted = Path(str(ol.get_option_at_index(ol.highlighted or 0).id)).name
+                assert highlighted == "new.pro", "on the renamed script"
+
+        _run(scenario)
+
+    def test_the_command_alone_still_deletes(self, app_factory):
+        """With no picker, /run.delete is the same command the button runs: it asks, deletes and recounts the Scripts button."""
 
         async def scenario():
             app, _, path = app_factory()
@@ -613,7 +690,7 @@ class TestScriptPickedDelete:
                 assert "1 available" in _scripts_tooltip(), "precondition: one script counted"
 
                 # Act
-                app._on_script_picked(("delete", str(script)))
+                app._dispatch_on_thread(f"/run.delete {script.name}")
                 asked = await until(pilot, lambda: _confirm_ready(app))
                 await pilot.click("#confirm-yes")
                 gone = await until(pilot, lambda: not script.exists())

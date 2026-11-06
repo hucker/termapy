@@ -187,11 +187,17 @@ def run_vt100_mode(args) -> str | None:
     cfg = _resolve_cfg(args)
     settings = _miniterm_settings(cfg)
 
+    from termapy import diag_log
+
+    # vt100 is miniterm, not a TerminalHost, so its session is announced here.
+    diag_log.start("vt100", str(cfg.get("_config_path") or ""))
     try:
         port = open_serial(cfg, cap_folder=cap_folder_of(cfg.get("_config_path") or ""))
     except (_serial.SerialException, OSError, ValueError) as e:
+        diag_log.warning("vt100 port open failed: %s", e)
         print(f"termapy: cannot open serial port: {e}", file=sys.stderr)
         sys.exit(1)
+    diag_log.info("port open: %s (vt100)", getattr(port, "port", ""))
     from termapy import breadcrumbs
 
     breadcrumbs.leave(
@@ -252,9 +258,12 @@ def run_vt100_mode(args) -> str | None:
                 term.console.cleanup()  # restore termios on POSIX (no-op on Win)
             except Exception:
                 # Teardown is best-effort; never crash on console restore.
-                pass
+                from termapy import diag_log
+
+                diag_log.exception("vt100 console restore raised")
             term.close()  # closes the serial port
         else:
             port.close()  # Miniterm never took ownership of the port
+        diag_log.info("port close: %s (vt100)", getattr(port, "port", ""))
         sys.stdout, sys.stderr = saved_stdout, saved_stderr
     return return_to

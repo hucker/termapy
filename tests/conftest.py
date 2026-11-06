@@ -103,6 +103,28 @@ def _isolate_app_state(tmp_path_factory):
         os.environ["TERMAPY_STATE_DIR"] = saved
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _isolate_diag_log(tmp_path_factory):
+    """Point the diagnostic log at a temporary folder for the whole run.
+
+    Every session a test starts opens one (``diag_log.start``), and a
+    subprocess run in the repository would otherwise find the developer's
+    own ``termapy_cfg/`` and write its log there.  Subprocesses inherit the
+    variable.
+    """
+    import os
+
+    from termapy.diag_log import DIAG_DIR_ENV
+
+    saved = os.environ.get(DIAG_DIR_ENV)
+    os.environ[DIAG_DIR_ENV] = str(tmp_path_factory.mktemp("diag_log"))
+    yield
+    if saved is None:
+        os.environ.pop(DIAG_DIR_ENV, None)
+    else:
+        os.environ[DIAG_DIR_ENV] = saved
+
+
 @pytest.fixture(autouse=True)
 def _isolate_variables():
     """Hand every test the ``$(NAME)`` stores as they were before it ran (registry ``variables-isolated``).

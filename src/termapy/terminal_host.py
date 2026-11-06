@@ -221,8 +221,13 @@ class TerminalHost:
         (:meth:`_on_app_prestart`), then the ``on_app_prestart`` hooks.
         Then ``on_app_start``, whose config load prints the load report --
         so what pre-start sets up, the variables and the session log, is
-        in place before anything else happens.
+        in place before anything else happens.  The diagnostic log opens
+        first of all, so a failure anywhere after it has a file to go to.
         """
+        from termapy import diag_log
+
+        # No config here: on_app_start's load, below, records it as its header.
+        diag_log.start(self.front_end)
         self._register_vars()
         self._leave_breadcrumb()
         self._on_app_prestart()

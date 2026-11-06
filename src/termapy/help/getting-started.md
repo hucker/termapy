@@ -144,8 +144,17 @@ termapy_cfg/
 │   └── plugin/                # per-config plugins
 ├── plugin/                    # global plugins (all configs)
 ├── dev/                       # parts loaded by every config
-└── lib/                       # shared part library (all configs)
+├── lib/                       # shared part library (all configs)
+└── log/                       # diagnostic log, one file per run
 ```
+
+The diagnostic log is termapy's record of itself, not of your session:
+when each run started and in which mode (TUI, CLI, vt100, MCP), config
+loads and the plugins they loaded, ports opening and closing, script
+and test runs, and the full traceback of anything that went wrong. An
+error message that ends `(traceback in <path>)` names the file. The
+newest 100 files are kept. `/log.diag` opens this run's file,
+`/log.diag.dump` prints it, and `/log.diag.list` lists them all.
 
 Only the `.cfg`, log and history are there to begin with. Each data
 folder appears the first time something is written into it, or when you

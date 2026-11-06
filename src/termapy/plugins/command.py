@@ -45,6 +45,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from termapy import diag_log
 from termapy.folders import FOLDER_NAMES
 from termapy.plugins.capabilities import CapabilitySet
 from termapy.plugins.params import (
@@ -1186,7 +1187,8 @@ def resolve_long_help(plugin: PluginInfo, ctx: PluginContext) -> str:
         try:
             hp = hp(ctx)
         except BoundaryException as e:
-            hp = f"(dynamic help failed: {e})"
+            diag_log.exception("dynamic help for %s raised", plugin.name)
+            hp = f"(dynamic help failed: {type(e).__name__}: {e}{diag_log.traceback_note()})"
     body = interpolate_help(hp or "", ctx.prefix)
     intro = intro_text(plugin.intro, ctx.prefix)
     return "\n\n".join(part for part in (intro, body) if part)

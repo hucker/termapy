@@ -16,6 +16,7 @@ from collections.abc import Callable
 from threading import Event
 from typing import TYPE_CHECKING, Any
 
+from termapy import diag_log
 from termapy.capture import CaptureEngine
 from termapy.defaults import DEFAULT_CMD_PREFIX, cfg_value, cmd_prefix
 from termapy.plugins import BoundaryException
@@ -425,7 +426,8 @@ class SerialEngine:
             try:
                 tx_observer(data)
             except BoundaryException:
-                pass
+                # Once per observer: one that raises does so on every write.
+                diag_log.exception("TX observer %r raised", tx_observer, once=("tx", tx_observer))
 
     def connect(self) -> bool:
         """Open the serial port and create SerialPort + SerialReader.
@@ -436,7 +438,12 @@ class SerialEngine:
         with self._connect_lock:
             if self.is_connected:
                 return True
-            return self._open()
+            opened = self._open()
+        if not opened:
+            # Here, not in ``_open``: the reconnect loop's retries fail every
+            # few seconds and are not news.
+            diag_log.warning("port open failed: %s", self.last_error)
+        return opened
 
     def _open(self) -> bool:
         """The body of ``connect``, also run by ``reconnect_loop``; the caller holds ``_connect_lock``.
@@ -494,6 +501,9 @@ class SerialEngine:
             rx_newline=cfg_value(self._cfg, "eol_rx"),
         )
         self._stop_event.clear()
+        diag_log.info(
+            "port open: %s at %s baud", self.open_device, getattr(self._port_obj, "baudrate", "?")
+        )
         return True
 
     def start_reader(self, **callbacks: Any) -> None:
@@ -549,6 +559,7 @@ class SerialEngine:
                 f"reader thread did not exit within {READER_JOIN_TIMEOUT_S}s "
                 f"-- a read_loop callback is blocking"
             )
+            diag_log.warning(self.last_error)
         return not alive
 
     def disconnect(self) -> None:
@@ -560,7 +571,11 @@ class SerialEngine:
         """
         import serial as _serial
 
+        # Read before stop_reader: the reader closes and disowns its port on the way out.
+        device = self.open_device
         self.stop_reader()
+        if device:
+            diag_log.info("port close: %s", device)
         if self._port_obj:
             # Close can raise if the device already vanished; nothing
             # to recover from during disconnect, just drop the handle.
@@ -633,7 +648,10 @@ class SerialEngine:
                             try:
                                 rx_observer(data)
                             except BoundaryException:
-                                pass
+                                # Once per observer: one that raises does so on every chunk.
+                                diag_log.exception(
+                                    "RX observer %r raised", rx_observer, once=("rx", rx_observer)
+                                )
 
                     # Resync the receive-newline mode from the (shared) cfg
                     # each chunk so /term.eol.rx takes effect live, without a
@@ -668,10 +686,13 @@ class SerialEngine:
                     # frontend showing Connected over a port the ``finally``
                     # below closes, so it is reported like a lost port
                     # (registry ``reader-failure-reported``).
+                    diag_log.exception("reader stopped by an internal error")
                     failure = (
-                        f"reader stopped by an internal error -- {exc.__class__.__name__}: {exc}"
+                        f"reader stopped by an internal error -- {exc.__class__.__name__}: "
+                        f"{exc}{diag_log.traceback_note()}"
                     )
                 if failure:
+                    diag_log.warning("reader stopped: %s", failure)
                     if on_error:
                         on_error(failure)
                     if on_disconnect:

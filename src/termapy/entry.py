@@ -608,6 +608,9 @@ def main() -> None:
             break
         prev_mode = mode
         mode = result
+        from termapy import diag_log
+
+        diag_log.info("frontend switch: %s -> %s", prev_mode, mode)
         args.cli = mode == "cli"
         args.run = None  # don't re-run a script on switch
         args.exec_cmd = None  # don't re-run an exec command on switch

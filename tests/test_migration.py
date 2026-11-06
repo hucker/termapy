@@ -219,7 +219,8 @@ def test_v5_to_v6_renames_config_keys():
     assert result["eol_markers"] is True, (
         "show_eol -> show_line_endings -> line_endings -> eol_markers"
     )
-    assert result["show_traceback"] is True, "exception_traceback renamed"
+    assert "show_traceback" not in result, "exception_traceback: renamed in v6, removed in v37"
+    assert "exception_traceback" not in result, "and its old name is gone with it"
     assert result["border_color"] == "green", "app_border_color renamed"
     assert result["cmd_prefix"] == "/", "repl_prefix renamed"
     assert result["config_read_only"] is True, "read_only renamed"
@@ -999,9 +1000,9 @@ def test_migration_steps_recorded_per_version():
     # Assert -- one step entry per migrator that ran, labeled
     # "v<from> -> v<to>: <description>".
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 19, (
-        f"v17 -> v36 covers nineteen migrators "
-        f"(17->18 ... 34->35, 35->36); "
+    assert len(steps) == 20, (
+        f"v17 -> v37 covers twenty migrators "
+        f"(17->18 ... 35->36, 36->37); "
         f"got {len(steps)}: {steps!r}"
     )
     expected_prefixes = (
@@ -1024,6 +1025,7 @@ def test_migration_steps_recorded_per_version():
         "v33 -> v34",
         "v34 -> v35",
         "v35 -> v36",
+        "v36 -> v37",
     )
     for step, prefix in zip(steps, expected_prefixes, strict=True):
         assert step.startswith(prefix), f"step {step!r} should start with {prefix!r}"
@@ -1041,7 +1043,7 @@ def test_migration_steps_include_docstring_summary():
 
     # Assert -- v20->v21 step shape (the one this test is about).
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 16, f"sixteen steps (v20->v21 ... v34->v35, v35->v36); got {steps!r}"
+    assert len(steps) == 17, f"seventeen steps (v20->v21 ... v35->v36, v36->v37); got {steps!r}"
     assert "record_enabled" in steps[0], (
         f"v20->v21 step line carries the migrator's docstring summary; got {steps[0]!r}"
     )
@@ -1085,8 +1087,9 @@ def test_a_saved_step_list_is_not_shown_again():
         "v33 -> v34",
         "v34 -> v35",
         "v35 -> v36",
+        "v36 -> v37",
     ]
-    assert actual == expected, "this run's eight steps, none of the saved ones"
+    assert actual == expected, "this run's nine steps, none of the saved ones"
     assert "_migration_steps" not in second, "a current config shows no steps, saved list or not"
 
 

@@ -53,7 +53,7 @@ src/termapy/
 │   │   ├── firmware.py     #     /firmware -- the device-side sources termapy ships, one command away
 │   │   ├── grep.py         #     search the scrollback for matching lines
 │   │   ├── help.py         #     forgiving /help with man-page detail view
-│   │   ├── log.py          #     `/log.*` -- session-log commands
+│   │   ├── log.py          #     `/log.*` -- session-log commands, and `/log.diag.*` for the diagnostic log
 │   │   ├── mcp.py          #     /mcp.* commands -- MCP catalog and status
 │   │   ├── mem.py          #     /mem.* -- device memory over the MEM spec or a template
 │   │   ├── os_cmd.py       #     run a shell command
@@ -164,6 +164,7 @@ src/termapy/
 ├── demo.py                 # (2132 lines) Simulated serial device for demo mode
 ├── demo_ndjson.py          #              Simulated NDJSON serial device for `DEMO_JSON` port name
 ├── demo_vt100.py           #              Simulated VT100/ANSI serial device for the `DEMO_VT100` port name
+├── diag_log.py             #              Diagnostic log: termapy's record of itself, one file per process, for when something goes wrong
 ├── entry.py                #              Termapy CLI entry point
 ├── env_flags.py            #              Security-policy env-var gates, read once at process start
 ├── folder_ops.py           #              Shared folder-operation handlers for per-config data folders
@@ -750,6 +751,7 @@ termapy_cfg/
 ├── plugin/               # user plugins (all configs)
 ├── dev/                  # device files loaded by every config
 ├── lib/                  # shared device library: vendor/type/family tree, NOTHING loads
+├── log/                  # diagnostic log, <stamp>-<pid>.log per process (diag_log)
 └── <name>/
     ├── <name>.cfg        # JSON config file
     ├── <name>.log        # session log
@@ -862,6 +864,45 @@ the same path as `SerialEngine.connect`, and the TUI finishes the connection
 it hands back; the throwaway probe open it replaced put an extra DTR edge on
 every reconnect.
 
+## Diagnostic log and exceptions
+
+When something goes wrong, the user sees one line and the diagnostic log keeps the rest
+(`diag_log`, decision 2026-11-05). The session log is the transcript, what was typed and
+what the device sent; the diagnostic log is termapy's record of itself: the process
+starting (pid, Python, platform, command line), each frontend and every switch between
+them, config loads and each file a load brings in (the load report's rows: folder plugins
+with their commands, symbol tables, device files, MCP's profile), each on-connect command
+with its config key (`config.on_connect_commands`, which every frontend calls before
+running them), ports opening and closing, the reader stopping, script and proto runs, and
+every exception a broad catch stops, with its traceback.
+
+```text
+handler raises KeyError('port')
+  -> dispatch's catch: diag_log.exception("command raised: thing ...")  -> traceback in log/
+  -> CmdResult.fail("Plugin error (thing): KeyError: 'port' (traceback in <path>)")
+```
+
+- **Where:** `log/<stamp>-<pid>.log` in the config root when it exists, else in the app
+  state folder; `TERMAPY_DIAG_DIR` overrides. A log never creates a config root
+  (registry `diag-log-folder`).
+- **One file per process** (registry `diag-log-per-process`): a TUI and MCP servers on one
+  project would otherwise share a file, which Windows' seek-then-write append and its
+  refusal to rename an open file make unsafe. `start` prunes to the newest 100
+  (`KEEP_FILES`; every one-shot and MCP start is a run), never a running process's file.
+  A file stops at 1 MB (`MAX_BYTES`), so the folder's worst case is 100 MB; a normal run's
+  file is a few KB.
+- **Opened once**, by `TerminalHost._fire_app_start` in every frontend and by the
+  headless proto run; never by a print-and-exit flag. `logging` itself loads at the first
+  record, so those flags never import it.
+- **Read with `/log.diag`** (`.show`, `.dump`, `.list`), in every frontend, the CLI
+  included: unlike the session log, every run has one.
+- **The rule** (registry `broad-catch-logged`): a broad `except` records its exception or
+  re-raises, and its user-facing line ends with `diag_log.traceback_note()`. A failure
+  that can repeat per chunk (an RX observer) records once.
+- **Not on the root logger:** the handler sits on `termapy` and the vendored libraries'
+  loggers (`pySerial`, `xmodem`, `ModemSocket`, their warnings only), so a host's logging
+  setup, the MCP SDK's `basicConfig`, is untouched.
+
 ## Built-in plugins
 
 Every built-in command is one file in `builtins/commands/`, listed with its
@@ -936,6 +977,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_detect_gui_apps.py             | Tests for `termapy.plugins.detect_gui_apps`                                                                                                        |
 | test_devices.py                     | Unit tests for device files: the format, instances, layering and merge                                                                             |
 | test_devices_svd.py                 | The CMSIS-SVD converter, against a trimmed fixture that has every shape                                                                            |
+| test_diag_log.py                    | Tests for termapy.diag_log: where the diagnostic log goes, what a session writes there, and what a broad catch records                             |
 | test_dialogs.py                     | Behavioral tests for the modal dialogs' result contracts                                                                                           |
 | test_dialogs_config_editor.py       | The ConfigEditor dialog: what it shows, how it validates, what it dismisses with                                                                   |
 | test_dialogs_quick_setup.py         | The QuickSetup dialog: name, baud entry, and the tuple it dismisses with                                                                           |

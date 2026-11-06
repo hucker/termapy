@@ -1043,3 +1043,59 @@ an agent can wipe a capture by reusing its name, though it still cannot delete o
 What did not move: `/os`, rename and delete, and writing into `plugin/` or `viz/`, whose Python
 runs at the next load. `/cfg.new` over an existing config still needs a person's yes, and
 `/firmware.copy`, `/board.firmware` and `/run.record` never overwrite for anyone.
+
+## 2026-11-05 — termapy keeps a diagnostic log, one file per process
+
+Chuck asked for a review of the glue (exceptions, logging, utilities, threading), which "just
+does whatever it needs to without a lot of thoughtful consideration." The census found about
+forty broad catches with three markers for a reviewed one (`BoundaryException`, a `# noqa:
+BLE001` that ruff does not check, none), no Python `logging` outside the vendored tree, and no
+traceback kept anywhere: dispatch reported a handler's `KeyError('port')` as `Plugin error (x):
+'port'`, and `show_traceback`, whose help promised stack traces, was read by nothing.
+
+**What it records.** Lifecycle and failures, not the transcript: the process (pid, Python,
+platform, command line), each frontend and each switch between TUI, CLI and vt100 ("a major
+thing", Chuck), each config load and every file it brought in (the load report's rows, so the
+folder plugins a session runs are named), each on-connect command with the config key it came
+from (so a script it starts reads as the config's), ports opening and closing, the reader
+stopping, script and proto runs, and every broad catch's traceback beside the command that
+raised. The TUI's `$(FRONT_END)` became `tui` (it was `textual`), so the log, the mode loop
+and the variable name the frontends `tui`, `cli` and `mcp` alike; `/mem`'s audit line had
+kept its own map from the old name. The session log stays the record of what was typed and what the device sent; copying
+it would make two files that drift and would put device data in a file meant for bug reports.
+Per-command tracing, if ever wanted, is an opt-in DEBUG level, not built.
+
+**Where.** The config root's `log/` (his choice: where he already looks), else `log/` in the app
+state folder, so a log never creates a `termapy_cfg/` for an MCP server or a quick session.
+`TERMAPY_DIAG_DIR` overrides both, which is how the test suite keeps its logs out of the
+checkout's own folder.
+
+**One file per process, not one shared file.** Several termapy processes run at once (the TUI
+and MCP servers on one project). Python's documentation says logging to one file from several
+processes is not supported: on Windows an append is a seek and then a write, so two processes
+overwrite each other's lines, and a file another process has open cannot be renamed, so
+rotation fails. A file per process needs no lock and no platform code. A start prunes the folder
+to the newest 100 and never deletes a file whose process is running; a file stops at 1 MB.
+The count is high because every run makes a file, a `-e` one-shot and an MCP start included,
+so twenty would let a script's loop push out the session worth reading. It is a constant, not
+a setting: the app folder's `config.json` has no keys yet, and the first should come from a
+need this number turned out not to meet. SQLite was considered and
+declined: it would solve the sharing, but the log would stop being readable with an editor or by
+an agent, and a live database in a synced folder (OneDrive) risks a corrupt copy.
+
+**How it is called.** `diag_log.info`, `.warning` and `.exception`, never `logging` directly:
+`logging` costs tens of milliseconds to import, so it loads at the first record and the
+print-and-exit flags never pay for it (registry `flag-paths-light`; `TestPathsStayLight` now
+checks it). The version is written before the first warning or error rather than at start,
+because reading it costs ~50 ms a CLI one-shot would otherwise pay on every run. The handler is
+on the `termapy` logger and the vendored libraries', never the root, so the MCP SDK's own
+`basicConfig` behaves as before.
+
+**The rule.** Every broad catch records its exception or re-raises (registry
+`broad-catch-logged`, an `ast` guard), and the line the user sees names the type and the log
+file. The guard checks what the body does rather than how the catch is spelled, so
+`BoundaryException` stays a published name but is no longer the only mark of a reviewed catch.
+Catches that only guessed at what could raise were narrowed instead (Rich's `ColorParseError`,
+Textual's `OptionDoesNotExist`, pyserial's modem-line reads, `parse_format_spec`'s
+`ValueError`), and a `try` around code that cannot fail was removed. `show_traceback` is removed
+(config v37): the traceback is always in the log.

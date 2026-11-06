@@ -19,7 +19,7 @@ from pathlib import Path
 from threading import Event
 from types import MappingProxyType
 
-from termapy import load_report
+from termapy import diag_log, load_report
 from termapy.defaults import (
     CFG_HELP,
     SESSION_FLAG_KEYS,
@@ -817,8 +817,14 @@ class ReplEngine:
             # whole reply is in hand, no reader/thread coupling).
             if cfg_value(self.cfg, "strip_device_echo") and text:
                 text = strip_leading_echo(text, command)
-        except (OSError, Exception) as exc:  # noqa: BLE001 -- serial boundary
+        # A failed exchange is the answer: a lost port (pyserial's
+        # SerialException is an OSError) or a character outside the encoding
+        # (a ValueError) is expected; anything else is a bug, traceback kept.
+        except (OSError, ValueError) as exc:
             error = f"Send error: {exc}"
+        except Exception as exc:  # serial boundary
+            diag_log.exception("request %r raised", command)
+            error = f"Send error: {type(exc).__name__}: {exc}{diag_log.traceback_note()}"
         elapsed = _time.perf_counter() - t0
 
         # Detect device-side errors via the configured regex.  ``error``
@@ -1104,7 +1110,10 @@ class ReplEngine:
             for spec in module.converters:
                 self.register_converter(spec)
             if module.error:
-                self.write(f"Plugin error: {module.file}: {module.error}", "red")
+                self.write(
+                    f"Plugin error: {module.file}: {module.error}{diag_log.traceback_note()}",
+                    "red",
+                )
             elif not module.exported:
                 self.write(
                     f"Skipped {module.file} - nothing exported (see plugin docs)",
@@ -1178,12 +1187,22 @@ class ReplEngine:
         if name in _PRUNE_LIFECYCLE:
             self._prune_data_folders()
         if name in _CORE_LIFECYCLE:
+            # The one header for a load's rows, the session's first one (no
+            # config included) and every later one alike.
+            diag_log.info("config load: %s", self.config_path or "(none)")
             self.load_report.replace(
                 [
                     *self.resolve_plugins(),
                     *symbols_session.autoload(self.ctx, self.config_path, self.global_root),
                 ]
             )
+            # Every file the load brought in, the folder plugins first: what
+            # code this session runs besides termapy's own.
+            for record in self.load_report.records:
+                if record["error"]:
+                    diag_log.warning("  load failed: %s", load_report.diag_line(record))
+                else:
+                    diag_log.info("  loaded %s", load_report.diag_line(record))
             self._show_load_report()
         for hook in self._lifecycle_hooks:
             if hook.name != name:
@@ -1195,7 +1214,11 @@ class ReplEngine:
             try:
                 hook.handler(self.ctx)
             except BoundaryException as e:
-                self.ctx.io.status(f"Lifecycle hook {hook.plugin}:{name} failed: {e}")
+                diag_log.exception("lifecycle hook %s:%s raised", hook.plugin, name)
+                self.ctx.io.status(
+                    f"Lifecycle hook {hook.plugin}:{name} failed: "
+                    f"{type(e).__name__}: {e}{diag_log.traceback_note()}"
+                )
 
     def run_directives(self, line: str) -> DirectiveResult:
         """Run all directives in load order against a raw input line.
@@ -1909,10 +1932,15 @@ class ReplEngine:
         # typed, and a replay runs each command once.
         if self._handler_depth == 0:
             for post_dispatch_observer in self._post_dispatch_observers:
+                # An observer is plugin code: a bug in one must not break dispatch.
                 try:
                     post_dispatch_observer(line, result)
-                except Exception as e:  # observer bug must not break dispatch
-                    self.write(f"Observer error: {e}", "red")
+                except BoundaryException as e:
+                    diag_log.exception("post-dispatch observer %r raised", post_dispatch_observer)
+                    self.write(
+                        f"Observer error: {type(e).__name__}: {e}{diag_log.traceback_note()}",
+                        "red",
+                    )
         return result
 
     def _dispatch_inner(self, line: str, *, report: bool = True) -> CmdResult:
@@ -2184,7 +2212,10 @@ class ReplEngine:
             # anything else.  BoundaryException signals the reviewed
             # broad catch; the failure ships back in a CmdResult.
             except BoundaryException as e:
-                result = CmdResult.fail(msg=f"Plugin error ({name}): {e}")
+                diag_log.exception("command raised: %s %s", name, args)
+                result = CmdResult.fail(
+                    msg=f"Plugin error ({name}): {type(e).__name__}: {e}{diag_log.traceback_note()}"
+                )
             finally:
                 self._handler_depth -= 1
                 self.ctx.active_flags = set()
@@ -2542,6 +2573,7 @@ class ReplEngine:
             sctx.prof_fh.write("Duration (sec),Command\n")
             w(f"── profile: {path.name} -> {sctx.prof_name} ──")
         sctx.script_t0 = time.perf_counter()
+        diag_log.info("script start: %s (depth %d)", path, self._script_depth)
         # Scripts execute arbitrary user commands; any command handler
         # or plugin invoked from the script can raise anything.
         # BoundaryException signals the reviewed broad catch so one
@@ -2550,8 +2582,12 @@ class ReplEngine:
         try:
             yield sctx
         except BoundaryException as e:
-            w(f"Script error: {e}", "red")
+            diag_log.exception("script raised: %s", path)
+            w(f"Script error: {type(e).__name__}: {e}{diag_log.traceback_note()}", "red")
         finally:
+            diag_log.info(
+                "script end: %s (%.1f s)", path.name, time.perf_counter() - sctx.script_t0
+            )
             self._script_depth -= 1
             if self._script_stack:
                 self._script_stack.pop()

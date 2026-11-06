@@ -19,6 +19,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from termapy import diag_log
+
 
 def request_response(
     *,
@@ -85,12 +87,20 @@ def request_response(
     t0 = time.perf_counter()
     try:
         send(command)
-    except (OSError, Exception) as exc:  # noqa: BLE001 -- serial boundary
+    except Exception as exc:  # serial boundary: a failed send is the answer
+        # A lost port (pyserial's SerialException is an OSError) or a
+        # character outside the encoding (a ValueError) is expected; anything
+        # else is a bug, and its traceback is kept.
+        if isinstance(exc, (OSError, ValueError)):
+            error = f"Send error: {exc}"
+        else:
+            diag_log.exception("request send raised: %r", command)
+            error = f"Send error: {type(exc).__name__}: {exc}{diag_log.traceback_note()}"
         return {
             "elapsed_s": time.perf_counter() - t0,
             "text": "",
             "lines": [],
-            "error": f"Send error: {exc}",
+            "error": error,
         }
 
     # Fire-and-forget: skip the wait window entirely.

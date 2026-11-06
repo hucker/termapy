@@ -37,7 +37,7 @@ from datetime import UTC
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from termapy import load_report
+from termapy import diag_log, load_report
 from termapy.capture import CaptureEngine, format_capture_result
 from termapy.config import (
     cfg_dir,
@@ -643,15 +643,18 @@ class MCPHost(TerminalHost):
         self._log_line(f"$ {self.prefix}profile.load {file}  (auto-load on connect)")
         try:
             result = self.repl.dispatch(f"profile.load {file}")
-        except Exception as exc:  # noqa: BLE001 -- boundary
-            self._log_line(f"! auto-load profile failed: {exc}")
+        except Exception as exc:  # boundary: an auto-load must not stop the connect
+            diag_log.exception("auto-load profile failed: %s", file)
+            self._log_line(f"! auto-load profile failed: {exc}{diag_log.traceback_note()}")
             return
         if not result.success:
+            diag_log.warning("auto-load profile failed: %s: %s", file, result.error)
             self._log_line(f"! auto-load profile: {result.error}")
             return
         record = load_report.profile_record(
             ctx.ns("active_profile"), file=file, path=str(candidate.resolve()), layer=layer
         )
+        diag_log.info("loaded %s", load_report.diag_line(record))
         self.repl.load_report.put(load_report.PROFILE, [record])
 
     def _on_connect_run_commands(self, ctx: PluginContext) -> None:
@@ -685,8 +688,9 @@ class MCPHost(TerminalHost):
                     serial_write=self._serial_write,
                     is_connected=lambda: self.engine.is_connected,
                 )
-            except Exception as exc:  # noqa: BLE001 -- boundary
-                self._log_line(f"! {label} ({cmd!r}) failed: {exc}")
+            except Exception as exc:  # boundary: one bad on-connect command must not stop the rest
+                diag_log.exception("%s %r raised", label, cmd)
+                self._log_line(f"! {label} ({cmd!r}) failed: {exc}{diag_log.traceback_note()}")
                 continue
             if not result.success:
                 self._log_line(f"! {label} ({cmd!r}): {result.error}")
@@ -722,8 +726,9 @@ class MCPHost(TerminalHost):
                     return bool(compiled.search(line))
 
                 match = ctx.wait_for_match(predicate, timeout=2.0)
-            except Exception as exc:  # noqa: BLE001 -- boundary thread
-                self._log_line(f"! banner watcher error: {exc}")
+            except Exception as exc:  # boundary: the watcher's thread must end quietly
+                diag_log.exception("banner watcher raised")
+                self._log_line(f"! banner watcher error: {exc}{diag_log.traceback_note()}")
                 return
             if match:
                 self._banner_seen = True
@@ -1609,8 +1614,9 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
     elif cfg["serial"]["port"]:
         try:
             host._connect()
-        except (OSError, Exception) as exc:  # noqa: BLE001 -- boundary
-            host._log_line(f"! Auto-connect failed: {exc}")
+        except Exception as exc:  # boundary: the server runs on without a port
+            diag_log.exception("MCP auto-connect raised")
+            host._log_line(f"! Auto-connect failed: {exc}{diag_log.traceback_note()}")
     host.start_note = start_note
     if start_note:
         print(f"termapy --mcp: {start_note}", file=sys.stderr)

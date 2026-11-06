@@ -1,12 +1,19 @@
-"""Built-in plugin: ``/log.*`` -- session-log commands.
+"""Built-in plugin: ``/log.*`` -- session-log commands, and ``/log.diag.*`` for the diagnostic log.
 
 * ``/log.delete``      -- delete the session log file
+* ``/log.diag``        -- open this run's diagnostic log (``/log.diag.show``)
+* ``/log.diag.dump``   -- print this run's diagnostic log (all or an N-line slice)
+* ``/log.diag.list``   -- the diagnostic logs in ``log/``, newest first
 * ``/log.dump``        -- print the log to the terminal (all or an N-line slice)
 * ``/log.fingerprint`` -- write a provenance fingerprint to the log
 * ``/log.list``        -- the log as a one-row file list (``/help log`` ends with it)
 * ``/log.show``        -- open the log in the system viewer
 * ``/log.start``       -- write the log again after ``/log.stop``
 * ``/log.stop``        -- stop writing the log; the file stays
+
+The diagnostic log is termapy's record of itself (``diag_log``): one file
+per run, in every frontend, the CLI included, so ``/log.diag.*`` needs no
+session log.
 
 "The session log" is the frontend's own: the TUI's ``<cfg>.log`` (or
 ``log_file``), the MCP server's ``mcp/session.log``, and none in the CLI.
@@ -25,10 +32,11 @@ import socket
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy import diag_log
 from termapy.config import open_with_system
 from termapy.defaults import cfg_value
 from termapy.folder_ops import dump_text_slice, file_table
-from termapy.folders import is_inside
+from termapy.folders import default_file_name, inside, is_inside
 from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
@@ -38,6 +46,64 @@ if TYPE_CHECKING:
 # ── Handlers ─────────────────────────────────────────────────────────────────
 # A handler's docstring is its developer help: /help.dev <command> prints it
 # and developer /search indexes it, so keep it true (registry handler-docstring).
+
+
+# ── /log.diag ─────────────────────────────────────────────────────────────────
+
+_NO_DIAG_LOG = "No diagnostic log for this run."
+
+
+def _handler_diag_dump(ctx: PluginContext, args: str) -> CmdResult:
+    """Print this run's diagnostic log: all, last N (N>0), or first N (N<0) lines."""
+    path = diag_log.log_path()
+    if path is None:
+        return CmdResult.fail(msg=_NO_DIAG_LOG)
+    return dump_text_slice(ctx, path, args)
+
+
+def _handler_diag_list(ctx: PluginContext, args: str) -> CmdResult:
+    """The diagnostic logs in log/, newest first; a click on a name opens it."""
+    return file_table(
+        str(diag_log.log_folder()),
+        "log",
+        diag_log.log_files(),
+        run=lambda record: f"log.diag.show {record['name']}",
+    )
+
+
+def _handler_diag_show(ctx: PluginContext, args: str) -> CmdResult:
+    """Open this run's diagnostic log, or one /log.diag.list names, in the system viewer."""
+    name = args.strip()
+    if name:
+        folder = diag_log.log_folder()
+        under = inside(folder, name)
+        if under is None:
+            return CmdResult.fail(msg=f"Invalid log name: {name}")
+        path = default_file_name(under, diag_log.LOG_SUFFIX)
+    else:
+        path = diag_log.log_path()
+        if path is None:
+            return CmdResult.fail(msg=_NO_DIAG_LOG)
+    if not path.is_file():
+        return CmdResult.fail(msg=f"Log file not found: {path}")
+    open_with_system(str(path))
+    ctx.io.result(f"  Opening {path.name}")
+    return CmdResult.ok(value=path)
+
+
+_DIAG_INTRO = (
+    "termapy's own record of each run: its mode, config loads and the plugins they "
+    "loaded, ports, scripts and tests, and the traceback of anything that went wrong."
+)
+_DIAG_LONG_HELP = (
+    "One file per run, <date>_<time>-<pid>.log, in log/ beside the configs\n"
+    "(the app state folder's log/ when there is no termapy_cfg/); the newest\n"
+    f"{diag_log.KEEP_FILES} are kept.  An error that ends '(traceback in <path>)' names the file.\n"
+    "It holds no device traffic: that is the session log, {prefix}log."
+)
+_DIAG_DUMP_HELP = "Print this run's diagnostic log; N for the last N lines, -N for the first N."
+_DIAG_LIST_HELP = "List the diagnostic logs, newest first."
+_DIAG_SHOW_HELP = "Open this run's diagnostic log, or a listed one, in the system viewer."
 
 
 # ── /log.dump ─────────────────────────────────────────────────────────────────
@@ -140,18 +206,8 @@ def _serial_snapshot(ctx: PluginContext) -> list[str]:
     that doesn't expose every field, or might be a DEMO FakeSerial.
     """
     lines: list[str] = []
-    ser = None
-    try:
-        ser = ctx.internal.port()
-    except Exception:
-        ser = None
-
-    connected = False
-    try:
-        connected = bool(ctx.serial.is_connected())
-    except Exception:
-        pass
-
+    ser = ctx.internal.port()
+    connected = bool(ctx.serial.is_connected())
     lines.append(_kv("  Connected", connected))
     if ser is None:
         lines.append(_kv("  (port handle", "not available)"))
@@ -175,7 +231,9 @@ def _serial_snapshot(ctx: PluginContext) -> list[str]:
         lines.append(_kv(f"  {label}", val))
 
     # Control-line state.  Each may raise if the port is in a weird
-    # state; catch narrowly and mark unavailable.
+    # state: closed or lost (pyserial's SerialException is an OSError), a
+    # URL handler without modem lines (NotImplementedError).  Mark it
+    # unavailable.
     for label, attr in [
         ("DTR", "dtr"),
         ("RTS", "rts"),
@@ -186,7 +244,7 @@ def _serial_snapshot(ctx: PluginContext) -> list[str]:
     ]:
         try:
             lines.append(_kv(f"  {label}", int(bool(getattr(ser, attr)))))
-        except Exception:
+        except (OSError, ValueError, NotImplementedError, AttributeError):
             lines.append(_kv(f"  {label}", "(unavailable)"))
 
     return lines
@@ -212,11 +270,7 @@ def _config_snapshot(ctx: PluginContext) -> list[str]:
 def _runtime_flags_snapshot(ctx: PluginContext) -> list[str]:
     """Current toggles (echo, verbose, hex, etc.)."""
     lines: list[str] = []
-    flags = {}
-    try:
-        flags = dict(ctx.ns("flags"))
-    except Exception:
-        pass
+    flags = dict(ctx.ns("flags"))
     for k in sorted(flags):
         lines.append(_kv(f"  {k}", flags[k]))
     if not flags:
@@ -395,7 +449,8 @@ _DELETE_LONG_HELP = (
     "Removes the session log from disk.  The TUI stops the log first,\n"
     "and it stays stopped until {prefix}log.start begins a new file.  Not\n"
     "over MCP: an agent cannot erase the log of what it did.  The CLI\n"
-    "keeps no session log, so it has no {prefix}log commands."
+    "keeps no session log, so of the {prefix}log commands it has only\n"
+    "{prefix}log.diag."
 )
 
 
@@ -406,7 +461,7 @@ COMMAND = Command(
     help="Session log: start, stop, print, fingerprint, or open it.",
     intro=(
         "A transcript of this session: the commands, the device's replies and what "
-        "termapy said, so you can see later what happened."
+        "termapy said.  {prefix}log.diag is termapy's own record of each run, with tracebacks."
     ),
     # Bare /log does what the Log button does: open the session log.
     bare_sub="show",
@@ -424,6 +479,35 @@ COMMAND = Command(
             handler=_handler_delete,
             needs=CapabilitySet(session_log=True, config_loaded=True, interactive=True),
             safety="destructive",
+        ),
+        "diag": Command(
+            help="The diagnostic log: termapy's record of each run, with tracebacks.",
+            intro=_DIAG_INTRO,
+            long_help=_DIAG_LONG_HELP,
+            # Bare opens it, as bare /log opens the session log.
+            bare_sub="show",
+            help_list="list",
+            sub_commands={
+                "dump": Command(
+                    args="{N}",
+                    help=_DIAG_DUMP_HELP,
+                    handler=_handler_diag_dump,
+                    shows=True,
+                ),
+                "list": Command(
+                    help=_DIAG_LIST_HELP,
+                    handler=_handler_diag_list,
+                    shows=True,
+                    state=True,
+                ),
+                "show": Command(
+                    args="{name}",
+                    help=_DIAG_SHOW_HELP,
+                    handler=_handler_diag_show,
+                    shows=True,
+                    needs=CapabilitySet.GUI_APPS,
+                ),
+            },
         ),
         "dump": Command(
             args="{N}",

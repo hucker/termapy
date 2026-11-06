@@ -249,7 +249,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-      "config_version": 36,
+      "config_version": 37,
       "title": "Demo Device",
       "border_color": "",
       "serial": {
@@ -310,7 +310,6 @@ demo> /cfg.dump
       "cmd_prefix": "/",
       "cli_prompt": "$(CFG)> ",
       "cli_completion": true,
-      "show_traceback": true,
       "cfg_enabled": true,
       "run_enabled": true,
       "proto_enabled": true,
@@ -1945,6 +1944,8 @@ demo> /log.start
   Error: /log.start requires: session_log (not available in this environment)
 demo> /log.stop
   Error: /log.stop requires: session_log (not available in this environment)
+demo> /log.diag.show ../demo/demo.cfg
+  Error: Invalid log name: ../demo/demo.cfg
 demo> /grep OK
   Error: Grep not available: no scrollback in CLI mode
 demo> /find OK

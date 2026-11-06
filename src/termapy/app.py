@@ -13,7 +13,6 @@ import re
 import sys
 import threading
 import time
-import traceback
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from datetime import datetime
@@ -35,7 +34,7 @@ from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widgets import Button, Input, Label, OptionList, RichLog, Static
 
-from termapy import port_control
+from termapy import diag_log, port_control
 from termapy.capture import (
     CaptureEngine,
     CaptureResult,
@@ -235,7 +234,7 @@ class SerialTerminal(TerminalHost, App):
             self.done = done
 
     TITLE = "termapy"
-    front_end = "textual"
+    front_end = "tui"
 
     CSS = """
     Tooltip {
@@ -1809,21 +1808,16 @@ class SerialTerminal(TerminalHost, App):
             self._log_lines("#", markup_to_plain(text).splitlines() or [""])
 
     def _report_exception(self, e: Exception) -> None:
-        """Write exception details to the terminal output in red.
+        """Show an exception an event handler stopped: one red line, the traceback in the diagnostic log.
 
-        Displays the exception type, message, filename, and line number
-        so that silently swallowed errors become visible during development.
+        Call it in the ``except`` block, so the log records the traceback
+        being handled.
 
         Args:
             e: The caught exception to report.
         """
-        tb = traceback.extract_tb(e.__traceback__)
-        if tb:
-            last = tb[-1]
-            location = f"{last.filename}:{last.lineno}"
-        else:
-            location = "unknown"
-        self._status(f"Exception: {type(e).__name__}: {e} ({location})", "red")
+        diag_log.exception("TUI event handler raised")
+        self._status(f"Exception: {type(e).__name__}: {e}{diag_log.traceback_note()}", "red")
 
     def _disconnect(self) -> None:
         if self._capture.active:
@@ -1853,7 +1847,7 @@ class SerialTerminal(TerminalHost, App):
             except SHUTDOWN_RACE:
                 pass  # widgets gone during shutdown
             self._sync_hw_buttons(reset=True)
-        except Exception as e:  # noqa: BLE001 -- reported via _report_exception
+        except BoundaryException as e:
             self._report_exception(e)
 
     def _sync_hw_visibility(self) -> None:
@@ -3088,8 +3082,9 @@ class SerialTerminal(TerminalHost, App):
                 from termapy.builtins.commands.find import dismiss
 
                 dismiss(self.repl.ctx)
-            except Exception:
+            except BoundaryException:
                 # Defensive: a broken plugin must not block live data.
+                diag_log.exception("find.dismiss raised", once="find.dismiss")
                 self._find_overlay_active = False
             finally:
                 self._find_restore_scroll_on_close = True
@@ -4249,13 +4244,18 @@ def _run_proto_headless(args) -> None:
     # arbitrary command handlers and serial I/O; ValueError comes from
     # the parser specifically, everything else from the test session
     # is a trust-boundary catch.
+    diag_log.start("proto", str(config_path))
     try:
         results = run_proto_tests(pro_path, cfg, template=template)
     except ValueError as e:
         print(f"termapy: {e}", file=sys.stderr)
         sys.exit(2)
     except BoundaryException as e:
-        print(f"termapy: test error: {e}", file=sys.stderr)
+        diag_log.exception("headless proto run raised: %s", pro_path)
+        print(
+            f"termapy: test error: {type(e).__name__}: {e}{diag_log.traceback_note()}",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     # Print summary

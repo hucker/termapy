@@ -479,6 +479,8 @@ The narrative — the thread diagram, the two hand-off mechanisms and why each r
 - Non-critical file I/O (history, logs) → swallow `OSError`
 - Plugin handlers called inside `dispatch()` try/except — no unguarded calls
 - Never crash to stack trace — use `_status()` for errors
+- **A broad catch records its exception** (registry `broad-catch-logged`, decision 2026-11-05): a bare, `Exception`, `BaseException` or `BoundaryException` `except` calls `diag_log.exception(...)` (or `.warning`) or re-raises, and the user's one line carries `{type(e).__name__}: {e}{diag_log.traceback_note()}`, which names the log file. A catch that can fire per chunk or per refresh passes `once=`. Narrow a catch to what the code raises rather than log a guess. **Enforced by `tests/test_architecture.py`**; `ALLOWED_SILENT_BROAD_CATCH` is empty and only shrinks.
+- **The diagnostic log is `diag_log`, never `logging` directly** (registries `diag-log-folder`, `diag-log-per-process`): one file per process in the config root's `log/` (else the app state folder's), lifecycle events and tracebacks, never device traffic, which is the session log's. `logging` loads at the first record, so no print-and-exit flag imports it (`TestPathsStayLight`).
 
 ## Precommit
 

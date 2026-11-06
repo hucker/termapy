@@ -235,6 +235,18 @@ COLUMNS: Final[tuple[Column, ...]] = (
 )
 
 
+def diag_line(record: Record) -> str:
+    """A row as one line of the diagnostic log, the table's facts in its order.
+
+    ``plugin traffic (global plugin/traffic.py): 2, commands traffic, traffic.reset``;
+    a failed row ends with its ``error:`` note.  The callers that add rows
+    write it (``diag_log``), so this module stays free of I/O.
+    """
+    location = f"{record['layer']} {record['file']}".strip()
+    count = "" if record["error"] else f"{record['count']}, "
+    return f"{record['kind']} {record['name']} ({location}): {count}{_note(record)}".rstrip(", ")
+
+
 def result(records: list[Record]) -> CmdResult:
     """The report as a list answer: what startup prints and ``/cfg.loaded`` returns.
 

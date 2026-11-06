@@ -9,6 +9,7 @@ from textual import events
 from textual.strip import Strip
 from textual.widgets import SelectionList
 from textual.widgets._toggle_button import ToggleButton
+from textual.widgets.option_list import OptionDoesNotExist
 
 SelectionType = TypeVar("SelectionType")
 
@@ -86,7 +87,7 @@ class StrongSelectionList(SelectionList[SelectionType], Generic[SelectionType]):
         _, scroll_y = self.scroll_offset
         try:
             selection = self.get_option_at_index(scroll_y + y)
-        except Exception:
+        except OptionDoesNotExist:
             return strip
         glyph = "X" if selection.value in self._selected else " "
         if segments[1].text == glyph:

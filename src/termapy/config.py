@@ -17,6 +17,7 @@ from typing import Any, NamedTuple
 
 import serial
 
+from termapy import diag_log
 from termapy.defaults import (
     CFG_CHOICES,
     CFG_KEYS,
@@ -713,7 +714,10 @@ def hardware_signals(port_obj: object) -> str:
         ]:
             parts.append(f"{name}={int(getattr(port_obj, attr, 0))}")
         return " ".join(parts)
-    except (OSError, Exception):  # noqa: BLE001 -- boundary: any backend's modem-line read; the banner omits the signals
+    # A backend that cannot read a modem line: a closed or lost port
+    # (pyserial's SerialException is an OSError), or a URL handler without
+    # them.  The banner omits the signals.
+    except (OSError, ValueError, NotImplementedError):
         return ""
 
 
@@ -1281,12 +1285,17 @@ def on_connect_commands(cfg: Mapping[str, Any], mode_key: str) -> list[tuple[str
     field runs.  A field holding a line break is skipped, never sent:
     ``validate_config`` names it, and a line break must not reach a device
     inside what is sent as one line.
+
+    Every frontend calls this right before it runs what it returns, so each
+    command is recorded here in the diagnostic log with the key it came
+    from: a script it starts reads as the config's, not the user's.
     """
     commands: list[tuple[str, str]] = []
     for key in ("on_connect_cmd", mode_key):
         command = str(cfg.get(key) or "").strip()
         if command and len(command.splitlines()) == 1:
             commands.append((key, command))
+            diag_log.info("on connect: %s runs %s", key, command)
     return commands
 
 
@@ -1408,7 +1417,9 @@ def config_summary(path: Path) -> dict[str, Any]:
     try:
         with open(path) as f:
             cfg = migrate_config(json.load(f))
-    except Exception:  # noqa: BLE001 - see docstring
+    except Exception:  # see the docstring: a broken cfg still gets its row
+        # Once per file: a listing reads every config each time it refreshes.
+        diag_log.exception("config summary unreadable: %s", path, once=("summary", str(path)))
         return {"port": "", "baud_rate": None, "title": ""}
     serial_cfg = cfg.get("serial", {})
     title = str(cfg.get("title") or "")

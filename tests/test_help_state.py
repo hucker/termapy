@@ -15,6 +15,7 @@ import json
 
 import pytest
 
+from termapy import diag_log
 from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
 from termapy.plugins import CmdResult, Column, Command, PluginInfo
@@ -231,7 +232,10 @@ class TestThePage:
         page = _page(cli, capsys, "/help thing --verbose")
 
         # Assert
-        assert _state_lines(page) == ["  Plugin error (thing): boom"]
+        # The log's path is long and wraps, so compare without whitespace.
+        actual = "".join(_state_lines(page)).replace(" ", "")
+        expected = f"Plugin error (thing): RuntimeError: boom{diag_log.traceback_note()}"
+        assert actual == expected.replace(" ", ""), "the failure names its type and its log"
         assert "AVAILABLE" in page, "the page goes on after a failed read"
 
     def test_brackets_in_a_value_stay_literal(self, cli, capsys):

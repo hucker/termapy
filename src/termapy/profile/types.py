@@ -268,7 +268,7 @@ def _build_typedef(name: str, raw: dict) -> TypeDef:
             from termapy.protocol import parse_format_spec
 
             columns = tuple(parse_format_spec(spec))
-        except Exception as exc:  # noqa: BLE001 -- protocol boundary
+        except ValueError as exc:  # parse_format_spec's documented failure: a malformed spec
             return TypeDef(
                 name=name,
                 kind=kind,

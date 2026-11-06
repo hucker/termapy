@@ -326,6 +326,7 @@ Everything termapy creates (configs, scripts, test files, plugins, logs) lives i
 ```text
 termapy_cfg/
 ├── plugin/                             # global plugins (all configs), once you add one
+├── log/                                # diagnostic log, one file per run: what went wrong, with tracebacks
 └── demo/
     ├── demo.cfg                        # config file
     ├── demo_legacy.profile.json        # /mem.* through the device's own `mem` grammar
@@ -557,7 +558,7 @@ Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in th
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 36,
+    "config_version": 37,
     "title": "",
     "border_color": "",
     "serial": {
@@ -618,7 +619,6 @@ Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in th
     "cmd_prefix": "/",
     "cli_prompt": "$(CFG)> ",
     "cli_completion": true,
-    "show_traceback": false,
     "cfg_enabled": true,
     "run_enabled": true,
     "proto_enabled": true,

@@ -289,6 +289,8 @@ MEM.M 0x1000 F0 05 --json
 /help ss
 /help proto
 /help plugin
+# The demo's own RX/TX tap, which --demo installs in the demo's plugin/
+/help traffic
 /help sym
 /help mem
 /help run
@@ -409,6 +411,8 @@ MEM.R 0x1000 2 --json
 /term.send_bare_enter
 /term.control_keys
 /term.timestamps
+# The live counts are a TUI display: the CLI refuses the toggle by capability
+/term.traffic
 /term.color
 /term.color on
 /term.color off

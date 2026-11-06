@@ -62,6 +62,9 @@ class SerialHandle:
     drain: Callable = lambda: 0
     wait_for_data: Callable = lambda timeout_ms=250: False
     wait_idle: Callable = lambda timeout_ms=400: None
+    # byte_counts() -> (tx, rx): bytes sent and received since the port last
+    # opened, what /term.info and the TUI's /term.traffic display show.
+    byte_counts: Callable[[], tuple[int, int]] = lambda: (0, 0)
     # queue.Queue[bytes] - raw RX for protocol handlers.  Bounded: when full
     # the reader drops the oldest chunk, so drain() it inside io() and then
     # read as bytes arrive rather than letting it fill.

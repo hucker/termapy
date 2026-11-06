@@ -515,6 +515,27 @@ class TestDemoConfigSetup:
         assert (tmp_path / "demo" / "plugin" / "probe.py").exists(), "demo plugin copied"
         assert (tmp_path / "demo" / "dev" / "console.device.json").exists(), "device file copied"
 
+    def test_setup_ships_every_demo_plugin(self, tmp_path) -> None:
+        """Every plugin in the demo package lands in the demo's plugin/: traffic.py was left out of the copy list for months."""
+        import importlib.resources
+
+        from termapy.config import setup_demo_config
+
+        # Arrange
+        package = importlib.resources.files("termapy.builtins.demo") / "plugin"
+        expected = sorted(
+            entry.name
+            for entry in package.iterdir()
+            if entry.name.endswith(".py") and not entry.name.startswith("_")
+        )
+
+        # Act
+        config_path = setup_demo_config(tmp_path)
+
+        # Assert
+        actual = sorted(path.name for path in (config_path.parent / "plugin").glob("*.py"))
+        assert actual == expected, "a demo plugin in the package is missing from the install list"
+
     def test_setup_creates_only_the_folders_it_populates(self, tmp_path) -> None:
         """``--demo`` ships run/ proto/ plugin/ sym/ dev/; the rest appear on first use."""
         from termapy.config import setup_demo_config

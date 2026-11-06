@@ -275,6 +275,12 @@ class SerialEngine:
         self._serial_claimed: bool = False
         self._rx_observers: list[Callable[[bytes], None]] = []
         self._tx_observers: list[Callable[[bytes], None]] = []
+        # Bytes each way since the port last opened, what /term.traffic
+        # shows.  RX is added on the reader thread, TX on whichever worker
+        # wrote, so the pair moves under one lock.
+        self._traffic_lock = threading.Lock()
+        self._tx_bytes = 0
+        self._rx_bytes = 0
         self.last_error: str = ""
         # Makes check-and-open atomic: a /port.connect worker and an
         # auto-reconnect run can open at once, and POSIX lets both succeed,
@@ -414,14 +420,21 @@ class SerialEngine:
         except ValueError:
             pass
 
+    def byte_counts(self) -> tuple[int, int]:
+        """Bytes sent and received since the port last opened, as ``(tx, rx)``."""
+        with self._traffic_lock:
+            return self._tx_bytes, self._rx_bytes
+
     def notify_tx(self, data: bytes) -> None:
-        """Fire TX observers. Called by the app/cli write path.
+        """Count the bytes written and fire TX observers. Called by the app/cli write path.
 
         Observers are registered by plugins / callers and can raise
         anything -- BoundaryException signals the reviewed broad
         catch so one bad observer can't break the others or fail
         the write.
         """
+        with self._traffic_lock:
+            self._tx_bytes += len(data)
         for tx_observer in self._tx_observers:
             try:
                 tx_observer(data)
@@ -484,6 +497,9 @@ class SerialEngine:
             return False
 
         self._last_rx_monotonic = time.monotonic()
+        with self._traffic_lock:
+            self._tx_bytes = 0
+            self._rx_bytes = 0
         self._serial_port = SerialPort(
             port=self._port_obj,
             rx_queue=self._rx_queue,
@@ -639,6 +655,8 @@ class SerialEngine:
                         # sample taken mid-response reads 0 and looks like
                         # silence.
                         self._last_rx_monotonic = time.monotonic()
+                        with self._traffic_lock:
+                            self._rx_bytes += len(data)
                         self._queue_rx(data)
                         for rx_observer in self._rx_observers:
                             # RX observers are third-party callbacks;

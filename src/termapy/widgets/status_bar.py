@@ -24,7 +24,8 @@ class StatusBar(Label):
       ``timeout`` seconds.  A newer message resets the timer; empty text
       clears immediately.
     - ``set_progress(text)``  -- persistent: shows text with no auto-clear
-      (empty hides).  Used by the capture/progress overlays.
+      (empty hides).  Used by the capture/progress overlays, and by the
+      second instance (``#traffic-bar``) that shows ``/term.traffic``'s counts.
     - ``clear_status()``      -- hide immediately.
 
     Visibility is the ``visible`` CSS class, so the label occupies no space

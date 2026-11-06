@@ -129,6 +129,7 @@ from termapy.scripting import (  # noqa: E402
     filename_timestamp,
     format_age,
     format_duration,
+    format_size,
     format_timestamp,
     render_progress_bar,
     split_cmd_lines,
@@ -975,6 +976,9 @@ class SerialTerminal(TerminalHost, App):
                     close_btn.tooltip = Text(f"Close find ({cmd_prefix(self.cfg)}find.clear)")
                     close_btn.display = False
                     yield close_btn
+                # /term.traffic's live counts: a label of their own, so status
+                # messages and progress text never write over them.
+                yield StatusBar(id="traffic-bar")
                 yield StatusBar(id="status-bar")
 
                 def _btn(label, id, tip, variant="default", display=True):
@@ -1055,6 +1059,7 @@ class SerialTerminal(TerminalHost, App):
         self._rebuild_suggester_commands()
         self._run_startup()
         self._check_for_updates()
+        self.set_interval(0.5, self._refresh_traffic)
 
     def _maybe_show_vscode_tip(self) -> None:
         """Inform Windows/Linux VS Code users about the Alt-key fallbacks.
@@ -1562,7 +1567,7 @@ class SerialTerminal(TerminalHost, App):
                 pass
             return
         try:
-            self.query_one(StatusBar).show(text, timeout)
+            self.query_one("#status-bar", StatusBar).show(text, timeout)
         except SHUTDOWN_RACE:
             pass  # widget gone during shutdown
 
@@ -3808,7 +3813,26 @@ class SerialTerminal(TerminalHost, App):
         from background threads, the status label does.
         """
         try:
-            self.query_one(StatusBar).set_progress(text)
+            self.query_one("#status-bar", StatusBar).set_progress(text)
+        except SHUTDOWN_RACE:
+            pass
+
+    def _refresh_traffic(self) -> None:
+        """Show the engine's TX/RX counts while ``/term.traffic`` is on, hide them when off (main thread).
+
+        Runs twice a second from ``on_mount``.  It reads the flag each tick,
+        so a config load, which turns the flag off, hides the counts with no
+        hook.
+        """
+        ctx = getattr(getattr(self, "repl", None), "ctx", None)
+        on = ctx is not None and bool(ctx.ns("flags").get("traffic"))
+        if on:
+            tx, rx = ctx.serial.byte_counts()
+            text = f"TX {format_size(tx)}  RX {format_size(rx)}"
+        else:
+            text = ""
+        try:
+            self.query_one("#traffic-bar", StatusBar).set_progress(text)
         except SHUTDOWN_RACE:
             pass
 

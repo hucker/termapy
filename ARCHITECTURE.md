@@ -1108,6 +1108,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_synopsis_validation.py         | Synopsis grammar validation: load-time chokepoint + registry conformance                                                                           |
 | test_term_request.py                | Tests for /term.request toggle and the request_mode dispatcher fallthrough                                                                         |
 | test_term_send.py                   | Tests for /term.send <text> and dispatch_full's rewrite of a bare device line to it                                                                |
+| test_term_traffic.py                | /term.traffic: the engine's TX/RX byte counts, the TUI-only toggle that shows them, and /term.info's copy                                          |
 | test_terminal_host.py               | Unit tests for TerminalHost - context builders, serial I/O, hooks                                                                                  |
 | test_title_bar.py                   | Regression tests for title_bar.update_port with a read-only cfg                                                                                    |
 | test_title_tooltip.py               | Tests for the title-bar tooltip formatters (pure string logic)                                                                                     |

@@ -228,7 +228,7 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SEE ALSO
-  /term.color, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.info, /term.json, /term.line_endings, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.usb_db, /term.verbose, /term
+  /term.color, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.info, /term.json, /term.line_endings, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.traffic, /term.usb_db, /term.verbose, /term
 demo> /cfg.auto custom_buttons_side Right
   custom_buttons_side = 'right'  (session)
 demo> /cfg custom_buttons_side
@@ -352,12 +352,13 @@ demo> /cfg.dump
 demo> /print === section: config loaded ===
   === section: config loaded ===
 demo> /cfg.loaded
-  Loaded - 5 files
+  Loaded - 6 files
   KIND     NAME                          LAYER  FILE                     COUNT  NOTE
   -- -- -- -- -- --
   plugin   cmd                           demo   plugin/cmd.py                1  commands crcsend
   plugin   probe                         demo   plugin/probe.py              1  commands probe
   plugin   temp_plot                     demo   plugin/temp_plot.py          1  commands temp_plot
+  plugin   traffic                       demo   plugin/traffic.py            5  commands traffic, traffic.count, traffic.hexdump, traffic.rate, traffic.snoop
   symbols  demo firmware (hand-written)  demo   sym/demo.symbols.json       17  12 typed
   device   demo_uart                     demo   dev/console.device.json      2
 demo> /help /cfg.loaded
@@ -365,12 +366,13 @@ NAME
   /cfg.loaded - Show what the config load loaded: plugins, symbols, devices.
 
 CURRENT STATE
-  Loaded - 5 files
+  Loaded - 6 files
   KIND     NAME                          LAYER  FILE                     COUNT  NOTE
   -- -- -- -- -- --
   plugin   cmd                           demo   plugin/cmd.py                1  commands crcsend
   plugin   probe                         demo   plugin/probe.py              1  commands probe
   plugin   temp_plot                     demo   plugin/temp_plot.py          1  commands temp_plot
+  plugin   traffic                       demo   plugin/traffic.py            5  commands traffic, traffic.count, traffic.hexdump, traffic.rate, traffic.snoop
   symbols  demo firmware (hand-written)  demo   sym/demo.symbols.json       17  12 typed
   device   demo_uart                     demo   dev/console.device.json      2
 
@@ -1131,6 +1133,39 @@ SUBCOMMANDS
   /plugin.list       List files in plugin/, newest first, with size and age.
   /plugin.rename     Rename a file in plugin/ (extension kept; never overwrites).
   /plugin.show       Open the newest (or named) file in plugin/ with the system viewer.
+demo> /help traffic
+NAME
+  /traffic - Inspect serial-port byte traffic (count, hexdump, rate, snoop).
+
+DESCRIPTION
+  Inspect serial-port traffic without disrupting normal operation.  Every
+  subcommand uses RX/TX observers (passive byte taps) so the device's
+  output continues to render in scrollback while traffic is also being
+  measured / logged / pattern-matched in the background.
+
+    /traffic.count <cmd>            run cmd; report TX/RX bytes
+    /traffic.hexdump <file> [dur]   tee hex to file for a duration
+    /traffic.rate [duration]        bytes/sec rate over a window
+    /traffic.snoop <hex> [timeout]  wait for byte pattern in RX
+
+  Examples:
+
+    /traffic.count AT+INFO            - bytes used by one command
+    /traffic.hexdump bug.log 30s      - capture 30s of wire-trace
+    /traffic.rate 10s                 - 10s bytes/sec sample
+    /traffic.snoop FF55 timeout=2s    - wait for sync sequence
+
+  This is a demo plugin -- read the source for the canonical pattern
+  (``with ctx.serial.rx_observer(cb): ...`` / ``with ctx.serial.tx_observer(cb): ...``)
+  that any new RX/TX-watching plugin should follow.
+
+SUBCOMMANDS
+  /traffic.count      Run a command and report TX/RX bytes during it.
+  /traffic.hexdump    Tee timestamped hex of TX/RX traffic to a file.
+  /traffic.rate       Measure TX/RX bytes/sec over a window (default 5s).
+  /traffic.snoop      Block until a byte pattern (hex or "text") appears in the RX stream.
+
+  (source: demo)
 demo> /help sym
 NAME
   /sym - Symbol table: name -> address, or address -> name+offset.
@@ -1374,7 +1409,7 @@ SUBCOMMANDS
   /term.eol.rx         Show or set how received output is split into lines (auto/cr/lf/crlf).
 demo> /help term.info
 NAME
-  /term.info - Snapshot the state of every /term.* toggle.
+  /term.info - Snapshot every /term.* toggle, and the bytes sent and received since the port opened.
 
 CURRENT STATE
   echo           : on
@@ -1383,6 +1418,7 @@ CURRENT STATE
   output         : normal
   hex            : off
   line_no        : off
+  traffic        : off
   eol            : cr
   eol_rx         : auto
   eol_markers    : off
@@ -1390,6 +1426,8 @@ CURRENT STATE
   send_bare_enter: off
   control_keys   : on
   encoding       : utf-8
+  tx_bytes       : 849
+  rx_bytes       : <N>
 
 CONFIG
   eol = "\r"               in the snapshot
@@ -1543,11 +1581,12 @@ demo> /help.plugin
   /crcsend      Send text with XMODEM CRC-16 appended.
   /probe        Query the device and display the response.
   /temp_plot    Sample temperature and show ASCII sparkline.
+  /traffic      Inspect serial-port byte traffic (count, hexdump, rate, snoop).
 
 -- Script Commands (.run files only) --
   /confirm      Show Yes/Cancel dialog; Cancel stops a running script.
   /expect       Wait for text in serial output (blocks until match or timeout).
-  45 commands.
+  46 commands.
 demo> /print === section: help.group ===
   === section: help.group ===
 demo> /help.group
@@ -1556,7 +1595,7 @@ demo> /help.group
   -- -- -- --
   advanced        12  app, confirm, credits, edit, env, expect, ...
   devices          6  board, dev, firmware, mem, profile, sym
-  plugins          3  crcsend, probe, temp_plot
+  plugins          4  crcsend, probe, temp_plot, traffic
   protocol         3  ping, proto, xfer
   terminal        21  cap, cfg, cli, cls, delay, demo, exit, ...
 demo> /help.group devices
@@ -1719,6 +1758,8 @@ demo> /term.control_keys
   on
 demo> /term.timestamps
   off
+demo> /term.traffic
+  Error: /term.traffic requires: tui_mode (not available in this environment)
 demo> /term.color
   off
 demo> /term.color on
@@ -1734,6 +1775,7 @@ demo> /term.info
   output         : normal
   hex            : off
   line_no        : off
+  traffic        : off
   eol            : cr
   eol_rx         : auto
   eol_markers    : off
@@ -1741,6 +1783,8 @@ demo> /term.info
   send_bare_enter: off
   control_keys   : on
   encoding       : utf-8
+  tx_bytes       : 911
+  rx_bytes       : <N>
 demo> /term.log a line for the session log, not the screen
 demo> /port.mode
   115200 8N1

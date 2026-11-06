@@ -258,7 +258,7 @@ sends to the device) waits in the input line for Enter.
 | `/term.eol {cr\|lf\|crlf\|none\|cycle}` | Show or set the line ending sent with commands (session override)    |
 | `/term.eol.rx {auto\|cr\|lf\|crlf\|cycle}` | Show or set how received output is split into lines (receive newline) |
 | `/term.hex {on\|off\|toggle}`     | Toggle hex display of incoming bytes                                        |
-| `/term.info`              | Snapshot the state of every `/term.*` toggle                                |
+| `/term.info`              | Snapshot every `/term.*` toggle, and the bytes sent and received            |
 | `/term.json {compact\|indent\|color\|cycle}` | How JSON answers print: one line, indented, or indented and colored |
 | `/term.eol.markers {on\|off\|toggle}` | Toggle visible `\r` `\n` markers in serial output                       |
 | `/term.line_no {on\|off\|toggle}` | Toggle line numbers in serial output (TUI only)                             |
@@ -268,6 +268,7 @@ sends to the device) waits in the input line for Enter.
 | `/term.send <text>`       | Send literal text to the serial port (with line ending; canonical name for the bare-line send) |
 | `/term.send_bare_enter {on\|off\|toggle}` | Send line ending on empty Enter                                     |
 | `/term.timestamps {on\|off\|toggle}` | Toggle `[HH:MM:SS.mmm]` timestamp prefix                                 |
+| `/term.traffic {on\|off\|toggle}` | Show live TX/RX byte counts in the bottom bar (TUI only)                    |
 | `/term.usb_db`            | Report bundled USB vendor-database freshness (local read)                   |
 | `/var {name}`             | List user variables, or show one by name                                    |
 | `/var.clear`              | Clear all user variables                                                    |

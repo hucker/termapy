@@ -2617,6 +2617,108 @@ class TestLineNumbers:
         _run(scenario)
 
 
+class TestTrafficCounts:
+    """``/term.traffic`` shows the engine's TX/RX counts in a bar of their own beside the status line."""
+
+    def test_the_setting_reads_like_every_toggle(self, app_factory):
+        """Bare queries, on/off set, toggle flips, and anything else is refused; /term.info follows the flag."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                bare = app.repl.dispatch("term.traffic")
+                on = app.repl.dispatch("term.traffic on")
+                info = app.repl.dispatch("term.info")
+                flipped = app.repl.dispatch("term.traffic toggle")
+                flipped_back = app.repl.dispatch("term.traffic toggle")
+                refused = app.repl.dispatch("term.traffic 2")
+
+                # Assert
+                assert bare.value == "off", "a load starts with the counts hidden"
+                assert on.value == "on", on.error
+                assert info.data["traffic"] is True, "/term.info reads the flag the setter wrote"
+                assert (flipped.value, flipped_back.value) == ("off", "on"), (
+                    "toggle flips each time"
+                )
+                assert refused.success is False, "an unknown token never flips the setting"
+                assert refused.error.startswith("Invalid value: 2"), refused.error
+
+        _run(scenario)
+
+    def test_on_shows_the_counts_and_off_hides_them(self, app_factory):
+        """With /term.traffic on, a DEMO exchange shows the engine's counts in #traffic-bar; off hides the bar."""
+
+        async def scenario():
+            from termapy.scripting import format_size
+            from termapy.widgets import StatusBar
+
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                assert app._connect("DEMO") is True, "the DEMO port opens"
+                bar = app.query_one("#traffic-bar", StatusBar)
+
+                def engine_text() -> str:
+                    tx, rx = app._engine.byte_counts()
+                    return f"TX {format_size(tx)}  RX {format_size(rx)}"
+
+                # Act
+                on, _ = await _dispatch_on_worker(pilot, app, "/term.traffic on")
+                await _dispatch_on_worker(pilot, app, "AT")
+                await _await_until(
+                    lambda: (
+                        app._engine.byte_counts()[1] > 0
+                        and str(bar.render()).strip() == engine_text()
+                    ),
+                    "the bar shows the engine's counts after the reply",
+                )
+                tx, rx = app._engine.byte_counts()
+                off, _ = await _dispatch_on_worker(pilot, app, "/term.traffic off")
+                await _await_until(lambda: not bar.has_class("visible"), "the bar hid")
+                app._disconnect()
+
+                # Assert
+                assert on.value == "on", on.error
+                assert tx > 0 and rx > 0, "the command went out and the reply came back"
+                assert off.value == "off", off.error
+
+        _run(scenario)
+
+    def test_a_config_load_hides_the_counts(self, app_factory, tmp_path):
+        """config-load-deterministic: /cfg.load turns /term.traffic off, and the bar hides with no hook."""
+
+        async def scenario():
+            from termapy.widgets import StatusBar
+
+            app, _, _ = app_factory()
+            _, second_path = _write_cfg(tmp_path, name="second")
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                bar = app.query_one("#traffic-bar", StatusBar)
+                # Arrange
+                app.repl.dispatch("term.traffic on")
+                await _await_until(lambda: bar.has_class("visible"), "the bar showed")
+
+                # Act
+                loaded = app.repl.dispatch(f"cfg.load {second_path}")
+                await _await_until(
+                    lambda: not bar.has_class("visible"), "the bar hid after the load"
+                )
+                state = app.repl.dispatch("term.traffic")
+
+                # Assert
+                assert loaded.success, loaded.error
+                assert state.value == "off", (
+                    "the load started the new config with the counts hidden"
+                )
+
+        _run(scenario)
+
+
 class TestDemoCommand:
     """``/demo`` is one builtin: it returns after the TUI has switched, not before.
 

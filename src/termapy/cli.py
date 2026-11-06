@@ -781,6 +781,10 @@ class CLITerminal(TerminalHost):
             ports = sorted(comports(), key=lambda p: p.device)
             return ports[0].device if ports else ""
         except Exception:
+            # A hint, not a feature: an enumeration failure leaves it out.
+            from termapy import diag_log
+
+            diag_log.exception("port enumeration for the welcome hint raised")
             return ""
 
 

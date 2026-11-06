@@ -18,6 +18,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
+from termapy import diag_log
 from termapy.converters import converter_from_module
 from termapy.folders import FOLDER_PATTERNS, PLUGIN
 from termapy.plugins.command import (
@@ -111,7 +112,8 @@ def load_plugins_from_dir(folder: Path, source: str = "global") -> LoadResult:
         # can raise anything (import errors, syntax, config reads).
         # Record the failure for reporting and keep loading the rest.
         except BoundaryException as e:
-            module.error = str(e)
+            diag_log.exception("plugin file failed to load: %s", py_file)
+            module.error = f"{type(e).__name__}: {e}"
         result.modules.append(module)
     return result
 

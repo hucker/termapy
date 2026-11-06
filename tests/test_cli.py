@@ -1914,7 +1914,15 @@ class TestCliFreeOfTextual:
 # The heavy imports a path must not pay for, and what each costs (measured
 # 2026-10-17): a UI framework it never shows, or a library only another
 # path needs.  elftools is wanted only by /sym.import of an ELF.
-_HEAVY = ("textual", "prompt_toolkit", "rich", "importlib.metadata", "frist", "elftools")
+_HEAVY = (
+    "textual",
+    "prompt_toolkit",
+    "rich",
+    "importlib.metadata",
+    "frist",
+    "elftools",
+    "logging",
+)
 
 
 def _loaded_after(*argv: str, cwd: Path) -> set[str]:
@@ -1956,7 +1964,8 @@ class TestPathsStayLight:
 
     The print-and-exit flags load no UI framework (``cli_flags``' contract)
     and neither ``importlib.metadata`` (only ``--version`` needs it) nor
-    ``frist`` (only file ages need it); a CLI one-shot never builds a
+    ``frist`` (only file ages need it) nor ``logging`` (the diagnostic log,
+    which no flag opens, loads it at its first record); a CLI one-shot never builds a
     prompt, so it loads no prompt_toolkit.  Each was found loaded on
     2026-10-17, through a transitive import: Rich via ``termapy.markup``,
     frist via ``scripting``'s tables, metadata via ``entry``'s parser.

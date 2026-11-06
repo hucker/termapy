@@ -17,7 +17,7 @@ lands in its group, not at the end of the user's file.
 import re
 from collections.abc import Callable
 
-CURRENT_CONFIG_VERSION = 36
+CURRENT_CONFIG_VERSION = 37
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -55,7 +55,7 @@ DEPRECATED_CFG: dict[str, str] = {
     "auto_connect_cmd": "renamed to on_connect_cmd in v6",
     "inter_cmd_delay_ms": "renamed to cmd_delay_ms in v6",
     "show_eol": "renamed to show_line_endings in v6",
-    "exception_traceback": "renamed to show_traceback in v6",
+    "exception_traceback": "renamed to show_traceback in v6, removed in v37",
     "app_border_color": "renamed to border_color in v6",
     "repl_prefix": "renamed to cmd_prefix in v6",
     "read_only": "renamed to config_read_only in v6",
@@ -81,6 +81,11 @@ DEPRECATED_CFG: dict[str, str] = {
     "cli_echo_input": (
         "removed in v25 (was never wired to a consumer); use echo_input "
         "for device-command echo, and /term.echo_repl for REPL-command echo"
+    ),
+    # v36 -> v37: removal
+    "show_traceback": (
+        "removed in v37 (was never wired to a consumer); every traceback now "
+        "goes to the diagnostic log, and the error names the file"
     ),
 }
 
@@ -787,6 +792,15 @@ def _migrate_v35_to_v36(cfg: dict) -> dict:
 
 
 MIGRATIONS[35] = _migrate_v35_to_v36
+
+
+def _migrate_v36_to_v37(cfg: dict) -> dict:
+    """Remove ``show_traceback``: nothing read it, and every traceback now goes to the diagnostic log."""
+    cfg.pop("show_traceback", None)
+    return cfg
+
+
+MIGRATIONS[36] = _migrate_v36_to_v37
 
 
 def migrate_config(cfg: dict) -> dict:

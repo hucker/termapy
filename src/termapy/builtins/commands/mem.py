@@ -96,8 +96,8 @@ _BULK_NAMES_SHOWN: Final[int] = 4
 # bytes on the wire: ~22 ms at 115200, ~260 ms at 9600.
 _EXCHANGE_TIMEOUT_MS: Final[int] = 1000
 
-# FRONT_END launch var -> the origin word in the audit line.
-_ORIGINS: Final[dict[str, str]] = {"textual": "tui", "cli": "cli", "mcp": "mcp"}
+# The frontends an audit line names, as the FRONT_END launch var spells them.
+_ORIGINS: Final[frozenset[str]] = frozenset({"tui", "cli", "mcp"})
 
 
 # ── lifecycle: the device-info cache lives for one connection ───────────────
@@ -291,7 +291,8 @@ def _labeler(table: SymbolTable | None) -> Callable[[int], str] | None:
 
 
 def _origin() -> str:
-    return _ORIGINS.get(launch_var("FRONT_END"), "unknown")
+    front_end = launch_var("FRONT_END")
+    return front_end if front_end in _ORIGINS else "unknown"
 
 
 def _verbose(ctx: PluginContext) -> bool:

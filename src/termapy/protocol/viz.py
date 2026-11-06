@@ -11,6 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from termapy import diag_log
 from termapy.folders import FOLDER_PATTERNS, VIZ
 from termapy.plugins import BoundaryException
 
@@ -81,14 +82,18 @@ def load_visualizers_from_dir(folder: Path, source: str = "global") -> list[Visu
             continue
         # Plugin file: third-party code being imported; its top-level
         # can raise anything (import errors, syntax, missing
-        # required names).  Report to stderr and keep scanning.
+        # required names).  Report to stderr and keep scanning; the
+        # traceback goes to the diagnostic log, which the TUI's screen
+        # does not hide.
         try:
             info = _load_visualizer_file(py_file, source)
             if info:
                 visualizers.append(info)
         except BoundaryException as e:
+            diag_log.exception("visualizer failed to load: %s", py_file)
             print(
-                f"termapy: failed to load visualizer {py_file.name}: {e}",
+                f"termapy: failed to load visualizer {py_file.name}: "
+                f"{type(e).__name__}: {e}{diag_log.traceback_note()}",
                 file=sys.stderr,
             )
     return visualizers

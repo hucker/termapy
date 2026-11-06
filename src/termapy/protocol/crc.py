@@ -31,6 +31,7 @@ from pathlib import Path
 # generic_crc`` directly rather than these shims.
 from crcglot import ALGORITHMS as _ALGORITHMS, Crc as _Crc, generic_crc as _generic_crc
 
+from termapy import diag_log
 from termapy.plugins import BoundaryException
 
 CRC_CATALOGUE: dict[str, dict] = {
@@ -146,10 +147,13 @@ def load_crc_plugins(
             # Plugin file: third-party code being imported; its
             # top-level can raise anything (import errors, syntax,
             # missing CRC_ALGORITHM).  Report to stderr and keep
-            # loading the rest.
+            # loading the rest; the traceback goes to the diagnostic log,
+            # which the TUI's screen does not hide.
             except BoundaryException as e:
+                diag_log.exception("CRC plugin failed to load: %s", py_file)
                 print(
-                    f"termapy: failed to load CRC plugin {py_file.name}: {e}",
+                    f"termapy: failed to load CRC plugin {py_file.name}: "
+                    f"{type(e).__name__}: {e}{diag_log.traceback_note()}",
                     file=sys.stderr,
                 )
     return algorithms

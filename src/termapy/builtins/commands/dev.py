@@ -29,6 +29,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
+from termapy import diag_log
 from termapy.config import cfg_relative_path, not_found_message
 from termapy.converters import DEVICE, read_source
 from termapy.devices import (
@@ -120,7 +121,10 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         doc = spec.convert(spec.source_of(data, text))
     # A plugin converter is third-party code on the dispatch path.
     except BoundaryException as e:
-        return CmdResult.fail(msg=f"Converter error: {spec.format}: {e}")
+        diag_log.exception("device converter %s raised on %s", spec.format, path)
+        return CmdResult.fail(
+            msg=f"Converter error: {spec.format}: {type(e).__name__}: {e}{diag_log.traceback_note()}"
+        )
     if not isinstance(doc, dict) or not doc.get("registers"):
         return CmdResult.fail(msg=f"No registers found in {path.name} ({spec.format})")
     doc = dict(doc)

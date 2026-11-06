@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy import diag_log
 from termapy.defaults import JSON_STYLES, RX_NEWLINE_MODES, cfg_value
 from termapy.plugins import (
     OUTPUT_LEVELS,
@@ -122,11 +123,16 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     try:
         # A device line, so it goes out paced (``ctx.serial.send``).
         ctx.serial.send(args)
-    # Plugin handlers can be called from many hosts; OSError covers
-    # the file-descriptor / IO classes and pyserial.SerialException
-    # is a subclass of Exception. Match dispatch_full's legacy catch.
-    except (OSError, Exception) as e:  # noqa: BLE001  -- boundary catch
+    # A failed send is this command's answer, not a plugin error: a lost or
+    # closed port (pyserial's SerialException is an OSError), or a character
+    # outside the encoding (a ValueError).
+    except (OSError, ValueError) as e:
         return CmdResult.fail(msg=f"Send error: {e}")
+    # Plugin handlers can be called from many hosts; anything else is a bug
+    # in the send path, answered the same way with its traceback kept.
+    except Exception as e:
+        diag_log.exception("term.send raised")
+        return CmdResult.fail(msg=f"Send error: {type(e).__name__}: {e}{diag_log.traceback_note()}")
     # SPECIAL CASE: /term.send is fire-and-forget over the wire; the
     # device's response (if any) is async and comes through /expect or
     # the read pipeline, not back via this CmdResult.  Returning the
@@ -157,9 +163,12 @@ def _handler_ctrl(ctx: PluginContext, args: str) -> CmdResult:
         )
     try:
         ctx.serial.write(bytes([_CTRL_KEYS.index(key)]))
-    # The same boundary catch as /term.send: a failed write is the answer.
-    except (OSError, Exception) as e:  # noqa: BLE001  -- boundary catch
+    # The same catches as /term.send: a failed write is the answer.
+    except (OSError, ValueError) as e:
         return CmdResult.fail(msg=f"Send error: {e}")
+    except Exception as e:
+        diag_log.exception("term.ctrl raised")
+        return CmdResult.fail(msg=f"Send error: {type(e).__name__}: {e}{diag_log.traceback_note()}")
     return CmdResult.ok(value=f"^{key}")
 
 

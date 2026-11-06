@@ -15,6 +15,7 @@ from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
+from termapy import diag_log
 from termapy.config import cap_folder_of, open_serial
 from termapy.defaults import cfg_value
 from termapy.folders import ensure_folder, inside
@@ -367,6 +368,7 @@ def run_proto_tests(
     out_path = result_path(output_dir, script.json_file or template, pro_path.stem, config_name)
 
     # Open serial port
+    diag_log.info("proto start: %s", pro_path)
     ser = open_serial(cfg, cap_folder=cap_folder_of(cfg.get("_config_path", "")))
 
     t_start = time.monotonic()
@@ -385,6 +387,13 @@ def run_proto_tests(
             pass
 
     total_elapsed = (time.monotonic() - t_start) * 1000
+    diag_log.info(
+        "proto end: %s, %d passed, %d failed (%.0f ms)",
+        pro_path.name,
+        pass_count,
+        fail_count,
+        total_elapsed,
+    )
     results = build_results(
         script,
         pro_path,

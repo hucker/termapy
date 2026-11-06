@@ -7,7 +7,8 @@ returns the latest version string when an upgrade is available.
 Design contract: **any failure is silent**.  Network down, PyPI
 returning garbage, state file corrupt, clock skew, unparseable
 version string -- all of these make the check give up and return
-None.  The user must never see an error from this feature.
+None.  The user must never see an error from this feature; an
+unexpected one goes to the diagnostic log (``diag_log``).
 
 The caller (see ``app.py``) runs this on a background thread and,
 if the return value is non-None, writes a single multi-line banner
@@ -31,6 +32,7 @@ from datetime import UTC, datetime, timedelta
 
 from packaging.version import InvalidVersion, Version
 
+from termapy import diag_log
 from termapy.app_dirs import load_app_state, save_app_state
 
 # Tunables -- module-level so tests can patch them cleanly.
@@ -202,7 +204,8 @@ def cached_status(current_version: str) -> tuple[str | None, bool]:
             return None, False
         return latest, _is_newer(latest, current_version)
     except Exception:
-        # Same silent contract as the rest of the module.
+        # Same silent contract as the rest of the module: silent on screen.
+        diag_log.exception("update check's cached status raised")
         return None, False
 
 
@@ -245,4 +248,5 @@ def check(current_version: str) -> str | None:
         return latest
     except Exception:
         # Catch-all guard: nothing from this module should ever propagate.
+        diag_log.exception("update check raised")
         return None

@@ -156,6 +156,10 @@ sends to the device) waits in the input line for Enter.
 | `/help.target`            | Show only imported target device commands                                   |
 | `/log`                    | Open the session log (same as the Log button and `/log.show`)               |
 | `/log.delete`             | Delete the session log file; it stays stopped until `/log.start` (TUI only) |
+| `/log.diag`               | Open this run's diagnostic log: termapy's own record, with tracebacks       |
+| `/log.diag.dump {N}`      | Print this run's diagnostic log (all, or an N-line slice)                   |
+| `/log.diag.list`          | List the diagnostic logs, newest first                                      |
+| `/log.diag.show {name}`   | Open this run's diagnostic log, or a listed one, in the system viewer       |
 | `/log.dump {N}`           | Print the session log (all, or an N-line slice) to the terminal             |
 | `/log.fingerprint`        | Write a full session fingerprint (OS, terminal, port params) to the log     |
 | `/log.list`               | List the session log file with its size and age (`/help log` ends with it)  |

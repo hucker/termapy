@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy import load_report
+from termapy import diag_log, load_report
 from termapy.builtins.commands._cfg_icon import (
     _FLAGS as _ICON_FLAGS,
     _LONG_HELP as _ICON_LONG_HELP,
@@ -730,7 +730,7 @@ def on_app_stop(ctx: PluginContext) -> None:
     try:
         write_info_report(ctx, trigger="at exit")
     except (OSError, TypeError, RuntimeError):
-        pass
+        diag_log.exception("info report at exit failed")
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────

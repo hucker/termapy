@@ -103,7 +103,7 @@ value and cannot become a flag, a keyword, or a counter bump.
 | `$(SESSION_DATE)`    | Session | Script start date (frozen)         |
 | `$(SESSION_TIME)`    | Session | Script start time (frozen)         |
 | `$(SESSION_DATETIME)`| Session | Script start date and time (frozen)|
-| `$(FRONT_END)`       | Launch  | `textual` (TUI), `cli`, or `mcp`   |
+| `$(FRONT_END)`       | Launch  | `tui`, `cli`, or `mcp`             |
 
 **Dynamic** variables update each time they are expanded.
 **Launch** variables are frozen when the app starts.

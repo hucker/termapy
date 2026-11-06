@@ -29,6 +29,7 @@ from textual.widgets import (
     Static,
 )
 
+from termapy import diag_log
 from termapy.config import cfg_data_dir, open_with_system
 from termapy.defaults import cfg_value
 from termapy.folders import ensure_folder
@@ -1384,7 +1385,8 @@ class ProtoDebugScreen(ModalScreen[None]):
             # The serial-port release is handled by the ctx.serial.io()
             # context manager wrapping the test loop, so no defensive
             # flag flip is needed here.
-            self._log(f"Test runner error: {e}")
+            diag_log.exception("proto debug test runner raised")
+            self._log(f"Test runner error: {type(e).__name__}: {e}{diag_log.traceback_note()}")
         finally:
             try:
                 self.app.call_from_thread(self._set_run_state, False)
@@ -1423,4 +1425,5 @@ class ProtoDebugScreen(ModalScreen[None]):
             # the same user-code path as the main test runner; a broken
             # step reports to the log.  Serial-port release is handled
             # by the ctx.serial.io() context manager.
-            self._log(f"Command runner error: {e}")
+            diag_log.exception("proto debug %s commands raised", label)
+            self._log(f"Command runner error: {type(e).__name__}: {e}{diag_log.traceback_note()}")

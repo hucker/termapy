@@ -25,6 +25,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
+from termapy import diag_log
 from termapy.config import cfg_relative_path, not_found_message
 from termapy.converters import SYMBOLS, read_source
 from termapy.folders import SYM, SYMBOLS_SUFFIX, default_file_name, file_suggestion, is_inside
@@ -234,7 +235,10 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     # built-ins are documented as never raising on odd input; this guard
     # is for the ones a user writes.
     except BoundaryException as e:
-        return CmdResult.fail(msg=f"Converter error: {spec.format}: {e}")
+        diag_log.exception("symbol converter %s raised on %s", spec.format, path)
+        return CmdResult.fail(
+            msg=f"Converter error: {spec.format}: {type(e).__name__}: {e}{diag_log.traceback_note()}"
+        )
     if not symbols:
         return CmdResult.fail(msg=f"No symbols found in {path.name} ({spec.format})")
     if not isinstance(layout, Layout):

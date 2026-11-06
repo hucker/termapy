@@ -65,7 +65,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 36,
+    "config_version": 37,
     "title": "IoT Device",
     "border_color": "blue",
     "serial": {
@@ -126,7 +126,6 @@ Here is an example config for a device called `iot_device`:
     "cmd_prefix": "/",
     "cli_prompt": "$(CFG)> ",
     "cli_completion": true,
-    "show_traceback": false,
     "cfg_enabled": true,
     "run_enabled": true,
     "proto_enabled": true,
@@ -219,7 +218,6 @@ reported as a type warning.
 | `cmd_prefix`                  | `/`                           | Prefix for local REPL commands |
 | `cli_prompt`                  | `"$(CFG)> "`                  | Prompt string in CLI mode (supports variables) |
 | `cli_completion`              | `true`                        | Enable CLI tab completion, auto-suggest, and help toolbar |
-| `show_traceback`              | `false`                       | Show full stack trace on serial errors |
 | `cfg_enabled`                 | `true`                        | Show the Cfg button in the title bar |
 | `run_enabled`                 | `true`                        | Show the Run button in the title bar |
 | `proto_enabled`               | `true`                        | Show the Proto button in the title bar |

@@ -163,11 +163,11 @@ def _preview_color(raw_val: str) -> str:
     if not color:
         return ""
     resolved = resolve_color(color)
+    from rich.color import Color, ColorParseError
+
     from termapy.markup import escape_markup
 
     try:
-        from rich.color import Color
-
         parsed = Color.parse(resolved)
         # Get truecolor hex for reliable rendering
         triplet = parsed.get_truecolor()
@@ -175,7 +175,7 @@ def _preview_color(raw_val: str) -> str:
         if resolved != color:
             return f"[green]Color: {escape_markup(color)} -> {escape_markup(hex_color)}[/]"
         return f"[green]Color: {escape_markup(hex_color)}[/]"
-    except Exception:
+    except ColorParseError:
         return f"[bold red]????[/] unknown color: {escape_markup(color)}"
 
 
@@ -184,11 +184,7 @@ def _preview_markup(raw_val: str) -> str:
     fmt = raw_val.strip().strip('"').strip()
     if not fmt:
         return ""
-    try:
-        preview = fmt.replace("{cmd}", "AT+INFO")
-        return f"Preview: {preview}"
-    except Exception:
-        return ""
+    return f"Preview: {fmt.replace('{cmd}', 'AT+INFO')}"
 
 
 # ── The schema ──────────────────────────────────────────────────────────────
@@ -710,13 +706,6 @@ CFG_KEYS: tuple[CfgKey, ...] = (
         "bool",
         help="CLI tab completion, history auto-suggest and the help toolbar.",
         hint="true, false. Default: true",
-    ),
-    CfgKey(
-        "show_traceback",
-        False,
-        "bool",
-        help="Show full stack trace on serial errors.",
-        hint="true, false",
     ),
     # Buttons: the title bar's, Record next to the REPL prompt (toggles
     # /run.record), the pickers' Edit, then the custom buttons.

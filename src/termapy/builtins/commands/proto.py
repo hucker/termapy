@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Literal
 
 from crcglot import DetectMatch, DetectResult, detect
 
+from termapy import diag_log
 from termapy.builtins.commands._crc_verbs import build_crc_verb_command
 from termapy.defaults import cfg_value
 from termapy.folder_ops import (
@@ -716,7 +717,14 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
                 out_path = _results_path(ctx, path, script.json_file)
             except ValueError as e:
                 return CmdResult.fail(msg=str(e))
+        diag_log.info("proto start: %s", path)
         results = _run_toml_script(ctx, path, script, text)
+        diag_log.info(
+            "proto end: %s, %d passed, %d failed",
+            path.name,
+            results["summary"]["passed"],
+            results["summary"]["failed"],
+        )
         if out_path is not None:
             try:
                 write_results(results, out_path)
@@ -738,7 +746,9 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
     settings, steps = result[1]
     if not steps:
         return CmdResult.fail(msg="Script has no steps.")
+    diag_log.info("proto start: %s", path)
     failed, total = _run_flat_script(ctx, path, settings, steps)
+    diag_log.info("proto end: %s, %d passed, %d failed", path.name, total - failed, failed)
     if failed:
         return CmdResult.fail(msg=_failed_tests_msg(failed, total), value=str(path.resolve()))
     # Return the script path so scripts can confirm what was run.

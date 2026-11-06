@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from termapy import diag_log
 from termapy.plugins import (
     CapabilitySet,
     CmdResult,
@@ -383,7 +384,11 @@ class TestGateAndReporting:
         # Assert
         assert "good" in engine._plugins, "the good sibling still loads"
         assert _report_titles(output) == [], "no load table under --run / --exec"
-        assert ("Plugin error: broken.py: boom", "red") in output, "an error is never silent"
+        expected = (
+            f"Plugin error: broken.py: RuntimeError: boom{diag_log.traceback_note()}",
+            "red",
+        )
+        assert expected in output, "an error is never silent, and it names its type"
         assert ("rig", "plugin/good.py") in _rows(engine), "the rows are kept all the same"
 
     def test_skipped_file_reported(self, rig):
@@ -441,7 +446,7 @@ class TestLoadReport:
 
         # Assert
         actual = {record["file"]: record["error"] for record in engine.load_report.records}
-        expected = {"plugin/broken.py": "boom", "plugin/noop.py": "nothing exported"}
+        expected = {"plugin/broken.py": "RuntimeError: boom", "plugin/noop.py": "nothing exported"}
         assert actual == expected, "an agent that never saw the startup lines learns both"
 
     def test_app_owned_name_is_left_out_of_the_row(self, rig):
@@ -605,7 +610,11 @@ class TestQuietStart:
         engine.fire_lifecycle("on_app_start")
 
         # Assert
-        assert ("Plugin error: broken.py: boom", "red") in output, "an error is never silent"
+        expected = (
+            f"Plugin error: broken.py: RuntimeError: boom{diag_log.traceback_note()}",
+            "red",
+        )
+        assert expected in output, "an error is never silent"
 
     def test_a_cfg_without_the_key_starts_quiet(self, rig):
         """A cfg dict with no quiet_start key behaves like a loaded one: quiet."""

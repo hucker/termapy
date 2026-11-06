@@ -2270,6 +2270,7 @@ GOLD_RUN = Path(__file__).parent / "cli_gold" / "cli_test.run"
 _OPENS_APP = "opens a desktop app or editor; whether it can depends on the machine's desktop"
 _HARDWARE = "needs real serial hardware or the network"
 _PATH = "prints an absolute path (the run's temp config folder or the user's app folder)"
+_DIAG_RUN = "prints this run's diagnostic log or its folder: timestamps, a pid and paths"
 _TIMED = "its output carries timing that changes from run to run"
 _CRCGLOT = "its output is crcglot's catalogue or generated code, which changes with crcglot"
 
@@ -2320,6 +2321,8 @@ NOT_IN_GOLD: dict[str, str] = {
     "expect": "races the device's reply; tests/test_expect.py drives it",
     "expect.regex": "races the device's reply; tests/test_expect.py drives it",
     "firmware.show": _OPENS_APP,
+    "log.diag.dump": _DIAG_RUN,
+    "log.diag.list": _DIAG_RUN,
     "log.show": _OPENS_APP,
     "mcp.catalog": "the whole command catalog as JSON; it changes with every command",
     "mcp.info": "prints the process id",
@@ -4905,6 +4908,7 @@ MODULE_STATE_OUTSIDE_NS = {
     "builtins/commands/run.py": (
         "guards a replay in progress, and a replayed /cfg.load must not clear it"
     ),
+    "diag_log.py": "the process's diagnostic log: which repeating failures it has recorded",
     "env_flags.py": "whether this process is the MCP server",
     "legacy.py": "tables built at import from the built-in commands",
     "profile/loader.py": "a cache of a fixed schema",
@@ -5020,3 +5024,127 @@ def test_module_state_allowlist_has_no_stale_entries():
 
     # Assert
     assert stale == [], f"take these off MODULE_STATE_OUTSIDE_NS: {stale}"
+
+
+# -- broad-catch-logged ---------------------------------------------------------
+
+# The names whose ``except`` catches everything a bug can raise.
+_BROAD_EXCEPTIONS = frozenset({"Exception", "BaseException", "BoundaryException"})
+
+# The calls that record the exception being handled: diag_log's two, and
+# the TUI's event-handler net, which calls diag_log.exception itself.
+_CATCH_RECORDERS = frozenset({"exception", "warning", "_report_exception"})
+
+# Broad catches that record nothing, with why.  Only shrinks.
+ALLOWED_SILENT_BROAD_CATCH: dict[str, str] = {}
+
+
+def _is_broad(handler: ast.ExceptHandler) -> bool:
+    """Whether ``handler`` is bare or names a broad exception, alone or in a tuple."""
+    if handler.type is None:
+        return True
+    names = handler.type.elts if isinstance(handler.type, ast.Tuple) else [handler.type]
+    return any(isinstance(name, ast.Name) and name.id in _BROAD_EXCEPTIONS for name in names)
+
+
+def _records_or_raises(handler: ast.ExceptHandler) -> bool:
+    """Whether ``handler``'s body re-raises or calls one of the :data:`_CATCH_RECORDERS`."""
+    for node in ast.walk(ast.Module(body=handler.body, type_ignores=[])):
+        if isinstance(node, ast.Raise):
+            return True
+        if isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Attribute) and func.attr == "_report_exception":
+                return True
+            if (
+                isinstance(func, ast.Attribute)
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "diag_log"
+                and func.attr in _CATCH_RECORDERS
+            ):
+                return True
+    return False
+
+
+def _silent_broad_catches(tree: ast.AST) -> list[int]:
+    """The line of every broad ``except`` in ``tree`` that neither records nor re-raises."""
+    return [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ExceptHandler) and _is_broad(node) and not _records_or_raises(node)
+    ]
+
+
+def _termapy_code_files() -> list[Path]:
+    """The package's own Python: no vendored tree, no device code (which runs on the board)."""
+    return [
+        path for path in _package_python_files() if "firmware" not in path.relative_to(SRC).parts
+    ]
+
+
+def test_every_broad_catch_records_its_exception():
+    """broad-catch-logged: a broad ``except`` records the exception in the diagnostic log, or re-raises.
+
+    What the user sees of a failure is one line; the traceback goes to
+    ``diag_log`` (``exception`` or ``warning``), so a catch that stops
+    anything a bug can raise is never the last anyone hears of it.  Found
+    2026-11-05: about forty broad catches, and dispatch reported a
+    handler's ``KeyError('port')`` as ``Plugin error (x): 'port'`` with
+    the traceback kept nowhere.
+    """
+    # Arrange / Act
+    violations = [
+        f"{rel}:{lineno}"
+        for path in _termapy_code_files()
+        if (rel := path.relative_to(SRC).as_posix()) not in ALLOWED_SILENT_BROAD_CATCH
+        for lineno in _silent_broad_catches(ast.parse(path.read_text(encoding="utf-8")))
+    ]
+
+    # Assert
+    assert violations == [], (
+        "a broad except records nothing:\n  "
+        + "\n  ".join(violations)
+        + "\n\nCall diag_log.exception(...) in the handler (the traceback is kept, the"
+        "\nuser's line says where), narrow the except to what the code raises, or"
+        "\nadd the FILE to ALLOWED_SILENT_BROAD_CATCH with the reason."
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ("try:\n    f()\nexcept Exception:\n    pass", [3]),
+        ("try:\n    f()\nexcept:\n    pass", [3]),
+        ("try:\n    f()\nexcept (OSError, BoundaryException):\n    pass", [3]),
+        ("try:\n    f()\nexcept BaseException as e:\n    x = e", [3]),
+        ("try:\n    f()\nexcept Exception:\n    diag_log.exception('m')", []),
+        ("try:\n    f()\nexcept Exception:\n    diag_log.warning('m')", []),
+        ("try:\n    f()\nexcept Exception as e:\n    self._report_exception(e)", []),
+        ("try:\n    f()\nexcept Exception:\n    raise", []),
+        ("try:\n    f()\nexcept OSError:\n    pass", []),
+        ("try:\n    f()\nexcept Exception:\n    log.exception('m')", [3]),
+    ],
+)
+def test_broad_catch_finder_sees_each_shape(body, expected):
+    """broad-catch-logged: bare, named and tuple catches are broad; a diag_log call or a raise clears one."""
+    # Act
+    actual = _silent_broad_catches(ast.parse(body))
+
+    # Assert
+    assert actual == expected
+
+
+def test_silent_broad_catch_allowlist_has_no_stale_entries():
+    """broad-catch-logged: an allowlisted file still has a broad catch that records nothing."""
+    # Arrange
+    needing = {
+        path.relative_to(SRC).as_posix()
+        for path in _termapy_code_files()
+        if _silent_broad_catches(ast.parse(path.read_text(encoding="utf-8")))
+    }
+
+    # Act
+    stale = sorted(set(ALLOWED_SILENT_BROAD_CATCH) - needing)
+
+    # Assert
+    assert stale == [], f"take these off ALLOWED_SILENT_BROAD_CATCH: {stale}"

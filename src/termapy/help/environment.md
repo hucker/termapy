@@ -276,6 +276,11 @@ bundle is:
   VS Code; `"Apple_Terminal"` under Terminal.app; etc.)
 - Screenshot of the misbehavior (`Ctrl+S` inside termapy saves an
   SVG that captures the exact render)
+- The run's diagnostic log (`/log.diag` opens it, `/log.diag.list`
+  shows them all), `termapy_cfg/log/<date>_<time>-<pid>.log`
+  (the app state folder's `log/` when there is no `termapy_cfg/`): it
+  holds the command line and any traceback, with termapy's version
+  before the first one, and no device traffic
 
 Most environment issues reduce to "terminal doesn't forward the key"
 or "terminal doesn't support this escape sequence."  The diagnostic

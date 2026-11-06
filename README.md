@@ -249,13 +249,14 @@ The most common ones:
 | `/show <name>`                       | Show a file                                                                   |
 | `/show.cfg`                          | Show the current config file                                                  |
 | `/term`                              | Terminal display / session toggles (echo, line_no, timestamps, ...)           |
-| `/term.info`                         | Snapshot the state of every `/term.*` toggle                                  |
+| `/term.info`                         | Snapshot every `/term.*` toggle, and the bytes sent and received              |
 | `/term.echo {on\|off\|toggle}`        | Local echo of device commands to the wire; session only, seeded by cfg `echo` |
 | `/term.echo_repl {on\|off\|toggle}`   | Local echo of REPL (slash) commands, session only; off inside scripts         |
 | `/term.line_no {on\|off\|toggle}`     | Toggle line numbers in serial output (TUI only)                               |
 | `/term.eol.markers {on\|off\|toggle}` | Toggle visible `\r` `\n` markers for line-ending troubleshooting              |
 | `/term.output {level\|cycle}`        | Show or set output level (silent/quiet/normal/verbose)                        |
 | `/term.timestamps {on\|off\|toggle}`  | Toggle `[HH:MM:SS.mmm]` timestamp prefix                                      |
+| `/term.traffic {on\|off\|toggle}`     | Show live TX/RX byte counts in the bottom bar (TUI only)                      |
 | `/term.hex {on\|off\|toggle}`         | Toggle hex display of incoming bytes                                          |
 | `/term.encoding {name}`              | Show or set byte-decoding encoding (utf-8, latin-1, ...)                      |
 | `/term.json {compact\|indent\|color\|cycle}` | How JSON answers print: one line, indented, or indented and colored |
@@ -1061,7 +1062,6 @@ See `examples/plugins/` for working examples:
 - **at_test.py:** send AT commands over serial
 - **timestamp.py:** print the current date/time
 - **ping.py:** send a command and measure response time
-- **traffic.py:** passive RX/TX byte tap (count, hexdump, rate, snoop) -- also shipped with `--demo`
 
 More complete examples ship with `--demo`: `probe.py` demonstrates the drain → write → read → parse cycle for device interaction; `traffic.py` (with `/traffic.count`, `/traffic.hexdump`, `/traffic.rate`, `/traffic.snoop`) demonstrates the passive RX/TX observer pattern via the `ctx.serial.rx_observer()` / `ctx.serial.tx_observer()` context managers. Run `/help probe` or `/help traffic` to see the documentation, or `/help.dev <name>` for the source docstrings.
 

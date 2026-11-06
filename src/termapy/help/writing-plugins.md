@@ -885,6 +885,7 @@ either directly.
 | `ctx.serial.read_raw(timeout_ms)` | Read response bytes with timeout framing |
 | `ctx.serial.wait_idle(timeout_ms)` | Wait for serial output to settle |
 | `ctx.serial.wait_for_data(timeout_ms)` | Block until at least one byte arrives |
+| `ctx.serial.byte_counts()` | `(tx, rx)`: bytes sent and received since the port last opened |
 | `ctx.serial.rx_observer(cb)` | Context manager: passive RX byte tap |
 | `ctx.serial.tx_observer(cb)` | Context manager: passive TX byte tap |
 

@@ -1842,7 +1842,7 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     # Copy demo plugins
     plugin_dir = ensure_folder(demo_dir / "plugin")
     plugin_pkg = pkg / "plugin"
-    for name in ("cmd.py", "probe.py", "temp_plot.py"):
+    for name in ("cmd.py", "probe.py", "temp_plot.py", "traffic.py"):
         dest = plugin_dir / name
         if force or not dest.exists():
             src = plugin_pkg / name

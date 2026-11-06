@@ -222,6 +222,13 @@ def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
     return _bool_setting(ctx, args, "hex")
 
 
+def _handler_traffic(ctx: PluginContext, args: str) -> CmdResult:
+    """Query, set or toggle the TUI's live TX/RX byte counts: a session flag, off at every load."""
+    # The engine counts the bytes whether this is on or off; the flag only
+    # says whether the TUI's bottom bar shows them.
+    return _bool_setting(ctx, args, "traffic")
+
+
 # ── Session cfg toggles (apply_cfg; only the editor's Save persists) ─────────
 
 
@@ -514,13 +521,15 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
-    """Snapshot the current state of every /term.* toggle.
+    """Snapshot every /term.* toggle, and the bytes sent and received since the port last opened.
 
     A record answer (registry ``record-one-format``): the toggles are
-    ``data`` as booleans, and read on/off in the prose.
+    ``data`` as booleans, and read on/off in the prose; the byte counts
+    are ``data`` as integers, shown exact.
     """
     flags = ctx.ns("flags")
     eol = cfg_value(ctx.cfg, "eol")
+    tx_bytes, rx_bytes = ctx.serial.byte_counts()
     data = {
         "echo": bool(flags.get("echo")),
         "echo_repl": bool(flags.get("echo_repl")),
@@ -528,6 +537,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         "output": str(flags.get("output_level", "normal")),
         "hex": bool(flags.get("hex")),
         "line_no": bool(flags.get("line_no")),
+        "traffic": bool(flags.get("traffic")),
         "eol": _EOL_LABELS.get(eol, repr(eol)),
         "eol_rx": str(cfg_value(ctx.cfg, "eol_rx")),
         "eol_markers": bool(cfg_value(ctx.cfg, "eol_markers")),
@@ -535,9 +545,11 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         "send_bare_enter": bool(cfg_value(ctx.cfg, "send_bare_enter")),
         "control_keys": bool(cfg_value(ctx.cfg, "control_keys")),
         "encoding": str(cfg_value(ctx.cfg, "encoding")),
+        "tx_bytes": tx_bytes,
+        "rx_bytes": rx_bytes,
     }
     rows = [
-        (key, ("on" if value else "off") if isinstance(value, bool) else value)
+        (key, ("on" if value else "off") if isinstance(value, bool) else str(value))
         for key, value in data.items()
     ]
     # The value is the snapshot as newline-joined "key=value" so scripts
@@ -696,6 +708,19 @@ COMMAND = Command(
             help="Toggle line numbers in serial output (TUI only).",
             handler=_handler_line_no,
             cfg={"line_no": "the value a load starts from"},
+            needs=CapabilitySet.TUI_MODE,
+            state=True,
+        ),
+        "traffic": Command(
+            args="{on|off|toggle}",
+            help="Show live TX/RX byte counts in the bottom bar (TUI only).",
+            long_help=(
+                "Shows the bytes sent (TX) and received (RX) since the port\n"
+                "last opened, in the bottom bar beside the status line, updated\n"
+                "twice a second.  The counts start at zero each time the port\n"
+                "opens.  Off at every start and every config load."
+            ),
+            handler=_handler_traffic,
             needs=CapabilitySet.TUI_MODE,
             state=True,
         ),
@@ -918,7 +943,7 @@ COMMAND = Command(
             state=True,
         ),
         "info": Command(
-            help="Snapshot the state of every {prefix}term.* toggle.",
+            help="Snapshot every {prefix}term.* toggle, and the bytes sent and received since the port opened.",
             handler=_handler_info,
             cfg={
                 "eol": "in the snapshot",

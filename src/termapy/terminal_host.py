@@ -558,6 +558,7 @@ class TerminalHost:
             wait_idle=lambda timeout_ms=100, max_wait_s=3.0: self._wait_for_idle(
                 timeout_ms, max_wait_s
             ),
+            byte_counts=self.engine.byte_counts,
             rx_queue=self.engine.rx_queue,
             claim=lambda: setattr(self.engine, "serial_claimed", True),
             release=lambda: setattr(self.engine, "serial_claimed", False),
@@ -677,6 +678,9 @@ class TerminalHost:
         # Line numbers: the same pattern.  Only the TUI renders them, but
         # the flag is what /term.line_no sets and /term.info reports.
         flags.setdefault("line_no", cfg_value(self.cfg, "line_no"))
+        # The TUI's live TX/RX counts (/term.traffic): session-only, no cfg
+        # key, so every load starts with them hidden.
+        flags.setdefault("traffic", False)
         # Render device ANSI color (SGR).  Session flag toggled by
         # /term.color; the single source of truth for device color across
         # the TUI (strip before render when off) and CLI (strip in on_lines).

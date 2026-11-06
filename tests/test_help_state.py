@@ -437,7 +437,7 @@ class TestEveryFrontend:
 
         # Assert
         assert (baud, dtr) == (["  115200"], ["  1"])
-        assert len(record) == 13, "every row of /term.info: under the cap"
+        assert len(record) == 16, "every row of /term.info: under the cap"
 
     def test_mcp_carries_the_section_in_its_output_lines(self, tmp_path):
         """An agent reading /help sees the same section, through the same read."""

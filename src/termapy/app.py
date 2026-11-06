@@ -15,7 +15,6 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
-from datetime import datetime
 from functools import partial
 from pathlib import Path
 from threading import Event
@@ -97,13 +96,8 @@ from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
 from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label_markup
-from termapy.terminal_host import (
-    LOG_STARTED,
-    LOG_STOPPED,
-    SESSION_END,
-    SESSION_START,
-    TerminalHost,
-)
+from termapy.session_log import SessionLog
+from termapy.terminal_host import TerminalHost
 from termapy.widgets import (
     LINK_META,
     CommandSuggester,
@@ -530,10 +524,7 @@ class SerialTerminal(TerminalHost, App):
         self.show_picker_on_start = show_picker
         self._first_run = first_run
         self._initial_output_level = output_level
-        self.log_fh = None
-        # Set by /log.stop (and /log.delete) until /log.start: no log is
-        # opened meanwhile, a config switch included.
-        self._log_stopped = False
+        self.session_log = SessionLog()
         self.last_screenshot: str | None = None
         self.repl = ReplEngine(
             cfg,
@@ -1028,60 +1019,6 @@ class SerialTerminal(TerminalHost, App):
         """The TUI's session log: ``log_file`` when set, else ``<cfg>.log`` (``config.session_log_file``)."""
         return session_log_file(self.cfg, self.config_path)
 
-    def _close_session_log(self) -> None:
-        """Close the open log handle: the session ends, or ``/log.stop`` lets go of it.
-
-        ``_log_line`` tolerates a handle closed under it from a worker.
-        """
-        if self.log_fh:
-            self.log_fh.close()
-            self.log_fh = None
-
-    def _end_session_log(self) -> None:
-        """Write the ``Session End`` marker into the open log, then close it.
-
-        The session leaves a log two ways, both while it is still open: the
-        app exits (``on_unmount``) or a switch moves the session to another
-        config's file (``_follow_session_log``).  So every ``Session Start``
-        has its ``Session End`` -- unless ``/log.stop`` closed the log
-        first, and its last line says ``Log Stopped``, or the session did
-        not end cleanly, which is what a start without an end then says.
-        """
-        if self.log_fh and not self.log_fh.closed:
-            self._log_line("#", SESSION_END)
-        self._close_session_log()
-
-    def _stop_session_log(self) -> bool:
-        """``/log.stop``: mark the gap, close the log, and keep it closed until ``/log.start``.
-
-        Returns False when it was already stopped.  ``/log.delete`` stops
-        it before removing the file, so a delete leaves it stopped too.
-        """
-        if self._log_stopped:
-            return False
-        self._log_stopped = True
-        if self.log_fh and not self.log_fh.closed:
-            self._log_line("#", LOG_STOPPED)
-        self._close_session_log()
-        return True
-
-    def _start_session_log(self) -> bool:
-        """``/log.start``: open the log again, appending, from a ``Log Started`` line.
-
-        Returns False when it was not stopped.  A file that cannot be
-        opened raises ``OSError`` with the log still stopped, for the
-        command to report.
-        """
-        if not self._log_stopped:
-            return False
-        self._log_stopped = False
-        try:
-            self._open_log(LOG_STARTED)
-        except OSError:
-            self._log_stopped = True
-            raise
-        return True
-
     def _on_app_prestart(self) -> None:
         """Open the session log, then show the VS Code tip, so startup is in the log.
 
@@ -1091,32 +1028,6 @@ class SerialTerminal(TerminalHost, App):
         """
         self._open_log()
         self._maybe_show_vscode_tip()
-
-    def _open_log(self, marker: str = SESSION_START) -> None:
-        """Open the log file from a *marker* line if a config is loaded and the log is neither open nor stopped."""
-        if self.log_fh or self._log_stopped or not self.config_path:
-            return
-        log_path = self.session_log_path()
-        if log_path is None:
-            return
-        self.log_fh = open(log_path, "a", encoding="utf-8")
-        self._log_line("#", marker)
-
-    def _follow_session_log(self, previous: Path | None) -> None:
-        """Move the session log to the config just switched to.
-
-        A config's log is that config's history, so after a switch the
-        session belongs in the new config's file: the old one gets a line
-        saying where the session went and its ``Session End``, and the new
-        one is opened with its ``Session Start``.  ``_open_log`` alone kept writing to the first config's
-        file for the whole session, because it returns while any log is
-        open.  Two configs naming one ``log_file`` share it, so a switch
-        between them keeps the open file.
-        """
-        if self.log_fh and self.session_log_path() != previous:
-            self._log_line("#", f"Switched to config: {Path(self.config_path).stem}")
-            self._end_session_log()
-        self._open_log()
 
     def _apply_border_color(self) -> None:
         """Apply border_color from config to title bar and output border."""
@@ -1387,19 +1298,10 @@ class SerialTerminal(TerminalHost, App):
 
     def on_unmount(self) -> None:
         self._shutting_down = True
-        # History saved and the log flushed BEFORE the exit event fires: a
-        # plugin's on_app_stop (the cfg info report tails both files) must
-        # see THIS session's lines, not the previous session's.  The log is
-        # block-buffered, so without the flush its tail is still in memory.
+        # History saved BEFORE the exit event fires: a plugin's on_app_stop
+        # (the cfg info report tails it and the log) must see THIS session's
+        # lines.  The session log needs no flush: every write flushes.
         self._save_history()
-        # /log.stop closes the handle from a dispatch worker, so it may
-        # already be closed here; a flush on a closed file is ValueError.
-        # Non-critical log I/O is swallowed, as everywhere else.
-        if self.log_fh and not self.log_fh.closed:
-            try:
-                self.log_fh.flush()
-            except (OSError, ValueError):
-                pass
         self.repl.fire_lifecycle("on_app_stop")
         # Stop background work unconditionally: _disconnect() early-returns
         # when not connected, so relying on it left the auto-reconnect worker
@@ -1663,52 +1565,6 @@ class SerialTerminal(TerminalHost, App):
             self.query_one(StatusBar).show(text, timeout)
         except SHUTDOWN_RACE:
             pass  # widget gone during shutdown
-
-    def _log_line(self, prefix: str, text: str) -> None:
-        """Write a prefixed line to the log file.
-
-        THREADING: reached from the reader path (``_write_batch``) and from
-        dispatch workers, while ``/log.stop`` closes and nulls ``log_fh``
-        on another thread.  Bind the handle to a local so the write cannot
-        land on ``None``, and catch ``ValueError`` -- writing to a file that
-        closed between the bind and the write raises that, not ``OSError``.
-
-        Args:
-            prefix: Line prefix (``>`` TX, ``<`` RX, ``#`` status).
-            text: Content to log.
-        """
-        fh = self.log_fh
-        if fh is not None:
-            try:
-                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                fh.write(f"[{ts}] {prefix} {text}\n")
-                fh.flush()
-            except (OSError, ValueError):
-                pass  # closed under us by /log.stop or /log.delete, or a disk error
-
-    def _log_lines(self, prefix: str, texts: list[str]) -> None:
-        """Write a batch of prefixed lines with one write and one flush.
-
-        The per-line version ran a write AND a flush for every received
-        line, on the event loop, inside the reader's round trip (E2).  All
-        lines in a batch share one timestamp -- they arrived in the same
-        read, so that is if anything more honest than stamping each one a
-        few microseconds apart.
-
-        Args:
-            prefix: Line prefix (``>`` TX, ``<`` RX, ``#`` status).
-            texts: Content lines to log.
-        """
-        fh = self.log_fh
-        if fh is None or not texts:
-            return
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-        block = "".join(f"[{ts}] {prefix} {text}\n" for text in texts)
-        try:
-            fh.write(block)
-            fh.flush()
-        except (OSError, ValueError):
-            pass  # closed under us by /log.stop or /log.delete, or a disk error
 
     def _wait_for_data(self, timeout_ms: int = 250) -> bool:
         """Block until RX arrives or *timeout_ms* elapses (``ctx.serial``).

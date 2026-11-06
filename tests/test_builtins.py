@@ -3692,8 +3692,8 @@ class TestLogDump:
         assert not result.success, "0 is rejected (ambiguous, -0 == 0)"
         assert "0" in result.error, "error names the rejected value"
 
-    def test_non_int_n_rejected(self, repl_env):
-        """A non-integer N is a usage error, not a silent full dump."""
+    def test_a_word_is_a_logs_name_and_an_unknown_one_fails(self, repl_env):
+        """A word where N goes is a log's name: one the config has not is refused, never a silent full dump."""
         # Arrange
         engine, cfg, config_path, _output = repl_env
         self._seed_log(engine, config_path, "x\n")
@@ -3702,8 +3702,8 @@ class TestLogDump:
         result = engine.dispatch("log.dump notanumber")
 
         # Assert
-        assert not result.success, "non-int N rejected"
-        assert "Usage" in result.error, "usage shown"
+        assert not result.success, "not dumped"
+        assert result.error == "Unknown log: notanumber", "read as a name, and named back"
 
 
 # -- /term.eol ------------------------------------------------------------

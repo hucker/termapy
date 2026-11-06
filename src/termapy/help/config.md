@@ -208,7 +208,7 @@ reported as a type warning.
 | `profile_path`                | `""`                          | Explicit v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention |
 | `validate_typed_args`         | `false`                       | Opt-in: validate bare-command `typed_args` against the active profile's type registry. Off = raw access; on = mirrors MCP (bad values fail before the wire). |
 | `default_response_timeout_ms` | `1000`                        | Fallback wait (ms) for a profile command lacking its own `response.timeout_ms` |
-| `log_file`                    | `""`                          | The TUI's session log path (defaults to `<name>.log` in config subfolder); MCP logs to `mcp/session.log`, the CLI keeps none |
+| `log_file`                    | `""`                          | The TUI's session log path (defaults to `<name>.log` in config subfolder); MCP logs to `<name>.mcp.log` beside it, the CLI keeps none |
 | `file_xfer_root`              | `""`                          | Root directory for file transfer (empty = `cap/`). See [File Transfer](file-transfer.md). |
 | `proto_frame_gap_ms`          | `50`                          | Silence gap (ms) to detect end of a binary frame |
 | `proto_results_template`      | `{name}_results.json`         | Filename template for protocol test JSON results |

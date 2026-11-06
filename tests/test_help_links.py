@@ -436,7 +436,7 @@ def _mcp_host(tmp_path):
 
 
 def test_help_log_ends_with_the_session_log_opening_on_a_click(tmp_path):
-    """/help log ends with /log.list's one row, the session log, and a click on it runs /log.show."""
+    """/help log ends with /log.list's rows, the frontend's own log first, and a click on one runs /log.show of it."""
     # Arrange -- MCP sessions default to quiet; ask at normal, as a call can.
     eng = _mcp_host(tmp_path).repl
     eng.ctx.ns("flags")["output_level"] = "normal"
@@ -448,10 +448,12 @@ def test_help_log_ends_with_the_session_log_opening_on_a_click(tmp_path):
 
     # Assert
     row = lines[-1]
-    assert "session.log" in "".join(piece.text for piece in row), "the log the frontend keeps"
+    assert "m.mcp.log" in "".join(piece.text for piece in row), "the log the frontend keeps"
     actual_links = [piece.link for piece in row if piece.link is not None]
-    assert actual_links == [Link("log.show")], "a click opens it, as the Log button does"
-    assert [record["name"] for record in listed.data] == ["session.log"], "one record, as data"
+    assert actual_links == [Link("log.show m.mcp.log")], "a click opens that log by name"
+    assert [record["name"] for record in listed.data] == ["m.mcp.log"], (
+        "the one that exists, as data"
+    )
 
 
 def test_a_long_list_shows_its_newest_ten_and_links_the_rest(tmp_path):

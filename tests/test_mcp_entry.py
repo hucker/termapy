@@ -146,7 +146,7 @@ class TestMcpDispatch:
     def test_mcp_verbose_emits_host_built_notice_to_stderr(self, tmp_path):
         """--mcp --mcp-verbose prints a startup notice to stderr.
 
-        Phase 3 emits "host built; cfg=...; mcp_dir=..." on startup
+        Phase 3 emits "host built; cfg=...; log=..." on startup
         when --mcp-verbose is set.  Stdout stays clean (it's the
         protocol wire); stderr gets dev observability.
         """

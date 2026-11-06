@@ -534,7 +534,7 @@ def select_lines(lines: list[str], n: int | None) -> list[str]:
     """Return the last n (n>0) or first n (n<0) lines; n is None -> all.
 
     The shared counting scheme behind ``/ss.txt``, ``/log.dump`` and
-    ``/mcp.log.dump``: a positive N is the most-recent N (tail), a
+    ``/log.diag.dump``: a positive N is the most-recent N (tail), a
     negative N is the oldest N (head).  Slicing clamps, so an ``abs(n)``
     larger than ``len(lines)`` yields every line.  Callers must reject
     ``n == 0`` before calling (``parse_count_arg`` does so).

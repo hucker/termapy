@@ -301,7 +301,7 @@ class CapabilitySet:
 
     # What:  The frontend keeps a session log of its own
     #        (``ctx.internal.session_log_path``): the TUI's ``<cfg>.log``
-    #        (or ``log_file``), the MCP server's ``mcp/session.log``.  It is
+    #        (or ``log_file``), the MCP server's ``<cfg>.mcp.log``.  It is
     #        per config, so commands pair it with ``config_loaded``
     #        (``CapabilitySet.SESSION_LOG``).  Replaced five handler checks
     #        that answered "No log file." in the CLI, where /help said the

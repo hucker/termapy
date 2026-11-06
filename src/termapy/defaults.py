@@ -638,7 +638,7 @@ CFG_KEYS: tuple[CfgKey, ...] = (
         "",
         "path",
         help="The TUI's session log; empty = <config>.log in the config's folder.",
-        hint="MCP logs to mcp/session.log; the CLI keeps no log.",
+        hint="MCP logs to <config>.mcp.log beside it; the CLI keeps no log.",
     ),
     CfgKey(
         "file_xfer_root",

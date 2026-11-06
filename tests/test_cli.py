@@ -1092,7 +1092,7 @@ class TestBareForms:
         assert opened == expected, f"bare /{folder} opened {folder}/"
 
     def test_bare_log_is_log_show(self, cli, tmp_path):
-        """Bare /log does what the Log button does, /log.show: in the CLI, which keeps no log, the gate refuses both alike."""
+        """Bare /log does what the Log button does, /log.show: in the CLI, which keeps no log, both say so alike."""
         # Arrange -- the CLI has no session log, so no system viewer is launched
         _grant_gui_apps(cli)
 
@@ -1101,7 +1101,7 @@ class TestBareForms:
         shown = cli.repl.dispatch("log.show")
 
         # Assert
-        assert "session_log" in bare.error, f"bare /log ran /log.show: {bare.error}"
+        assert "keeps no session log" in bare.error, f"bare /log ran /log.show: {bare.error}"
         assert bare.error.replace("/log ", "/log.show ") == shown.error, (
             "bare /log and /log.show are one behavior"
         )
@@ -1116,10 +1116,8 @@ class TestNoSessionLog:
     @pytest.mark.parametrize(
         "command",
         [
-            "log.dump",
             "log.delete",
             "log.fingerprint",
-            "log.show",
             "log.start",
             "log.stop",
             "edit.log",
@@ -1141,6 +1139,23 @@ class TestNoSessionLog:
         # Assert
         assert cli.session_log_path() is None, "the CLI writes no session log"
         expected = f"/{command} requires: session_log (not available in this environment)"
+        assert (result.success, result.error) == (False, expected)
+
+    @pytest.mark.parametrize("command", ["log.dump", "log.show"])
+    def test_bare_reads_nothing_and_points_at_the_list(self, cli, command):
+        """Bare /log.dump and /log.show in the CLI read no other frontend's log as its own, and say where the logs are.
+
+        A name from /log.list reaches the TUI's or MCP's log; bare means this
+        frontend's, which the CLI has not (review 2026-10-15, D3).
+        """
+        # Arrange
+        _grant_gui_apps(cli)
+
+        # Act
+        result = cli.repl.dispatch_full(f"/{command}")
+
+        # Assert
+        expected = "This frontend keeps no session log; /log.list names the config's"
         assert (result.success, result.error) == (False, expected)
 
     def test_cfg_log_file_is_empty_in_the_cli(self, cli):

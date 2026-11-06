@@ -604,7 +604,6 @@ ALLOWED_RAW_MKDIR: frozenset[str] = frozenset(
         # /firmware.copy creates the user's own output folder, not a data folder.
         "termapy/firmware/__init__.py",
         "termapy/folders.py",
-        "termapy/mcp/server.py",
     }
 )
 
@@ -2326,9 +2325,6 @@ NOT_IN_GOLD: dict[str, str] = {
     "log.show": _OPENS_APP,
     "mcp.catalog": "the whole command catalog as JSON; it changes with every command",
     "mcp.info": "prints the process id",
-    "mcp.log": _OPENS_APP,
-    "mcp.log.dump": _PATH,
-    "mcp.log.path": _PATH,
     "os": "runs a shell command, gated by TERMAPY_OS_CMD_ENABLED, a machine setting",
     "ping": _TIMED,
     "ping.quiet": _TIMED,

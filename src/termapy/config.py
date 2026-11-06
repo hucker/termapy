@@ -38,6 +38,7 @@ from termapy.folders import (
     HISTORY_SUFFIX,
     LIB,
     LOG_SUFFIX,
+    MCP_LOG_SUFFIX,
     PLUGIN,
     PROFILE_TMP_GLOB,
     RUN,
@@ -49,6 +50,7 @@ from termapy.folders import (
     file_suggestion,
     inside,
     is_inside,
+    prune_empty_folders,
 )
 from termapy.migration import (
     CURRENT_CONFIG_VERSION,
@@ -243,6 +245,14 @@ def prepare_cfg_folder(config_path: str) -> Path:
         if old_file.is_file() and not new_file.exists():
             ensure_folder(new_file.parent)
             old_file.rename(new_file)
+    # One-time move (migration): the MCP session log lived in mcp/session.log
+    # until 2026-11-05 and is now <stem>.mcp.log beside the TUI's <stem>.log.
+    # Nothing else was ever written to mcp/, so an emptied folder goes too.
+    old_mcp_log = d / _OLD_MCP_DIR / _OLD_MCP_LOG
+    new_mcp_log = d / f"{stem}{MCP_LOG_SUFFIX}"
+    if old_mcp_log.is_file() and not new_mcp_log.exists():
+        old_mcp_log.rename(new_mcp_log)
+        prune_empty_folders(d, (_OLD_MCP_DIR,))
     # Write .gitignore for transient data (only if it doesn't exist)
     gitignore = d / ".gitignore"
     if not gitignore.exists():
@@ -743,23 +753,20 @@ def session_log_file(cfg: Mapping[str, Any], config_path: str | None) -> Path | 
     return None
 
 
-# The MCP server's state folder beside the config, and its session log in it.
-MCP_DIR = "mcp"
-MCP_SESSION_LOG = "session.log"
-
-
-def mcp_dir(config_path: str) -> Path:
-    """The MCP server's state folder for a config (logs, cached profiles)."""
-    return Path(config_path).parent / MCP_DIR
+# Where the MCP session log lived until 2026-11-05; prepare_cfg_folder moves it.
+_OLD_MCP_DIR = "mcp"
+_OLD_MCP_LOG = "session.log"
 
 
 def mcp_log_path(config_path: str) -> Path:
-    """Where the MCP server writes its session log for a config.
+    """Where the MCP server writes its session log: ``<stem>.mcp.log`` beside the ``.cfg``.
 
-    One owner: the MCP host writes here and ``/mcp.log.*`` reads it from
-    any frontend.  A path, whether or not the file exists.
+    One owner: the MCP host writes here and ``/log.list`` lists it from any
+    frontend, beside the TUI's ``<stem>.log``.  A path, whether or not the
+    file exists.
     """
-    return mcp_dir(config_path) / MCP_SESSION_LOG
+    path = Path(config_path)
+    return path.parent / f"{path.stem}{MCP_LOG_SUFFIX}"
 
 
 def cfg_history_path(config_path: str | None) -> str:

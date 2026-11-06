@@ -609,11 +609,10 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     Async response handling: ``ctx.dispatch()`` returns immediately
     after writing TX bytes; the RX response arrives later via the
     on_lines pipeline and the rx_observer.  After dispatch returns,
-    we stay inside the with-block and poll a "last byte arrival" timer
-    until the device's RX has been quiet for ``wait_gap`` (default
-    50ms) -- the same idle-gap settling pattern used by
-    ``request_response.py`` and the profile executor.  Capped by a
-    5-second hard deadline.
+    we stay inside the with-block in ``ctx.serial.wait_idle`` until the
+    device's RX has been quiet for ``wait_gap`` (default 50ms) after the
+    command -- the published idle-gap wait the demo's ``/traffic.count``
+    shares.  Capped at 5 seconds so a chatty device cannot hold it.
 
     Args (parameters first, ``cmd=`` last as the rest-keyword that
     consumes the rest of the line so the wrapped command can contain
@@ -627,32 +626,16 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     actually does, but the response gets eaten by a terminator
     mismatch.  ``/cap.wire`` makes the mismatch immediately visible.
     """
-    import time as _time
-
     cmd = ctx.arg("cmd")
     wait_gap_s = ctx.arg("wait_gap")  # float seconds
 
     tx = bytearray()
     rx = bytearray()
-    last_arrival = [_time.monotonic()]
 
-    def cap_rx(data: bytes) -> None:
-        rx.extend(data)
-        last_arrival[0] = _time.monotonic()
-
-    def cap_tx(data: bytes) -> None:
-        tx.extend(data)
-
-    with ctx.serial.rx_observer(cap_rx), ctx.serial.tx_observer(cap_tx):
+    with ctx.serial.rx_observer(rx.extend), ctx.serial.tx_observer(tx.extend):
         ctx.dispatch(cmd)
-        # Settle on idle-gap: wait until rx has been quiet for wait_gap_s.
-        # Hard-capped at 5s so a chatty device can't hang us forever.
-        if wait_gap_s > 0:
-            deadline = _time.monotonic() + 5.0
-            while _time.monotonic() < deadline:
-                if (_time.monotonic() - last_arrival[0]) >= wait_gap_s:
-                    break
-                _time.sleep(0.01)
+        # Settle on idle-gap: one quiet wait_gap after the command, 5 s at most.
+        ctx.serial.wait_idle(round(wait_gap_s * 1000), 5.0)
 
     encoding = cfg_value(ctx.cfg, "encoding")
     tx_decoded = bytes(tx).decode(encoding, errors="replace")

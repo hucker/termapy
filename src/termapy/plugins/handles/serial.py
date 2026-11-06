@@ -61,7 +61,9 @@ class SerialHandle:
     read_raw: Callable = lambda timeout_ms=1000, frame_gap_ms=0: b""
     drain: Callable = lambda: 0
     wait_for_data: Callable = lambda timeout_ms=250: False
-    wait_idle: Callable = lambda timeout_ms=400: None
+    # wait_idle(timeout_ms, max_wait_s): return once the device has been
+    # quiet for timeout_ms after the call, or after max_wait_s at most.
+    wait_idle: Callable = lambda timeout_ms=400, max_wait_s=3.0: None
     # byte_counts() -> (tx, rx): bytes sent and received since the port last
     # opened, what /term.info and the TUI's /term.traffic display show.
     byte_counts: Callable[[], tuple[int, int]] = lambda: (0, 0)

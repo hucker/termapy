@@ -5,7 +5,8 @@ A working example of the ``ctx.serial.rx_observer()`` and
 real debugging tools any plugin author would find useful when working
 with an unfamiliar serial device:
 
-  /traffic.count <cmd>            - run a command, count bytes both ways
+  /traffic.count <cmd>            - run a command, count bytes both ways,
+                                    the reply included (wait_gap=, 50ms)
   /traffic.hexdump <file> [dur]   - tee timestamped hex of all I/O
                                     to a file for a duration
   /traffic.rate [duration]        - bytes/sec sample over a window
@@ -30,6 +31,7 @@ from typing import TYPE_CHECKING
 
 from termapy.folders import ensure_folder
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
+from termapy.plugins.params import ParamSpec
 from termapy.protocol import parse_data
 from termapy.scripting import parse_duration, parse_keywords
 
@@ -46,15 +48,20 @@ if TYPE_CHECKING:
 
 
 def _handler_count(ctx: PluginContext, args: str) -> CmdResult:
-    """Run the wrapped command; report TX/RX bytes that flowed during it.
+    """Run the wrapped command, wait for the reply to go quiet, report the TX/RX bytes.
 
     The simplest use of the observer context managers: declare two
     counter callbacks, register them for the duration of the dispatch,
     let the safe-by-construction context exit unregister them.
-    """
-    if not args.strip():
-        raise UsageError()
 
+    A device line returns as soon as it is written, so the reply arrives
+    after the dispatch does.  The observers stay registered through
+    ``ctx.serial.wait_idle``: one ``wait_gap`` of silence after the
+    command, longer while bytes keep coming, 5 s at most.  A device that
+    takes longer than ``wait_gap`` to START answering needs a bigger gap
+    (``wait_gap=200ms``); ``wait_gap=0ms`` counts only what the dispatch
+    itself saw.
+    """
     rx_count = [0]
     tx_count = [0]
 
@@ -65,7 +72,8 @@ def _handler_count(ctx: PluginContext, args: str) -> CmdResult:
         tx_count[0] += len(data)
 
     with ctx.serial.rx_observer(count_rx), ctx.serial.tx_observer(count_tx):
-        ctx.dispatch(args)
+        ctx.dispatch(ctx.arg("cmd"))
+        ctx.serial.wait_idle(round(ctx.arg("wait_gap") * 1000), 5.0)
 
     ctx.io.output_markup(
         f"  TX: [yellow]{tx_count[0]:d}[/]  RX: [cyan]{rx_count[0]:d}[/]  bytes",
@@ -236,7 +244,7 @@ subcommand uses RX/TX observers (passive byte taps) so the device's
 output continues to render in scrollback while traffic is also being
 measured / logged / pattern-matched in the background.
 
-  {prefix}traffic.count <cmd>            run cmd; report TX/RX bytes
+  {prefix}traffic.count <cmd>            run cmd; report TX/RX bytes, reply included
   {prefix}traffic.hexdump <file> [dur]   tee hex to file for a duration
   {prefix}traffic.rate [duration]        bytes/sec rate over a window
   {prefix}traffic.snoop <hex> [timeout]  wait for byte pattern in RX
@@ -244,6 +252,7 @@ measured / logged / pattern-matched in the background.
 Examples:
 
   {prefix}traffic.count AT+INFO            - bytes used by one command
+  {prefix}traffic.count wait_gap=200ms AT+INFO - for a device slow to answer
   {prefix}traffic.hexdump bug.log 30s      - capture 30s of wire-trace
   {prefix}traffic.rate 10s                 - 10s bytes/sec sample
   {prefix}traffic.snoop FF55 timeout=2s    - wait for sync sequence
@@ -261,9 +270,25 @@ COMMAND = Command(
     handler=None,
     sub_commands={
         "count": Command(
-            args="<cmd>",
-            help="Run a command and report TX/RX bytes during it.",
+            help="Run a command and report the TX/RX bytes, its reply included.",
             handler=_handler_count,
+            params=[
+                ParamSpec(
+                    "wait_gap",
+                    "duration",
+                    default=0.05,
+                    help="quiet gap that ends the wait for the reply, e.g. 200ms",
+                ),
+                ParamSpec(
+                    "cmd",
+                    "str",
+                    positional=True,
+                    required=True,
+                    rest=True,
+                    hint="<cmd>",
+                    help="the command to run and count",
+                ),
+            ],
             needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "hexdump": Command(

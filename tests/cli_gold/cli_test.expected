@@ -1143,7 +1143,7 @@ DESCRIPTION
   output continues to render in scrollback while traffic is also being
   measured / logged / pattern-matched in the background.
 
-    /traffic.count <cmd>            run cmd; report TX/RX bytes
+    /traffic.count <cmd>            run cmd; report TX/RX bytes, reply included
     /traffic.hexdump <file> [dur]   tee hex to file for a duration
     /traffic.rate [duration]        bytes/sec rate over a window
     /traffic.snoop <hex> [timeout]  wait for byte pattern in RX
@@ -1151,6 +1151,7 @@ DESCRIPTION
   Examples:
 
     /traffic.count AT+INFO            - bytes used by one command
+    /traffic.count wait_gap=200ms AT+INFO - for a device slow to answer
     /traffic.hexdump bug.log 30s      - capture 30s of wire-trace
     /traffic.rate 10s                 - 10s bytes/sec sample
     /traffic.snoop FF55 timeout=2s    - wait for sync sequence
@@ -1160,7 +1161,7 @@ DESCRIPTION
   that any new RX/TX-watching plugin should follow.
 
 SUBCOMMANDS
-  /traffic.count      Run a command and report TX/RX bytes during it.
+  /traffic.count      Run a command and report the TX/RX bytes, its reply included.
   /traffic.hexdump    Tee timestamped hex of TX/RX traffic to a file.
   /traffic.rate       Measure TX/RX bytes/sec over a window (default 5s).
   /traffic.snoop      Block until a byte pattern (hex or "text") appears in the RX stream.

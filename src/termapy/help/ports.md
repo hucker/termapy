@@ -206,6 +206,127 @@ of serial data, or if you need sub-millisecond round-trip latency for
 real-time control.  For a shell or debug console, both classes feel
 identical.
 
+## When you need to know how fast termapy keeps up
+
+Two answers, measured on the rig described at the end of this section:
+
+- **Commands and replies: any baud the adapter supports.**  Of 300 replies
+  of 1 KB per layer at each baud from 115200 to 2 Mbaud, termapy's reader
+  and the CLI received every one intact, and the TUI all but one, at
+  2 Mbaud.  A reply arrived in its time on the wire plus about 16 ms.  The
+  16 ms is the adapter's, since bare pyserial shows it too: most likely the
+  FTDI latency timer described above, whose default is 16 ms.  The TUI
+  adds 5-15 ms to put the reply on screen.
+- **Large dumps: 100% intact up to 460800 on this adapter.**  At 230400
+  and 460800, 2 MB through each of termapy's layers lost nothing.  From
+  600000 up, the adapter loses a few lines in tens of thousands, at random,
+  and at 2 Mbaud it loses some in every run.  Bare pyserial loses them
+  too, often the most, so the loss happens before termapy sees the bytes.
+
+**Commands and replies.**  300 replies of 1 KB, each sent only after the
+previous one had fully arrived, as a command-and-answer session runs:
+
+| Baud | Reply on the wire | Replies intact: reader, CLI, TUI | Typical reply time: reader, TUI |
+| --- | --- | --- | --- |
+| 115200 | 89 ms | 300, 300, 300 | 103 ms, 115 ms |
+| 230400 | 44 ms | 300, 300, 300 | 62 ms, 72 ms |
+| 460800 | 22 ms | 300, 300, 300 | 38 ms, 47 ms |
+| 921600 | 11 ms | 300, 300, 300 | 28 ms, 33 ms |
+| 2 Mbaud | 5 ms | 300, 300, 299 | 22 ms, 27 ms |
+
+The one damaged reply, in the TUI at 2 Mbaud, is the adapter loss
+described below; bare pyserial lost one reply at 460800 the same way.
+Now and then, about one reply in a few hundred, the TUI took up to 0.8 s:
+a stall on its main thread mid-session, not yet explained.  The reader's
+slowest reply was within 10 ms of its typical.
+
+**Large dumps.**  2 MB of numbered 64-byte lines (32768 of them) per layer,
+sent at full line rate, the worst case of a device dumping a buffer.  Lines
+lost:
+
+| Baud | Bare pyserial | Reader | CLI | TUI | TUI behind at the end |
+| --- | --- | --- | --- | --- | --- |
+| 230400 | 0 | 0 | 0 | 0 | 0.4 s |
+| 460800 | 0 | 0 | 0 | 0 | 3.0 s |
+| 600000 | 3 | 0 | 0 | 0 | 3.3 s |
+| 750000 | 45 | 0 | 8 | 0 | 4.0 s |
+| 921600 | 0 | 0 | 0 | 0 | 4.2 s |
+| 2 Mbaud | 322 | 12 | 4 | 44 | 4.6 s |
+
+The losses are random: 921600 lost nothing in this sweep, and in shorter
+runs before it lost up to 81 lines in 8 s.  Across every run at 460800 and
+below, about 16 MB through termapy's layers lost nothing.  If every byte of
+a fast link matters, use hardware flow control or a protocol with
+checksums and retries: termapy cannot recover bytes the adapter never
+delivered.
+
+**What the layers mean for you:**
+
+- The reader (what the MCP server uses) and the CLI kept pace with the line
+  at every baud.  The session log, captures, `/expect` and an MCP agent get
+  every byte that reaches the PC.
+- The TUI keeps every line but its pane can fall behind: 0.4 s after 2 MB at
+  230400, 3-5 s at 460800 and up.  In the TUI the session log, `/cap.text`
+  and `/expect` ride with the pane, so they trail by the same.  `/cap.bin`
+  and `/cap.struct` never go through the display.  On Python 3.15's
+  free-threaded build the pane kept up far better: 0.2 s behind after 8 s
+  at 921600, against 0.9 s with the GIL.
+- The CLI prints on the reader thread.  A terminal window slower than the
+  stream backs up into the driver's buffer and loses bytes once it is full;
+  these runs printed into nothing, so the terminal's own speed is not in
+  them.
+
+**How it was measured.**  A USB adapter with TX jumpered to RX, so every
+byte sent comes back, and four layers each on a fresh connection: bare
+pyserial (the adapter and driver ceiling), termapy's reader, the CLI and
+the headless TUI.  Every line is numbered and checked on arrival.  Each
+layer is also timed from the first byte sent to the last line it took in:
+the jumper delivers at most the line rate, so a layer that keeps pace
+finishes with the wire, and a slow one finishes late by its backlog, long
+before a buffer overflows.  Dumps run for seconds because the driver
+buffer termapy asks for holds about 2.8 s at 921600: a short burst cannot
+tell a slow reader from a fast one.  A loopback is the harder case: it
+sends every byte it receives, so each "reply" was sent as 1 KB rather than
+a short command, and the adapter sends and receives at full rate at once,
+which a device answering you does not do.  A device may well do better.
+
+**The rig**, 2026-11-06: an FTDI FT232R adapter with TX wired to RX, flow
+control off, FTDI driver 2.12.36.20; a Dell XPS 13 9310 2-in-1, Intel Core
+i7-1165G7 (4 cores, 8 threads), 16 GB, Windows 11 Pro build 26200; Python
+3.14.2 with the GIL (and 3.15.0 free-threaded for the one comparison
+above); termapy 0.79.0 plus the changes on main since, its bundled pyserial
+3.5, Textual 8.2.8; the headless TUI at 160x48.  The adapter, as
+`termapy --info COM7` reported it:
+
+```text
+  COM7
+  Description  : USB Serial Port (COM7)
+  Manufacturer : FTDI
+  Vendor       : FTDI
+  Product      : FT232R USB UART
+  Serial #     : BG03U7VTA
+  Location     : 1-8.2.3
+  VID:PID      : 0403:6001
+  Model        : FTDI FT232R / FT245R
+  USB Speed    : USB Full-Speed (1 ms min latency)
+  Driver       : FTSER2K
+  Latency Timer: n/a (Windows - check Device Manager)
+  Max Baud     : 3,000,000 baud
+  Permissions  : n/a
+  In Use       : no
+```
+
+To repeat it from a source checkout, with a jumpered adapter and nothing
+else holding it:
+
+```sh
+uv run python scripts/throughput.py --mode repl --baud 115200,230400,460800,921600,2000000
+uv run python scripts/throughput.py --kb 2048 --baud 230400,460800,600000,750000,921600,2000000
+```
+
+It refuses to send unless the port echoes a probe, so it never sends into a
+device.
+
 ## When a chip shows "unknown"
 
 Termapy has a curated lookup table of known USB-serial chips by VID:PID.

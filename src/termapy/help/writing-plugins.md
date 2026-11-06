@@ -883,7 +883,7 @@ either directly.
 | `ctx.serial.drain()` | Discard stale bytes in the receive buffer |
 | `ctx.serial.write(data)` | Send raw bytes (no line ending added); a failed write raises `OSError` (`SerialException` is one), with `Not connected.` when no port is open |
 | `ctx.serial.read_raw(timeout_ms)` | Read response bytes with timeout framing |
-| `ctx.serial.wait_idle(timeout_ms)` | Wait for serial output to settle |
+| `ctx.serial.wait_idle(timeout_ms, max_wait_s)` | Wait until the device has been quiet for `timeout_ms` after the call, `max_wait_s` at most: how a command waits out a reply it cannot frame |
 | `ctx.serial.wait_for_data(timeout_ms)` | Block until at least one byte arrives |
 | `ctx.serial.byte_counts()` | `(tx, rx)`: bytes sent and received since the port last opened |
 | `ctx.serial.rx_observer(cb)` | Context manager: passive RX byte tap |
@@ -984,10 +984,13 @@ without disrupting normal operation.  It shows:
   exit path including exceptions, no try/finally needed
 - Coordinating an observer with a `threading.Event` for "wait for X"
   semantics (the snoop subcommand)
+- Keeping the observers registered through `ctx.serial.wait_idle` so a
+  reply that arrives after the command returns is still counted (the
+  count subcommand)
 - Letting normal device output continue flowing through the pipeline
   while traffic is also being measured / logged in the background
 
-Run `/temp_plot` and `/traffic.count AT+VER` in demo mode to see them
+Run `/temp_plot` and `/traffic.count AT+INFO` in demo mode to see them
 in action, then read the source.
 
 ## Using AI coding tools

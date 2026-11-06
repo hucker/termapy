@@ -974,7 +974,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_demo_profiles.py               | Tests for the bundled DEMO profiles                                                                                                                |
 | test_demo_random_packet.py          | Tests for the demo's AT+RND random-packet emitter                                                                                                  |
 | test_demo_symbols.py                | Tests for the bundled demo symbol table (mirrors `test_demo_profiles.py`)                                                                          |
-| test_demo_traffic.py                | The demo traffic plugin's /traffic.snoop, on the per-config plugin path --demo uses                                                                |
+| test_demo_traffic.py                | The demo traffic plugin's /traffic.count, .hexdump and .snoop, on the per-config plugin path --demo uses                                           |
 | test_demo_vt100.py                  | Tests for the DEMO_VT100 interactive demo device                                                                                                   |
 | test_detect_gui_apps.py             | Tests for `termapy.plugins.detect_gui_apps`                                                                                                        |
 | test_devices.py                     | Unit tests for device files: the format, instances, layering and merge                                                                             |

@@ -111,6 +111,19 @@ because they share the stdlib-only / fail-loud convention.
   `uv run python scripts/sync_architecture.py` after adding a module
   or test file; `test_architecture_sync.py` fails on drift.
 
+- `throughput.py` - send numbered lines through the jumpered
+  hw_loopback adapter (SN from `TERMAPY_HW_LOOPBACK_SN`, default
+  `BG03U7VTA`) and report, per layer (bare pyserial, termapy's engine,
+  the CLI, the headless TUI) and per baud (`--baud` takes a list), what
+  arrived intact.  `--mode repl` sends 1 KB replies one at a time and
+  times each; the default stream mode sends one long stream (`--kb` for
+  the same size at every baud) and shows how close each layer finished
+  to the wire time.  The results are written up in `help/ports.md`.  A
+  measurement, not a gate: the numbers belong to the machine and the
+  adapter.  Refuses to run unless the port echoes a probe, so it never
+  streams into a device.  Not stdlib-only (it drives termapy), so use
+  `uv run python scripts/throughput.py --baud 921600`.
+
 - `check_dep_updates.py` - query PyPI for the latest release of
   every direct dependency and flag which ones have moved past
   our upper bound.  Run before a release (or whenever you want)

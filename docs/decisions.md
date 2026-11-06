@@ -1099,3 +1099,27 @@ Catches that only guessed at what could raise were narrowed instead (Rich's `Col
 Textual's `OptionDoesNotExist`, pyserial's modem-line reads, `parse_format_spec`'s
 `ValueError`), and a `try` around code that cannot fail was removed. `show_traceback` is removed
 (config v37): the traceback is always in the log.
+
+## 2026-11-05 — Every frontend's session log is the same kind of file
+
+Chuck: "there is an mcp log that appears to be an irregular log file, why wouldn't this just be
+another log file". It was separate for one good reason, a TUI and an MCP server can run on one
+config at once and a file two processes append to is unsafe on Windows, and irregular for no
+good one: `mcp/session.log` in a folder of its own, no timestamps at all, its own line markers,
+a second writer in `mcp/server.py` that reopened the file per write, and its own command family
+(`/mcp.log`, `.dump`, `.path`).
+
+Now one writer, `session_log.SessionLog`, owned by `TerminalHost` and used by the TUI and MCP
+alike: every line `[stamp] <marker> <text>`, with `>` sent, `<` received, `#` termapy's output,
+`$` an MCP request and `!` a failure MCP recorded, and every session framed by Session Start and
+Session End. The files stay two, named alike beside the config: `<cfg>.log` (or `log_file`) and
+`<cfg>.mcp.log`, a sidecar that a config rename carries. A load moves an old `mcp/session.log`
+there; nothing else was ever written to `mcp/`, so an emptied folder goes too.
+
+`/log.list`, `/log.show {name}` and `/log.dump {name} {N}` reach either log from any frontend
+with a config, the CLI included, which is what `/mcp.log.dump` did for an SSH session. Behavior
+removed: `/mcp.log`, `/mcp.log.dump` and `/mcp.log.path` (the path is in `/log.list`'s data).
+Behavior changed: a word where `/log.dump`'s count goes is a log's name, so `/log.dump abc` says
+`Unknown log: abc` rather than showing the usage. Two MCP servers on one config would still
+share `<cfg>.mcp.log`; the two server slots normally run different configs, so that is noted
+rather than designed around.

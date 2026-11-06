@@ -16,7 +16,9 @@ per run, in every frontend, the CLI included, so ``/log.diag.*`` needs no
 session log.
 
 "The session log" is the frontend's own: the TUI's ``<cfg>.log`` (or
-``log_file``), the MCP server's ``mcp/session.log``, and none in the CLI.
+``log_file``), the MCP server's ``<cfg>.mcp.log``, and none in the CLI.
+``/log.list``, ``/log.show`` and ``/log.dump`` reach either by name, from
+any frontend with a config (``ctx.internal.session_log_paths()``).
 Every command here asks ``ctx.internal.session_log_path()`` which file
 that is (registry ``session-log-one-owner``).  Until 2026-10-16 six
 places worked it out for themselves, so over MCP ``/log.dump`` read the
@@ -36,8 +38,10 @@ from termapy import diag_log
 from termapy.config import open_with_system
 from termapy.defaults import cfg_value
 from termapy.folder_ops import dump_text_slice, file_table
-from termapy.folders import default_file_name, inside, is_inside
+from termapy.folders import LOG_SUFFIX, default_file_name, inside, is_inside
+from termapy.matching import closest, did_you_mean
 from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.scripting import parse_count_arg
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -109,16 +113,50 @@ _DIAG_SHOW_HELP = "Open this run's diagnostic log, or a listed one, in the syste
 # ── /log.dump ─────────────────────────────────────────────────────────────────
 
 
+def _session_log(ctx: PluginContext, name: str) -> Path | CmdResult:
+    """The session log ``name`` picks from ``/log.list``, or this frontend's own for ``""``.
+
+    A name matches a log of this config only, with or without ``.log``
+    (``demo.mcp`` is ``demo.mcp.log``), so it never reaches an arbitrary
+    file.  The answer is the path, or the failure to return.
+    """
+    if not name:
+        own = ctx.internal.session_log_path()
+        if own is None:
+            return CmdResult.fail(
+                msg=f"This frontend keeps no session log; {ctx.prefix}log.list names the config's"
+            )
+        return own
+    logs = ctx.internal.session_log_paths()
+    for path in logs:
+        if name in (path.name, path.name.removesuffix(LOG_SUFFIX)):
+            return path
+    return CmdResult.fail(
+        msg=f"Unknown log: {name}{did_you_mean(closest(name, [path.name for path in logs]))}"
+    )
+
+
 def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
-    """Print the session log: all, last N (N>0), or first N (N<0) lines."""
-    p = ctx.internal.session_log_path()
-    assert p is not None, "log.dump declares session_log"
+    """Print a session log, this frontend's own or one /log.list names: all, last N (N>0), or first N (N<0).
+
+    Hand-rolled (CLAUDE.md "Declarative Command Parameters"): two optional
+    positionals told apart by what they are, as ``/ss.txt``'s are
+    (``scripting.parse_count_arg``): a whole number is the count, anything
+    else a log's name.
+    """
+    try:
+        name, count = parse_count_arg(args, "")
+    except ValueError as e:
+        return CmdResult.fail(msg=str(e))
+    picked = _session_log(ctx, name)
+    if isinstance(picked, CmdResult):
+        return picked
     # Sandbox: cfg["log_file"] can be pointed at any file (via /cfg.auto),
     # turning /log.dump into an arbitrary-file read.  Under the MCP host,
     # refuse a log path outside the config directory.  Reading the cfg's
-    # own in-sandbox log stays fine.
+    # own in-sandbox logs stays fine.
     if not ctx.capabilities.filesystem_unconfined and ctx.config_path:
-        if not is_inside(p, Path(ctx.config_path).parent):
+        if not is_inside(picked, Path(ctx.config_path).parent):
             return CmdResult.fail(
                 msg=(
                     "Log file is outside the config sandbox; refusing to read "
@@ -126,18 +164,18 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
                     "the server's shell to allow host-wide paths."
                 )
             )
-    if not p.exists():
-        return CmdResult.fail(msg=f"Log file not found: {p}")
+    if not picked.exists():
+        return CmdResult.fail(msg=f"Log file not found: {picked}")
 
-    return dump_text_slice(ctx, p, args)
+    return dump_text_slice(ctx, picked, "" if count is None else str(count))
 
 
-_DUMP_HELP = "Print the session log; {prefix}log.dump N for last N lines, -N for first N."
+_DUMP_HELP = "Print a session log; N for the last N lines, -N for the first N."
 _DUMP_LONG_HELP = (
-    "With no argument, prints the entire session log.  With a signed "
-    "integer N, prints a slice: N>0 the last N lines (most recent), "
-    "N<0 the first N (oldest) -- useful when the log is long and only "
-    "one end matters."
+    "With no argument, prints this frontend's session log.  A name from\n"
+    "{prefix}log.list prints that one instead: the MCP server's from the TUI or\n"
+    "the CLI, say.  A signed integer N prints a slice: N>0 the last N lines\n"
+    "(most recent), N<0 the first N (oldest)."
 )
 
 
@@ -344,17 +382,19 @@ _FINGERPRINT_FLAGS = {"--show": "Also echo the fingerprint to the terminal outpu
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
-    """The session log as a file list of one row; a click on its name opens it."""
-    path = ctx.internal.session_log_path()
-    assert path is not None, "log.list declares session_log"
-    files = [path] if path.is_file() else []
-    return file_table(f"{path.parent.name}/", "log", files, run=lambda record: "log.show")
+    """The config's session logs, this frontend's first; a click on a name opens it."""
+    logs = ctx.internal.session_log_paths()
+    files = [path for path in logs if path.is_file()]
+    folder = Path(ctx.config_path).parent.name
+    return file_table(f"{folder}/", "log", files, run=lambda record: f"log.show {record['name']}")
 
 
-_LIST_HELP = "List the session log file with its size and age."
+_LIST_HELP = "List the config's session logs, the TUI's and the MCP server's."
 _LIST_LONG_HELP = (
-    "One row, the file a {prefix}log.show opens, so {prefix}help log can end with it;\n"
-    "in the TUI a click on its name opens it.  Empty until the log exists."
+    "This frontend's first, then the other's: <cfg>.log (or log_file) is the\n"
+    "TUI's, <cfg>.mcp.log the MCP server's.  {prefix}log.show and {prefix}log.dump\n"
+    "take a listed name; in the TUI a click on one opens it.  Only logs\n"
+    "that exist are listed."
 )
 
 
@@ -362,21 +402,23 @@ _LIST_LONG_HELP = (
 
 
 def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
-    """Open the session log in the system viewer."""
-    path = ctx.internal.session_log_path()
-    assert path is not None, "log.show declares session_log"
-    if not path.exists():
-        return CmdResult.fail(msg=f"Log file not found: {path}")
-    open_with_system(str(path))
-    ctx.io.result(f"  Opening {path.name}")
-    return CmdResult.ok(value=path)
+    """Open a session log in the system viewer: this frontend's own, or one /log.list names."""
+    picked = _session_log(ctx, args.strip())
+    if isinstance(picked, CmdResult):
+        return picked
+    if not picked.exists():
+        return CmdResult.fail(msg=f"Log file not found: {picked}")
+    open_with_system(str(picked))
+    ctx.io.result(f"  Opening {picked.name}")
+    return CmdResult.ok(value=picked)
 
 
-_SHOW_HELP = "Open the session log in the system viewer."
+_SHOW_HELP = "Open a session log in the system viewer, this frontend's or a listed one."
 _SHOW_LONG_HELP = (
-    "Launches the platform's default handler for the session log file "
-    "(Notepad / TextEdit / xdg-open) in a separate process.  Use "
-    "{prefix}log.dump to print the log to this terminal instead."
+    "Launches the platform's default handler for the log file\n"
+    "(Notepad / TextEdit / xdg-open) in a separate process: this frontend's\n"
+    "own, or a name from {prefix}log.list.  Use {prefix}log.dump to print it\n"
+    "to this terminal instead."
 )
 
 
@@ -467,9 +509,10 @@ COMMAND = Command(
     bare_sub="show",
     help_list="list",
     long_help=(
-        "The session log is the frontend's own: the TUI's <cfg>.log (or\n"
-        "the log_file key), the MCP server's mcp/session.log, none in the\n"
-        "CLI."
+        "Each frontend keeps its own session log beside the config: the\n"
+        "TUI's <cfg>.log (or the log_file key), the MCP server's <cfg>.mcp.log,\n"
+        "none in the CLI.  {prefix}log.list shows both, and {prefix}log.show and\n"
+        "{prefix}log.dump open or print either by name."
     ),
     sub_commands={
         "delete": Command(
@@ -510,12 +553,15 @@ COMMAND = Command(
             },
         ),
         "dump": Command(
-            args="{N}",
+            args="{name} {N}",
             help=_DUMP_HELP,
             long_help=_DUMP_LONG_HELP,
             handler=_handler_dump,
             shows=True,
-            needs=CapabilitySet.SESSION_LOG,
+            # Any frontend with a config: a name reads the TUI's or MCP's log
+            # from the CLI too; with none, this frontend's (the handler says
+            # when it keeps none).
+            needs=CapabilitySet.CONFIG_LOADED,
         ),
         "fingerprint": Command(
             args="{--show}",
@@ -537,16 +583,16 @@ COMMAND = Command(
             long_help=_LIST_LONG_HELP,
             handler=_handler_list,
             shows=True,
-            needs=CapabilitySet.SESSION_LOG,
+            needs=CapabilitySet.CONFIG_LOADED,
             state=True,
         ),
         "show": Command(
-            args="",
+            args="{name}",
             help=_SHOW_HELP,
             long_help=_SHOW_LONG_HELP,
             handler=_handler_show,
             shows=True,
-            needs=CapabilitySet(session_log=True, config_loaded=True, gui_apps=True),
+            needs=CapabilitySet.CONFIG_GUI_APPS,
         ),
         "start": Command(
             args="",

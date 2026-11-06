@@ -1037,8 +1037,8 @@ class TestSerialRxHandoff:
                 assert list(app.repl._recent_lines)[-3:] == ["TEXT-1", "HEX-1", "TEXT-2"], (
                     "the expect watcher gets every decoded line, whichever view showed it"
                 )
-                assert app.log_fh is not None, "a config on disk opens a log"
-                log_text = Path(app.log_fh.name).read_text(encoding="utf-8")
+                assert app.session_log.fh is not None, "a config on disk opens a log"
+                log_text = Path(app.session_log.fh.name).read_text(encoding="utf-8")
                 assert "< HEX-1" in log_text, "the session log keeps the decoded line"
 
         _run(scenario)
@@ -1112,8 +1112,8 @@ class TestSerialRxHandoff:
                 expected = [f"flood {i}" for i in range(total)]
                 actual_captured = cap_path.read_text(encoding="utf-8").splitlines()
                 assert actual_captured == expected, "text capture gets every line, in order"
-                assert app.log_fh is not None, "a config on disk opens a log"
-                log_lines = Path(app.log_fh.name).read_text(encoding="utf-8").splitlines()
+                assert app.session_log.fh is not None, "a config on disk opens a log"
+                log_lines = Path(app.session_log.fh.name).read_text(encoding="utf-8").splitlines()
                 actual_logged = [line.split("] < ", 1)[1] for line in log_lines if "] < " in line]
                 assert actual_logged == expected, "the session log gets every line, in order"
                 assert app.repl._recent_lines[-1] == "flood 2099", "the expect watcher was fed"
@@ -1765,7 +1765,7 @@ class TestSharedStateRaces:
         _run(scenario)
 
     def test_log_line_survives_a_handle_closed_under_it(self, app_factory):
-        """``/log.delete`` closes ``log_fh`` from a dispatch worker.
+        """``/log.delete`` closes the session log from a dispatch worker.
 
         The reader thread can already be inside ``_log_line`` when that
         happens: the write then lands on a closed file, which raises
@@ -1778,8 +1778,8 @@ class TestSharedStateRaces:
                 await pilot.pause()
                 # Arrange
                 app._open_log()
-                assert app.log_fh is not None, "a config on disk opens a log"
-                app.log_fh.close()  # the close half of /log.delete
+                assert app.session_log.fh is not None, "a config on disk opens a log"
+                app.session_log.fh.close()  # the close half of /log.delete
 
                 # Act / Assert -- reaching the next line is the assertion
                 app._log_line("<", "arrives after the close")
@@ -2249,7 +2249,7 @@ class TestSessionLog:
                 assert results["dump"].success, results["dump"].error
                 assert results["delete"].value == str(log_path), "the TUI's own log was deleted"
                 assert not log_path.exists(), "the file is gone"
-                assert app.log_fh is None, "the TUI let go of the file before the delete"
+                assert app.session_log.fh is None, "the TUI let go of the file before the delete"
 
         _run(scenario)
 

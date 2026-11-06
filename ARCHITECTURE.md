@@ -195,6 +195,7 @@ src/termapy/
 ├── scripting.py            # (751 lines)  Template expansion, script parsing, and shared utilities for termapy
 ├── serial_engine.py        # (799 lines)  SerialEngine - orchestrates serial port, reader, and capture
 ├── serial_port.py          # (618 lines)  Serial port I/O wrapper and reader data processor
+├── session_log.py          #              Session log: a frontend's transcript of a config's sessions, written by one class in every frontend
 ├── terminal_host.py        #              Base class for the TUI, CLI and MCP frontends: builds the PluginContext, owns the one TX path
 ├── title_bar.py            #              Title-bar rendering for the TUI App
 ├── tree_render.py          #              Render a 2-level file tree with box-drawing connectors
@@ -754,7 +755,8 @@ termapy_cfg/
 ├── log/                  # diagnostic log, <stamp>-<pid>.log per process (diag_log)
 └── <name>/
     ├── <name>.cfg        # JSON config file
-    ├── <name>.log        # session log
+    ├── <name>.log        # session log (the TUI's)
+    ├── <name>.mcp.log    # session log (the MCP server's), the same format (session_log)
     ├── <name>.md         # info report (from /cfg.info)
     ├── <name>.history    # command history
     ├── plugin/           # per-config plugins
@@ -1088,6 +1090,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_serial_engine.py               | Tests for SerialEngine - connection lifecycle and reader loop                                                                                      |
 | test_serial_io_safety.py            | Exception-safety tests for the `ctx.serial.io()` context manager                                                                                   |
 | test_serial_port.py                 | Tests for SerialPort and SerialReader                                                                                                              |
+| test_session_log.py                 | Tests for termapy.session_log: the one session-log writer, its line format and markers, and the old MCP log's move                                 |
 | test_shutdown_race.py               | Contract tests for the SHUTDOWN_RACE exception tuple                                                                                               |
 | test_status_bar.py                  | Behavioral tests for the StatusBar widget                                                                                                          |
 | test_suggester.py                   | Behavioral tests for CommandSuggester -- prefix type-ahead logic                                                                                   |

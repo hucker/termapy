@@ -12,16 +12,30 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Final
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from termapy import load_report
-from termapy.config import cap_folder_of, load_config, open_serial, open_with_system
+from termapy.config import (
+    cap_folder_of,
+    load_config,
+    mcp_log_path,
+    open_serial,
+    open_with_system,
+    session_log_file,
+)
 from termapy.config_resolve import resolve_config
 from termapy.defaults import cfg_value, quiet_start
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
 from termapy.scripting import strip_ansi
 from termapy.serial_port import eol_label_markup, strip_eol_markers
+from termapy.session_log import (
+    LOG_STARTED,
+    LOG_STOPPED,
+    SESSION_START,
+    STATUS_MARKER,
+    SessionLog,
+)
 from termapy.typed_lines import TypedLine
 
 if TYPE_CHECKING:
@@ -95,17 +109,6 @@ def _is_recording() -> bool:
     return _run_record.is_active()
 
 
-# A session's first and last line in each session log it writes, the TUI's
-# and MCP's alike.  A log whose last marker is a start (this one or Log
-# Started) is a session that did not end cleanly.
-SESSION_START: Final[str] = f"{' Session Start ':-^60s}"
-SESSION_END: Final[str] = f"{' Session End ':-^60s}"
-# The two ends of a gap inside a session: /log.stop writes the first before
-# the TUI lets go of its log, /log.start the second when it opens it again.
-LOG_STOPPED: Final[str] = f"{' Log Stopped ':-^60s}"
-LOG_STARTED: Final[str] = f"{' Log Started ':-^60s}"
-
-
 class TerminalHost:
     """Base class shared by TUI and CLI terminal frontends.
 
@@ -119,10 +122,13 @@ class TerminalHost:
     * ``repl``         - ``ReplEngine`` instance
     * ``capture``      - ``CaptureEngine`` instance
     * ``ctx``          - ``PluginContext`` (set by subclass ``_setup_context``)
+    * ``session_log``  - ``SessionLog``, which stays closed in a frontend that keeps none
     """
 
     _HISTORY_LIMIT: int = 30
     _help_server_port: int = 0
+    # /log.stop's state: the log stays closed, through a config switch, until /log.start.
+    _log_stopped: bool = False
     # Set when ctx.internal.typed_lines is read; see _dispatch_typed.
     _typed_lines_read: bool = False
     # The frontend's name, ``$(FRONT_END)``; each frontend sets its own.
@@ -140,6 +146,7 @@ class TerminalHost:
     # over attributes this class declared writable).
     _engine: SerialEngine
     _capture: CaptureEngine
+    session_log: SessionLog
 
     @property
     def engine(self) -> SerialEngine:
@@ -495,6 +502,7 @@ class TerminalHost:
             # Which file this frontend's session log is: one owner, the
             # host's session_log_path (registry session-log-one-owner).
             session_log_path=lambda: self.session_log_path(),
+            session_log_paths=lambda: self.session_log_paths(),
             start_session_log=lambda: self._start_session_log(),
             stop_session_log=lambda: self._stop_session_log(),
             # How this frontend opens a file for editing (/edit decides which).
@@ -1074,18 +1082,88 @@ class TerminalHost:
         """
         return None
 
-    def _start_session_log(self) -> bool:
-        """``/log.start``: write the session log again; False when it already is.
+    def session_log_paths(self) -> list[Path]:
+        """Every session log this config has, the frontend's own first: what ``/log.list`` lists.
 
-        Only a host whose log can be stopped (the TUI) has anything to
-        start; the default's log never stops.
+        The TUI's and the MCP server's, whichever frontend asks, so either
+        can see and open the other's transcript.  Paths, existing or not.
         """
-        return False
+        own = self.session_log_path()
+        paths = [own] if own is not None else []
+        if self.config_path:
+            for path in (
+                session_log_file(self.cfg, self.config_path),
+                mcp_log_path(self.config_path),
+            ):
+                if path is not None and path not in paths:
+                    paths.append(path)
+        return paths
+
+    def _log_line(self, prefix: str, text: str) -> None:
+        """Write one line to the session log under ``prefix`` (see ``session_log`` for the markers)."""
+        self.session_log.write(prefix, [text])
+
+    def _log_lines(self, prefix: str, texts: list[str]) -> None:
+        """Write a batch of lines under one timestamp, one write and one flush."""
+        self.session_log.write(prefix, texts)
+
+    def _open_log(self, marker: str = SESSION_START) -> None:
+        """Open the session log from ``marker`` when a config is loaded and the log is neither open nor stopped."""
+        if self.session_log.fh is not None or self._log_stopped or not self.config_path:
+            return
+        path = self.session_log_path()
+        if path is not None:
+            self.session_log.open(path, marker)
+
+    def _end_session_log(self) -> None:
+        """Write ``Session End`` into the open log, then close it.
+
+        A session leaves a log two ways while it is still open: the
+        frontend exits, or a switch moves it to another config's file
+        (``_follow_session_log``).  So every ``Session Start`` has its
+        ``Session End``, unless ``/log.stop`` closed the log first, and its
+        last line says ``Log Stopped``, or the session did not end cleanly,
+        which a start without an end then says.
+        """
+        self.session_log.end()
+
+    def _follow_session_log(self, previous: Path | None) -> None:
+        """Move the session log to the config just switched to.
+
+        A config's log is that config's history, so the old file gets where
+        the session went and its ``Session End``, and the new one its
+        ``Session Start``.  Two configs naming one ``log_file`` share it, so a
+        switch between them keeps the open file.
+        """
+        if self.session_log.fh is not None and self.session_log_path() != previous:
+            self._log_line(STATUS_MARKER, f"Switched to config: {Path(self.config_path).stem}")
+            self._end_session_log()
+        self._open_log()
+
+    def _start_session_log(self) -> bool:
+        """``/log.start``: open the log again, appending, from a ``Log Started`` line.
+
+        False when it was not stopped.  A file that cannot be opened raises
+        ``OSError`` with the log still stopped, for the command to report.
+        """
+        if not self._log_stopped:
+            return False
+        self._log_stopped = False
+        try:
+            self._open_log(LOG_STARTED)
+        except OSError:
+            self._log_stopped = True
+            raise
+        return True
 
     def _stop_session_log(self) -> bool:
-        """``/log.stop`` and ``/log.delete``: let go of the log until ``/log.start``.
+        """``/log.stop`` and ``/log.delete``: mark the gap, close the log, keep it closed until ``/log.start``.
 
-        False when it was already stopped.  A host that keeps the file
-        open (the TUI) closes it here; the default holds nothing open.
+        False when it was already stopped.  A delete stops it first, so it
+        stays stopped after one too.
         """
-        return False
+        if self._log_stopped:
+            return False
+        self._log_stopped = True
+        self.session_log.end(LOG_STOPPED)
+        return True

@@ -41,6 +41,7 @@ from termapy.scripting import (
     strip_ansi,
 )
 from termapy.serial_engine import SerialEngine
+from termapy.session_log import SessionLog
 from termapy.terminal_host import TerminalHost
 
 if TYPE_CHECKING:
@@ -156,6 +157,8 @@ class CLITerminal(TerminalHost):
             open_fn=self._open_serial,
             log=self._log,
         )
+        # The CLI keeps no session log: session_log_path is None, so it never opens.
+        self.session_log = SessionLog()
         self.repl = ReplEngine(cfg, config_path, write=self.status)
 
         self._setup_context()

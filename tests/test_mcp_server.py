@@ -379,10 +379,10 @@ class TestCatalog:
 
 
 class TestSessionLog:
-    """D3: over MCP the session log is mcp/session.log, the agent's own, never the TUI's."""
+    """D3: over MCP the session log is <cfg>.mcp.log, the agent's own, never the TUI's."""
 
     def test_log_commands_read_the_frontends_own_log(self, host):
-        """session-log-one-owner: /log.dump over MCP prints mcp/session.log, and $(CFG.LOG_FILE) names it.
+        """session-log-one-owner: /log.dump over MCP prints <cfg>.mcp.log, and $(CFG.LOG_FILE) names it.
 
         Until 2026-10-16 every frontend's /log.dump read the TUI's <cfg>.log,
         so an agent saw another session's log (review 2026-10-15, D3).
@@ -401,7 +401,7 @@ class TestSessionLog:
         assert "agent-was-here" in text, "the agent's own log"
         assert "TUI-ONLY-LINE" not in text, "never the TUI's log"
         log_path = host.session_log_path()
-        assert log_path is not None and log_path.name == "session.log"
+        assert log_path is not None and log_path.name == "test.mcp.log", "beside the cfg, its stem"
         assert Path(named["value"]) == log_path.resolve(), "$(CFG.LOG_FILE) is the same file"
 
     @pytest.mark.parametrize("command", ["log.delete", "log.stop", "log.start"])
@@ -900,12 +900,12 @@ class TestColorStripping:
         assert list(host.repl._recent_lines)[-3:] == ["first", "second", "third"], (
             "the expect watcher sees every line"
         )
-        assert host._log_path is not None, "the fixture's cfg gives the host a log"
-        logged = [
-            line
-            for line in host._log_path.read_text(encoding="utf-8").splitlines()
-            if line.startswith("< ")
+        log_path = host.session_log_path()
+        assert log_path is not None, "the fixture's cfg gives the host a log"
+        entries = [
+            line.partition("] ")[2] for line in log_path.read_text(encoding="utf-8").splitlines()
         ]
+        logged = [entry for entry in entries if entry.startswith("< ")]
         assert logged == ["< first", "< second", "< third"], "every line logged, in order"
 
     def test_on_lines_strips_ansi_into_async_events_when_color_off(self, host):

@@ -29,7 +29,7 @@ The edit leaves live here too: ``edit_command(folder)`` builds
 ``/edit.<folder>`` and its noun-first twin ``/<folder>.edit`` as one
 declaration, ``edit_folder_command`` adds that leaf's ``.list`` and
 ``.explore``, and ``edit_cfg_command`` is ``/edit.cfg`` / ``/cfg.edit``.
-``dump_text_slice`` is the body of ``/log.dump`` and ``/mcp.log.dump``.
+``dump_text_slice`` is the body of ``/log.dump`` and ``/log.diag.dump``.
 A helper two plugins import is core, never another plugin's export
 (registry ``plugins-import-published-only``), so the run, proto, plugin,
 cfg, log and mcp plugins reach these from here, not from ``edit.py`` and
@@ -292,7 +292,7 @@ def file_table(
 def dump_text_slice(ctx: PluginContext, path: Path, args: str) -> CmdResult:
     """Print a text file: all lines, last N (N>0), or first N (N<0).
 
-    The shared body of ``/log.dump`` and ``/mcp.log.dump`` -- each does its
+    The shared body of ``/log.dump`` and ``/log.diag.dump`` -- each does its
     own path resolution + sandbox guard, then hands the resolved path
     here.  Returns the line count via ``value=`` for scripting.
 

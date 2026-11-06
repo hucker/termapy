@@ -151,6 +151,8 @@ FOLDER_MIGRATIONS = [
 HISTORY_FILE = ".cmd_history.txt"
 HISTORY_SUFFIX = ".history"
 LOG_SUFFIX = ".log"
+# The MCP server's session log, beside the TUI's <stem>.log (session_log).
+MCP_LOG_SUFFIX = ".mcp.log"
 # The /cfg.info project report, also written at exit.
 INFO_REPORT_SUFFIX = ".md"
 # The v2 device profile the MCP host auto-loads by convention.
@@ -173,6 +175,7 @@ PROFILE_TMP_GLOB = f"{PROFILE_TMP_PREFIX}*{FOLDER_EXTS[RUN]}"
 SIDECARS: tuple[tuple[str, str | None], ...] = (
     (HISTORY_SUFFIX, None),
     (LOG_SUFFIX, None),
+    (MCP_LOG_SUFFIX, None),
     (INFO_REPORT_SUFFIX, None),
     (PROFILE_SUFFIX, None),
     (SYMBOLS_SUFFIX, SYM),

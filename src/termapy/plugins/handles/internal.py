@@ -166,14 +166,18 @@ class InternalHandle:
     delay_progress: Callable | None = None
 
     # session_log_path() -> Path | None: the file THIS frontend writes its
-    # session log to (TUI <cfg>.log or log_file, MCP mcp/session.log), or
+    # session log to (TUI <cfg>.log or log_file, MCP <cfg>.mcp.log), or
     # None where it keeps none (CLI).  The one answer to "which log": every
     # /log.* command, $(CFG.LOG_FILE) and /cfg.info read it (registry
-    # session-log-one-owner).  stop_session_log() -> bool lets go of the
-    # file until start_session_log() -> bool opens it again, each False when
-    # the log already was in that state; /log.delete stops it first, since
-    # the TUI holds it open.
+    # session-log-one-owner).  session_log_paths() -> list[Path] is every
+    # session log the config has, this frontend's first: what /log.list
+    # lists and a /log.show or /log.dump name picks from.
+    # stop_session_log() -> bool lets go of the file until
+    # start_session_log() -> bool opens it again, each False when the log
+    # already was in that state; /log.delete stops it first, since the
+    # frontend holds it open.
     session_log_path: Callable = lambda: None
+    session_log_paths: Callable = lambda: []
     start_session_log: Callable = lambda: False
     stop_session_log: Callable = lambda: False
 

@@ -14,7 +14,7 @@ Phase 3 deliverable.  When ``termapy --mcp [config]`` runs:
 **Architecture:**
 
 - Stdout is reserved for MCP protocol frames.  Never ``print()`` to
-  stdout.  Logging goes to ``<cfg_dir>/mcp/session.log``.
+  stdout.  The session log is ``<cfg_dir>/<cfg>.mcp.log`` (``session_log``).
 - ``--mcp-verbose`` mirrors log events to stderr in real time for
   dev observability.  Stderr is safe; only stdout is wire-sacred.
 - A per-call output buffer (contextvars.ContextVar) collects every
@@ -43,7 +43,6 @@ from termapy.config import (
     cfg_dir,
     config_files,
     config_names,
-    mcp_dir,
     mcp_log_path,
     on_connect_commands,
 )
@@ -65,7 +64,8 @@ from termapy.plugins.command import interpolate_help
 from termapy.repl import ReplEngine
 from termapy.scripting import format_duration, strip_ansi
 from termapy.serial_engine import SerialEngine
-from termapy.terminal_host import SESSION_END, SESSION_START, TerminalHost
+from termapy.session_log import STATUS_MARKER, SessionLog
+from termapy.terminal_host import TerminalHost
 
 if TYPE_CHECKING:
     import argparse
@@ -103,7 +103,7 @@ class MCPHost(TerminalHost):
 
     Parallel to CLITerminal: same engine + repl + ctx, different
     output sinks.  Output goes to a per-call buffer (the run_command
-    response) and to ``<cfg_dir>/mcp/session.log``.  Optionally tees
+    response) and to the session log, ``<cfg>.mcp.log``.  Optionally tees
     log events to stderr when ``--mcp-verbose`` is set.
     """
 
@@ -133,17 +133,15 @@ class MCPHost(TerminalHost):
         self.prefix = cfg_value(cfg, "cmd_prefix")
         self._xfer_cancel = threading.Event()
 
-        # Resolve mcp/ state directory and log path -- both follow the
-        # cfg, per termapy convention.  When no cfg is loaded (zero-config
-        # slot waiting for /cfg.load), both are None and file logging is
-        # suppressed; stderr tee under --mcp-verbose still works.
-        self._mcp_dir: Path | None = None
-        self._log_path: Path | None = None
-        self._log_lock = threading.Lock()
+        # The session log, <cfg>.mcp.log, follows the cfg.  With no cfg
+        # loaded (a zero-config slot waiting for /cfg.load) it stays closed,
+        # and the --mcp-verbose copy to stderr still works.
+        self.session_log = SessionLog()
+        if verbose:
+            self.session_log.tee = self._tee_to_stderr
         # Set at pre-start: from then on a /cfg.load that moves the log
         # ends the old file and starts the new one.
         self._session_started = False
-        self._refresh_log_paths()
 
         # device_state tracking (served by termapy://device_state.json).
         # Updated by run_command_async after each dispatch.  expect_history
@@ -184,44 +182,28 @@ class MCPHost(TerminalHost):
 
         self._setup_context()
 
-    # -- mcp/ state directory --------------------------------------------------
-
-    def _resolve_mcp_dir(self) -> Path | None:
-        """Return the per-config mcp/ state directory, or None if no cfg.
-
-        Lives under the same parent as the config file so logs and
-        cached profiles travel with the config -- termapy's standard
-        convention.  When the slot has no cfg loaded yet, returns None
-        and the caller suppresses file logging (stderr tee still works
-        under ``--mcp-verbose``).
-        """
-        if self.config_path:
-            return mcp_dir(self.config_path)
-        return None
+    # -- Session log ------------------------------------------------------------
 
     def _refresh_log_paths(self) -> None:
-        """Recompute ``_mcp_dir`` and ``_log_path`` from ``config_path``.
+        """Move the session log to the config just loaded, once the session has started.
 
-        Called at construction and after each ``/cfg.load`` (via
-        ``_switch_to_cfg_path``) so a slot's log routes to the active
-        cfg's ``mcp/`` directory.  Idempotent: safe to call any time.
-        Once the session has started, a call that moves the log ends the
-        old file and starts the new one (:meth:`_follow_session_log`).
+        Run by ``_setup_context``, which ``_switch_to_cfg_path`` calls BEFORE
+        the auto-connect, so the on-connect lines land in the new config's
+        log.  The old file gets where the session went and its ``Session
+        End`` (``TerminalHost._follow_session_log``).
         """
-        previous = self._log_path
-        self._mcp_dir = self._resolve_mcp_dir()
-        if self._mcp_dir is not None:
-            self._mcp_dir.mkdir(parents=True, exist_ok=True)
-            self._log_path = mcp_log_path(self.config_path)
-        else:
-            self._log_path = None
-        if self._session_started and self._log_path != previous:
-            self._follow_session_log(previous)
+        if self._session_started:
+            self._follow_session_log(self.session_log.path)
 
     def _on_app_prestart(self) -> None:
-        """Start the session in its log: the MCP log needs no opening, only its marker."""
+        """Open the session log from its ``Session Start``."""
         self._session_started = True
-        self._log_line(SESSION_START)
+        self._open_log()
+
+    @staticmethod
+    def _tee_to_stderr(line: str) -> None:
+        """``--mcp-verbose``: every session-log line to stderr too.  Never stdout, the MCP wire."""
+        print(line, file=sys.stderr, flush=True)
 
     def _resolve_config_name(self, name: str) -> str | None:
         """Any config in the project's folder, by bare name: an agent names a config, never a path.
@@ -244,28 +226,9 @@ class MCPHost(TerminalHost):
             return ""
         return f"Configs in this project: {', '.join(names)}. Load one with {self.prefix}cfg.load <name>."
 
-    def _follow_session_log(self, previous: Path | None) -> None:
-        """A ``/cfg.load`` moved the session to another config's log: end the old, start the new.
-
-        The TUI's ``_follow_session_log`` for a log written one open per
-        call: the old file gets where the session went and its
-        ``Session End``, the new one its ``Session Start``.  A bare slot
-        (no previous file) only starts the new one.
-        """
-        with self._log_lock:
-            self._append_log(
-                previous,
-                [f"Switched to config: {Path(self.config_path).stem}", SESSION_END],
-            )
-        self._log_line(SESSION_START)
-
-    def _end_session_log(self) -> None:
-        """End the session in its log: the server's last line, after the disconnect."""
-        self._log_line(SESSION_END)
-
     def session_log_path(self) -> Path | None:
-        """The MCP server's session log, ``mcp/session.log``: /log.* over MCP reads the agent's own."""
-        return self._log_path
+        """The MCP server's session log, ``<cfg>.mcp.log``: /log.* over MCP reads the agent's own."""
+        return mcp_log_path(self.config_path) if self.config_path else None
 
     def _active_cap_dir(self) -> Path | None:
         """Return the captures directory, or None when no cfg is loaded.
@@ -277,7 +240,7 @@ class MCPHost(TerminalHost):
         capture resources would expose arbitrary files (``.env``,
         ``.pypirc``, keys) from the launch directory.  A bare slot
         therefore has NO captures surface until a cfg is loaded, exactly
-        as ``_mcp_dir``/logging are suppressed until then.  Gate on
+        as its session log stays closed until then.  Gate on
         ``config_path`` (set reliably by ``_switch_to_cfg_path``), not
         on ``cap_dir.exists()`` -- CWD always exists.
         """
@@ -323,7 +286,7 @@ class MCPHost(TerminalHost):
     # Note: ``_setup_context`` runs ``_refresh_log_paths`` (see below).
     # ``_setup_context`` is invoked by ``_switch_to_cfg_path`` BEFORE the
     # auto-connect, so on-connect log entries (echo off, mcp_on_connect_cmd)
-    # land in the new cfg's mcp/ directory rather than the old one.
+    # land in the new cfg's log rather than the old one's.
 
     def write(self, text: str, color: str = "") -> None:
         """Capture into the active per-call buffer; log; tee to stderr if verbose."""
@@ -331,7 +294,7 @@ class MCPHost(TerminalHost):
         if buf is not None:
             buf.append({"level": "text", "text": text, "color": color or ""})
         # Always log so post-mortem review has the full picture.
-        self._log_line(f"  {text}")
+        self._log_line(STATUS_MARKER, text)
 
     def write_markup(self, text: str) -> None:
         """Capture markup output as a separate entry kind, flattened to its text.
@@ -345,62 +308,18 @@ class MCPHost(TerminalHost):
         buf = _buffer.get()
         if buf is not None:
             buf.append({"level": "markup", "text": plain, "color": ""})
-        self._log_line(f"  {plain}")
+        self._log_line(STATUS_MARKER, plain)
 
     def status(self, text: str, color: str = "") -> None:
         """Status message: same buffer sink as write, indented in the log."""
         buf = _buffer.get()
         if buf is not None:
             buf.append({"level": "text", "text": text, "color": color or "dim"})
-        self._log_line(f"  {text}")
+        self._log_line(STATUS_MARKER, text)
 
     def _log(self, direction: str, text: str) -> None:
         """SerialEngine log callback.  ``direction`` is ``>`` (TX) or ``<`` (RX)."""
-        self._log_line(f"{direction} {text}")
-
-    def _log_line(self, line: str) -> None:
-        """Append one line to the session log (see ``_log_lines``)."""
-        self._log_lines([line])
-
-    def _log_lines(self, lines: list[str]) -> None:
-        """Append lines to the session log, one open per call.  Tee to stderr if verbose.
-
-        The reader logs a whole batch through one call, so a burst of
-        received lines costs one open, not one per line.
-
-        NEVER writes to stdout -- stdout is the MCP wire.  Asserts at
-        runtime that no log path resolves to ``sys.stdout`` so a future
-        misconfiguration fails fast.
-
-        When ``_log_path`` is None (zero-config slot, no cfg loaded
-        yet), file logging is suppressed and only the stderr tee
-        applies.  Once ``/cfg.load`` runs, ``_refresh_log_paths`` wires
-        the file logger to the new cfg's ``mcp/`` directory.
-        """
-        if not lines:
-            return
-        with self._log_lock:
-            self._append_log(self._log_path, lines)
-            if self.verbose:
-                for line in lines:
-                    print(line.rstrip("\n"), file=sys.stderr, flush=True)
-
-    @staticmethod
-    def _append_log(path: Path | None, lines: list[str]) -> None:
-        """Append lines to one log file; None writes nothing.  Callers hold ``_log_lock``."""
-        if path is None:
-            return
-        # Defensive: ensure the log file isn't aliased to stdout.  In
-        # normal operation the path is a regular file under the cfg's
-        # mcp/ dir; the check here is cheap insurance.
-        assert path != Path("/dev/stdout"), (
-            "MCP session log MUST NOT alias stdout (would corrupt protocol)"
-        )
-        try:
-            with path.open("a", encoding="utf-8") as f:
-                f.writelines(line.rstrip("\n") + "\n" for line in lines)
-        except OSError:
-            pass  # logging is non-critical
+        self._log_line(direction, text)
 
     def _record_async_event(self, line: str, *, source: str) -> None:
         """Append an async serial event with a UTC timestamp and source tag.
@@ -444,7 +363,7 @@ class MCPHost(TerminalHost):
             on_lines=self._on_lines,
             on_clear=lambda: None,
             on_capture_done=lambda: self._stop_capture(),
-            on_error=lambda detail: self._log_line(f"! Serial error: {detail}"),
+            on_error=lambda detail: self._log_line("!", f"Serial error: {detail}"),
             on_disconnect=self._on_reader_disconnect,
             on_hex=self._on_hex,
             hex_view=self._hex_view,
@@ -452,7 +371,7 @@ class MCPHost(TerminalHost):
 
     def _on_reader_disconnect(self) -> None:
         """The reader lost the port: log it, then the shared port-lost teardown."""
-        self._log_line("! Serial disconnected")
+        self._log_line("!", "Serial disconnected")
         self._port_lost()
 
     def _on_lines(self, lines: list[str]) -> None:
@@ -485,7 +404,7 @@ class MCPHost(TerminalHost):
         """
         self._feed_rx_consumers(lines)
         texts = [self._rx_text(line) for line in lines]
-        self._log_lines([f"< {text}" for text in texts])
+        self._log_lines("<", texts)
         if self._call_active.is_set():
             return
         for text in texts if rows is None else rows:
@@ -505,7 +424,7 @@ class MCPHost(TerminalHost):
         files live with the cfg.  Refreshing here means on-connect
         commands that fire AFTER context setup but BEFORE
         ``_switch_to_cfg_path`` returns get logged into the *new*
-        cfg's mcp/ directory, not the old one.
+        cfg's log, not the old one's.
         """
         self._refresh_log_paths()
         internal_handle = self._build_internal_handle()
@@ -530,7 +449,7 @@ class MCPHost(TerminalHost):
 
         self.ctx.capabilities = CapabilitySet(
             block_until=True,
-            # mcp/session.log, the agent's own (config.mcp_log_path).
+            # <cfg>.mcp.log, the agent's own (config.mcp_log_path).
             session_log=True,
             filesystem_unconfined=MCP_FS_UNCONFINED,
             network_egress=MCP_NET_EGRESS,
@@ -628,7 +547,7 @@ class MCPHost(TerminalHost):
         if candidate is None:
             return
         if not candidate.exists():
-            self._log_line(f"! auto-load profile: not found: {candidate}")
+            self._log_line("!", f"auto-load profile: not found: {candidate}")
             return
         # The config's own profile goes by its name in the config's folder:
         # the command takes that, and refuses an absolute path as an escape.
@@ -640,16 +559,16 @@ class MCPHost(TerminalHost):
             folder = cfg_path.parent.resolve()
             if is_inside(candidate, folder):
                 file = candidate.resolve().relative_to(folder).as_posix()
-        self._log_line(f"$ {self.prefix}profile.load {file}  (auto-load on connect)")
+        self._log_line("$", f"{self.prefix}profile.load {file}  (auto-load on connect)")
         try:
             result = self.repl.dispatch(f"profile.load {file}")
         except Exception as exc:  # boundary: an auto-load must not stop the connect
             diag_log.exception("auto-load profile failed: %s", file)
-            self._log_line(f"! auto-load profile failed: {exc}{diag_log.traceback_note()}")
+            self._log_line("!", f"auto-load profile failed: {exc}{diag_log.traceback_note()}")
             return
         if not result.success:
             diag_log.warning("auto-load profile failed: %s: %s", file, result.error)
-            self._log_line(f"! auto-load profile: {result.error}")
+            self._log_line("!", f"auto-load profile: {result.error}")
             return
         record = load_report.profile_record(
             ctx.ns("active_profile"), file=file, path=str(candidate.resolve()), layer=layer
@@ -678,7 +597,7 @@ class MCPHost(TerminalHost):
         a warning but doesn't block the connect.
         """
         for label, cmd in on_connect_commands(ctx.cfg, "mcp_on_connect_cmd"):
-            self._log_line(f"$ {cmd}  ({label})")
+            self._log_line("$", f"{cmd}  ({label})")
             try:
                 result = self.repl.dispatch_full(
                     cmd,
@@ -690,10 +609,10 @@ class MCPHost(TerminalHost):
                 )
             except Exception as exc:  # boundary: one bad on-connect command must not stop the rest
                 diag_log.exception("%s %r raised", label, cmd)
-                self._log_line(f"! {label} ({cmd!r}) failed: {exc}{diag_log.traceback_note()}")
+                self._log_line("!", f"{label} ({cmd!r}) failed: {exc}{diag_log.traceback_note()}")
                 continue
             if not result.success:
-                self._log_line(f"! {label} ({cmd!r}): {result.error}")
+                self._log_line("!", f"{label} ({cmd!r}): {result.error}")
 
     def _on_connect_banner_watch(self, ctx: PluginContext) -> None:
         """Spawn a 2-second watcher for the active profile's startup banner.
@@ -728,14 +647,14 @@ class MCPHost(TerminalHost):
                 match = ctx.wait_for_match(predicate, timeout=2.0)
             except Exception as exc:  # boundary: the watcher's thread must end quietly
                 diag_log.exception("banner watcher raised")
-                self._log_line(f"! banner watcher error: {exc}{diag_log.traceback_note()}")
+                self._log_line("!", f"banner watcher error: {exc}{diag_log.traceback_note()}")
                 return
             if match:
                 self._banner_seen = True
                 self._banner_text = match
-                self._log_line(f"  banner: {match}")
+                self._log_line(STATUS_MARKER, f"banner: {match}")
             else:
-                self._log_line(f"! banner not seen within 2s (pattern: {pattern!r})")
+                self._log_line("!", f"banner not seen within 2s (pattern: {pattern!r})")
 
         threading.Thread(target=watch, daemon=True, name="mcp-banner-watch").start()
 
@@ -794,7 +713,7 @@ class MCPHost(TerminalHost):
                 loop = asyncio.get_running_loop()
 
                 def _run_sync() -> CmdResult:
-                    self._log_line(f"$ {command}  ({level})")
+                    self._log_line("$", f"{command}  ({level})")
                     # Apply the per-call output level via ctx slot (replaces
                     # the old --<level> text append).  Save/restore matches
                     # the pattern in ReplEngine.dispatch.
@@ -1597,7 +1516,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
 
     if verbose:
         print(
-            f"termapy --mcp: host built; cfg={cfg_path or '(none)'}, mcp_dir={host._mcp_dir}",
+            f"termapy --mcp: host built; cfg={cfg_path or '(none)'}, log={host.session_log_path()}",
             file=sys.stderr,
         )
 
@@ -1616,7 +1535,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
             host._connect()
         except Exception as exc:  # boundary: the server runs on without a port
             diag_log.exception("MCP auto-connect raised")
-            host._log_line(f"! Auto-connect failed: {exc}{diag_log.traceback_note()}")
+            host._log_line("!", f"Auto-connect failed: {exc}{diag_log.traceback_note()}")
     host.start_note = start_note
     if start_note:
         print(f"termapy --mcp: {start_note}", file=sys.stderr)
@@ -1631,7 +1550,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
     import signal as _signal
 
     def _term_handler(signum: int, _frame: Any) -> None:
-        host._log_line(f"! signal {signum} received; shutting down")
+        host._log_line("!", f"signal {signum} received; shutting down")
         raise KeyboardInterrupt
 
     _orig_handlers: dict[int, Any] = {}

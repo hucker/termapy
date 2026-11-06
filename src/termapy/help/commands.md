@@ -160,10 +160,10 @@ sends to the device) waits in the input line for Enter.
 | `/log.diag.dump {N}`      | Print this run's diagnostic log (all, or an N-line slice)                   |
 | `/log.diag.list`          | List the diagnostic logs, newest first                                      |
 | `/log.diag.show {name}`   | Open this run's diagnostic log, or a listed one, in the system viewer       |
-| `/log.dump {N}`           | Print the session log (all, or an N-line slice) to the terminal             |
+| `/log.dump {name} {N}`    | Print a session log, this frontend's or a listed one (all, or N lines)      |
 | `/log.fingerprint`        | Write a full session fingerprint (OS, terminal, port params) to the log     |
-| `/log.list`               | List the session log file with its size and age (`/help log` ends with it)  |
-| `/log.show`               | Open the session log in the system viewer                                   |
+| `/log.list`               | List the config's session logs, the TUI's and the MCP server's               |
+| `/log.show {name}`        | Open a session log in the system viewer, this frontend's or a listed one    |
 | `/log.start`              | Write the session log again after a stop or a delete (TUI only)             |
 | `/log.stop`               | Stop writing the session log until `/log.start`; the file stays (TUI only)  |
 | `/mcp.catalog`            | Print the JSON command catalog (same content as termapy://commands.json MCP resource) |
@@ -279,7 +279,7 @@ sends to the device) waits in the input line for Enter.
 | `/xfer.ymodem.recv {dir}`      | Receive file(s) from the device via YMODEM                             |
 | `/xfer.ymodem.send <file> ...` | Send file(s) to the device via YMODEM (batch)                          |
 
-**Line counts:** `/ss.txt`, `/log.dump`, and `/mcp.log.dump` take an
+**Line counts:** `/ss.txt`, `/log.dump`, and `/log.diag.dump` take an
 optional `N`. `N>0` saves/prints the **last N** lines (most recent),
 `N<0` the **first N** (oldest); omit it for everything.
 

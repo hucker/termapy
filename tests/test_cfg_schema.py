@@ -173,7 +173,7 @@ class TestOneAnswer:
         record = cfg_key(key)
         assert record is not None, f"{key} has a row"
         finding = check_cfg_value(key, value, DEFAULT_CFG)
-        assert finding is not None and finding.refuse, f"{value!r} is wrong for {key}"
+        assert finding is not None, f"{value!r} is wrong for {key}"
         section, _, leaf = record.path.rpartition(".")
         in_file = {section: {leaf: value}} if section else {leaf: value}
         before = cfg_value(cli.repl.cfg, record.path)
@@ -198,21 +198,22 @@ class TestOneAnswer:
         status, error = _editor_answer(tmp_path, "baud_rate", str(rate))
         assert (status.startswith("[green]"), error) == (True, "")
 
-    def test_a_non_standard_rate_is_unusual_not_wrong(self, tmp_path, cli, capsys):
-        """A rate outside the list warns at load, shows yellow, and /cfg.auto takes it with a note, as hardware may need it."""
+    def test_a_non_standard_rate_needs_custom_baud(self, tmp_path, cli):
+        """baud-standard-unless-custom: off the list, a rate warns at load, shows red and is refused, until custom_baud is true."""
         # Act
         warnings = validate_config({"serial": {"baud_rate": 250000}})
         status, _ = _editor_answer(tmp_path, "baud_rate", "250000")
-        capsys.readouterr()
-        result = cli.repl.dispatch("cfg.auto baud_rate 250000")
-        out = capsys.readouterr().out
+        refused = cli.repl.dispatch("cfg.auto baud_rate 250000")
+        cli.repl.dispatch("cfg.auto custom_baud true")
+        taken = cli.repl.dispatch("cfg.auto baud_rate 250000")
 
         # Assert
-        assert any("not a standard rate" in warning for warning in warnings), warnings
-        assert status.startswith("[yellow]"), "yellow, not red"
-        assert result.success, "/cfg.auto takes it"
-        assert "not a standard rate" in out, "and says so"
-        assert cfg_value(cli.repl.cfg, "serial.baud_rate") == 250000
+        expected = "not a standard rate: set custom_baud to true to allow it"
+        assert any(expected in warning for warning in warnings), warnings
+        assert status.startswith("[red]"), "red, as any refused value is"
+        assert refused.success is False and expected in refused.error, refused.error
+        assert taken.success, taken.error
+        assert cfg_value(cli.repl.cfg, "serial.baud_rate") == 250000, "custom_baud let it in"
 
 
 class TestSetting:

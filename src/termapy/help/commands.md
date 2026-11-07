@@ -180,11 +180,11 @@ sends to the device) waits in the input line for Enter.
 | `/mem.xor <target> <mask>` | XOR a mask into one word (always read + write-back)                        |
 | `/os <cmd>`               | Run a shell command (requires `TERMAPY_OS_CMD_ENABLED=1` in env)            |
 | `/port {name}`            | TUI bare: open Port picker. CLI bare: list ports. With name: open it.       |
-| `/port.baud_rate {value}` | Show or set baud rate (hardware only)                                       |
+| `/port.baud_rate {value} {custom=<bool>}` | Show or set baud rate (hardware only): a standard one, or any from 300 with `custom=true` |
 | `/port.break {ms}`        | Send break signal (default 250ms)                                           |
 | `/port.byte_size {value}` | Show or set data bits (hardware only)                                       |
 | `/port.cd`                | Show CD state (read-only)                                                   |
-| `/port.connect {name} {baud} {mode}` | Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81) |
+| `/port.connect {name} {baud} {mode} {custom=<bool>}` | Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81); a non-standard rate needs `custom=true` |
 | `/port.cts`               | Show CTS state (read-only)                                                  |
 | `/port.disconnect`        | Disconnect from the serial port                                             |
 | `/port.dsr`               | Show DSR state (read-only)                                                  |
@@ -193,7 +193,7 @@ sends to the device) waits in the input line for Enter.
 | `/port.help`              | Show `/port` help (alias for `/help port`)                                  |
 | `/port.info`              | Show port status, serial parameters, hardware lines, and xfer root          |
 | `/port.list`              | Chip-aware port table (MFG, CHIP, SPEED, VID:PID, SERIAL #, ...)            |
-| `/port.mode {baud} {mode}` | Show or set serial mode (e.g. /port.mode 9600 N81)                        |
+| `/port.mode {baud} {mode} {custom=<bool>}` | Show or set serial mode (e.g. /port.mode 9600 N81); a non-standard rate needs `custom=true` |
 | `/port.parity {value}`    | Show or set parity (hardware only)                                          |
 | `/port.ri`                | Show RI state (read-only)                                                   |
 | `/port.rts {on\|off}`     | Show or set RTS line                                                        |

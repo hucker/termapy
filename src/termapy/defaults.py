@@ -284,7 +284,7 @@ CFG_KEYS: tuple[CfgKey, ...] = (
         "serial.custom_baud",
         False,
         "bool",
-        help="Allow a non-standard baud_rate; most modern drivers take any rate.",
+        help="Allow a baud_rate off the standard list; without it one is refused.",
         hint="true, false",
     ),
     CfgKey(

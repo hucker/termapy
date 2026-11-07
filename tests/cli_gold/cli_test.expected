@@ -515,7 +515,7 @@ CONFIG
   serial.port = "DEMO"  set for the session, then reconnects
 
 SUBCOMMANDS
-  /port.baud_rate       Show or set baud rate.
+  /port.baud_rate       Show or set baud rate: a standard one, or any from 300 with custom=true.
   /port.break           Send a break signal (default 250ms).
   /port.byte_size       Show or set data bits.
   /port.cd              Show Carrier Detect state (read-only).
@@ -850,7 +850,7 @@ CONFIG
   serial.port = "DEMO"  set for the session, then reconnects
 
 SUBCOMMANDS
-  /port.baud_rate       Show or set baud rate.
+  /port.baud_rate       Show or set baud rate: a standard one, or any from 300 with custom=true.
   /port.break           Send a break signal (default 250ms).
   /port.byte_size       Show or set data bits.
   /port.cd              Show Carrier Detect state (read-only).
@@ -1440,16 +1440,30 @@ CONFIG
   encoding = "utf-8"       in the snapshot
 demo> /help port.baud_rate
 NAME
-  /port.baud_rate - Show or set baud rate.
+  /port.baud_rate - Show or set baud rate: a standard one, or any from 300 with custom=true.
 
 CURRENT STATE
   115200
 
 SYNOPSIS
-  /port.baud_rate {value}
+  /port.baud_rate {value} {custom=<bool>}
+
+DESCRIPTION
+  Sets the open port's baud rate for the session.  It must be
+  one of the standard rates:
+
+    110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 28800,
+    38400, 57600, 115200, 230400, 460800, 921600
+
+  A rate off the list needs custom=true (300 or more), so a
+  mistyped one is refused instead of opened:
+
+    /port.baud_rate 9600
+    /port.baud_rate 9460 custom=true
 
 CONFIG
-  serial.baud_rate = 115200  set for the session; bare shows it
+  serial.baud_rate = 115200   set for the session; bare shows it
+  serial.custom_baud = false  set true for the session by custom=true; bare says (custom)
 demo> /help port.dtr
 NAME
   /port.dtr - Show or set DTR line (hardware only).
@@ -1689,6 +1703,18 @@ demo> /cfg nonexistent_key
   Error: Unknown config key: nonexistent_key
 demo> /port.baud_rate not_a_number
   Error: Invalid baud rate: not_a_number
+demo> /port.baud_rate 11520
+  Error: Invalid baud rate: 11520 (not a standard rate: add custom=true to allow it)
+demo> /port.mode 11520 8N1
+  Error: Invalid baud rate: 11520 (not a standard rate: add custom=true to allow it)
+demo> /port.baud_rate 9460 custom=true
+  Baud rate -> 9460
+demo> /port.baud_rate
+  9460 (custom)
+demo> /port.baud_rate 115200
+  Baud rate -> 115200
+demo> /cfg custom_baud false
+  custom_baud = False  (session)
 demo> /port.parity X
   Error: Invalid parity: X (use E, M, N, O, S)
 demo> /port.dtr maybe

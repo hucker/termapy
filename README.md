@@ -207,11 +207,11 @@ The most common ones:
 | `/port {name}`                       | Open Port picker (bare TUI), list ports (bare CLI), or open by name           |
 | `/port.help`                         | Same as `/help port`                                                          |
 | `/port.list`                         | List available serial ports                                                   |
-| `/port.connect {name} {baud} {mode}` | Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81)        |
-| `/port.mode {baud} {mode}`           | Show or set serial mode (e.g. /port.mode 9600 N81)                            |
+| `/port.connect {name} {baud} {mode} {custom=<bool>}` | Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81); a non-standard rate needs `custom=true` |
+| `/port.mode {baud} {mode} {custom=<bool>}` | Show or set serial mode (e.g. /port.mode 9600 N81); a non-standard rate needs `custom=true` |
 | `/port.disconnect`                   | Disconnect from the serial port                                               |
 | `/port.info`                         | Show port status, serial parameters, and hardware lines                       |
-| `/port.baud_rate {value}`            | Show or set baud rate (hardware only)                                         |
+| `/port.baud_rate {value} {custom=<bool>}` | Show or set baud rate (hardware only): a standard one, or any from 300 with `custom=true` |
 | `/port.byte_size {value}`            | Show or set data bits (hardware only)                                         |
 | `/port.parity {value}`               | Show or set parity (hardware only)                                            |
 | `/port.stop_bits {value}`            | Show or set stop bits (hardware only)                                         |

@@ -44,8 +44,11 @@ the adapter first.
 
 Usage:
     uv run python scripts/throughput.py
-    uv run python scripts/throughput.py --mode repl --baud 115200,921600,2000000
+    uv run python scripts/throughput.py --mode repl --custom-baud --baud 115200,921600,2000000
     uv run python scripts/throughput.py --baud 460800,921600 --kb 2048 --layers raw,engine,tui
+
+``--baud`` takes termapy's standard rates; ``--custom-baud`` allows any from
+300 up, as a config's ``custom_baud`` does (``config.check_baud``).
 
 Exits 1 when the rig is unusable (no adapter, busy, or no echo), else 0:
 it reports numbers, it does not pass or fail them.
@@ -70,7 +73,7 @@ from pathlib import Path
 from typing import Any
 
 from termapy.capture import CaptureEngine
-from termapy.config import SERIAL_RX_BUFFER_BYTES, open_serial
+from termapy.config import SERIAL_RX_BUFFER_BYTES, check_baud, open_serial
 from termapy.defaults import DEFAULT_CFG
 from termapy.port_control import AmbiguousSerialNumberError, resolve_port
 from termapy.serial_engine import SerialEngine
@@ -596,6 +599,11 @@ def main(argv: list[str] | None = None) -> int:
         "--baud", default="921600", help="baud rate, or a comma-separated list (default 921600)"
     )
     parser.add_argument(
+        "--custom-baud",
+        action="store_true",
+        help="allow rates off the standard list, as a config's custom_baud does",
+    )
+    parser.add_argument(
         "--seconds", type=float, default=8.0, help="stream: length at line rate (default 8)"
     )
     parser.add_argument(
@@ -629,6 +637,11 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"invalid --baud: {args.baud}")
     if not bauds or args.line_bytes < 16 or args.seconds <= 0 or args.replies < 1:
         parser.error("need a baud, --line-bytes >= 16, --seconds > 0 and --replies >= 1")
+    # termapy's one rule for a typed rate (registry baud-standard-unless-custom).
+    for baud in bauds:
+        reason = check_baud(baud, custom=args.custom_baud, remedy="add --custom-baud")
+        if reason:
+            parser.error(f"invalid --baud {baud}: {reason}")
 
     device = _rig(args.sn)
     if device is None:

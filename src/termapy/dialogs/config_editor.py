@@ -281,9 +281,8 @@ class ConfigEditor(ModalScreen[tuple | None]):
         # The one check a load and /cfg use (registry cfg-schema-one-table).
         finding = check_cfg_value(key, value, self._editor_cfg())
         if finding is not None:
-            color = "red" if finding.refuse else "yellow"
             reason_markup = escape_markup(finding.reason)
-            return f"[{color}]{pair_markup}[/]", f"[{color}]{reason_markup}[/]"
+            return f"[red]{pair_markup}[/]", f"[red]{reason_markup}[/]"
         if record.kind == "port":
             return self._port_status(val, pair_markup)
         if record.kind == "baud" and value not in STANDARD_BAUD_RATES:

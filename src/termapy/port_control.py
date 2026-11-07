@@ -101,6 +101,45 @@ _LINE_ENDING_TOKENS: dict[str, str] = {
 }
 
 
+# The keyword a command that sets a rate takes to ask for one off the standard list.
+_CUSTOM_KEYWORD = "custom="
+
+
+def take_custom(tokens: list[str]) -> tuple[list[str], bool, str | None]:
+    """Split a ``custom=<bool>`` token off ``tokens``: the rest, its value and any error.
+
+    The one reader of ``custom=`` for every command that sets a rate
+    (``/port.baud_rate``, ``/port.mode``, ``/port.connect`` and the
+    ``--new`` / ``/cfg.new`` settings): any ``parse_bool`` token, absent
+    meaning false.
+
+    Returns:
+        ``(rest, custom, error)``; ``error`` is the message for a bad or
+        repeated token, and then the other two mean nothing.
+    """
+    rest: list[str] = []
+    custom: bool | None = None
+    for token in tokens:
+        if not token.lower().startswith(_CUSTOM_KEYWORD):
+            rest.append(token)
+            continue
+        if custom is not None:
+            return [], False, f"Duplicate custom: {token}"
+        try:
+            custom = parse_bool(token[len(_CUSTOM_KEYWORD) :], what="custom")
+        except ValueError as e:
+            return [], False, str(e)
+    return rest, bool(custom), None
+
+
+def baud_error(baud: int, custom: bool) -> str | None:
+    """The refusal for a typed rate, or None (``config.check_baud``, registry ``baud-standard-unless-custom``)."""
+    from termapy.config import check_baud
+
+    reason = check_baud(baud, custom=custom, remedy="add custom=true")
+    return f"Invalid baud rate: {baud} ({reason})" if reason else None
+
+
 def parse_open_args(
     args: str,
 ) -> tuple[
@@ -109,24 +148,26 @@ def parse_open_args(
     tuple[str, int, float] | None,
     str | None,
     bool | None,
+    bool,
     str | None,
 ]:
     """Parse /port.connect arguments.
 
-    Syntax: ``{port=<name> | <name>} {baud} {mode} {line_ending} {echo}``.
-    A *bare* port name, if supplied, MUST be the first token.  The
-    explicit ``port=<name>`` form may appear anywhere and forces the value
-    to be the port -- use it for a purely-numeric serial number, which a
-    bare token would otherwise read as a baud rate.  Everything else is
-    order-independent; all fields optional (unspecified -> current cfg).
+    Syntax: ``{port=<name> | <name>} {baud} {mode} {line_ending} {echo}
+    {custom=<bool>}``.  A *bare* port name, if supplied, MUST be the first
+    token.  The explicit ``port=<name>`` form may appear anywhere and forces
+    the value to be the port -- use it for a purely-numeric serial number,
+    which a bare token would otherwise read as a baud rate.  Everything else
+    is order-independent; all fields optional (unspecified -> current cfg).
 
     Token classification:
 
     * ``port=<name>`` -- explicit port (device / SN / ``SN|COM`` chain / URL)
+    * ``custom=<bool>`` -- the baud rate is deliberately off the standard list
     * ``cr`` / ``lf`` / ``crlf`` -- line ending
     * ``echo`` / ``noecho`` -- echo toggle
     * ``N81`` / ``8N1`` / etc. -- serial mode, either field order (parse_mode)
-    * purely numeric -- baud rate
+    * purely numeric -- baud rate, standard unless ``custom=true``
     * a bare first token matching none of the above -- port name
 
     Args:
@@ -134,10 +175,11 @@ def parse_open_args(
 
     Returns:
         Tuple of ``(port_name, baud_rate, mode_tuple, line_ending,
-        echo, error_message)``.  ``line_ending`` is the literal
+        echo, custom, error_message)``.  ``line_ending`` is the literal
         ``"\\r"`` / ``"\\n"`` / ``"\\r\\n"`` (or None).  ``echo`` is
-        True / False / None.  ``error_message`` is non-None only when
-        a token cannot be classified.
+        True / False / None.  ``custom`` is whether ``custom=true`` was
+        given.  ``error_message`` is non-None only when a token cannot be
+        classified or the rate is refused (``baud_error``).
     """
     port: str | None = None
     baud: int | None = None
@@ -146,10 +188,13 @@ def parse_open_args(
     echo: bool | None = None
     first = True
 
-    def _err(msg: str) -> tuple[None, None, None, None, None, str]:
-        return (None, None, None, None, None, msg)
+    def _err(msg: str) -> tuple[None, None, None, None, None, bool, str]:
+        return (None, None, None, None, None, False, msg)
 
-    for token in args.split():
+    tokens, custom, custom_error = take_custom(args.split())
+    if custom_error:
+        return _err(custom_error)
+    for token in tokens:
         # Explicit port=<name> may appear anywhere and wins outright --
         # the escape hatch for a numeric SN that a bare token would read
         # as baud.  Case-insensitive key, value kept verbatim.
@@ -213,15 +258,20 @@ def parse_open_args(
         return _err(
             f"Unexpected argument: {token!r}. "
             f"Port name must come first; other tokens are "
-            f"baud / mode / cr|lf|crlf / echo|noecho."
+            f"baud / mode / cr|lf|crlf / echo|noecho / custom=true."
         )
-    return port, baud, mode, line_ending, echo, None
+    refusal = baud_error(baud, custom) if baud is not None else None
+    if refusal:
+        return _err(refusal)
+    return port, baud, mode, line_ending, echo, custom, None
 
 
 def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
     """Set serial frame parameters from a mode string and optional baud rate.
 
-    Accepts: {baud} {mode}, e.g. '9600 N81', 'E71', '115200'.
+    Accepts: {baud} {mode} {custom=<bool>}, e.g. '9600 N81', 'E71', '115200',
+    '9460 N81 custom=true'.  A rate off the standard list needs
+    ``custom=true`` (``baud_error``), which also sets ``custom_baud``.
 
     Args:
         ser: Serial-like object, or None if disconnected.
@@ -238,7 +288,10 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
 
     baud: int | None = None
     mode: tuple[str, int, float] | None = None
-    for token in args.split():
+    tokens, custom, custom_error = take_custom(args.split())
+    if custom_error:
+        return _result([_msg(custom_error, "red")])
+    for token in tokens:
         parsed = parse_mode(token)
         if parsed:
             if mode is not None:
@@ -254,6 +307,9 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
 
     if baud is None and mode is None:
         return _result([_msg("Nothing to set.", "yellow")])
+    refusal = baud_error(baud, custom) if baud is not None else None
+    if refusal:
+        return _result([_msg(refusal, "red")])
 
     if ser is None:
         return _not_connected()
@@ -264,6 +320,8 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
         if baud is not None:
             ser.baudrate = baud
             cfg_update["baud_rate"] = baud
+            if custom:
+                cfg_update["custom_baud"] = True
         if mode is not None:
             parity, byte_size, stop_bits = mode
             ser.parity = parity
@@ -2080,6 +2138,10 @@ def port_info(
 def get_set_prop(ser: Any | None, cfg: Mapping[str, Any], key: str, args: str) -> Result:
     """Get or set a serial port property.
 
+    The baud rate also takes ``custom=<bool>``: a rate off the standard
+    list needs ``custom=true`` (``baud_error``), which also sets
+    ``custom_baud``.
+
     Args:
         ser: Serial-like object, or None if disconnected.
         cfg: Config dict.
@@ -2101,6 +2163,12 @@ def get_set_prop(ser: Any | None, cfg: Mapping[str, Any], key: str, args: str) -
             return _result([_msg(f"{getattr(ser, attr)}")])
         except OSError as e:
             return _result([_msg(f"{desc} read error: {e}", "red")])
+    custom = False
+    if key == "baud_rate":
+        tokens, custom, custom_error = take_custom(val.split())
+        if custom_error:
+            return _result([_msg(custom_error, "red")])
+        val = " ".join(tokens)
     if not connected:
         return _not_connected()
     try:
@@ -2110,11 +2178,18 @@ def get_set_prop(ser: Any | None, cfg: Mapping[str, Any], key: str, args: str) -
         if valid and typed not in valid:
             opts = ", ".join(sorted(str(v) for v in valid))
             return _result([_msg(f"Invalid {desc.lower()}: {val} (use {opts})", "red")])
+        is_rate = key == "baud_rate" and isinstance(typed, int)
+        refusal = baud_error(typed, custom) if is_rate else None
+        if refusal:
+            return _result([_msg(refusal, "red")])
         setattr(ser, attr, typed)
+        cfg_update: dict[str, Any] = {key: typed}
+        if custom:
+            cfg_update["custom_baud"] = True
         return _result(
             [_msg(f"{desc} -> {typed}")],
             update_title=True,
-            cfg_update={key: typed},
+            cfg_update=cfg_update,
         )
     except ValueError:
         return _result([_msg(f"Invalid {desc.lower()}: {val}", "red")])

@@ -354,6 +354,13 @@ MEM.M 0x1000 F0 05 --json
 /nonexistent_command
 /cfg nonexistent_key
 /port.baud_rate not_a_number
+# A rate off the standard list is a typo until custom=true says otherwise
+/port.baud_rate 11520
+/port.mode 11520 8N1
+/port.baud_rate 9460 custom=true
+/port.baud_rate
+/port.baud_rate 115200
+/cfg custom_baud false
 /port.parity X
 /port.dtr maybe
 /port.break -5

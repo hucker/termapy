@@ -1123,3 +1123,23 @@ Behavior changed: a word where `/log.dump`'s count goes is a log's name, so `/lo
 `Unknown log: abc` rather than showing the usage. Two MCP servers on one config would still
 share `<cfg>.mcp.log`; the two server slots normally run different configs, so that is noted
 rather than designed around.
+
+## 2026-11-06 — A typed baud rate is a standard one unless it is asked for as custom
+
+Chuck: "the baud rate allows ANY number, that is high risk for typos". The New Config dialog
+already guarded against it, a list of standard rates unless its custom box is checked, but
+everywhere else a rate is typed took any whole number. `/port.baud_rate 11520`, `/port.mode`
+and `/port.connect` set it silently, `termapy --new` and `/cfg.new` derived `custom_baud: true`
+from it, and `/cfg` and the config editor only warned. The 2026-11-02 schema entry had made a
+non-standard rate deliberately "unusual, not wrong", since some hardware needs one.
+
+Now one rule, `config.check_baud`: a rate on `STANDARD_BAUD_RATES`, or any from 300 up when
+asked for as custom. A config asks with `custom_baud`; a command that sets a rate asks with
+`custom=true` (`/port.baud_rate 9460 custom=true`, also on `/port.mode`, `/port.connect`,
+`--new` and `/cfg.new`), read by one `parse_bool` reader, `port_control.take_custom`, absent
+meaning false, which also sets the session's `custom_baud`. Without it the rate is refused
+and the error names the remedy. `scripts/throughput.py` takes `--custom-baud` for the same
+reason. The non-refusing finding that existed only for this (`CfgFinding.refuse`) is gone, so
+the editor shows the rate red and `/cfg` refuses it; a load still only warns, as loads do.
+Behavior removed: a non-standard rate without asking, and `new_config` guessing
+`custom_baud` from the rate. None of the configs in use had one.

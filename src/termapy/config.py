@@ -332,7 +332,7 @@ def new_config(
     *,
     port: str = "",
     baud: int | None = None,
-    custom_baud: bool | None = None,
+    custom_baud: bool = False,
     mode: tuple[str, int, float] | None = None,
     eol: str | None = None,
     echo: bool | None = None,
@@ -349,8 +349,8 @@ def new_config(
         name: The config name, which is also its title.
         port: Port name, serial number or URL; ``""`` leaves it unset.
         baud: Baud rate.
-        custom_baud: Whether ``baud`` is deliberately non-standard; ``None``
-            derives it (a rate outside ``STANDARD_BAUD_RATES``).
+        custom_baud: Whether ``baud`` was asked for as custom; a rate off the
+            standard list needs it (``check_baud``).
         mode: ``(parity, byte_size, stop_bits)`` as ``port_control.parse_mode``
             returns it.
         eol: Line ending sent after each command.
@@ -359,17 +359,23 @@ def new_config(
 
     Returns:
         The new cfg dict.
+
+    Raises:
+        ValueError: ``baud`` is off the standard list without ``custom_baud``,
+            or under 300 with it.
     """
+    if baud is not None:
+        reason = check_baud(baud, custom=custom_baud, remedy="ask for it as custom")
+        if reason:
+            raise ValueError(f"Invalid baud rate: {baud} ({reason})")
     cfg = default_cfg()
     cfg["title"] = name
     serial_cfg = cfg["serial"]
     if port:
         serial_cfg["port"] = port
+    serial_cfg["custom_baud"] = custom_baud
     if baud is not None:
         serial_cfg["baud_rate"] = baud
-        serial_cfg["custom_baud"] = (
-            baud not in STANDARD_BAUD_RATES if custom_baud is None else custom_baud
-        )
     if mode is not None:
         serial_cfg["parity"], serial_cfg["byte_size"], serial_cfg["stop_bits"] = mode
     if eol is not None:
@@ -386,8 +392,10 @@ def new_config_from_args(name: str, settings: str) -> dict:
     One reading for the flag and the command.  The settings are
     ``/port.connect``'s grammar, read by its reader
     (``port_control.parse_open_args``): the port, which is required, then
-    baud, frame, line ending and echo in any order.  The config connects
-    when it loads -- a port was named, so connecting is the point.
+    baud, frame, line ending, echo and ``custom=true`` in any order.  A rate
+    off the standard list needs ``custom=true``, which also makes the
+    config's ``custom_baud`` true.  The config connects when it loads -- a
+    port was named, so connecting is the point.
 
     Args:
         name: The config name.
@@ -405,7 +413,7 @@ def new_config_from_args(name: str, settings: str) -> dict:
     reason = validate_file_stem(name)
     if reason:
         raise ValueError(reason)
-    port, baud, mode, line_ending, echo, error = parse_open_args(settings)
+    port, baud, mode, line_ending, echo, custom, error = parse_open_args(settings)
     if error:
         raise ValueError(error)
     if not port:
@@ -414,6 +422,7 @@ def new_config_from_args(name: str, settings: str) -> dict:
         name,
         port=port,
         baud=baud,
+        custom_baud=custom,
         mode=mode,
         eol=line_ending,
         echo=echo,
@@ -1070,18 +1079,14 @@ def _finding_text(path: str, value: object, finding: "CfgFinding") -> str:
 
 
 class CfgFinding(NamedTuple):
-    """What ``check_cfg_value`` found wrong with a value.
+    """What ``check_cfg_value`` found wrong with a value: a load warns, the editor shows it red and ``/cfg`` refuses.
 
     Attributes:
         reason: What the value must be, as a clause that reads after its
             key: ``must be a positive integer``.
-        refuse: False when the value is unusual rather than wrong, a
-            non-standard baud rate: a load warns, the editor shows it yellow
-            and ``/cfg`` takes it with a note.
     """
 
     reason: str
-    refuse: bool = True
 
 
 # The bytes a line ending may hold.
@@ -1167,15 +1172,35 @@ def _check_port(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | Non
     return None
 
 
+def check_baud(baud: int, *, custom: bool, remedy: str) -> str | None:
+    """Why ``baud`` cannot be a port's rate, or None: a standard rate, or any from 300 up when ``custom``.
+
+    The one rule for a typed rate (registry ``baud-standard-unless-custom``):
+    a rate off ``STANDARD_BAUD_RATES`` must be asked for as custom, as the
+    New Config dialog's custom mode asks, so a typo (``11520``) is refused
+    rather than opened.  A config says so with ``custom_baud``; a command
+    that sets a rate with ``custom=true``.
+
+    Args:
+        baud: The rate.
+        custom: Whether the rate was asked for as custom.
+        remedy: How the caller's user asks for custom, completing "``remedy``
+            to allow it": ``set custom_baud to true``, ``add custom=true``.
+    """
+    if custom:
+        return "custom baud requires >= 300" if baud < 300 else None
+    if baud not in STANDARD_BAUD_RATES:
+        return f"not a standard rate: {remedy} to allow it"
+    return None
+
+
 def _check_baud(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
-    """A positive whole number; a non-standard one is unusual, not wrong, and custom_baud permits it."""
+    """A positive whole number, standard unless ``custom_baud`` is true (``check_baud``)."""
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         return CfgFinding("must be a positive integer")
-    if cfg_value(cfg, "serial.custom_baud"):
-        return CfgFinding("custom baud requires >= 300") if value < 300 else None
-    if value not in STANDARD_BAUD_RATES:
-        return CfgFinding("not a standard rate: set custom_baud to true to allow it", refuse=False)
-    return None
+    custom = bool(cfg_value(cfg, "serial.custom_baud"))
+    reason = check_baud(value, custom=custom, remedy="set custom_baud to true")
+    return CfgFinding(reason) if reason else None
 
 
 def _check_eol(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:

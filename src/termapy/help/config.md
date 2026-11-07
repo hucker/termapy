@@ -167,8 +167,8 @@ reported as a type warning.
 | `title`                       | `""`                          | Title bar text (defaults to config filename) |
 | `border_color`                | `""`                          | Title bar color (CSS name or hex like `#ff6600`) |
 | `serial.port`                 | `""`                          | Port spec. Accepts a literal device (`"COM4"`, `"/dev/ttyUSB0"`), a USB serial number (`"A1B2C3D4"`), a `\|`-separated fallback chain (`"A1B2C3D4\|COM3"`), a reserved name (`"DEMO"`), or a pyserial URL (`"rfc2217://host:2217"`). See [ports.md](ports.md) for the grammar. Auto-detected when only one port is connected. |
-| `serial.baud_rate`            | `115200`                      | Serial baud rate -- non-standard rates require `custom_baud` |
-| `serial.custom_baud`          | `false`                       | Allow non-standard baud rates (>= 300). Modern drivers support arbitrary rates |
+| `serial.baud_rate`            | `115200`                      | Serial baud rate, one of the standard rates so a mistyped one is refused: 110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600, 115200, 230400, 460800, 921600. Any other rate from 300 up needs `custom_baud` |
+| `serial.custom_baud`          | `false`                       | Allow a baud rate off the standard list (>= 300); modern drivers take arbitrary rates. A command that sets a rate asks for one with `custom=true`, which sets this for the session |
 | `serial.byte_size`            | `8`                           | Data bits per byte (5, 6, 7, or 8) |
 | `serial.parity`               | `N`                           | Parity: None, Even, Odd, Mark, or Space |
 | `serial.stop_bits`            | `1`                           | Stop bits (1, 1.5, or 2) |

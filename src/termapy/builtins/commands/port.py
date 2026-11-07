@@ -2,16 +2,27 @@
 
 from __future__ import annotations
 
+import textwrap
 from typing import TYPE_CHECKING
 
 from termapy import port_control
+from termapy.defaults import STANDARD_BAUD_RATES, cfg_value
 from termapy.help_dynamic import compose, port_status
 from termapy.legacy import make_forwarder
-from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError
+from termapy.plugins import CapabilitySet, CmdResult, Column, Command, TextLine, UsageError
 from termapy.port_format import find_chips
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
+
+
+# The standard rates as /help port.baud_rate lists them, from the one table.
+_STANDARD_RATES_HELP = textwrap.fill(
+    ", ".join(str(rate) for rate in STANDARD_BAUD_RATES),
+    width=62,
+    initial_indent="  ",
+    subsequent_indent="  ",
+)
 
 
 def _apply(ctx: PluginContext, result: port_control.Result) -> None:
@@ -123,7 +134,7 @@ def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
 
 def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
     """Open the named port (or the config's), applying any baud, frame, line-ending and echo settings first; URL ports need network egress."""
-    port, baud, mode, line_ending, echo, err = port_control.parse_open_args(args)
+    port, baud, mode, line_ending, echo, custom, err = port_control.parse_open_args(args)
     if err:
         return CmdResult.fail(msg=err)
     # Network egress: a serial-over-URL "port" (socket://, rfc2217://)
@@ -139,7 +150,10 @@ def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=msg)
     # Apply all optional settings to config before connecting so the
     # port opens with the requested settings.  Each branch is a no-op
-    # when the user didn't supply that field.
+    # when the user didn't supply that field.  custom=true asked for a rate
+    # off the standard list, so the session's config says so too.
+    if custom:
+        ctx.serial.apply_port_effects({"cfg_update": {"custom_baud": True}})
     if baud is not None:
         ctx.serial.apply_port_effects({"cfg_update": {"baud_rate": baud}})
     if mode is not None:
@@ -353,6 +367,27 @@ def _make_prop_handler(key: str):
     return _handler
 
 
+def _handler_baud_rate(ctx: PluginContext, args: str) -> CmdResult:
+    """Query (bare) or set the port's baud rate; bare says ``(custom)`` while ``custom_baud`` is on, a set takes ``custom=true``.
+
+    Bare is a one-line record, so ``/help port.baud_rate``'s CURRENT STATE
+    shows the mode as the command does, while ``value`` stays the number a
+    script captures and ``data`` carries both.
+    """
+    result = port_control.get_set_prop(ctx.internal.port(), ctx.cfg, "baud_rate", args)
+    if args.strip():
+        return _answer(ctx, result, "")
+    refusal = port_control.problem(result)
+    if refusal is not None:
+        return CmdResult.fail(msg=refusal)
+    rate = _read_value(result)
+    custom = bool(cfg_value(ctx.cfg, "serial.custom_baud"))
+    connected = ctx.serial.is_connected()
+    shown = rate + (" (custom)" if custom else "") + ("" if connected else " (disconnected)")
+    data = {"baud_rate": int(rate) if rate.isdigit() else rate, "custom_baud": custom}
+    return CmdResult.record(data, [TextLine(shown)], value=rate)
+
+
 def _make_hw_handler(line: str):
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         result = port_control.get_set_hw_line(ctx.internal.port(), line, args)
@@ -463,32 +498,38 @@ COMMAND = Command(
             shows=True,
         ),
         "connect": Command(
-            args="{name} {baud} {mode}",
+            args="{name} {baud} {mode} {custom=<bool>}",
             help="Connect to the serial port (e.g. {prefix}port.connect COM3 9600 N81).",
             long_help=(
                 "Connect to the serial port, optionally setting baud rate, "
                 "frame mode, line ending, or echo in one stroke.\n"
                 "\n"
-                "Syntax: {prefix}port.connect [name|port=name] [baud] [mode] [cr|lf|crlf] [echo|noecho]\n"
+                "Syntax: {prefix}port.connect [name|port=name] [baud] [mode] [cr|lf|crlf] [echo|noecho] [custom=true]\n"
                 "\n"
                 "  name         Port device or USB serial number. A bare name\n"
                 '               MUST come first. Falls back to cfg["port"].\n'
                 "  port=name    Explicit port; may go anywhere. Use it for a\n"
                 "               purely-numeric serial number (e.g. port=0001),\n"
                 "               which a bare token would read as a baud rate.\n"
-                "  baud         Baud rate (e.g. 9600, 115200).\n"
+                "  baud         Baud rate (e.g. 9600, 115200), a standard one\n"
+                "               unless custom=true ({prefix}help port.baud_rate\n"
+                "               lists them).\n"
                 "  mode         Frame; either field order -- 8N1 or N81, 7E2\n"
                 "               or E72. Parity: N/E/O/M/S.\n"
                 '  cr|lf|crlf   Line ending. Stored as cfg["eol"].\n'
                 '  echo|noecho  Toggle cfg["echo"].\n'
+                "  custom=true  Allow a rate off the standard list (300 or\n"
+                "               more), so a mistyped one is refused instead.\n"
                 "\n"
                 "Tokens after name are order-independent. Mutations are\n"
                 "session-only -- edit the config file to persist.\n"
                 "\n"
-                "Example: {prefix}port.connect COM3 9600 N81 crlf echo"
+                "Example: {prefix}port.connect COM3 9600 N81 crlf echo\n"
+                "         {prefix}port.connect COM3 250000 custom=true"
             ),
             handler=_handler_connect,
             cfg={
+                "serial.custom_baud": "set true for the session by custom=true",
                 "serial.baud_rate": "set for the session before opening",
                 "serial.parity": "set for the session before opening",
                 "serial.byte_size": "set for the session before opening",
@@ -503,16 +544,22 @@ COMMAND = Command(
             hidden=True,
         ),
         "mode": Command(
-            args="{baud} {mode}",
+            args="{baud} {mode} {custom=<bool>}",
             help="Show or set serial mode (e.g. {prefix}port.mode 9600 N81).",
             long_help=(
                 "Combined form for baud + mode triple. Accepts '{prefix}port.mode\n"
                 "115200 N81' or a subset. Individual subcommands\n"
                 "({prefix}port.baud_rate, {prefix}port.byte_size, {prefix}port.parity,\n"
-                "{prefix}port.stop_bits) exist too."
+                "{prefix}port.stop_bits) exist too.\n"
+                "\n"
+                "The baud rate must be a standard one ({prefix}help\n"
+                "port.baud_rate lists them); add custom=true for a rate off\n"
+                "the list (300 or more), so a mistyped one is refused:\n"
+                "{prefix}port.mode 250000 8N1 custom=true"
             ),
             handler=_handler_mode,
             cfg={
+                "serial.custom_baud": "set true for the session by custom=true",
                 "serial.baud_rate": "set for the session; bare shows it",
                 "serial.byte_size": "set for the session; bare shows it",
                 "serial.parity": "set for the session; bare shows it",
@@ -547,10 +594,25 @@ COMMAND = Command(
             },
         ),
         "baud_rate": Command(
-            args="{value}",
-            help="Show or set baud rate.",
-            handler=_make_prop_handler("baud_rate"),
-            cfg={"serial.baud_rate": "set for the session; bare shows it"},
+            args="{value} {custom=<bool>}",
+            help="Show or set baud rate: a standard one, or any from 300 with custom=true.",
+            long_help=(
+                "Sets the open port's baud rate for the session.  It must be\n"
+                "one of the standard rates:\n"
+                "\n"
+                f"{_STANDARD_RATES_HELP}\n"
+                "\n"
+                "A rate off the list needs custom=true (300 or more), so a\n"
+                "mistyped one is refused instead of opened:\n"
+                "\n"
+                "  {prefix}port.baud_rate 9600\n"
+                "  {prefix}port.baud_rate 9460 custom=true"
+            ),
+            handler=_handler_baud_rate,
+            cfg={
+                "serial.baud_rate": "set for the session; bare shows it",
+                "serial.custom_baud": "set true for the session by custom=true; bare says (custom)",
+            },
             state=True,
         ),
         "byte_size": Command(

@@ -36,6 +36,29 @@ class TestConfigReferenceSync:
             f"({drift}); run: python scripts/update_doc_configs.py"
         )
 
+    def test_baud_rate_row_lists_the_standard_rates(self):
+        """baud-standard-unless-custom: the baud_rate row's hand-written list is STANDARD_BAUD_RATES, no more, no fewer."""
+        import re
+
+        from termapy.defaults import STANDARD_BAUD_RATES
+
+        # Arrange
+        config_md = _REPO_ROOT / "src" / "termapy" / "help" / "config.md"
+        row = next(
+            line
+            for line in config_md.read_text(encoding="utf-8").splitlines()
+            if line.startswith("| `serial.baud_rate`")
+        )
+        description = row.split("|")[3]
+
+        # Act
+        listed = tuple(int(number) for number in re.findall(r"\b\d{3,}\b", description))
+
+        # Assert
+        assert listed == (*STANDARD_BAUD_RATES, 300), (
+            "the row lists the standard rates in order, then the custom floor of 300"
+        )
+
     def test_no_todo_rows_left(self):
         """A new key adds a 'TODO: describe' row -- none may ship."""
         # Arrange

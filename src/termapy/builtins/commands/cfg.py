@@ -121,8 +121,6 @@ def _typed_value(ctx: PluginContext, container, key: str, value_str: str) -> obj
     """``value_str`` as the value ``key`` will hold, checked by the schema's one validator.
 
     A key the schema does not hold takes the type of what the config has.
-    A value the check calls unusual, not wrong (a non-standard baud rate),
-    is taken with a note.
 
     Raises:
         ValueError: The key is termapy's own, the text is not the key's type
@@ -143,10 +141,8 @@ def _typed_value(ctx: PluginContext, container, key: str, value_str: str) -> obj
     except (ValueError, TypeError) as e:
         raise ValueError(f"Type error: {e}") from e
     finding = check_cfg_value(key, value, ctx.cfg)
-    if finding is not None and finding.refuse:
-        raise ValueError(f"Invalid {key}: {value_str} ({finding.reason})")
     if finding is not None:
-        ctx.io.output(f"Note: {key} {finding.reason}", "yellow")
+        raise ValueError(f"Invalid {key}: {value_str} ({finding.reason})")
     return value
 
 

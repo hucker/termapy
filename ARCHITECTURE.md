@@ -970,6 +970,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_credits_sync.py                | Guard the markdown -> credits.py sync                                                                                                              |
 | test_ctrl_keys.py                   | Tests for control characters reaching the device: /term.ctrl, and the TUI's Ctrl+C and Ctrl+D                                                      |
 | test_defaults.py                    | Tests for defaults.py - validation constants, resolve_color, preview helpers                                                                       |
+| test_defaults_untouched.py          | defaults-untouched: a test that leaves `DEFAULT_CFG` changed fails, and the next test sees the real defaults                                       |
 | test_demo.py                        | Tests for FakeSerial demo device - ASCII, GPS/NMEA, Modbus RTU, and config setup                                                                   |
 | test_demo_memory.py                 | The demo device's native memory: `MEM.R` / `MEM.W` / `MEM.INFO`                                                                                    |
 | test_demo_ndjson.py                 | Tests for the DEMO_JSON NDJSON simulator                                                                                                           |

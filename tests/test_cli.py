@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 from pathlib import Path
@@ -37,7 +38,7 @@ def cli(tmp_path):
     default_serial = DEFAULT_CFG["serial"]
     assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
     cfg = {
-        **DEFAULT_CFG,
+        **copy.deepcopy(DEFAULT_CFG),
         "serial": {**default_serial, "port": "DEMO", "baud_rate": 115200},
         "eol": "\r",
     }

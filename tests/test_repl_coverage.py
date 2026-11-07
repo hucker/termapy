@@ -212,8 +212,8 @@ class TestDispatchSuggestion:
 
 
 class TestDispatchNoneResult:
-    def test_none_result_treated_as_ok(self, engine):
-        """A handler returning None counts as success, not a dispatch failure."""
+    def test_none_result_fails(self, engine):
+        """handler-returns-cmdresult: a handler returning None fails the dispatch (it was an empty success until 2026-11-06)."""
         # Arrange
         eng, output = engine
         eng.register_hook("noop", "", "Returns None.", lambda ctx, args: None, source="test")
@@ -222,7 +222,8 @@ class TestDispatchNoneResult:
         result = eng.dispatch("noop")
 
         # Assert
-        assert result.success is True, "None treated as CmdResult.ok()"
+        assert result.success is False, "a missing return is reported, never read as success"
+        assert "not a CmdResult" in result.error, "the error says what the handler broke"
 
 
 # -- dispatch: handler raises exception --------------------------------------

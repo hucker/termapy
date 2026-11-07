@@ -3959,6 +3959,77 @@ def test_handler_docstring_guard_flags_a_bare_handler():
     assert _docstring_of(documented) == "Does a thing.", "a documented handler passes"
 
 
+# ── A handler declares -> CmdResult (registry handler-returns-cmdresult) ─────
+#
+# Dispatch fails a handler that returns anything but a CmdResult
+# (tests/test_handler_returns.py); declaring it makes ty check every return
+# path, so a forgotten ``return`` is caught before it runs.  Until 2026-11-06
+# dispatch turned a handler's None into an empty success, which no built-in
+# relied on and which hid exactly that bug.
+
+
+def _declares_cmdresult(handler) -> bool:
+    """Whether ``handler`` declares ``-> CmdResult``: a string under postponed annotations, else the class."""
+    import inspect
+
+    try:
+        annotation = inspect.signature(handler).return_annotation
+    except (TypeError, ValueError):
+        return False
+    return annotation == "CmdResult" or getattr(annotation, "__name__", "") == "CmdResult"
+
+
+def test_every_registered_handler_declares_cmdresult(frontend_plugins):
+    """handler-returns-cmdresult: every command's handler declares -> CmdResult in every frontend, so ty checks each return path."""
+    # Arrange / Act
+    undeclared = sorted(
+        f"{frontend}:{name}"
+        for frontend, plugins in frontend_plugins.items()
+        for name, info in plugins.items()
+        if not _declares_cmdresult(info.handler)
+    )
+    # Assert
+    assert undeclared == [], (
+        "annotate the handler (ctx: PluginContext, args: str) -> CmdResult; a factory's "
+        f"inner handler too: {undeclared}"
+    )
+
+
+def test_every_example_plugin_handler_declares_cmdresult():
+    """handler-returns-cmdresult: the example plugins, which no frontend registers, declare -> CmdResult on every handler."""
+    import ast
+
+    # Arrange / Act
+    undeclared = sorted(
+        f"{path.name}:{node.name}"
+        for path in (TESTS.parent / "examples" / "plugins").glob("*.py")
+        for node in ast.parse(path.read_text(encoding="utf-8")).body
+        if isinstance(node, ast.FunctionDef)
+        and node.name.startswith("_handler")
+        and not (isinstance(node.returns, ast.Name) and node.returns.id == "CmdResult")
+    )
+    # Assert
+    assert undeclared == [], f"an example handler is copied by plugin authors: {undeclared}"
+
+
+def test_handler_return_guard_fires_on_a_probe():
+    """handler-returns-cmdresult: the predicate rejects no annotation and -> None, and accepts -> CmdResult."""
+    from termapy.plugins import CmdResult
+
+    def bare(ctx, args):
+        """No annotation."""
+
+    def returns_none(ctx, args) -> None:
+        """Declares None."""
+
+    def declared(ctx, args) -> CmdResult:
+        """Declares the contract."""
+        return CmdResult.ok(value="")
+
+    actual = [_declares_cmdresult(handler) for handler in (bare, returns_none, declared)]
+    assert actual == [False, False, True], "only -> CmdResult passes"
+
+
 def test_each_command_has_one_handler_in_every_frontend(frontend_tables):
     """one-handler-per-command: no name runs different handlers in two frontends, outside the allowlist."""
     # Arrange / Act

@@ -7,9 +7,20 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from termapy.plugins import CapabilitySet, PluginContext, PluginInfo, TransformInfo
+from termapy.plugins import CapabilitySet, CmdResult, PluginContext, PluginInfo, TransformInfo
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.repl import ReplEngine, _parse_flags, _resolve_flag
+
+
+def _recorder(called: list[bool]):
+    """A handler that notes it ran and answers an empty success, as every handler answers a CmdResult."""
+
+    def _handler(ctx: PluginContext, args: str) -> CmdResult:
+        """Record the call."""
+        called.append(True)
+        return CmdResult.ok(value="")
+
+    return _handler
 
 
 @pytest.fixture
@@ -1402,7 +1413,7 @@ class TestDispatchCapabilities:
                 name="plain",
                 args="",
                 help="h",
-                handler=lambda c, a: called.append(True),
+                handler=_recorder(called),
             )
         )
 
@@ -1424,7 +1435,7 @@ class TestDispatchCapabilities:
                 name="blocker",
                 args="",
                 help="h",
-                handler=lambda c, a: called.append(True),
+                handler=_recorder(called),
                 needs=CapabilitySet(block_until=True),
             )
         )
@@ -1448,7 +1459,7 @@ class TestDispatchCapabilities:
                 name="blocker",
                 args="",
                 help="h",
-                handler=lambda c, a: called.append(True),
+                handler=_recorder(called),
                 needs=CapabilitySet(block_until=True),
             )
         )
@@ -1478,7 +1489,7 @@ class TestDispatchCapabilities:
                 name="sender",
                 args="",
                 help="h",
-                handler=lambda c, a: called.append(True),
+                handler=_recorder(called),
             )
         )
 
@@ -1505,7 +1516,7 @@ class TestDispatchCapabilities:
                 name="sender",
                 args="",
                 help="h",
-                handler=lambda c, a: called.append(True),
+                handler=_recorder(called),
                 needs=CapabilitySet.SERIAL_CONNECTED,
             )
         )
@@ -1550,7 +1561,7 @@ class TestDispatchCapabilities:
                 name="lister",
                 args="",
                 help="h",
-                handler=lambda c, a: called.append(True),
+                handler=_recorder(called),
                 needs=needs,
             )
         )

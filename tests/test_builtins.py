@@ -2138,6 +2138,27 @@ class TestSearch:
         names = result.value.splitlines() if result.value else []
         assert "foo_cmd" in names, "AND grammar matches across fields"
 
+    @pytest.mark.parametrize(
+        "query", ["search switches", "search switch(es)?", "search --dev switches"]
+    )
+    def test_search_reads_a_device_commands_long_help(self, cli, query):
+        """A device command's long_help is searched as its profile's text, in every mode."""
+        # Arrange -- "switches" is only in the pico json command's long_help;
+        # a device command has no intro and no handler, which search read
+        # off every result until 2026-11-06 and failed on.
+        from importlib import resources
+
+        profile = resources.files("termapy.boards") / "pico" / "profile.json"
+        assert cli.repl.dispatch(f"profile.load {profile}").success, "the pico profile loads"
+
+        # Act
+        result = cli.repl.dispatch(query)
+
+        # Assert
+        assert result.success, result.error
+        names = result.value.splitlines() if result.value else []
+        assert "json" in names, "the device command is found by its long_help"
+
 
 # -- /show ----------------------------------------------------------------
 

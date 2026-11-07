@@ -31,7 +31,7 @@ from termapy.defaults import cfg_value
 SHUTDOWN_RACE: tuple[type[BaseException], ...] = (NoMatches, RuntimeError)
 
 if TYPE_CHECKING:
-    from termapy.app import SerialTerminal  # noqa: F401 -- type-hint surface
+    from termapy.app import SerialTerminal
     from termapy.port_control import ChipFacts
 
 
@@ -124,7 +124,7 @@ def port_identity_pairs(device: str, facts: ChipFacts | None) -> list[tuple[str,
     return pairs
 
 
-def _port_display(app) -> tuple[str, ChipFacts | None]:
+def _port_display(app: SerialTerminal) -> tuple[str, ChipFacts | None]:
     """The config's port as the device it is now, with that device's facts."""
     from termapy import port_control
 
@@ -174,7 +174,7 @@ def format_title_tooltip(title: str, kv_pairs: list[tuple[str, object]], action:
     return "\n".join(lines)
 
 
-def update_title(app) -> None:
+def update_title(app: SerialTerminal) -> None:
     """Refresh all three title-bar buttons with the current cfg/connection state.
 
     Called from lifecycle hooks (on_mount, _on_connected,
@@ -255,7 +255,9 @@ def update_title(app) -> None:
 
 
 def update_conn_tooltip(
-    app, widget: Button | None = None, display: tuple[str, ChipFacts | None] | None = None
+    app: SerialTerminal,
+    widget: Button | None = None,
+    display: tuple[str, ChipFacts | None] | None = None,
 ) -> None:
     """Update the connection button tooltip with status and config.
 
@@ -289,7 +291,7 @@ def update_conn_tooltip(
         pass  # title widgets unmounted during teardown / reload
 
 
-def update_port(app, port: str) -> None:
+def update_port(app: SerialTerminal, port: str) -> None:
     """Change serial port for this session and reconnect.
 
     Does not write to disk - the config editor is the only path

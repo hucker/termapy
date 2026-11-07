@@ -2070,6 +2070,9 @@ demo> /run.rename status_probe status_check
     Renamed status_probe.run -> status_check.run
 demo> /delay 1ms
   Delay 1ms done.
+demo> /delay 1ms msg=Waiting for the board: copy=3 files...
+  Waiting for the board: copy=3 files...
+  Delay 1ms done.
 demo> /run.record
   Error: Not recording.
 demo> /run.last

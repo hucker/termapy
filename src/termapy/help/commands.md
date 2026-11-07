@@ -122,7 +122,7 @@ sends to the device) waits in the input line for Enter.
 | `/cls`                    | Clear the terminal                                                          |
 | `/confirm {message}`      | Ask Yes/Cancel (TUI dialog, CLI y/n); Cancel stops a script                 |
 | `/credits`                | Print acknowledgments (libraries and authors termapy depends on)            |
-| `/delay <duration>`       | Wait for a duration (e.g. `500ms`, `1.5s`); Escape/Ctrl+C cancel            |
+| `/delay <duration> {msg=<text>}` | Wait for a duration (e.g. `500ms`, `1.5s`), `msg=` saying what for; Escape/Ctrl+C cancel |
 | `/edit <file>`            | Edit a project file (`run/`, `proto/` or `plugin/`)                         |
 | `/edit.cfg`               | Edit the current config file                                                |
 | `/edit.info`              | Open the info report in the system viewer                                   |

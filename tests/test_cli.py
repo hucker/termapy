@@ -145,6 +145,29 @@ class TestDelay:
         assert (result.success, result.value) == (True, "0.01"), "short delay completes ok"
         assert "Delay 10ms done." in capsys.readouterr().out
 
+    def test_msg_prints_first_and_takes_the_rest_of_the_line(self, cli, capsys):
+        """msg= is printed before the wait, verbatim to the end of the line, and the done line names the duration."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/delay 10ms msg=Waiting for reboot: copy=3 files...")
+
+        # Assert
+        assert result.success, result.error
+        lines = [line.strip() for line in capsys.readouterr().out.splitlines() if line.strip()]
+        first = lines.index("Waiting for reboot: copy=3 files...")
+        assert lines[first + 1] == "Delay 10ms done.", "the message comes first, the duration after"
+
+    @pytest.mark.parametrize("line", ["/delay 10ms msg=", "/delay.silent 10ms msg=Waiting"])
+    def test_no_msg_line_when_empty_or_silent(self, cli, capsys, line):
+        """An empty msg= prints no line, and .silent prints nothing at all."""
+        capsys.readouterr()
+        assert cli.repl.dispatch_full(line).success
+        out = capsys.readouterr().out
+        assert "Waiting" not in out
+        assert not any(line.strip() == "" for line in out.splitlines()), "no blank message line"
+
     def test_invalid_duration(self, cli):
         """An unparseable duration fails through the duration reader instead of sleeping a default."""
         # Act

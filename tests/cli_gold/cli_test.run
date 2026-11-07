@@ -499,6 +499,7 @@ MEM.R 0x1000 2 --json
 /run.rename status_check status_probe
 /run.rename status_probe status_check
 /delay 1ms
+/delay 1ms msg=Waiting for the board: copy=3 files...
 /run.record
 /run.last
 /run.last 1

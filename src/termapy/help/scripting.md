@@ -115,7 +115,7 @@ empty.
 
 | Command | Description |
 |---------|-------------|
-| `/delay <duration>` | Pause execution (e.g. `500ms`, `2s`, `1.5s`). Escape or Ctrl+C cancels it and the script. |
+| `/delay <duration> {msg=<text>}` | Pause execution (e.g. `500ms`, `2s`, `1.5s`). `msg=` prints what the wait is for when it starts, the rest of the line with no quotes: `/delay 2s msg=Waiting for reboot...`. Escape or Ctrl+C cancels it and the script. |
 | `/expect {timeout=<dur>} {fail=<text>} match=<text>` | Wait for a serial line containing `<text>` (default 5s). A timeout fails the line and stops the script; so does a line containing the `fail=` text, as soon as it arrives. |
 | `/expect.regex {timeout=<dur>} {fail=<pattern>} match=<pattern>` | Same, but both patterns are regexes. |
 | `/confirm {message}` | Ask Yes/Cancel: a dialog in the TUI, a y/n prompt in the CLI. Canceling stops the script. |

@@ -440,8 +440,8 @@ class TestProtoScriptName:
         # Arrange -- regression guard: an earlier refactor reported the
         # un-normalized name the user typed.  Drives the real headless
         # entry, which prints the message and exits 2.
+        import argparse
         import json
-        from types import SimpleNamespace
 
         from termapy.app import _run_proto_headless
         from termapy.defaults import DEFAULT_CFG
@@ -449,7 +449,7 @@ class TestProtoScriptName:
         config_path = tmp_path / "proj" / "proj.cfg"
         config_path.parent.mkdir()
         config_path.write_text(json.dumps(DEFAULT_CFG), encoding="utf-8")
-        args = SimpleNamespace(demo=False, config=str(config_path), proto="smoke")
+        args = argparse.Namespace(demo=False, config=str(config_path), proto="smoke")
 
         # Act
         with pytest.raises(SystemExit) as exc:

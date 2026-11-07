@@ -184,7 +184,7 @@ sends to the device) waits in the input line for Enter.
 | `/port.break {ms}`        | Send break signal (default 250ms)                                           |
 | `/port.byte_size {value}` | Show or set data bits (hardware only)                                       |
 | `/port.cd`                | Show CD state (read-only)                                                   |
-| `/port.connect {name} {baud} {mode} {custom=<bool>}` | Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81); a non-standard rate needs `custom=true` |
+| `/port.connect {name} {baud} {mode} {custom=<bool>} {timeout=<dur>} {msg=<text>}` | Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81); a non-standard rate needs `custom=true`; `timeout=` keeps trying until the port opens (a board plugged in or rebooting), `msg=` says what for |
 | `/port.cts`               | Show CTS state (read-only)                                                  |
 | `/port.disconnect`        | Disconnect from the serial port                                             |
 | `/port.dsr`               | Show DSR state (read-only)                                                  |

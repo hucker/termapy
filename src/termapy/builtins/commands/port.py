@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import re
 import textwrap
 from typing import TYPE_CHECKING
 
 from termapy import port_control
-from termapy.defaults import STANDARD_BAUD_RATES
+from termapy.defaults import STANDARD_BAUD_RATES, cfg_value
 from termapy.help_dynamic import compose, port_status
 from termapy.legacy import make_forwarder
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, TextLine, UsageError
+from termapy.plugins.waiting import wait
 from termapy.port_format import find_chips
+from termapy.scripting import format_duration, parse_duration
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -134,8 +137,70 @@ def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value="\n".join(lines))
 
 
+class _Opener:
+    """One try at opening the port per call, keeping why the last try failed."""
+
+    def __init__(self, ctx: PluginContext, port: str | None) -> None:
+        self._ctx = ctx
+        self._port = port
+        self.error = ""
+
+    def __call__(self) -> bool:
+        """Try once: True when the port is open (or already was)."""
+        try:
+            self._ctx.serial.connect(self._port)
+        except OSError as e:
+            self.error = str(e)
+            return False
+        return True
+
+
+# How often a timed connect tries the port again.
+_RETRY_S = 0.1
+# /port.connect's own options, taken off the line before the rest is read
+# as the port's settings: msg= runs to the end of the line, so it is last.
+_MSG_RE = re.compile(r"(?:^|\s)msg=(.*)$")
+_TIMEOUT_RE = re.compile(r"(?:^|\s)timeout=(\S*)")
+
+
+def _wait_options(args: str) -> tuple[str, float, str]:
+    """``timeout=`` and ``msg=`` taken off ``/port.connect``'s line.
+
+    Returns:
+        The rest of the line, the timeout in seconds (0 for one try) and
+        the message (empty for the default one).
+
+    Raises:
+        ValueError: The timeout is not a duration.
+    """
+    msg = ""
+    match = _MSG_RE.search(args)
+    if match:
+        msg = match.group(1).strip()
+        args = args[: match.start()]
+    timeout = 0.0
+    match = _TIMEOUT_RE.search(args)
+    if match:
+        try:
+            timeout = parse_duration(match.group(1))
+        except ValueError:
+            raise ValueError(f"Invalid timeout: {match.group(1)}") from None
+        args = args[: match.start()] + args[match.end() :]
+    return args, timeout, msg
+
+
 def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
-    """Open the named port (or the config's), applying any baud, frame, line-ending and echo settings first; URL ports need network egress."""
+    """Open the named port (or the config's), applying any baud, frame, line-ending and echo settings first; URL ports need network egress.
+
+    With ``timeout=`` a port that does not open is tried again until it
+    does or the time runs out: one plugged in, enumerating, or let go by
+    another program.  The wait shows progress and Escape, Ctrl+C or a
+    script's Stop ends it.
+    """
+    try:
+        args, timeout, msg = _wait_options(args)
+    except ValueError as e:
+        return CmdResult.fail(msg=str(e))
     port, baud, mode, line_ending, echo, custom, err = port_control.parse_open_args(args)
     if err:
         return CmdResult.fail(msg=err)
@@ -176,11 +241,20 @@ def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
     # The port not opening (bad name, in use, ...) raises its reason, which
     # is this command's failure.  A /port.connect issued while already
     # connected only re-applies the cfg settings above; that is not a failure.
-    try:
-        ctx.serial.connect(port)
-    except OSError as e:
-        return CmdResult.fail(msg=str(e))
-    return CmdResult.ok(value=port or "")
+    opener = _Opener(ctx, port)
+    if opener():
+        return CmdResult.ok(value=port or "")
+    if timeout <= 0:
+        return CmdResult.fail(msg=opener.error)
+    ctx.io.output(msg or f"Waiting for {port or cfg_value(ctx.cfg, 'serial.port')}...")
+    outcome = wait(ctx, timeout, opener, interval=_RETRY_S)
+    if outcome == "met":
+        return CmdResult.ok(value=port or "")
+    if outcome == "stopped":
+        if ctx.internal.in_script():
+            return CmdResult.fail(msg="Script stopped.")
+        return CmdResult.fail(msg="Connect canceled.")
+    return CmdResult.fail(msg=f"{opener.error} (waited {format_duration(timeout)})")
 
 
 def _handler_disconnect(ctx: PluginContext, args: str) -> CmdResult:
@@ -510,13 +584,13 @@ COMMAND = Command(
             shows=True,
         ),
         "connect": Command(
-            args="{name} {baud} {mode} {custom=<bool>}",
+            args="{name} {baud} {mode} {custom=<bool>} {timeout=<dur>} {msg=<text>}",
             help="Connect to the serial port (e.g. {prefix}port.connect COM3 9600 N81).",
             long_help=(
                 "Connect to the serial port, optionally setting baud rate, "
                 "frame mode, line ending, or echo in one stroke.\n"
                 "\n"
-                "Syntax: {prefix}port.connect [name|port=name] [baud] [mode] [cr|lf|crlf] [echo|noecho] [custom=true]\n"
+                "Syntax: {prefix}port.connect [name|port=name] [baud] [mode] [cr|lf|crlf] [echo|noecho] [custom=true] [timeout=dur] [msg=text]\n"
                 "\n"
                 "  name         Port device or USB serial number. A bare name\n"
                 '               MUST come first. Falls back to cfg["port"].\n'
@@ -532,15 +606,25 @@ COMMAND = Command(
                 '  echo|noecho  Toggle cfg["echo"].\n'
                 "  custom=true  Allow a rate off the standard list (300 or\n"
                 "               more), so a mistyped one is refused instead.\n"
+                "  timeout=dur  Keep trying until the port opens, for up to\n"
+                "               dur (e.g. 10s): a board being plugged in or\n"
+                "               rebooting, or a port another program is\n"
+                "               letting go of.  Without it, one try.\n"
+                "  msg=text     What the wait is for, shown while it waits\n"
+                "               (default: Waiting for <port>...).  The rest\n"
+                "               of the line, so it comes last; no quotes.\n"
                 "\n"
                 "Tokens after name are order-independent. Mutations are\n"
-                "session-only -- edit the config file to persist.\n"
+                "session-only -- edit the config file to persist.  A timed\n"
+                "wait shows progress; Escape or Ctrl+C ends it.\n"
                 "\n"
                 "Example: {prefix}port.connect COM3 9600 N81 crlf echo\n"
-                "         {prefix}port.connect COM3 250000 custom=true"
+                "         {prefix}port.connect COM3 250000 custom=true\n"
+                "         {prefix}port.connect timeout=10s msg=Waiting for reboot..."
             ),
             handler=_handler_connect,
             cfg={
+                "serial.port": "opened when no name is given; named while waiting",
                 "serial.custom_baud": "set true for the session by custom=true",
                 "serial.baud_rate": "set for the session before opening",
                 "serial.parity": "set for the session before opening",

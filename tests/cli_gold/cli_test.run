@@ -148,6 +148,10 @@ $(BAUD) <- /port.baud_rate
 /port.baud_rate
 /port.connect
 /port.baud_rate
+# A timed connect to a port that never opens: the message, then the reason
+/port.disconnect
+/port.connect DEMO_FAIL timeout=300ms msg=Waiting for a port that never opens...
+/port.connect DEMO
 
 # ── REPL: port break ────────────────────────────────────────────────────────
 /print === section: port break ===

@@ -111,7 +111,8 @@ src/termapy/
 │   ├── loader.py           #   Plugin discovery and loading
 │   ├── output_levels.py    #   Output-level vocabulary shared between `PluginContext` and `IOHandle`
 │   ├── params.py           #   Declarative command parameters -- parse/coerce/validate before the handler
-│   └── views.py            #   Views: how a typed answer looks in prose, kept apart from the answer itself
+│   ├── views.py            #   Views: how a typed answer looks in prose, kept apart from the answer itself
+│   └── waiting.py          #   A wait a person can watch and stop: the one loop behind `/delay` and `/port.connect timeout=`
 ├── profile/                # (1326 lines) Device-profile schema, loader, validator, and type registry
 │   ├── loader.py           #   Device profile: declarative description of a serial device
 │   ├── matcher.py          #   Match a typed command line against a profile's command catalog

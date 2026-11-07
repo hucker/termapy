@@ -65,7 +65,8 @@ class Runtime:
     files: tuple[str, ...] = ()
 
 
-MICROPYTHON = Runtime("MicroPython", "micropython", ("termapy_json.py",))
+# The command monitor and the MEM commands, on every MicroPython board.
+MICROPYTHON = Runtime("MicroPython", "micropython", ("termapy_json.py", "termapy_mem.py"))
 
 
 @dataclass(frozen=True)
@@ -83,9 +84,6 @@ class Board:
             loader, or a USB port the chip has whatever it runs.
         firmware: The board's own device code in ``<name>/firmware/``, the
             one to start from first; the runtime's shared files follow it.
-        runtime_extras: Shared files of the runtime that only some boards
-            use, after its own (``termapy_mem.py``, the MEM commands); a
-            file every board on the runtime uses belongs in ``Runtime.files``.
         flash: One line on getting the firmware onto the board.
         install: The shell command that puts copied firmware on a running
             board, with ``{port}`` and ``{files}`` to fill in.
@@ -97,7 +95,6 @@ class Board:
     usb: tuple[str, ...]
     without_runtime_usb: tuple[str, ...] = ()
     firmware: tuple[str, ...] = ()
-    runtime_extras: tuple[str, ...] = ()
     flash: str = ""
     install: str = ""
 
@@ -112,7 +109,10 @@ BOARDS: tuple[Board, ...] = (
         usb=("2E8A:0005",),
         without_runtime_usb=("2E8A:0003",),
         firmware=("main.py",),
-        flash="Flash MicroPython (RPI_PICO), then copy main.py and termapy_json.py to the board.",
+        flash=(
+            "Flash MicroPython (RPI_PICO), then copy main.py, termapy_json.py and "
+            "termapy_mem.py to the board."
+        ),
         install="uvx mpremote connect {port} cp {files} : + reset",
     ),
     # On the chip's own USB port.  4001 is MicroPython's TinyUSB serial port,
@@ -127,7 +127,6 @@ BOARDS: tuple[Board, ...] = (
         usb=("303A:4001",),
         without_runtime_usb=("303A:1001",),
         firmware=("main.py",),
-        runtime_extras=("termapy_mem.py",),
         flash=(
             "Flash MicroPython (ESP32_GENERIC_S3, the SPIRAM_OCT build on an octal-PSRAM "
             "module such as N8R8 or N16R8) with esptool, then copy main.py, "
@@ -338,7 +337,7 @@ def firmware_paths(board: Board) -> list[Path]:
     own = _package(board) / "firmware"
     shared = files(__name__) / board.runtime.folder / "firmware"
     return [Path(str(own / name)) for name in board.firmware] + [
-        Path(str(shared / name)) for name in board.runtime.files + board.runtime_extras
+        Path(str(shared / name)) for name in board.runtime.files
     ]
 
 

@@ -88,6 +88,10 @@ BOARD_FORMS = {
         "led 1": "led",
         "temp": "temp",
         "id": "id",
+        "MEM.R 0x20000000 16": "MEM.R",
+        "MEM.W 0x20000000 DEADBEEF": "MEM.W",
+        "MEM.M 0x20000000 FFFFFF00 00000001": "MEM.M",
+        "MEM.INFO": "MEM.INFO",
     },
     "esp32s3": {
         "help": "help",
@@ -153,7 +157,7 @@ class TestTable:
             assert isinstance(table, ast.Dict), "COMMANDS is a dict literal"
             firmware = {key.value for key in table.keys if isinstance(key, ast.Constant)}
             expected = firmware | monitor_commands
-            if "termapy_mem.py" in board.runtime_extras:
+            if "termapy_mem.py" in board.runtime.files:
                 expected |= mem_commands
             actual = set(load_profile(BOARDS_DIR / board.name / "profile.json")["commands"])
             assert actual == expected, f"{board.name}: profile and firmware disagree"
@@ -178,16 +182,18 @@ class TestTable:
                         assert outcome.ok, f"{board.name}: {line!r} refused: {outcome.error}"
 
     def test_runtime_code_ships_once(self):
-        """Every MicroPython board gets the runtime's one termapy_json.py; no board folder holds a copy."""
+        """Every MicroPython board gets the runtime's one copy of each shared file; no board folder holds its own."""
         shared = {
             path
             for board in BOARDS
             for path in firmware_paths(board)
             if path.name in board.runtime.files
         }
-        assert len(shared) == 1, f"one shared file, not one per board: {shared}"
+        assert len(shared) == len({path.name for path in shared}), (
+            f"one copy of each shared file, not one per board: {shared}"
+        )
         for board in BOARDS:
-            for name in board.runtime.files + board.runtime_extras:
+            for name in board.runtime.files:
                 copy = BOARDS_DIR / board.name / "firmware" / name
                 assert not copy.exists(), f"{board.name} carries its own {name}"
 

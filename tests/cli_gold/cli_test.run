@@ -49,6 +49,7 @@ $(BAUD) <- /port.baud_rate
 # ── REPL: config queries ────────────────────────────────────────────────────
 /print === section: config read ===
 /cfg baud_rate
+/cfg serial
 /cfg encoding
 /cfg eol
 /cfg parity

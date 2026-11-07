@@ -1,8 +1,9 @@
 """Tests for /proto.crc.detect -- generated from crcglot.VERBS.
 
 The command's params are generated from ``crcglot.VERBS['detect']`` and it
-executes via ``crcglot.call_verb``, returning the JSON-ready wire dict as JSON
-in ``CmdResult.value``.  ``detect`` accepts a frame LIST, so the renderer gives
+executes via ``crcglot.call_verb``, returning the JSON-ready wire dict as
+``CmdResult.data`` and the one fitting algorithm (or ``""``) as the scalar
+``value``.  ``detect`` accepts a frame LIST, so the renderer gives
 it two input forms: a variadic ``<frames>...`` positional (one frame per
 argument) and a ``frame=`` rest keyword (one frame that may contain spaces).
 
@@ -32,6 +33,11 @@ def _engine() -> ReplEngine:
     return eng
 
 
+def _algorithms(result) -> list[str]:
+    """The candidate algorithm names in a detect answer's data, crcglot's wire dict."""
+    return [candidate["algorithm"] for candidate in result.data["candidates"]]
+
+
 def _dispatch_full(eng: ReplEngine, line: str):
     """Route through the FULL pipeline (directives + transforms + dispatch).
 
@@ -55,15 +61,32 @@ class TestCrcDetectFrames:
     """The variadic ``<frames>...`` positional."""
 
     def test_identifies_modbus_single_frame(self):
-        """One hex frame reaches crcglot and the matched algorithm comes back in value."""
+        """One hex frame reaches crcglot and the matched algorithm comes back in the data."""
         # Act
         result = _engine().dispatch(f"proto.crc.detect {FRAME_1}")
 
         # Assert
         assert result.success, "detect ran cleanly"
-        assert "crc16-modbus" in result.value, (
-            "the wire-dict value carries the matched catalog algorithm"
+        assert "crc16-modbus" in _algorithms(result), (
+            "the wire dict, as data, carries the matched catalog algorithm"
         )
+
+    def test_value_is_the_sole_algorithm(self):
+        """The scriptable value is the one algorithm that fits, never the wire dict as text."""
+        # Act
+        result = _engine().dispatch(f"proto.crc.detect {FRAME_1} {FRAME_2} {FRAME_3}")
+
+        # Assert
+        assert result.value == "crc16-modbus", "one candidate: its name is the value"
+        assert result.data["matched"] is True, "the data is crcglot's wire dict"
+
+    def test_no_match_is_an_empty_value(self):
+        """A frame no algorithm fits answers an empty value, and the data says it matched nothing."""
+        # Act -- width=32: a coincidental 32-bit fit on these bytes is ~1e-9 per algorithm
+        result = _engine().dispatch("proto.crc.detect width=32 0102030405060708")
+
+        # Assert
+        assert (result.value, result.data["candidates"]) == ("", []), "no match, no name"
 
     def test_multiple_frames_intersect(self):
         """Several positional frames all reach crcglot as one list, not just the first."""
@@ -73,7 +96,7 @@ class TestCrcDetectFrames:
 
         # Assert
         assert result.success, "detect ran cleanly over three frames"
-        assert "crc16-modbus" in result.value, "three frames identify modbus"
+        assert "crc16-modbus" in _algorithms(result), "three frames identify modbus"
 
     def test_byte_separators_inside_one_frame(self):
         """Comma-separated bytes stay one argument, so one frame needs no quoting."""
@@ -82,7 +105,7 @@ class TestCrcDetectFrames:
         result = _engine().dispatch("proto.crc.detect 01,03,00,00,00,0a,c5,cd")
 
         # Assert
-        assert "crc16-modbus" in result.value, (
+        assert "crc16-modbus" in _algorithms(result), (
             "comma-separated bytes stay one frame and identify modbus"
         )
 
@@ -110,7 +133,7 @@ class TestCrcDetectFrameKeyword:
 
         # Assert
         assert result.success, "frame= accepted a space-separated frame"
-        assert "crc16-modbus" in result.value, "the spaced frame identifies modbus"
+        assert "crc16-modbus" in _algorithms(result), "the spaced frame identifies modbus"
 
     def test_keyword_composes_with_other_keywords_before_it(self):
         """frame= runs to end of line, yet a keyword placed before it still binds."""
@@ -118,7 +141,7 @@ class TestCrcDetectFrameKeyword:
         result = _engine().dispatch(f"proto.crc.detect width=16 frame={SPACED_FRAME}")
 
         # Assert
-        assert "crc16-modbus" in result.value, "a keyword before frame= binds normally"
+        assert "crc16-modbus" in _algorithms(result), "a keyword before frame= binds normally"
 
     def test_both_input_forms_is_crcglot_error(self):
         """Positional frames plus frame= fail with crcglot's own exclusion message."""
@@ -149,7 +172,7 @@ class TestCrcDetectVariableForms:
 
         # Assert
         assert result.success, "detect ran cleanly"
-        assert "crc16-modbus" in result.value, (
+        assert "crc16-modbus" in _algorithms(result), (
             "a $(NAME) splice must still expand for detect -- guards against "
             "raw_args=True disabling the blanket transform"
         )
@@ -180,7 +203,7 @@ class TestCrcDetectVariableForms:
         result = eng.dispatch("proto.crc.detect $(*p1) $(*p2) $(*p3)")
 
         # Assert
-        assert "crc16-modbus" in result.value, "three dereferenced frames identify modbus"
+        assert "crc16-modbus" in _algorithms(result), "three dereferenced frames identify modbus"
 
     def test_deref_value_with_spaces_stays_one_frame(self):
         """A dereferenced value containing spaces binds as one frame, not eight."""
@@ -193,7 +216,7 @@ class TestCrcDetectVariableForms:
         result = eng.dispatch("proto.crc.detect $(*spaced)")
 
         # Assert
-        assert "crc16-modbus" in result.value, (
+        assert "crc16-modbus" in _algorithms(result), (
             "a dereferenced value containing spaces binds as ONE frame"
         )
 
@@ -207,7 +230,7 @@ class TestCrcDetectVariableForms:
         result = eng.dispatch(f"proto.crc.detect {FRAME_1} $(*p2) {FRAME_3}")
 
         # Assert
-        assert "crc16-modbus" in result.value, "literal and reference tokens mix"
+        assert "crc16-modbus" in _algorithms(result), "literal and reference tokens mix"
 
     def test_unknown_reference_errors(self):
         """A $(*NAME) typo fails naming the variable instead of reaching crcglot as text."""
@@ -242,7 +265,7 @@ class TestCrcDetectKeywordTyping:
 
         # Assert
         assert result.success, "width=16 dispatched cleanly"
-        assert "crc16-modbus" in result.value, "an int-coerced width still matches"
+        assert "crc16-modbus" in _algorithms(result), "an int-coerced width still matches"
 
     def test_bad_width_fails_before_crcglot(self):
         """A non-integer width is rejected by the dispatcher before crcglot is called."""
@@ -261,6 +284,6 @@ class TestCrcDetectKeywordTyping:
         result = _engine().dispatch(f"proto.crc.detect endian=little {FRAME_1}")
 
         # Assert
-        assert "crc16-modbus" in result.value, (
+        assert "crc16-modbus" in _algorithms(result), (
             "the manifest-generated endian enum reaches the little-endian detect"
         )

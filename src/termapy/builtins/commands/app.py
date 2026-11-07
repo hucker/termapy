@@ -243,11 +243,11 @@ def _installed_version() -> str:
 
 
 def _handler_ver(ctx: PluginContext, args: str) -> CmdResult:
-    """Print the installed termapy version."""
+    """Print the installed termapy version: the line is the value, the bare version the data."""
     ver = _installed_version()
     ver_str = f"termapy v{ver}"
     ctx.io.result(ver_str)
-    return CmdResult.ok(value=ver_str)
+    return CmdResult.ok(value=ver_str, data={"version": ver})
 
 
 def _handler_ver_latest(ctx: PluginContext, args: str) -> CmdResult:

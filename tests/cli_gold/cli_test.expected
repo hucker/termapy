@@ -65,6 +65,8 @@ demo> /print === section: config read ===
   === section: config read ===
 demo> /cfg baud_rate
   115200
+demo> /cfg serial
+  {"port": "DEMO", "baud_rate": 115200, "custom_baud": false, "byte_size": 8, "parity": "N", "stop_bits": 1, "flow_control": "none"}
 demo> /cfg encoding
   utf-8
 demo> /cfg eol

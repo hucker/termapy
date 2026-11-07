@@ -65,14 +65,29 @@ if TYPE_CHECKING:
 # ── /cfg handler ───────────────────────────────────────────────────────────────
 
 
-def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    """Show all config, a single key, or set a key with confirmation.
+def _cfg_answer(val: object) -> CmdResult:
+    """A key's value as the answer: ``data`` with its JSON type, ``value`` its text.
 
-    With no arguments, prints every key/value pair. With a key only,
-    prints that key's current value. With key and value, validates the
+    A container's text is compact JSON, never Python's repr, so a script
+    and an agent read ``{"port": "DEMO"}`` the way the config file spells it.
+    """
+    return CmdResult.ok(value=_value_text(val), data=val)
+
+
+def _value_text(val: object) -> str:
+    """A key's value as text: a dict or list as compact JSON, a scalar as ``str``."""
+    return json.dumps(val) if isinstance(val, (dict, list)) else str(val)
+
+
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
+    """Show a single key, or set a key with confirmation.
+
+    Bare never arrives (the picker or ``/cfg.list`` runs).  With a key
+    only, prints that key's current value.  With key and value, validates the
     type against the existing value, then asks the frontend to confirm
     and answers after it does (Cancel fails), or applies directly where
-    the frontend has no dialog.
+    the frontend has no dialog.  Every answer carries the key's value as
+    ``data``, with its JSON type.
 
     Args:
         ctx: Plugin context for config access and output.
@@ -96,8 +111,8 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # /cfg key - show value
     if len(parts) == 1:
         val = container[key]
-        ctx.io.result(str(val))
-        return CmdResult.ok(value=str(val))
+        ctx.io.result(_value_text(val))
+        return _cfg_answer(val)
     # /cfg key value - validate and delegate for confirmation
     try:
         new_val = _typed_value(ctx, container, key, parts[1])
@@ -106,7 +121,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     old_val = container[key]
     if new_val == old_val:
         ctx.io.output(f"{key} is already {old_val!r}")
-        return CmdResult.ok(value=str(old_val))
+        return _cfg_answer(old_val)
     # The TUI asks first and answers only after the dialog does, so a
     # script line after /cfg sees the outcome (review 2026-10-15, D7).
     if ctx.internal.confirm_save_cfg:
@@ -114,7 +129,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.fail(msg="Canceled.")
     else:
         ctx.internal.apply_cfg(key, new_val)
-    return CmdResult.ok(value=str(new_val))
+    return _cfg_answer(new_val)
 
 
 def _typed_value(ctx: PluginContext, container, key: str, value_str: str) -> object:
@@ -191,7 +206,7 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
     ctx.internal.apply_cfg(key, new_val)
-    return CmdResult.ok(value=str(new_val))
+    return _cfg_answer(new_val)
 
 
 # ── /cfg.list handler ─────────────────────────────────────────────────────────

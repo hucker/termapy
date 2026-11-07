@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from termapy.defaults import cfg_value
 from termapy.plugins import CapabilitySet, CmdResult, Command
@@ -30,11 +30,17 @@ _PING_PARAMS = [
 
 
 def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> CmdResult:
-    """Send ``cmd=`` ``count`` times, printing each round trip, then the avg/min/max summary (the value)."""
+    """Send ``cmd=`` ``count`` times, printing each round trip, then the avg/min/max summary.
+
+    The value is the mean reply time (``61ms``), ``""`` when every ping
+    timed out; the data is every round trip (``_ping_record``).  A timeout
+    is not a reply time, so it is counted, never averaged.
+    """
     cmd = ctx.arg("cmd")
     count = ctx.arg("count")
     timeout_ms = int(ctx.arg("timeout") * 1000)  # param is float seconds
-    times: list[float] = []
+    # One entry per ping: its reply time in ms, or None when it timed out.
+    times: list[float | None] = []
     for i in range(count):
         with ctx.serial.io():
             ctx.serial.drain()
@@ -42,30 +48,47 @@ def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> CmdResult
             ctx.serial.send(cmd)
             response = ctx.serial.read_raw(timeout_ms=timeout_ms)
             ms = (time.perf_counter() - start) * 1000
-        times.append(ms)
         if response:
+            times.append(ms)
             ctx.io.output(f"{cmd} -- {ms:.0f}ms", "green")
             if not quiet:
                 text = response.decode(cfg_value(ctx.cfg, "encoding"), errors="replace").strip()
                 if text:
                     ctx.io.output(f"  {text}")
         else:
+            times.append(None)
             ctx.io.output(f"{cmd} -- timeout ({timeout_ms}ms)", "red")
-    if count > 1:
-        avg = sum(times) / len(times)
-        lo = min(times)
-        hi = max(times)
-        result_text = f"{count} pings: avg={avg:.0f}ms min={lo:.0f}ms max={hi:.0f}ms"
-        ctx.io.result(result_text)
-        return CmdResult.ok(value=result_text)
-    if count == 1 and times:
-        ms = times[0]
-        result_text = f"{ms:.0f}ms"
-        return CmdResult.ok(value=result_text)
-    # Ping ran but every response timed out -- empty value rather
-    # than missing, so scripts can distinguish "tried but nothing"
-    # from "didn't run."
-    return CmdResult.ok(value="")
+    record = _ping_record(cmd, times)
+    replies = record["replies"]
+    if count > 1 and replies:
+        timeouts = f" ({record['timeouts']} timed out)" if record["timeouts"] else ""
+        ctx.io.result(
+            f"{count} pings: avg={record['avg_ms']:.0f}ms min={record['min_ms']:.0f}ms "
+            f"max={record['max_ms']:.0f}ms{timeouts}"
+        )
+    # Every ping timed out: an empty value rather than a missing one, so a
+    # script tells "tried but nothing" from "didn't run".
+    value = f"{record['avg_ms']:.0f}ms" if replies else ""
+    return CmdResult.ok(value=value, data=record)
+
+
+def _ping_record(cmd: str, times: list[float | None]) -> dict[str, Any]:
+    """Every round trip as data: each reply time in ms (``None`` a timeout) and their stats.
+
+    ``avg_ms``, ``min_ms`` and ``max_ms`` are over the replies only, and
+    ``None`` when there were none.
+    """
+    replied = [ms for ms in times if ms is not None]
+    return {
+        "cmd": cmd,
+        "count": len(times),
+        "replies": len(replied),
+        "timeouts": len(times) - len(replied),
+        "times_ms": [None if ms is None else round(ms, 1) for ms in times],
+        "avg_ms": round(sum(replied) / len(replied), 1) if replied else None,
+        "min_ms": round(min(replied), 1) if replied else None,
+        "max_ms": round(max(replied), 1) if replied else None,
+    }
 
 
 def _handler_quiet(ctx: PluginContext, args: str) -> CmdResult:

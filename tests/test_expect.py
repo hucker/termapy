@@ -113,6 +113,44 @@ class TestExpectMatch:
         assert result.success is True, "regex match"
         assert "+STATUS: 42" in result.value, "matched line returned"
 
+    def test_regex_captures_are_the_data(self, env):
+        """/expect.regex's data carries the line and its numbered and named captures."""
+        # Arrange
+        eng, ctx, _output = env
+        eng.feed_lines(["TEMP=23.5 UNIT=C"])
+
+        # Act
+        result = eng.dispatch("expect.regex timeout=1s match=TEMP=(?P<temp>[\\d.]+) UNIT=(\\w)")
+
+        # Assert
+        actual = result.data
+        expected = {"line": "TEMP=23.5 UNIT=C", "groups": ["23.5", "C"], "named": {"temp": "23.5"}}
+        assert actual == expected, "an agent reads the reading without re-applying the pattern"
+
+    def test_regex_without_groups_has_empty_captures(self, env):
+        """A pattern with no groups still answers the record, its captures empty."""
+        # Arrange
+        eng, ctx, _output = env
+        eng.feed_lines(["OK"])
+
+        # Act
+        result = eng.dispatch("expect.regex timeout=1s match=^OK$")
+
+        # Assert
+        assert result.data == {"line": "OK", "groups": [], "named": {}}, "one shape every time"
+
+    def test_substring_expect_has_no_data(self, env):
+        """A plain /expect answers the line as its value and nothing structured: there is nothing more."""
+        # Arrange
+        eng, ctx, _output = env
+        eng.feed_lines(["READY"])
+
+        # Act
+        result = eng.dispatch("expect timeout=1s match=READY")
+
+        # Assert
+        assert result.data is None, "the line alone is the answer"
+
     def test_match_arrives_after_call_starts(self, env):
         """A line arriving from another thread mid-wait wakes /expect and succeeds."""
         # Arrange

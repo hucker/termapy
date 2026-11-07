@@ -251,6 +251,27 @@ class TestMode:
         result = cli.repl.dispatch_full("/port.mode")
         assert result.value == "115200 8N1"
 
+    def test_bare_data_carries_each_field(self, cli):
+        """Bare /port.mode's data is the frame field by field, baud and custom as /port.baud_rate spells them."""
+        # Act
+        result = cli.repl.dispatch_full("/port.mode")
+
+        # Assert
+        actual = result.data
+        expected = {"baud": 115200, "custom": False, "byte_size": 8, "parity": "N", "stop_bits": 1}
+        assert actual == expected, "four frame facts with their JSON types, no prose to parse"
+
+    def test_bare_data_follows_a_set(self, cli):
+        """After /port.mode 9600 E71, bare /port.mode's data reports the new frame."""
+        # Act
+        cli.repl.dispatch_full("/port.mode 9600 E71")
+        result = cli.repl.dispatch_full("/port.mode")
+
+        # Assert
+        actual = result.data
+        expected = {"baud": 9600, "custom": False, "byte_size": 7, "parity": "E", "stop_bits": 1}
+        assert actual == expected, "the data is read at the query, not cached"
+
     def test_baud_and_frame_apply_to_the_port_and_the_cfg(self, cli):
         """/port.mode 9600 E71 sets all four frame fields on the port and in the session cfg."""
         port = _demo_port(cli)

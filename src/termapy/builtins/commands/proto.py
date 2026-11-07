@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from crcglot import DetectMatch, DetectResult, detect
 
@@ -2150,6 +2150,16 @@ def _width_matches(
     return tuple(candidate for candidate in candidates if candidate.info.width == width_filter)
 
 
+def _sole_algorithm(result: dict[str, Any]) -> str:
+    """``/proto.crc.detect``'s value: the algorithm when exactly one fits, else ``""``.
+
+    The same rule as ``/proto.crc.find``'s value, read from crcglot's detect
+    wire dict (``candidates[].algorithm``), which is the command's data.
+    """
+    candidates = result.get("candidates") or []
+    return str(candidates[0]["algorithm"]) if len(candidates) == 1 else ""
+
+
 def _render_detect_result(
     ctx: PluginContext,
     result: DetectResult,
@@ -2625,7 +2635,7 @@ COMMAND = Command(
                 # and execution (via crcglot.call_verb) all come from crcglot's
                 # manifest, so there is nothing to keep in sync by hand.  See
                 # _crc_verbs.build_crc_verb_command.
-                "detect": build_crc_verb_command("detect"),
+                "detect": build_crc_verb_command("detect", pick_value=_sole_algorithm),
                 "calc": Command(
                     args="<name> {data}",
                     help="Compute CRC over hex bytes, quoted text, or a file.",

@@ -660,15 +660,19 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
         f"{escape_markup(bytes(rx).hex(' ').upper())}  [dim]{escape_markup(repr(rx_decoded))}[/]",
     )
 
+    # The scalar is the reply's bytes, terminators and all: what a line-ending
+    # check compares.  Both directions in full are the data.
+    rx_hex = bytes(rx).hex().upper()
     return CmdResult.ok(
-        value={
+        value=rx_hex,
+        data={
             "tx_bytes": len(tx),
             "rx_bytes": len(rx),
             "tx_hex": bytes(tx).hex().upper(),
-            "rx_hex": bytes(rx).hex().upper(),
+            "rx_hex": rx_hex,
             "tx_text": tx_decoded,
             "rx_text": rx_decoded,
-        }
+        },
     )
 
 

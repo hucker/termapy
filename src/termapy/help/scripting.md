@@ -210,6 +210,14 @@ For a single call in a prose-mode session, every command also accepts
 - **Every status page** (`/mcp.info` with the server's `pid`, `/term.info`,
   `/port.info`, `/mem.info`, `/sym.info`, `/profile.info`, `/seq`, ...) is
   one record of real values; `/port.chip *` is a list of them.
+- **A query or measurement with more than one fact** is one record:
+  `/port.mode` and `/port.baud_rate` (`{"baud": 115200, "custom": false, ...}`),
+  `/ping` (every round trip, `null` for a timeout, and the stats over the
+  replies), `/cap.wire` (both directions as counts, hex and text),
+  `/expect.regex` (the line and its `groups` and `named` captures), and
+  `/proto.crc.detect` (crcglot's own result).
+- `/cfg <key>` answers the key's value with its JSON type, a container as
+  the structure itself.
 - `/var`, `/port.usb` and profile-mapped device commands have their own shapes.
 
 For everything else it

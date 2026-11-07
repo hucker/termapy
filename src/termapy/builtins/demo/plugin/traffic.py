@@ -78,7 +78,12 @@ def _handler_count(ctx: PluginContext, args: str) -> CmdResult:
     ctx.io.output_markup(
         f"  TX: [yellow]{tx_count[0]:d}[/]  RX: [cyan]{rx_count[0]:d}[/]  bytes",
     )
-    return CmdResult.ok(value={"tx": tx_count[0], "rx": rx_count[0]})
+    # value is the scriptable scalar, the reply's size; the counts both ways
+    # are the data, keyed as /cap.wire keys them.
+    return CmdResult.ok(
+        value=str(rx_count[0]),
+        data={"tx_bytes": tx_count[0], "rx_bytes": rx_count[0]},
+    )
 
 
 # ── /traffic.hexdump ────────────────────────────────────────────────────────
@@ -126,7 +131,7 @@ def _handler_hexdump(ctx: PluginContext, args: str) -> CmdResult:
             ctx.io.output(f"  Hex dump -> {out_path} for {duration_s:.1f}s")
             time.sleep(duration_s)
 
-    return CmdResult.ok(value={"path": str(out_path), "duration_s": duration_s})
+    return CmdResult.ok(value=str(out_path), data={"path": str(out_path), "duration_s": duration_s})
 
 
 # ── /traffic.rate ───────────────────────────────────────────────────────────
@@ -163,13 +168,14 @@ def _handler_rate(ctx: PluginContext, args: str) -> CmdResult:
         f"  RX: [cyan]{rx_count[0]:d}[/] bytes ([cyan]{rx_rate:.1f}[/] B/s)",
     )
     return CmdResult.ok(
-        value={
+        value=f"{rx_rate:.1f}",
+        data={
             "duration_s": duration_s,
             "tx_bytes": tx_count[0],
             "rx_bytes": rx_count[0],
             "tx_rate_bps": tx_rate,
             "rx_rate_bps": rx_rate,
-        }
+        },
     )
 
 
@@ -214,7 +220,7 @@ def _handler_snoop(ctx: PluginContext, args: str) -> CmdResult:
         if not found.wait(timeout=timeout_s):
             return CmdResult.fail(
                 msg=f"Timeout ({timeout_s:.1f}s) waiting for {pattern_hex}",
-                value={"matched": False, "pattern": pattern_hex},
+                data={"matched": False, "pattern": pattern_hex},
             )
 
     # Find the offset of the match within the captured buffer so the LLM
@@ -226,12 +232,13 @@ def _handler_snoop(ctx: PluginContext, args: str) -> CmdResult:
         f"trailing bytes captured)",
     )
     return CmdResult.ok(
-        value={
+        value=str(offset),
+        data={
             "matched": True,
             "pattern": pattern_hex,
             "offset": offset,
             "bytes_captured": len(buf),
-        }
+        },
     )
 
 

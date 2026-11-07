@@ -266,6 +266,22 @@ def parse_open_args(
     return port, baud, mode, line_ending, echo, custom, None
 
 
+def mode_facts(cfg: Mapping[str, Any]) -> dict[str, Any]:
+    """The frame bare ``/port.mode`` reports, with JSON types: its ``data``.
+
+    ``baud`` and ``custom`` are spelled as ``/port.baud_rate``'s data
+    spells them, so the two answers agree on the rate.
+    """
+    serial = cfg["serial"]
+    return {
+        "baud": serial["baud_rate"],
+        "custom": bool(cfg_value(cfg, "serial.custom_baud")),
+        "byte_size": serial["byte_size"],
+        "parity": serial["parity"],
+        "stop_bits": serial["stop_bits"],
+    }
+
+
 def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
     """Set serial frame parameters from a mode string and optional baud rate.
 

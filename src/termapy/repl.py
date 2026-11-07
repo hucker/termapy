@@ -2181,11 +2181,13 @@ class ReplEngine:
                     json_output_lines = captured_lines
                 else:
                     result = handler(self.ctx, args)
-                if result is None:
-                    # SPECIAL CASE: legacy / external handler returned None.
-                    # Synthesize an empty success so the dispatch loop has
-                    # a result to attach elapsed_s to.
-                    result = CmdResult.ok(value="")
+                if not isinstance(result, CmdResult):
+                    # A handler answers with a CmdResult (registry
+                    # handler-returns-cmdresult).  A missing return is a
+                    # failure, never an empty success that hides it.
+                    result = CmdResult.fail(
+                        msg=f"{self.prefix}{name} returned {type(result).__name__}, not a CmdResult"
+                    )
                 result.elapsed_s = time.perf_counter() - t0
             # UsageError: the handler rejected its arguments.  The usage
             # line is rendered HERE, from the registered synopsis and the

@@ -17,6 +17,7 @@ import importlib.util
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from termapy import diag_log
 from termapy.converters import converter_from_module
@@ -39,6 +40,9 @@ from termapy.plugins.command import (
 )
 from termapy.plugins.params import synthesize_synopsis
 from termapy.plugins.views import Column
+
+if TYPE_CHECKING:
+    from termapy.plugins.context import PluginContext
 
 
 def builtins_dir() -> Path:
@@ -389,7 +393,7 @@ def _make_interior_handler(full_name: str, children: list[str], intro: str = "")
         A handler callable with the standard (ctx, args) signature.
     """
 
-    def _handler(ctx, args: str):
+    def _handler(ctx: PluginContext, args: str) -> CmdResult:
         prefix = ctx.prefix
         if args.strip():
             first, _, rest = args.strip().partition(" ")

@@ -363,7 +363,7 @@ class CLITerminal(TerminalHost):
         # reads the value.
         return CmdResult.ok(value="")
 
-    def _hook_cli_completion(self, ctx, args: str):
+    def _hook_cli_completion(self, ctx: PluginContext, args: str) -> CmdResult:
         """Query, set, or toggle CLI completion (tab completion, auto-suggest, toolbar).
 
         A setting command: bare QUERIES, a vocabulary token sets, ``toggle``

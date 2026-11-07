@@ -1025,12 +1025,13 @@ Add custom REPL commands by dropping a `.py` file in a plugin folder. No classes
 
 ```python
 # hello.py - drop into termapy_cfg/plugin/ or termapy_cfg/<config>/plugin/
-from termapy.plugins import Command, PluginContext
+from termapy.plugins import CmdResult, Command, PluginContext
 
 
-def _handler(ctx: PluginContext, args: str):
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     name = args.strip() or "world"
     ctx.io.result(f"Hello, {name}!")
+    return CmdResult.ok(value=name)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

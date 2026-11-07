@@ -513,7 +513,8 @@ class Command:
             ``resolve_long_help`` and the "Dynamic help" section of
             ``writing-plugins.md``.
         handler: The command function. Required for leaf nodes.
-            Signature: ``handler(ctx: PluginContext, args: str) -> None``.
+            Signature: ``handler(ctx: PluginContext, args: str) -> CmdResult``;
+            dispatch fails a handler that returns anything else.
         sub_commands: Dict mapping subcommand names to ``Command`` instances.
         bare_sub: The subcommand a BARE invocation runs instead of the
             handler (or the children listing) -- ``/mem`` with
@@ -961,7 +962,7 @@ class PluginInfo:
             render time.  When empty/callable-returning-empty, the one-line
             ``help`` is shown instead.  See ``resolve_long_help``.
         handler: The command function. Signature:
-            ``handler(ctx: PluginContext, args: str) -> None``.
+            ``handler(ctx: PluginContext, args: str) -> CmdResult``.
         source: Where the plugin was loaded from (``"built-in"``, ``"global"``,
             or the config name).
         children: Dotted names of direct subcommands (empty for leaf commands).
@@ -1000,7 +1001,7 @@ class PluginInfo:
     name: str
     args: str
     help: str
-    handler: Callable  # handler(ctx: PluginContext, args: str) -> None
+    handler: Callable  # handler(ctx: PluginContext, args: str) -> CmdResult
     long_help: LongHelp = ""
     source: str = "built-in"
     children: list[str] = field(default_factory=list)

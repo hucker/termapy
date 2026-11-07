@@ -249,7 +249,8 @@ Gated methods today:
 
 ## Returning scriptable values
 
-Handlers return `CmdResult` to indicate success or failure:
+Every handler returns a `CmdResult`, on every path; dispatch fails one that
+returns anything else (`None` included), naming the command:
 
 - `CmdResult.ok(value="...")` -- success, `value` is available to scripts
 - `CmdResult.ok(value="")` -- success, no scriptable data (pure side-effect)
@@ -325,7 +326,7 @@ Handlers that ignore `wants_data` keep working: their prose reaches
 structured consumers via the response's `output_lines`.
 
 ```python
-def _handler(ctx: PluginContext, args: str):
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     temp = read_temperature()
     ctx.io.result(f"Temperature: {temp}C")
     return CmdResult.ok(value=str(temp))
@@ -352,7 +353,7 @@ returning a hand-written usage message:
 from termapy.plugins import CmdResult, Command, PluginContext, UsageError
 
 
-def _handler(ctx: PluginContext, args: str):
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not args.strip():
         raise UsageError()  # bare: just the usage line
     try:
@@ -571,7 +572,7 @@ argument as a flip.
 from termapy.scripting import SETTING_QUERY, SETTING_TOGGLE, parse_bool_setting
 
 
-def _handler(ctx, args):
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     try:
         action = parse_bool_setting(args)
     except ValueError as e:  # unrecognized -> error, not a flip

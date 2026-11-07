@@ -9,6 +9,7 @@ from termapy.builtins.commands.var import (
     check_bare_dollar,
     rewrite_assignment,
 )
+from termapy.folders import FOLDER_NAMES
 from termapy.plugins import DirectiveInfo, DirectiveResult, PluginContext
 from termapy.repl import ReplEngine
 from termapy.variables import (
@@ -18,6 +19,7 @@ from termapy.variables import (
     clear_vars,
     deref_ref,
     expand_vars,
+    folder_var_name,
     register_cfg_vars,
     resolve_one,
     set_start_time_vars,
@@ -929,6 +931,31 @@ class TestCfgContextVars:
         # Act / Assert -- empty string, no KeyError
         actual = _CONTEXT_VARS["CFG.PORT"]()
         assert actual == "", "no serial section -> empty, not a crash"
+
+    def test_every_data_folder_has_its_variable(self, tmp_path):
+        """Each folder in folders.FOLDERS has a CFG.<NAME>_DIR naming that folder inside the config's."""
+        # Arrange
+        cfg_file = tmp_path / "demo" / "demo.cfg"
+        register_cfg_vars(lambda: str(cfg_file), lambda: {}, lambda: "")
+
+        # Act
+        actual = {folder: _CONTEXT_VARS[folder_var_name(folder)]() for folder in FOLDER_NAMES}
+
+        # Assert
+        expected = {folder: str(cfg_file.resolve().parent / folder) for folder in FOLDER_NAMES}
+        assert actual == expected, "a data folder without its variable, or one pointing elsewhere"
+
+    def test_the_folder_variables_keep_their_names(self):
+        """The names scripts already use still resolve, and firmware/ has one beside them."""
+        # Arrange
+        register_cfg_vars(lambda: "", lambda: {}, lambda: "")
+        expected = {"CFG.RUN_DIR", "CFG.CAP_DIR", "CFG.VIZ_DIR", "CFG.FIRMWARE_DIR"}
+
+        # Act
+        actual = expected & set(_CONTEXT_VARS)
+
+        # Assert
+        assert actual == expected, "a folder variable a script may name went missing"
 
 
 # ── resolve_one ──────────────────────────────────────────────────────────────

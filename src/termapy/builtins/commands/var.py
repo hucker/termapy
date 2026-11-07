@@ -13,6 +13,7 @@ import re
 from typing import TYPE_CHECKING
 
 from termapy.defaults import cfg_value
+from termapy.folders import FOLDER_NAMES
 from termapy.help_dynamic import compose, green
 from termapy.plugins import (
     CmdResult,
@@ -29,6 +30,7 @@ from termapy.variables import (
     context_vars,
     datetime_var_names,
     expand_vars,
+    folder_var_name,
     launch_var,
     launch_vars,
     resolve_datetime_var,
@@ -282,7 +284,13 @@ def _var_state_line(ctx: PluginContext) -> str:
     return green(f"Currently defined: {user} user, {dt} datetime, {ctxv} context, {launch} launch")
 
 
-_VAR_PROSE = """\
+# One help line per data folder's variable, from the folder table.
+_FOLDER_VAR_LINES = "\n".join(
+    f"  {'$(' + folder_var_name(folder) + ')':<21}- {folder}/ folder" for folder in FOLDER_NAMES
+)
+
+_VAR_PROSE = (
+    """\
 User-defined variables use $(NAME) syntax (case-sensitive).
 
 Setting variables (no {prefix} prefix needed):
@@ -327,13 +335,9 @@ Config variables (resolved paths from current config):
   $(CFG.DIR)           - config directory (resolved)
   $(CFG.FILE)          - config file path (resolved)
   $(CFG.LOG_FILE)      - log file path (resolved)
-  $(CFG.RUN_DIR)       - scripts directory
-  $(CFG.PROTO_DIR)     - protocol test directory
-  $(CFG.PLUGIN_DIR)    - plugin directory
-  $(CFG.SS_DIR)        - screenshot directory
-  $(CFG.CAP_DIR)       - capture directory
-  $(CFG.PROF_DIR)      - profile directory
-  $(CFG.VIZ_DIR)       - visualizer directory
+"""
+    + _FOLDER_VAR_LINES
+    + """
   $(CFG.PORT)          - serial port name
   $(CFG.BAUD)          - baud rate
   $(CFG.PORT_CFG)      - port config (e.g. 9600 8N1)
@@ -347,6 +351,7 @@ Scope: variables persist until a config loads, which starts clean.
 A script is not a load: it sees them however it was launched, and what
 it sets stays after it ends.
 Use {prefix}var.clear to reset manually."""
+)
 
 
 def _var_long_help(ctx: PluginContext) -> str:

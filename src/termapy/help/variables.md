@@ -94,7 +94,7 @@ value and cannot become a flag, a keyword, or a counter bump.
 | `$(DATETIME)`        | Dynamic | Current date and time              |
 | `$(CFG.DIR)`         | Context | Config folder (`termapy_cfg/<name>/`) |
 | `$(CFG.FILE)`        | Context | Config file path                   |
-| `$(CFG.RUN_DIR)`     | Context | `run/` folder (also `PROTO_DIR`, `PLUGIN_DIR`, `SS_DIR`, `CAP_DIR`, `PROF_DIR`, `VIZ_DIR`) |
+| `$(CFG.RUN_DIR)`     | Context | The config's `run/` folder; every data folder has one, `CFG.<NAME>_DIR` (`CFG.CAP_DIR`, `CFG.FIRMWARE_DIR`, ...), and `/help var` lists them |
 | `$(CFG.LOG_FILE)`    | Context | Session log path                   |
 | `$(CFG.PORT)`        | Context | Configured port (`CFG.BAUD` the baud; `CFG.PORT_CFG` / `CFG.PORT_FULL` the short / full connection strings) |
 | `$(LAUNCH_DATE)`     | Launch  | App start date (frozen)            |

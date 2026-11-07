@@ -963,7 +963,7 @@ DESCRIPTION
   Named values you set or capture from a command or a device reply, then
   use in any command as $(NAME).
 
-  Currently defined: 0 user, 9 datetime, 15 context, 1 launch
+  Currently defined: 0 user, 9 datetime, 19 context, 1 launch
 
   User-defined variables use $(NAME) syntax (case-sensitive).
 
@@ -1009,13 +1009,17 @@ DESCRIPTION
     $(CFG.DIR)           - config directory (resolved)
     $(CFG.FILE)          - config file path (resolved)
     $(CFG.LOG_FILE)      - log file path (resolved)
-    $(CFG.RUN_DIR)       - scripts directory
-    $(CFG.PROTO_DIR)     - protocol test directory
-    $(CFG.PLUGIN_DIR)    - plugin directory
-    $(CFG.SS_DIR)        - screenshot directory
-    $(CFG.CAP_DIR)       - capture directory
-    $(CFG.PROF_DIR)      - profile directory
-    $(CFG.VIZ_DIR)       - visualizer directory
+    $(CFG.RUN_DIR)       - run/ folder
+    $(CFG.PROTO_DIR)     - proto/ folder
+    $(CFG.PLUGIN_DIR)    - plugin/ folder
+    $(CFG.SS_DIR)        - ss/ folder
+    $(CFG.VIZ_DIR)       - viz/ folder
+    $(CFG.CAP_DIR)       - cap/ folder
+    $(CFG.PROF_DIR)      - prof/ folder
+    $(CFG.SYM_DIR)       - sym/ folder
+    $(CFG.DEV_DIR)       - dev/ folder
+    $(CFG.LIB_DIR)       - lib/ folder
+    $(CFG.FIRMWARE_DIR)  - firmware/ folder
     $(CFG.PORT)          - serial port name
     $(CFG.BAUD)          - baud rate
     $(CFG.PORT_CFG)      - port config (e.g. 9600 8N1)

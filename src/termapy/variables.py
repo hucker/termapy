@@ -237,6 +237,11 @@ def context_vars() -> dict[str, Callable[[], str]]:
     return _CONTEXT_VARS
 
 
+def folder_var_name(folder: str) -> str:
+    """The context variable holding a data folder's path: ``run`` -> ``CFG.RUN_DIR``."""
+    return f"CFG.{folder.upper()}_DIR"
+
+
 def register_cfg_vars(
     get_config_path: Callable[[], str],
     get_cfg: Callable[[], dict],
@@ -254,19 +259,18 @@ def register_cfg_vars(
     from pathlib import Path
 
     from termapy.config import connection_string
+    from termapy.folders import FOLDER_NAMES
 
     def _resolve_cfg() -> Path:
         return Path(get_config_path()).resolve() if get_config_path() else Path(".")
 
     set_context_var("CFG.DIR", lambda: str(_resolve_cfg().parent))
     set_context_var("CFG.FILE", lambda: str(_resolve_cfg()))
-    set_context_var("CFG.RUN_DIR", lambda: str(_resolve_cfg().parent / "run"))
-    set_context_var("CFG.PROTO_DIR", lambda: str(_resolve_cfg().parent / "proto"))
-    set_context_var("CFG.PLUGIN_DIR", lambda: str(_resolve_cfg().parent / "plugin"))
-    set_context_var("CFG.SS_DIR", lambda: str(_resolve_cfg().parent / "ss"))
-    set_context_var("CFG.CAP_DIR", lambda: str(_resolve_cfg().parent / "cap"))
-    set_context_var("CFG.PROF_DIR", lambda: str(_resolve_cfg().parent / "prof"))
-    set_context_var("CFG.VIZ_DIR", lambda: str(_resolve_cfg().parent / "viz"))
+    # One per data folder, read from the folder table, so a new folder has one too.
+    for folder in FOLDER_NAMES:
+        set_context_var(
+            folder_var_name(folder), lambda folder=folder: str(_resolve_cfg().parent / folder)
+        )
     set_context_var(
         "CFG.LOG_FILE", lambda: str(Path(get_log_path()).resolve()) if get_log_path() else ""
     )

@@ -18,6 +18,7 @@ from termapy.folders import FOLDER_NAMES
 from termapy.help_dynamic import compose, green
 from termapy.plugins import (
     CmdResult,
+    Column,
     Command,
     Directive,
     DirectiveResult,
@@ -121,10 +122,9 @@ def check_bare_dollar(line: str) -> str | None:
 # -- Handlers ----------------------------------------------------------------
 
 
-def _var_line_markup(name: str, value: object, tag: str = "") -> str:
-    """One listing row, ``$(NAME) = value`` with an optional dim ``(tag)``, escaped."""
-    tag_markup = f"  [dim]({escape_markup(tag)})[/]" if tag else ""
-    return f"  [cyan]$({escape_markup(name)})[/] = [green]{escape_markup(value)}[/]{tag_markup}"
+def _var_line_markup(name: str, value: object) -> str:
+    """One variable's line, ``$(NAME) = value``, escaped."""
+    return f"  [cyan]$({escape_markup(name)})[/] = [green]{escape_markup(value)}[/]"
 
 
 # ── Handlers ─────────────────────────────────────────────────────────────────
@@ -132,8 +132,36 @@ def _var_line_markup(name: str, value: object, tag: str = "") -> str:
 # and developer /search indexes it, so keep it true (registry handler-docstring).
 
 
+def _var_records(snap: dict[str, dict[str, str]]) -> list[dict[str, str]]:
+    """The listing's rows from the namespace snapshot: each kind in turn, names sorted.
+
+    The clock keeps its own order (``DATE``, ``TIME``, ``DATETIME``, then the
+    frozen moments) and shows which kind of time each is (``dynamic``,
+    ``launch``, ``session``); every other row's kind is its namespace.
+    """
+    tags = dict(datetime_var_names())
+    records: list[dict[str, str]] = []
+    for section, values in snap.items():
+        items = values.items() if section == "datetime" else sorted(values.items())
+        for key, value in items:
+            kind = tags.get(key, section) if section == "datetime" else section
+            records.append({"name": key, "kind": kind, "value": value})
+    return records
+
+
+_VAR_COLUMNS = (
+    Column("NAME", lambda record: record["name"]),
+    Column("KIND", lambda record: record["kind"]),
+    Column("VALUE", lambda record: record["value"]),
+)
+
+
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
-    """List all defined variables, or show one by name.
+    """List all defined variables as a table, or show one by name.
+
+    The listing is a table (registry ``list-one-format``) whose data is the
+    namespace snapshot, one mapping per kind, so a consumer looks a name up;
+    ``value`` is the ``NAME=value`` lines, in the table's order.
 
     Args:
         ctx: Plugin context for output.
@@ -142,10 +170,9 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     raw = args.strip()
     m = _STRIP_WRAPPER_RE.match(raw)
     name = m.group(1) if m else raw
-    users = user_vars(ctx)
-    launches = launch_vars()
-    contexts = context_vars()
     if name:
+        users = user_vars(ctx)
+        contexts = context_vars()
         val = users.get(name)
         if val is None:
             val = launch_var(name)
@@ -162,33 +189,16 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         if not ctx.wants_data:
             ctx.io.output(f"  $({name}) - not defined", "red")
         return CmdResult.ok(value="")
-    # Structured consumer: the resolved namespace snapshot, skipping the
-    # markup listing entirely.  ``value`` stays the flat name=value lines
-    # (the scriptable form) built from the same snapshot.
-    if ctx.wants_data:
-        snap = variables_snapshot(ctx)
-        flat = [
-            f"{name}={val}"
-            for namespace in ("user", "launch", "datetime", "context")
-            for name, val in sorted(snap[namespace].items())
-        ]
-        return CmdResult.ok(value="\n".join(flat), data=snap)
-    lines: list[str] = []
-    for k in sorted(users):
-        ctx.io.output_markup(_var_line_markup(k, users[k]))
-        lines.append(f"{k}={users[k]}")
-    for k in sorted(launches):
-        ctx.io.output_markup(_var_line_markup(k, launches[k], "launch"))
-        lines.append(f"{k}={launches[k]}")
-    for k, tag in datetime_var_names():
-        rendered = resolve_datetime_var(k, None) or ""
-        ctx.io.output_markup(_var_line_markup(k, rendered, tag))
-        lines.append(f"{k}={rendered}")
-    for k in sorted(contexts):
-        rendered = contexts[k]()
-        ctx.io.output_markup(_var_line_markup(k, rendered, "context"))
-        lines.append(f"{k}={rendered}")
-    return CmdResult.ok(value="\n".join(lines))
+    snap = variables_snapshot(ctx)
+    records = _var_records(snap)
+    return CmdResult.table(
+        "Variables",
+        "variable",
+        _VAR_COLUMNS,
+        records,
+        value="\n".join(f"{record['name']}={record['value']}" for record in records),
+        data=snap,
+    )
 
 
 def _handler_set(ctx: PluginContext, args: str) -> CmdResult:

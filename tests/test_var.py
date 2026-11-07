@@ -966,6 +966,45 @@ class TestCfgContextVars:
         assert actual == expected, "a folder variable a script may name went missing"
 
 
+class TestVarListing:
+    """Bare /var is a table of every variable (registry list-one-format); its JSON is the snapshot, one mapping per kind."""
+
+    def test_the_listing_is_a_table_of_every_kind(self, cli, capsys):
+        """Each row is a name, its kind and its value; user variables come first, in the value too."""
+        # Arrange
+        cli._fire_app_start()
+        cli.repl.dispatch_full("/var.set GOLD 42")
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/var")
+        rows = [line.split(maxsplit=2) for line in capsys.readouterr().out.splitlines()]
+
+        # Assert
+        assert ["NAME", "KIND", "VALUE"] in rows, "the table's header"
+        assert ["GOLD", "user", "42"] in rows, "a user variable"
+        assert ["PORT.NAME", "context", "DEMO"] in rows, "a context variable, read when listed"
+        assert any(row[:2] == ["DATE", "dynamic"] for row in rows), "the clock says which time"
+        assert result.value.splitlines()[0] == "GOLD=42", "value lists the table's rows in order"
+
+    def test_the_json_answer_is_the_snapshot(self, cli, capsys):
+        """--json answers with one name-to-value mapping per kind, so an agent looks a name up."""
+        # Arrange
+        cli._fire_app_start()
+        cli.repl.dispatch_full("/var.set GOLD 42")
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/var --json")
+        envelope = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+
+        # Assert
+        data = envelope["data"]
+        assert set(data) == {"user", "launch", "datetime", "context"}
+        assert data["user"] == {"GOLD": "42"}
+        assert data["context"]["PORT.NAME"] == "DEMO"
+
+
 class TestPortContextVars:
     """PORT.STATE and PORT.NAME read the port as it is when expanded, in every frontend's host."""
 

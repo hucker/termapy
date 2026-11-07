@@ -384,7 +384,7 @@ def _handler_baud_rate(ctx: PluginContext, args: str) -> CmdResult:
     custom = bool(cfg_value(ctx.cfg, "serial.custom_baud"))
     connected = ctx.serial.is_connected()
     shown = rate + (" (custom)" if custom else "") + ("" if connected else " (disconnected)")
-    data = {"baud_rate": int(rate) if rate.isdigit() else rate, "custom_baud": custom}
+    data = {"baud": int(rate) if rate.isdigit() else rate, "custom": custom}
     return CmdResult.record(data, [TextLine(shown)], value=rate)
 
 

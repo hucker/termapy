@@ -27,6 +27,7 @@ from termapy.config_resolve import resolve_config
 from termapy.defaults import cfg_value, quiet_start
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
+from termapy.plugins.output_levels import OUTPUT_LEVEL_RANK, OUTPUT_MIN_RANK
 from termapy.scripting import strip_ansi
 from termapy.serial_port import eol_label_markup, strip_eol_markers
 from termapy.session_log import (
@@ -378,13 +379,13 @@ class TerminalHost:
             if resolved:
                 self._log("#", resolved)
             if banner:
-                self.write(f"Connected: {actual}", "green")
+                self._port_banner(f"Connected: {actual}", "green")
             self._log("#", f"  {conn}  {hw}".rstrip())
         else:
             if resolved:
-                self.write(resolved, "green")
+                self._port_banner(resolved, "green")
             if banner:
-                self.write(full, "green")
+                self._port_banner(full, "green")
         self.repl.fire_lifecycle("on_connect")
         self._start_reader()
         self._on_connected(full)
@@ -415,9 +416,28 @@ class TerminalHost:
         self.engine.disconnect()
         self._clear_device_state()
         msg = f"Disconnected: {actual}" if actual else "Disconnected."
-        self.write(msg, "red")
+        self._port_banner(msg, "red")
         self._on_disconnected()
         self._leave_breadcrumb()
+
+    def _port_banner(self, text: str, color: str) -> None:
+        """Show a connect or disconnect banner at the level of the command that caused it.
+
+        The banner is the command's output, so ``.quiet`` / ``--quiet`` and
+        ``.silent`` / ``--silent`` keep it off the screen as they keep a
+        handler's own output off (``OUTPUT_MIN_RANK``); outside a command (a
+        button, the auto-reconnect) the session's level decides.  The session
+        log keeps a line it hides.  A call that answers in JSON (``--json``,
+        MCP) gets the banner through the command's own output channel, so it
+        is in the envelope's ``output_lines`` and nothing prints outside it.
+        """
+        ctx = self.repl.ctx
+        if OUTPUT_LEVEL_RANK[ctx.output_level] < OUTPUT_MIN_RANK:
+            self._log("#", text)
+        elif ctx.wants_data:
+            ctx.io.output(text, color)
+        else:
+            self.write(text, color)
 
     def _port_lost(self) -> None:
         """Tear down after the port vanished mid-session (an unplug, a driver reset).

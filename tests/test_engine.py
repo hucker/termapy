@@ -1013,6 +1013,19 @@ class TestDispatchFull:
         # Assert - .silent commands should not be echoed even with echo on
         assert not any("echo.silent" in t for t in echoed), "suppressed"
 
+    def test_repl_command_echo_follows_the_silent_flag_too(self, dispatch_env):
+        """--silent hides the echo exactly as .silent does; --quiet still echoes the typed line."""
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
+
+        # Act
+        do("/print hidden-line --silent")
+        do("/print shown-line --quiet")
+
+        # Assert
+        assert not any("hidden-line" in t for t in echoed), "--silent is not echoed"
+        assert any("shown-line" in t for t in echoed), "quiet hides output, not the typed line"
+
     def test_device_echo_follows_echo_flag_not_echo_repl(self, dispatch_env):
         """Device echo stays on with echo on even when echo_repl is off."""
         # Arrange - device-command echo is gated by `echo`; turning REPL

@@ -208,6 +208,16 @@ def _strip_level_flags(args: str) -> tuple[str, str | None]:
     return " ".join(remaining), level
 
 
+def _asks_silent(repl_cmd: str) -> bool:
+    """Whether a REPL line asks to be silent, by the ``.silent`` suffix or the ``--silent`` flag.
+
+    The two spellings mean the same everywhere, so the line's echo honors
+    both, as dispatch does.  An empty line asks for nothing.
+    """
+    name, _, args = repl_cmd.strip().partition(" ")
+    return name.endswith(".silent") or _strip_level_flags(args)[1] == "silent"
+
+
 def _strip_json_flag(args: str) -> tuple[str, bool]:
     """Strip the universal ``--json`` flag from args.
 
@@ -1724,12 +1734,7 @@ class ReplEngine:
         if cmd.startswith(prefix):
             repl_cmd = cmd[len(prefix) :].strip()
             _log(">", f"{prefix}{repl_cmd}")
-            # When the user types just the prefix character ("/"), repl_cmd
-            # is "" and ``repl_cmd.split()[0]`` would IndexError.  Guard
-            # against that: an empty command has no first token to inspect
-            # for ".silent", so just echo unconditionally.
-            first_word = repl_cmd.split()[0] if repl_cmd.split() else ""
-            if echo_repl_on and ".silent" not in first_word:
+            if echo_repl_on and not _asks_silent(repl_cmd):
                 _announce(f"{prefix}{repl_cmd}")
             if self.has_repl_transforms:
                 if not self.command_has_raw_args(repl_cmd):

@@ -178,7 +178,7 @@ sends to the device) waits in the input line for Enter.
 | `/mem.str <target> {max}` | Read a NUL-terminated string                                                |
 | `/mem.write <target> <value>` | Write a value to a named symbol, register or field, or hex bytes at an address (audited) |
 | `/mem.xor <target> <mask>` | XOR a mask into one word (always read + write-back)                        |
-| `/os <cmd>`               | Run a shell command (requires `TERMAPY_OS_CMD_ENABLED=1` in env)            |
+| `/os <cmd>`               | Run a shell command (requires `TERMAPY_OS_CMD_ENABLED=1` in env); a nonzero exit or the 10s timeout is an error and stops a script |
 | `/port {name}`            | TUI bare: open Port picker. CLI bare: list ports. With name: open it.       |
 | `/port.baud_rate {value} {custom=<bool>}` | Show or set baud rate (hardware only): a standard one, or any from 300 with `custom=true` |
 | `/port.break {ms}`        | Send break signal (default 250ms)                                           |

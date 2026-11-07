@@ -13,6 +13,10 @@ with its help line, and ``json {on|off}`` switches the reply framing.  A new
 command is a handler and a row.  termapy_mem.py adds the MEM commands that
 termapy's /mem.* speaks.
 
+The board runs asyncio: the monitor is one task, ``monitor.run()``, and the
+project's own tasks start beside it in ``main()``.  A project with a super
+loop of its own calls ``monitor.poll()`` on every pass instead.
+
 termapy_json.py is the monitor every MicroPython starter shares: in text
 framing a reply is the value and a failure ``ERR <reason>``; in JSON framing
 each reply is one JSON-RPC response line, and a ``{...}`` request line
@@ -20,10 +24,12 @@ switches to it by itself.  termapy's ESP32-S3 profile describes these
 commands, so they show in /help and reach an MCP agent as typed tools.
 """
 
+import asyncio
+
 import esp32
 import machine
 import neopixel
-from termapy_json import CommandError, int_arg, on_off_arg, serve
+from termapy_json import CommandError, Monitor, int_arg, on_off_arg
 from termapy_mem import direct
 
 # The DevKitC-1's addressable RGB LED, "driven by GPIO48" (Espressif's
@@ -78,7 +84,15 @@ COMMANDS = {
     "id": ("the chip's unique ID in hex, its factory MAC address", cmd_id),
 }
 
-# The MEM commands for termapy's /mem.*: pure reads and writes of any address.
-# termapy checks addresses against the part's JSON; this board's own rules,
-# if it needs any, are a guard(addr, count, write) passed to direct().
-serve(COMMANDS, native=direct().commands())
+
+async def main():
+    # The MEM commands for termapy's /mem.*: pure reads and writes of any address.
+    # termapy checks addresses against the part's JSON; this board's own rules,
+    # if it needs any, are a guard(addr, count, write) passed to direct().
+    monitor = Monitor(COMMANDS, native=direct().commands())
+    # The project's own tasks start here, beside the monitor's:
+    # asyncio.create_task(my_task())
+    await monitor.run()
+
+
+asyncio.run(main())

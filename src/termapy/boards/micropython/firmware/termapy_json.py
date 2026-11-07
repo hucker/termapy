@@ -1,7 +1,18 @@
 """termapy's command monitor for a MicroPython board: the reply envelope and the serial loop.
 
 Every MicroPython starter shares this one file; a board's main.py is its
-handlers, its COMMANDS table and ``serve(COMMANDS)``.
+handlers, its COMMANDS table and ``Monitor.run()`` as one asyncio task
+beside the project's own.
+
+``run()`` answers the link forever: it calls ``poll()``, then yields to the
+other tasks, for POLL_INTERVAL when nothing was waiting.  ``poll()`` never
+waits, so a project with a super loop of its own calls it on every pass:
+each call reads the characters that have arrived, and when one ends a line
+(CR, LF or both) it answers that line and returns.  Without a line ending
+it returns at once, keeping what it read for the next call.  A line longer
+than LINE_MAX is refused whole with ``ERR line too long``, so a link that
+never sends a line ending cannot fill memory.  ``serve(COMMANDS)`` is the
+blocking form, for a board that only answers commands.
 
 The same wire contract as the C module termapy_json.c (help page "JSON
 integration"), so termapy, an MCP agent or any JSON-RPC client talks to a
@@ -39,6 +50,7 @@ typing, no annotations, and ``json``'s ``separators`` for compact output.
 """
 
 import json
+import select
 import sys
 
 PARSE_ERROR = -32700
@@ -54,6 +66,15 @@ ON_OFF = {"on": True, "1": True, "off": False, "0": False}
 
 # An id with more digits than this is ignored, as termapy_json.c ignores it.
 ID_MAX_DIGITS = 10
+
+# The longest line the monitor takes, in characters.  The longest MEM.W line
+# (termapy_mem.c's TERMAPY_MEM_LINE_SIZE, 212) wrapped in a JSON request fits
+# with room to spare.
+LINE_MAX = 512
+
+# How long run() sleeps, in seconds, when no command was waiting: the most a
+# command waits to be read, and the time the other tasks get.
+POLL_INTERVAL = 0.01
 
 
 class CommandError(Exception):
@@ -145,16 +166,19 @@ class Monitor:
         commands: Command name to ``(help, handler)``: a one-line help, and a
             handler that takes the list of argument words and returns a JSON
             value, or raises ``CommandError``.
-        write: Writes one reply line, its line ending included.
+        write: Writes one reply line, its line ending included; the board's
+            serial link when omitted.
         native: Native commands, in the same shape, whose handler returns
             its reply's text lines (termapy_mem.py's ``commands()``).
+        read: Returns one received character, or ``""`` when none is
+            waiting, and never waits; the board's serial link when omitted.
 
     Raises:
         ValueError: A command reuses the name of one the monitor answers
             itself, or of another table's.
     """
 
-    def __init__(self, commands, write, native=None):
+    def __init__(self, commands, write=None, native=None, read=None):
         # The monitor's own commands, in the table's shape.
         self.builtins = {
             "help": ("list the commands; help <command> for one", self._help),
@@ -170,10 +194,78 @@ class Monitor:
                 raise ValueError("command name in both tables: " + name)
         self.commands = commands
         self.native = native
-        self.write = write
+        self.write = write or _link_write
+        # None until the first poll(): the serial link is opened only on the board.
+        self.read = read
         self.json = False
         self._id = None
         self._tagged = False
+        # The line being received, and whether it has run past LINE_MAX.
+        self._chars = []
+        self._too_long = False
+
+    async def run(self, interval=POLL_INTERVAL):
+        """Answer the link forever, as an asyncio task beside the project's own.
+
+        After answering a command it yields without waiting, so a burst of
+        commands is answered quickly; with nothing waiting it sleeps for
+        ``interval`` seconds, which the other tasks get.
+        """
+        # Imported here, so a board that only polls never loads it.
+        import asyncio
+
+        while True:
+            await asyncio.sleep(0 if self.poll() else interval)
+
+    def poll(self):
+        """Answer a command if a whole line has arrived; otherwise return at once.
+
+        For a super loop: call it on every pass.  It reads the characters
+        waiting on the link, and returns after answering one line or as soon
+        as no character is left, so a pass runs at most one command.
+
+        Returns:
+            True when it answered a line, False when none was complete.
+        """
+        if self.read is None:
+            self.read = _LinkReader()
+        while True:
+            char = self.read()
+            if not char:
+                return False
+            if self.feed(char):
+                return True
+
+    def feed(self, char):
+        """Take one received character; at a line ending, answer the line.
+
+        Returns:
+            True when the character ended a line that held something, False
+            otherwise (the second character of CRLF ends nothing).
+        """
+        if char in "\r\n":
+            if self._too_long:
+                self._chars = []
+                self._too_long = False
+                self._id = None
+                self._tagged = False
+                self._error(CommandError("line too long", PARSE_ERROR))
+                return True
+            if not self._chars:
+                return False
+            line = "".join(self._chars)
+            self._chars = []
+            self.handle(line)
+            return True
+        if self._too_long:
+            return False
+        if len(self._chars) >= LINE_MAX:
+            # Dropped now, not at the line ending, so memory stays bounded.
+            self._chars = []
+            self._too_long = True
+            return False
+        self._chars.append(char)
+        return False
 
     def handle(self, line):
         """Answer one received line; a blank line is ignored."""
@@ -312,28 +404,32 @@ class Monitor:
 _out = getattr(sys.stdout, "buffer", None)
 
 
-def write(text):
-    """Send one reply line, its line ending included."""
+def _link_write(text):
+    """Send one reply line on the serial link, its line ending included."""
     if _out is None:
         sys.stdout.write(text)
     else:
         _out.write(text.encode())
 
 
-def read_line():
-    """One line from the serial link, CR, LF or CRLF terminated; blank lines skipped."""
-    chars = []
-    while True:
-        char = sys.stdin.read(1)
-        if char in "\r\n":
-            if chars:
-                return "".join(chars)
-        else:
-            chars.append(char)
+class _LinkReader:
+    """The serial link's input, read one character at a time without waiting."""
+
+    def __init__(self):
+        self._poller = select.poll()
+        self._poller.register(sys.stdin, select.POLLIN)
+
+    def __call__(self):
+        """One waiting character, or ``""`` when none has arrived."""
+        return sys.stdin.read(1) if self._poller.poll(0) else ""
 
 
 def serve(commands, native=None):
-    """Answer the serial link forever with ``commands`` and ``native``: a line in, a reply out."""
-    monitor = Monitor(commands, write, native)
+    """Answer the serial link forever with ``commands`` and ``native``, waiting for each character.
+
+    The blocking form, for a board that does nothing but answer commands;
+    a board with other work calls ``Monitor.poll()`` from its own loop.
+    """
+    monitor = Monitor(commands, native=native)
     while True:
-        monitor.handle(read_line())
+        monitor.feed(sys.stdin.read(1))

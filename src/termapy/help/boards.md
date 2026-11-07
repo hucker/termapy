@@ -137,6 +137,16 @@ the reply value. `help` reads its answer from that table, so a new command
 is a handler and a row, and `help` lists it at once. `termapy_json.py` is
 the monitor itself, one file every MicroPython board shares.
 
+`main.py` runs asyncio. The monitor is one task, `monitor.run()`, and your
+project's own tasks start beside it in `main()`. The monitor answers a
+command once its line ending (CR, LF or both) is in, then yields to the
+other tasks; with nothing waiting it sleeps 10 ms. A line longer than 512
+characters is refused with `ERR line too long`. A project with a super loop
+of its own calls `monitor.poll()` on every pass instead: it never waits,
+answers at most one command, and keeps a partial line for the next pass. A
+board that only answers commands can call `serve(COMMANDS)`, which waits
+for each character.
+
 The board's profile describes every command in this table and every form
 of it, `help` and `json` included, so `/help` shows them all and an MCP
 agent can call each one, its arguments checked before they are sent. A new

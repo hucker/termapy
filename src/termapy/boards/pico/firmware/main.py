@@ -10,6 +10,10 @@ a handler.  The monitor adds two of its own: ``help`` lists every command
 with its help line, and ``json {on|off}`` switches the reply framing.  A new
 command is a handler and a row.
 
+The board runs asyncio: the monitor is one task, ``monitor.run()``, and the
+project's own tasks start beside it in ``main()``.  A project with a super
+loop of its own calls ``monitor.poll()`` on every pass instead.
+
 termapy_json.py is the monitor every MicroPython starter shares: in text
 framing a reply is the value and a failure ``ERR <reason>``; in JSON framing
 each reply is one JSON-RPC response line, and a ``{...}`` request line
@@ -17,8 +21,10 @@ switches to it by itself.  termapy's Pico profile describes these commands,
 so they show in /help and reach an MCP agent as typed tools.
 """
 
+import asyncio
+
 import machine
-from termapy_json import CommandError, on_off_arg, serve
+from termapy_json import CommandError, Monitor, on_off_arg
 
 led = machine.Pin("LED", machine.Pin.OUT)
 sensor = machine.ADC(4)
@@ -49,4 +55,12 @@ COMMANDS = {
     "id": ("the board's unique ID in hex, also its USB serial number", cmd_id),
 }
 
-serve(COMMANDS)
+
+async def main():
+    monitor = Monitor(COMMANDS)
+    # The project's own tasks start here, beside the monitor's:
+    # asyncio.create_task(my_task())
+    await monitor.run()
+
+
+asyncio.run(main())

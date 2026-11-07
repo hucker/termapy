@@ -18,7 +18,7 @@ from rich.text import Text
 from termapy.defaults import cfg_key_path
 from termapy.help_dynamic import green, is_state_line
 from termapy.idioms import idiom_for
-from termapy.markup import escape_markup, markup_to_plain
+from termapy.markup import escape_markup, markup_to_plain, received_json_markup
 from termapy.plugins import (
     CapabilitySet,
     InternalHandle,
@@ -114,6 +114,50 @@ def test_markup_to_plain_strips_tags_and_keeps_escaped_text():
     # Act / Assert
     assert markup_to_plain(markup) == "PORT = [ok]", "tags go, escaped text stays"
     assert markup_to_plain("a [/] b") == "a [/] b", "a stray close tag is returned, not raised"
+
+
+@pytest.mark.parametrize(("indent", "highlight"), [(2, False), (2, True), (4, False), (4, True)])
+def test_a_received_json_line_shows_laid_out(indent, highlight):
+    """A device's JSON line is indented by json_display.indent; highlighting changes only its color."""
+    # Arrange
+    line = '{"result":{"temp":21.4,"leds":[0,0,32]}}'
+
+    # Act
+    shown_markup = received_json_markup(line, indent, highlight)
+
+    # Assert
+    assert shown_markup is not None, "a JSON object is laid out"
+    actual = Text.from_markup(shown_markup).plain
+    expected = json.dumps(json.loads(line), indent=indent)
+    assert actual == expected
+
+
+def test_indent_zero_with_highlight_keeps_one_line():
+    """json_display.indent 0 keeps the line on one line, highlighted."""
+    shown_markup = received_json_markup('{"result":{"temp":21.4}}', 0, True)
+    assert shown_markup is not None, "highlighting alone still marks it up"
+    assert "\n" not in Text.from_markup(shown_markup).plain
+
+
+def test_a_received_json_line_keeps_brackets_and_characters():
+    """A string value's [tags] and non-ASCII characters show as the device sent them."""
+    line = '{"msg":"[red]hot[/] 21°C"}'
+    for highlight in (False, True):
+        shown_markup = received_json_markup(line, 2, highlight)
+        assert shown_markup is not None
+        actual = Text.from_markup(shown_markup).plain
+        assert '"[red]hot[/] 21°C"' in actual, f"{highlight}: text, not a tag or a \\u escape"
+
+
+@pytest.mark.parametrize("line", ["temp 21.4", "{not json", '"a string"', "42", "", "[1, 2", "OK"])
+def test_a_line_that_is_not_a_json_object_or_array_shows_as_received(line):
+    """Only a whole JSON object or array is laid out; anything else shows as it arrived."""
+    assert received_json_markup(line, 2, True) is None
+
+
+def test_no_indent_and_no_highlight_shows_json_as_received():
+    """With json_display.indent 0 and highlighting off, a JSON line shows as it arrived."""
+    assert received_json_markup('{"result":1}', 0, False) is None
 
 
 def test_kv_lines_escape_labels_and_values_and_color_by_row():

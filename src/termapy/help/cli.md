@@ -392,9 +392,9 @@ if your one-shot needs init steps, write a `.run` file and use
 
 **Pair with `request_mode=true`** in cfg to emit a JSON envelope
 (`{cmd, success, error, elapsed_s, result}`) instead of plain text.
-Each envelope is one line, so a consumer can read stdout line by line;
-`json_style` (`/term.json`) set to `indent` or `color` pretty-prints it
-for a human instead.
+Piped or captured, each envelope is one line, so a consumer can read
+stdout line by line. At a terminal termapy lays it out for a person, as
+`json_display.indent` and `json_display.highlight` say (`/term.json`).
 
 **Mutual exclusion.** `--exec` and `--run` can't both be set; passing
 both exits with an argparse error.

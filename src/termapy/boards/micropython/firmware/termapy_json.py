@@ -29,8 +29,8 @@ board running this exactly as to one running the C:
   a JSON request and switches to JSON framing by itself: ``{"cmd":..}`` or
   ``{"method":..}``, with ``"args"`` (a string) or ``"params"`` (a string or
   a flat array, joined by spaces).
-- ``help`` answers every command's one-line help: in JSON an object of
-  name to help, in text one aligned ``name  help`` line per command, sorted.
+- ``help`` answers every command's one-line help, sorted by name: in JSON
+  an object of name to help, in text one aligned ``name  help`` line each.
   ``help <command>`` answers that command's line.
 - A native command has a text grammar of its own (termapy_mem.py's MEM
   wire spec): a plain line gets its text reply whatever the framing, and a
@@ -52,6 +52,7 @@ typing, no annotations, and ``json``'s ``separators`` for compact output.
 import json
 import select
 import sys
+from collections import OrderedDict
 
 PARSE_ERROR = -32700
 UNKNOWN_COMMAND = -32601
@@ -194,6 +195,16 @@ class Monitor:
                 raise ValueError("command name in both tables: " + name)
         self.commands = commands
         self.native = native
+        # help's answer, built once in name order for both framings.  An
+        # OrderedDict, because MicroPython's dicts keep no order: a plain one
+        # reaches the wire in hash order.
+        self.help_table = OrderedDict(
+            sorted(
+                (name, line)
+                for table in (commands, native, self.builtins)
+                for name, (line, _) in table.items()
+            )
+        )
         self.write = write or _link_write
         # None until the first poll(): the serial link is opened only on the board.
         self.read = read
@@ -326,11 +337,8 @@ class Monitor:
         return "on" if self.json else "off"
 
     def _help(self, args):
-        """``help``: every command's one-line help; ``help <command>``: that command's."""
-        table = {}
-        for commands in (self.commands, self.native, self.builtins):
-            for name, (line, _) in commands.items():
-                table[name] = line
+        """``help``: every command's one-line help, in name order; ``help <command>``: that command's."""
+        table = self.help_table
         if len(args) > 1:
             raise CommandError("usage: help {command}")
         if args:
@@ -339,9 +347,9 @@ class Monitor:
             return table[args[0]]
         if self.json:
             return table
-        # Text is for a person: sorted by hand (MicroPython's dicts keep no order), help aligned.
+        # Text is for a person: the help lines aligned in one column.
         width = max(len(name) for name in table) + 2
-        return [name + " " * (width - len(name)) + table[name] for name in sorted(table)]
+        return [name + " " * (width - len(name)) + line for name, line in table.items()]
 
     def _extract(self, text):
         """A JSON request as the ``cmd args`` line it asks for; the id and tag are kept first."""

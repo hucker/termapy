@@ -143,7 +143,7 @@ DESCRIPTION
   A value sets the setting outright, and with no argument it only shows it.
 
 TAKEN BY
-  /term.eol, /term.eol.rx, /term.json, /term.output
+  /term.eol, /term.eol.rx, /term.json.indent, /term.output
 
 SEE ALSO
   /help.idioms
@@ -251,7 +251,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-      "config_version": 37,
+      "config_version": 38,
       "title": "Demo Device",
       "border_color": "",
       "serial": {
@@ -298,7 +298,10 @@ demo> /cfg.dump
       "request_mode": false,
       "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
       "strip_device_echo": false,
-      "json_style": "compact",
+      "json_display": {
+          "highlight": true,
+          "indent": 2
+      },
       "profile_path": "",
       "validate_typed_args": false,
       "default_response_timeout_ms": 1000,
@@ -814,6 +817,20 @@ demo> /mem.read sCfg
 demo> MEM.M 0x1000 F0 05 --json
 {"cmd": "MEM.M 0x1000 F0 05"}
   {"cmd": "MEM.M 0x1000 F0 05", "success": true, "error": "", "value": "00001000: 2C\r\nOK", "data": null, "output_lines": [], "elapsed_s": 0}
+demo> /term.json
+  highlight: on
+  indent   : 2
+demo> /term.json.highlight
+  on
+demo> /term.json.indent 4
+  json_display.indent = 4  (session)
+  4
+demo> MEM.INFO
+{"max_block": 64, "address_bits": 32, "endian": "le", "modify": true, "regions": [{"name": "ram", "start": "0x00000000", "size": 16384, "w": true}, {"name": "sfr", "start": "0xBF806000", "size": 32, "w": true}]}
+OK
+demo> /term.json indent 2
+  json_display.indent = 2  (session)
+  2
 demo> /print === section: help ===
   === section: help ===
 demo> /help echo
@@ -895,8 +912,10 @@ DESCRIPTION
   The value is read as the key's current type (int, float, bool,
   string). Bool accepts:
     on/off/true/false/yes/no/1/0/y/n/t/f
-  A key with a fixed set of values (parity, json_style,
+  A key with a fixed set of values (parity, json_display.indent,
   custom_buttons_side, ...) takes one of them in any case.
+  A key inside a section is named by its path (json_display.indent) or,
+  when no other section has one, its own name (baud_rate).
   A change lasts for this session; to keep it, set it in the
   config editor.
 
@@ -1429,7 +1448,7 @@ CURRENT STATE
   send_bare_enter: off
   control_keys   : on
   encoding       : utf-8
-  tx_bytes       : 849
+  tx_bytes       : 858
   rx_bytes       : <N>
 
 CONFIG
@@ -1778,7 +1797,8 @@ demo> /term.hex
 demo> /proto.hex
   Hex display mode disabled.
 demo> /term.json
-  compact
+  highlight: on
+  indent   : 2
 demo> /term.output
   normal
 demo> /term.send_bare_enter
@@ -1812,7 +1832,7 @@ demo> /term.info
   send_bare_enter: off
   control_keys   : on
   encoding       : utf-8
-  tx_bytes       : 911
+  tx_bytes       : 920
   rx_bytes       : <N>
 demo> /term.log a line for the session log, not the screen
 demo> /port.mode

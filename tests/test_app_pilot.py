@@ -2489,6 +2489,78 @@ class TestBatchedOutputIsEquivalent:
         _run(scenario)
 
 
+class TestReceivedJson:
+    """A device's JSON line is laid out on screen by json.* and stays as it arrived everywhere else."""
+
+    LINE = '{"result":{"temp":21.4,"id":"E665"}}'
+
+    def test_the_default_lays_the_line_out_and_the_log_keeps_it(self, app_factory):
+        """By default (indent 2) the pane shows the JSON over several lines; the session log has the line as it arrived."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                app._open_log()
+
+                # Act
+                app._write_batch([self.LINE, "plain text"])
+                await pilot.pause()
+
+                # Assert
+                text = app._get_screen_text()
+                assert '    "temp": 21.4,' in text.splitlines(), f"laid out:\n{text}"
+                assert "plain text" in text, "a line that is not JSON shows as it came"
+                logged = Path(app.session_log_path()).read_text(encoding="utf-8")
+                assert self.LINE in logged, "the log keeps the line as received"
+
+        _run(scenario)
+
+    def test_indent_zero_without_highlight_shows_the_line_as_it_arrived(self, app_factory):
+        """With json_display.indent 0 and json_display.highlight off the JSON line shows on one line as received."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                app.repl.store_cfg("json_display.indent", 0)
+                app.repl.store_cfg("json_display.highlight", False)
+
+                # Act
+                app._write_batch([self.LINE])
+                await pilot.pause()
+
+                # Assert
+                text = app._get_screen_text()
+                assert self.LINE in text.replace("\n", ""), f"one line, as received:\n{text}"
+
+        _run(scenario)
+
+    def test_line_numbers_count_received_lines(self, app_factory):
+        """With line numbers on, a laid-out JSON line is one received line: the next line is numbered after it."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                app.repl.ctx.ns("flags")["line_no"] = True
+                start = app._line_counter
+
+                # Act
+                app._write_batch([self.LINE, "after"])
+                await pilot.pause()
+
+                # Assert
+                text = app._get_screen_text()
+                assert f"{start + 1:>5} | {{" in text, "the JSON line keeps its number"
+                assert f"{start + 2:>5} | after" in text, "the next line counts one more"
+
+        _run(scenario)
+
+
 class TestPickersNeedAConfig:
     """With no config loaded, run/ and proto/ resolve to the current
     directory, so the Run and Proto buttons (and bare ``/run`` / ``/proto``,

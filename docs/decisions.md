@@ -1157,3 +1157,25 @@ annotations found a real bug at once: `/search` failed with an `AttributeError` 
 profile had device commands, because it handed a device command's view to `resolve_long_help`,
 which reads attributes only a `PluginInfo` has. **Where:** `[tool.ruff.lint]` in
 `pyproject.toml`; the pre-commit hook and `release_prep` run `ruff check`.
+
+## 2026-11-07 — JSON is laid out for a person on screen and stays one line in a pipe
+
+Chuck: the board should stay JSON-native, with JSON a person can read, rather than switching to
+the text REPL. `json_style` (`compact|indent|color`) shaped only termapy's own envelopes, so a
+board's JSON lines printed raw whatever it said. Now the setting covers every JSON line on screen,
+the board's included (`markup.received_json_markup`), and is two settings instead of one enum:
+the `json_display` section, `highlight` (on) and `indent` (0, 2 or 4, default 2; 0 is one line,
+as in `JSON.stringify` and `jq --indent`), set by `/term.json.highlight` and `/term.json.indent`.
+Highlighting is separate from `color`, the terminal's ANSI color, and shows only when that is on.
+**Laid out for a person only:** the TUI and a CLI at a terminal (`ReplEngine.screen_json`) get
+the layout; a pipe, a file, MCP and the session log get one line per JSON value, so
+help/cli.md's promise to a program reading stdout line by line holds with the new defaults.
+
+This reverses the 2026-10-30 entry's "only the pyserial arguments are nested" for one more
+section, Chuck's call. What it cost is what that entry named: `/cfg`, the session store and the
+TUI's confirm learned to find a key through its path (`defaults.cfg_slot`, `store_cfg`), so a
+nested key is set as `/cfg json_display.indent 4` or by its unique leaf, `/cfg indent 4`. The
+section is not called `json`: `/help json` is the `--json` idiom's page, and `/help` reads a
+config key before an idiom. Config v38 maps `json_style` across (`indent` turns highlighting off;
+`compact`, which every config was written with, takes the defaults). Behavior removed:
+`/term.json compact|indent|color` and `cycle`; bare `/term.json` reports both settings.

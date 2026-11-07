@@ -989,6 +989,33 @@ def test_v35_to_v36_keeps_values_already_set():
     assert actual == expected
 
 
+def test_v37_to_v38_splits_json_style_into_the_json_section():
+    """Migration v37->v38: indent keeps the indent unhighlighted, color keeps both, compact takes the new defaults."""
+    actual = {
+        style: migrate_config({"config_version": 37, "json_style": style})["json_display"]
+        for style in ("compact", "indent", "color")
+    }
+    expected = {
+        "compact": {"highlight": True, "indent": 2},
+        "indent": {"highlight": False, "indent": 2},
+        "color": {"highlight": True, "indent": 2},
+    }
+    assert actual == expected
+
+
+def test_v37_to_v38_removes_json_style_and_keeps_a_json_section():
+    """Migration v37->v38 drops json_style, and a json section already in the file wins."""
+    # Arrange
+    cfg = {"config_version": 37, "json_style": "color", "json_display": {"indent": 4}}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert "json_style" not in result, "the old key is gone"
+    assert result["json_display"] == {"indent": 4, "highlight": True}, "what was there stays"
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labeled line to _migration_steps."""
     # Arrange -- a config from v17 runs every migrator since.
@@ -1000,32 +1027,9 @@ def test_migration_steps_recorded_per_version():
     # Assert -- one step entry per migrator that ran, labeled
     # "v<from> -> v<to>: <description>".
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 20, (
-        f"v17 -> v37 covers twenty migrators "
-        f"(17->18 ... 35->36, 36->37); "
-        f"got {len(steps)}: {steps!r}"
-    )
-    expected_prefixes = (
-        "v17 -> v18",
-        "v18 -> v19",
-        "v19 -> v20",
-        "v20 -> v21",
-        "v21 -> v22",
-        "v22 -> v23",
-        "v23 -> v24",
-        "v24 -> v25",
-        "v25 -> v26",
-        "v26 -> v27",
-        "v27 -> v28",
-        "v28 -> v29",
-        "v29 -> v30",
-        "v30 -> v31",
-        "v31 -> v32",
-        "v32 -> v33",
-        "v33 -> v34",
-        "v34 -> v35",
-        "v35 -> v36",
-        "v36 -> v37",
+    expected_prefixes = tuple(f"v{n} -> v{n + 1}" for n in range(17, CURRENT_CONFIG_VERSION))
+    assert len(steps) == len(expected_prefixes), (
+        f"one step per migrator from v17 to v{CURRENT_CONFIG_VERSION}; got {len(steps)}: {steps!r}"
     )
     for step, prefix in zip(steps, expected_prefixes, strict=True):
         assert step.startswith(prefix), f"step {step!r} should start with {prefix!r}"
@@ -1043,7 +1047,9 @@ def test_migration_steps_include_docstring_summary():
 
     # Assert -- v20->v21 step shape (the one this test is about).
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 17, f"seventeen steps (v20->v21 ... v35->v36, v36->v37); got {steps!r}"
+    assert len(steps) == CURRENT_CONFIG_VERSION - 20, (
+        f"one step per version since v20; got {steps!r}"
+    )
     assert "record_enabled" in steps[0], (
         f"v20->v21 step line carries the migrator's docstring summary; got {steps[0]!r}"
     )
@@ -1078,18 +1084,8 @@ def test_a_saved_step_list_is_not_shown_again():
 
     # Assert
     actual = [step.split(":")[0] for step in first_steps]
-    expected = [
-        "v28 -> v29",
-        "v29 -> v30",
-        "v30 -> v31",
-        "v31 -> v32",
-        "v32 -> v33",
-        "v33 -> v34",
-        "v34 -> v35",
-        "v35 -> v36",
-        "v36 -> v37",
-    ]
-    assert actual == expected, "this run's nine steps, none of the saved ones"
+    expected = [f"v{n} -> v{n + 1}" for n in range(28, CURRENT_CONFIG_VERSION)]
+    assert actual == expected, "this run's steps, none of the saved ones"
     assert "_migration_steps" not in second, "a current config shows no steps, saved list or not"
 
 

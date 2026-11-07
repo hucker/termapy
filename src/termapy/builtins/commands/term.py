@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy import diag_log
-from termapy.defaults import JSON_STYLES, RX_NEWLINE_MODES, cfg_value
+from termapy.defaults import JSON_INDENTS, RX_NEWLINE_MODES, cfg_value
 from termapy.plugins import (
     OUTPUT_LEVELS,
     CapabilitySet,
@@ -245,7 +245,7 @@ def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
         action = parse_bool_setting(args)
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
-    current = bool(ctx.cfg.get(key, False))
+    current = bool(cfg_value(ctx.cfg, key))
     if action is SETTING_QUERY:
         new = current
     elif action is SETTING_TOGGLE:
@@ -325,26 +325,55 @@ def _handler_eol_rx(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_json(ctx: PluginContext, args: str) -> CmdResult:
-    """Show or set how JSON prints: ``compact``, ``indent`` or ``color``.
+    """``/term.json``: how JSON shows on screen, its highlighting and its indent, as a record.
 
-    An enum setting: bare reports the style, a style sets it for the
+    The two settings are the subcommands, and the space form reaches them
+    (``/term.json indent 4`` is ``/term.json.indent 4``); a word that names
+    neither is a usage error.
+    """
+    words = args.split(None, 1)
+    if words:
+        if f"term.json.{words[0]}" not in ctx.internal.plugins:
+            raise UsageError()
+        return ctx.internal.dispatch(f"term.json.{args.strip()}")
+    data = {
+        "highlight": bool(cfg_value(ctx.cfg, "json_display.highlight")),
+        "indent": int(cfg_value(ctx.cfg, "json_display.indent")),
+    }
+    rows = [
+        ("highlight", "on" if data["highlight"] else "off"),
+        ("indent", str(data["indent"])),
+    ]
+    return CmdResult.record(data, rows, value=" ".join(f"{key}={text}" for key, text in rows))
+
+
+def _handler_json_highlight(ctx: PluginContext, args: str) -> CmdResult:
+    """Query, set or toggle JSON highlighting on screen (cfg ``json_display.highlight``)."""
+    return _cfg_toggle(ctx, args, "json_display.highlight")
+
+
+def _handler_json_indent(ctx: PluginContext, args: str) -> CmdResult:
+    """Show or set the spaces per level JSON is indented by on screen: 0 (one line), 2 or 4.
+
+    An enum setting: bare reports the indent, a value sets it for the
     session through ``apply_cfg``, ``cycle`` advances, anything else is
-    refused.  Applies to every JSON termapy prints (``/term.request``
-    envelopes, ``--json``, the request echo); MCP returns the envelope as
-    data and is unaffected.
+    refused.
     """
     arg = args.strip().lower()
+    current = cfg_value(ctx.cfg, "json_display.indent")
     if not arg:
-        current = cfg_value(ctx.cfg, "json_style")
-        ctx.io.result(current)
-        return CmdResult.ok(value=current)
+        ctx.io.result(str(current))
+        return CmdResult.ok(value=str(current))
     if arg == "cycle":
-        arg = next_in_cycle(cfg_value(ctx.cfg, "json_style"), JSON_STYLES)
-    if arg not in JSON_STYLES:
-        return CmdResult.fail(msg=f"Unknown JSON style: {arg} (use {'/'.join(JSON_STYLES)}/cycle)")
-    ctx.internal.apply_cfg("json_style", arg)
-    ctx.io.result(arg)
-    return CmdResult.ok(value=arg)
+        new = next_in_cycle(current, list(JSON_INDENTS))
+    else:
+        new = int(arg) if arg.isdigit() else None
+        if new not in JSON_INDENTS:
+            choices = "/".join(str(indent) for indent in JSON_INDENTS)
+            return CmdResult.fail(msg=f"Invalid JSON indent: {arg} (use {choices}/cycle)")
+    ctx.internal.apply_cfg("json_display.indent", new)
+    ctx.io.result(str(new))
+    return CmdResult.ok(value=str(new))
 
 
 def _handler_timestamps(ctx: PluginContext, args: str) -> CmdResult:
@@ -864,8 +893,8 @@ COMMAND = Command(
                 "``output_lines`` when they don't ({prefix}help).\n"
                 "\n"
                 "In a normal-mode session the per-call form of the same\n"
-                "thing is ``<cmd> --json``.  Envelopes print one per line;\n"
-                "{prefix}term.json indent (or color) pretty-prints them.\n"
+                "thing is ``<cmd> --json``.  On screen an envelope is laid\n"
+                "out as {prefix}term.json says; a pipe gets one per line.\n"
                 "\n"
                 "Input is symmetric: a JSON object with a string ``cmd``\n"
                 "field is unwrapped, so callers can send either plain\n"
@@ -883,25 +912,44 @@ COMMAND = Command(
             state=True,
         ),
         "json": Command(
-            args="{compact|indent|color|cycle}",
-            help="Show or set how JSON prints: one line, indented, or indented and colored.",
+            help="Show how JSON shows on screen: its highlighting and its indent.",
+            intro=(
+                "How JSON shows on screen, termapy's answers and each JSON line a device"
+                " sends: highlighted or not, and indented by 0, 2 or 4 spaces."
+            ),
             long_help=(
-                "How every JSON answer termapy prints looks -- the\n"
-                "{prefix}term.request envelopes, ``<cmd> --json``, and the\n"
-                "request echo:\n"
+                "Covers the {prefix}term.request envelopes, ``<cmd> --json``\n"
+                "and each JSON line a device sends, in the TUI and in a CLI\n"
+                "at a terminal.  A pipe or a file always gets one line per\n"
+                "JSON value, for a program reading stdout line by line, and\n"
+                'the request echo ({"cmd": ...}) stays on one line.\n'
                 "\n"
-                "  compact  one line per answer (default; for consumers\n"
-                "           that read stdout line by line)\n"
-                "  indent   indented, two spaces per level\n"
-                "  color    indented and highlighted\n"
-                "\n"
-                'The request echo ({"cmd": ...}) stays on one line in\n'
-                "every style.  MCP gets the envelope as data, so the style\n"
-                "does not touch it."
+                "A device's line changes only on screen: the session log\n"
+                "and captures keep it as it arrived.  MCP gets JSON as\n"
+                "data, so neither setting touches it."
             ),
             handler=_handler_json,
-            cfg={"json_style": "set for the session; bare shows it"},
+            cfg={
+                "json_display.highlight": "shown; set by {prefix}term.json.highlight",
+                "json_display.indent": "shown; set by {prefix}term.json.indent",
+            },
             state=True,
+            sub_commands={
+                "highlight": Command(
+                    args="{on|off|toggle}",
+                    help="Show or set JSON highlighting on screen (needs color on).",
+                    handler=_handler_json_highlight,
+                    cfg={"json_display.highlight": "set for the session; bare shows it"},
+                    state=True,
+                ),
+                "indent": Command(
+                    args="{0|2|4|cycle}",
+                    help="Show or set the JSON indent on screen: 0 (one line), 2 or 4 spaces.",
+                    handler=_handler_json_indent,
+                    cfg={"json_display.indent": "set for the session; bare shows it"},
+                    state=True,
+                ),
+            },
         ),
         "send_bare_enter": Command(
             args="{on|off|toggle}",

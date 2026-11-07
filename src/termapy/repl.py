@@ -306,6 +306,10 @@ class ReplEngine:
         self.cfg = MappingProxyType(self._cfg_data)
         self.config_path = config_path
         self.write = write  # write(text, color="dim") callback
+        # Whether JSON goes to a screen a person reads (the TUI, a CLI at a
+        # terminal), where json_display.indent and json_display.highlight lay it out.  The
+        # host says so; a pipe and MCP keep one line per JSON value.
+        self.screen_json = False
         # Prototype families that have said so this session (_note_prototype).
         self._prototypes_noted: set[str] = set()
         # True while read_state runs: dispatch keeps the view, prints no
@@ -691,26 +695,25 @@ class ReplEngine:
             self.ctx._call_level = saved_emit_level
 
     def _write_json(self, data: object, *, result: bool, indent: bool = True) -> None:
-        """Print ``data`` as JSON in the session's ``json_style`` (``/term.json``).
+        """Print ``data`` as JSON, laid out by ``json_display.indent`` and ``json_display.highlight`` on a screen.
 
-        ``compact`` is one line -- one JSON value per line, for consumers
-        that read stdout line by line; ``indent`` indents it; ``color``
-        indents and highlights it through Rich markup.  ``indent=False``
-        keeps a one-key echo on one line in every style.  An unknown style
-        (a hand-edited cfg; ``validate_config`` warns at load) prints
-        compact.
+        On a screen a person reads (``screen_json``) it is indented by
+        ``json_display.indent`` spaces per level (0 is one line) and highlighted
+        when ``json_display.highlight`` is on.  Anywhere else -- a pipe, a file --
+        it is one line per value, for a program reading stdout line by
+        line.  ``indent=False`` keeps a one-key echo on one line.
 
         Args:
             data: The JSON-shaped value.
             result: The result channel (quiet+, the answer envelope);
                 otherwise the output channel (normal+, the request echo).
-            indent: Whether the style's indent applies.
+            indent: Whether ``json_display.indent`` applies.
         """
         import json as _json
 
-        style = cfg_value(self.cfg, "json_style")
-        spaces = 2 if indent and style in ("indent", "color") else None
-        if style == "color":
+        spaces = cfg_value(self.cfg, "json_display.indent") if indent and self.screen_json else 0
+        spaces = spaces or None
+        if self.screen_json and cfg_value(self.cfg, "json_display.highlight"):
             markup = json_markup(data, indent=spaces)
             if result:
                 self.ctx.io.result_markup(markup)
@@ -2252,17 +2255,20 @@ class ReplEngine:
     def store_cfg(self, key: str, new_val: object) -> None:
         """Put a session value in the config, and in the session flag it starts.
 
-        ``key`` may be a top-level cfg key or a pyserial key that lives
-        under cfg["serial"] (post-v22).  Route to wherever it currently
-        sits so callers stay oblivious to nesting.
+        ``key`` is a top-level key, a path (``json_display.indent``) or a nested
+        key's unique leaf (``baud_rate``, which lives in cfg["serial"]).  It
+        lands where ``defaults.cfg_slot`` finds it, the top level first, else
+        in its section, so callers stay oblivious to nesting.
         """
-        serial = self._cfg_data.get("serial", {})
-        if key in serial:
-            serial[key] = new_val
+        path = cfg_key_path(key) or key
+        section, _, leaf = path.rpartition(".")
+        if key in self._cfg_data or not section:
+            container, leaf = self._cfg_data, key
         else:
-            self._cfg_data[key] = new_val
-        if key in SESSION_FLAG_KEYS:
-            self.ctx.ns("flags")[key] = new_val
+            container = self._cfg_data.setdefault(section, {})
+        container[leaf] = new_val
+        if leaf in SESSION_FLAG_KEYS:
+            self.ctx.ns("flags")[leaf] = new_val
 
     def _apply_cfg(self, key: str, new_val: object) -> None:
         """Apply a config change for this session (not saved to disk).

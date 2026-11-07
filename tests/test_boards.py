@@ -649,6 +649,21 @@ class TestMicroPythonJson:
         assert envelope["result"] == expected, "the help table is the result itself, no data member"
         assert set(envelope) == {"jsonrpc", "result", "id"}, "a plain JSON-RPC response"
 
+    def test_help_in_json_is_in_name_order(self):
+        """JSON help lists the commands sorted by name, the order the text lines have, whatever order the table was written in."""
+        # Arrange -- a table written out of order
+        link = Link()
+        link.ask("json on")
+
+        # Act
+        envelope = link.ask("help")[0]
+        text_names = [line.split()[0] for line in Link().ask("help")]
+
+        # Assert -- the key order on the wire, not the parsed dict's
+        names = list(json.loads(envelope, object_pairs_hook=dict)["result"])
+        assert names == sorted(names), "built once in name order, as MicroPython keeps none"
+        assert names == text_names, "both framings read the one table"
+
     def test_help_in_text_is_sorted_and_aligned(self):
         """Text help is one line per command, sorted by name, every help line starting in one column."""
         # Act
@@ -656,7 +671,7 @@ class TestMicroPythonJson:
 
         # Assert
         names = [line.split()[0] for line in lines]
-        assert names == sorted(names), "sorted by hand: MicroPython's dicts keep no order"
+        assert names == sorted(names), "the table is built in name order"
         assert "json" in names and "help" in names, "the monitor's own commands are listed"
         columns = {line.index("the ") for line in lines if line.split()[0] not in ("help", "json")}
         assert len(columns) == 1, "the help lines are aligned"

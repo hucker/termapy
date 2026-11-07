@@ -1,6 +1,6 @@
 {
     "profile_version": 2,
-    "profile_revision": "1.4.0",
+    "profile_revision": "1.4.1",
     "profile_date": "2026-11-06",
     "device": {
         "name": "Raspberry Pi Pico (termapy starter, MicroPython)",
@@ -34,7 +34,7 @@
         "json": {
             "help": "Set the reply framing, on for JSON-RPC or off for text; bare json reads it.",
             "args": "{on|off}",
-            "long_help": "json off switches the board to text replies: every reply after it is text, not JSON, until json on, or any request line starting with {, switches back.  The config sends json on when the MCP server connects.",
+            "long_help": "json off switches the board to text replies: every reply after it is text, not JSON, until json on, or any request line starting with {, switches back.  The config sends json on at every connect.",
             "send_template": "json {framing}",
             "typed_args": [
                 {"name": "framing", "type": "framing", "required": false, "help": "on or off."}

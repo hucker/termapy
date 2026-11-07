@@ -942,6 +942,32 @@ class TestHistory:
         assert completer._repl is cli.repl, "repl wired"
 
 
+class TestReceivedJson:
+    """At a terminal the CLI lays out a device's JSON line as the TUI does; a pipe gets it as received."""
+
+    def test_a_terminal_lays_out_a_json_line_and_leaves_text(self, cli, capsys):
+        """At a terminal a JSON line prints over several lines by default; a text line prints as it came."""
+        # Arrange -- what a CLI at a terminal sets (capsys is not one)
+        cli.repl.screen_json = True
+        capsys.readouterr()
+
+        # Act
+        cli._show_rx(['{"result":{"temp":21.4}}', "plain text"])
+
+        # Assert
+        lines = capsys.readouterr().out.splitlines()
+        assert '    "temp": 21.4' in lines, f"laid out: {lines}"
+        assert "plain text" in lines, "a line that is not JSON prints as it came"
+
+    def test_a_pipe_prints_the_line_as_it_came(self, cli, capsys):
+        """Into a pipe a JSON line prints on one line as received, whatever json_display.indent says."""
+        assert cli.repl.screen_json is False, "capsys stands in for a pipe"
+        cli.repl.store_cfg("json_display.indent", 4)
+        capsys.readouterr()
+        cli._show_rx(['{"result":1}'])
+        assert '{"result":1}' in capsys.readouterr().out.splitlines()
+
+
 class TestFileCompletion:
     """The CLI's Tab completer reads ``Command.files``, not a table of its own."""
 

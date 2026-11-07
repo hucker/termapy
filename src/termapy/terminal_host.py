@@ -142,8 +142,7 @@ class TerminalHost:
     ctx: PluginContext
     prefix: str
     # Set as ``_engine`` / ``_capture``; read through the properties below,
-    # the same in every frontend (the TUI once redeclared them read-only
-    # over attributes this class declared writable).
+    # the same in every frontend.
     _engine: SerialEngine
     _capture: CaptureEngine
     session_log: SessionLog

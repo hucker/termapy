@@ -716,9 +716,6 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         if ctx.flag("--display"):
             open_with_system(str(report_path))
     except OSError as e:
-        # File write / directory scan failure -- most likely real
-        # failure mode.  Reports the underlying OS message ("Permission
-        # denied", "No such file or directory") to the user.
         return CmdResult.fail(msg=f"Info error: {e}")
     except TypeError as e:
         # json.dumps() hit a non-serializable value in the config.

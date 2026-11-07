@@ -469,13 +469,8 @@ def refresh_usb_vendor_table() -> None:
       - **Compilable Python.**  The generated module must parse and
         import cleanly.
     """
-    # Was ``src/termapy/_usb_vendor_full.py`` before the v0.65 ``usb/``
-    # subpackage refactor; the generator (scripts/refresh_usb_ids.py)
-    # writes to the new location below.
+    # Written by scripts/refresh_usb_ids.py.
     full_path = REPO_ROOT / "src" / "termapy" / "usb" / "_vendors_full.py"
-    # Capture the previous count from the generated module's header
-    # (``Entries:   3427``).  Falls back to None if the file doesn't
-    # exist yet or the header line is absent.
     previous_count = _read_previous_vendor_count(full_path)
 
     run([sys.executable, "scripts/refresh_usb_ids.py"])

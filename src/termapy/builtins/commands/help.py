@@ -1247,10 +1247,8 @@ def _render_target(ctx: PluginContext, cmd_w: int | None = None) -> None:
 def _script_description(path: Path) -> str:
     """The script's docstring summary -- the same one ``/run.list`` shows.
 
-    One extractor (``run_docstring.extract_docstring``) for both listings;
-    this used to have its own rule (summary only if line 2 was BLANK), so
-    a docstring whose second line was a ``#`` continuation showed a
-    summary in ``/run.list`` and nothing here.
+    One extractor (``run_docstring.extract_docstring``) for both listings, so
+    they never disagree on what a script's summary is.
     """
     return extract_docstring(path)[0]
 

@@ -23,9 +23,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         args: Ignored.
     """
     ctx.ui.exit_app()
-    # SPECIAL CASE: the process is about to terminate -- no caller
-    # ever reads this value.  Empty string satisfies the required-value
-    # contract while making the void intent visible.
+    # The session is ending, so no caller reads it: an explicit empty value.
     return CmdResult.ok(value="")
 
 

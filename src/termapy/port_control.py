@@ -554,16 +554,11 @@ LOOPBACK_PORT = "loop://"
 
 
 def loopback_port_facts() -> ChipFacts:
-    """Honest ChipFacts for the pyserial loopback (``loop://``).
+    """Honest ChipFacts for the pyserial loopback (``loop://``): a name and a description.
 
-    Deliberately NOT a reserved name and NOT part of the DEMO machinery:
-    a loopback isn't a device, so it gets only a name + description and
-    leaves every USB field (VID:PID, serial, chip, ...) as ``None`` -- they
-    render as blanks, never invented identity.  The port picker surfaces
-    this as a selectable row; the spec itself already opens via
-    ``serial.serial_for_url`` (it echoes whatever you write straight back,
-    which is handy for exercising the real read/write path in CI or by
-    hand -- unlike DEMO, which simulates a *responding* device).
+    A loopback is not a device, so every USB field stays ``None`` and renders
+    blank, never invented identity; nor is it a reserved DEMO port, which
+    simulates a device that answers.
     """
     return ChipFacts(
         device=LOOPBACK_PORT,
@@ -1305,9 +1300,7 @@ def _facts_from_port_info(
     )
     if p.vid is not None and p.pid is not None:
         facts.vid_pid = f"{p.vid:04X}:{p.pid:04X}"
-        # Silicon vendor by VID -- independent of the descriptor / INF
-        # string in facts.manufacturer.  Populated even when the (VID,
-        # PID) pair isn't in the chip table.
+        # Even for a VID:PID the chip table does not know.
         facts.vendor = _usb_vendor_for(p.vid)
         chip = _usb_chip(p.vid, p.pid)
         if chip:

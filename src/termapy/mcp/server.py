@@ -714,9 +714,8 @@ class MCPHost(TerminalHost):
 
                 def _run_sync() -> CmdResult:
                     self._log_line("$", f"{command}  ({level})")
-                    # Apply the per-call output level via ctx slot (replaces
-                    # the old --<level> text append).  Save/restore matches
-                    # the pattern in ReplEngine.dispatch.
+                    # The per-call output level, saved and restored as
+                    # ReplEngine.dispatch does.
                     saved_call_level = self.ctx._call_level
                     if level != "normal":
                         self.ctx._call_level = level

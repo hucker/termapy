@@ -1650,8 +1650,6 @@ class ReplEngine:
             Every route through here -- ``/raw``, a directive, a slash
             command, a device line -- announces the same way, through the
             one builder, so the user's ``echo_fmt`` governs all of them.
-            Three directive branches used to spell ``[cyan]> {cmd}`` by
-            hand and ignored the format entirely.
 
             The CALLER decides whether to announce at all: the slash
             paths ask ``echo_repl_on`` and the device path ``self.echo``,
@@ -2087,10 +2085,6 @@ class ReplEngine:
                         )
                     )
                 call_level = flag_level
-            # First-class flag parsing: strip declared flags from args and
-            # record them on the context for the handler to read via
-            # ctx.flag(). Commands with no declared flags opt out entirely
-            # (args passed through unchanged; set is empty).
             args, active_flags, flag_error = _parse_flags(args, plugin.flags)
             if flag_error:
                 return _finish(CmdResult.fail(msg=flag_error))

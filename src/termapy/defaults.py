@@ -838,14 +838,10 @@ _BUTTON_FIELD_BY_NAME = {record.path: record for record in CUSTOM_BUTTON_FIELDS}
 
 
 def default_cfg() -> dict:
-    """Return a fresh deep-copy of ``DEFAULT_CFG``.
+    """Return a fresh deep copy of ``DEFAULT_CFG``, for any cfg that will be mutated.
 
-    Use this instead of ``dict(DEFAULT_CFG)`` for any cfg that will
-    be mutated.  Shallow ``dict(...)`` copies leave the nested
-    sub-dicts (``serial``, ``ndjson_field_routing``) shared with
-    the module-level ``DEFAULT_CFG``, so mutations like
-    ``cfg["serial"]["port"] = "COM3"`` would corrupt the global
-    default.  ``deepcopy`` is the correct primitive.
+    ``dict(DEFAULT_CFG)`` shares the nested dicts (``serial``, ...), so
+    ``cfg["serial"]["port"] = "COM3"`` would change the global default.
     """
     import copy
 
@@ -911,13 +907,7 @@ def cfg_value(cfg: Mapping, path: str) -> Any:
 
 
 def cmd_prefix(cfg: Mapping) -> str:
-    """Return ``cfg["cmd_prefix"]`` with the project default as fallback.
-
-    Replaces the repeated ``cfg.get("cmd_prefix", "/")`` idiom scattered
-    across 15+ call sites.  Both this helper and ``DEFAULT_CMD_PREFIX``
-    resolve from the same constant, so the literal ``"/"`` lives in
-    exactly one place.
-    """
+    """Return ``cfg["cmd_prefix"]``, the table's default when the key is unset."""
     return cfg_value(cfg, "cmd_prefix")
 
 

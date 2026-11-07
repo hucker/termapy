@@ -635,9 +635,7 @@ class FakeSerial:
                     "safety": "readonly",
                     "response": {
                         "format": "regex",
-                        # Wire emits `0.5\r\n` (float, one decimal); profile
-                        # used to declare int -- which never matched.  This
-                        # version tracks the actual simulator output.
+                        # The wire carries `0.5\r\n`: a float with one decimal.
                         "pattern": r"^(?P<value>-?\d+(?:\.\d+)?)$",
                         "types": {"value": "float"},
                         "timeout_ms": 200,

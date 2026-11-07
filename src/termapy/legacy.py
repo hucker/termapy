@@ -217,8 +217,7 @@ LEGACY_FORWARDERS: list[LegacyForwarder] = [
     ),
 ]
 
-# Args-aware verbose forwarding + the rename-only entries that used to
-# live in verbose.py.  These feed /run.legacy's script scanner; the
+# The rename-only entries: they feed /run.legacy's script scanner; the
 # runtime forward for /verbose is _verbose_forwarder above.
 LEGACY_COMMANDS["verbose"] = "term.output"
 LEGACY_COMMANDS["term.verbose"] = "term.output"

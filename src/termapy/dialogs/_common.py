@@ -23,6 +23,8 @@ from textual.widgets.text_area import Selection
 from termapy.folder_ops import file_columns, format_file_header
 
 if TYPE_CHECKING:
+    from textual.app import ComposeResult
+
     from termapy.port_control import ChipFacts
 
 
@@ -335,7 +337,7 @@ class FindRow(Horizontal):
         super().__init__(id=id)
         self._editor = editor
 
-    def compose(self):
+    def compose(self) -> ComposeResult:
         """The field, the ``n/m`` count, and the same ▲ ▼ × the output pane's find bar has."""
         yield Input(placeholder="Find", id=f"{self.id}-input", compact=True)
         yield Label("", id=f"{self.id}-count", markup=False)

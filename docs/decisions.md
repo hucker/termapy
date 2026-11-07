@@ -1143,3 +1143,17 @@ reason. The non-refusing finding that existed only for this (`CfgFinding.refuse`
 the editor shows the rate red and `/cfg` refuses it; a load still only warns, as loads do.
 Behavior removed: a non-standard rate without asking, and `new_config` guessing
 `custom_baud` from the rate. None of the configs in use had one.
+
+## 2026-11-06 — Every function is annotated, and ruff's ANN checks it
+
+Reverses ANN's place on the 2026-10-17 list of ruff families not planned. CLAUDE.md asked for
+type hints from the start, but no gate checked them, and ty checks only what is annotated: an
+unannotated parameter is unknown to it, so a misspelled method on an untyped `ctx` passed. Now
+ruff selects `ANN` over the gate's whole scope (`src/`, `scripts/`, `examples/`), with `ANN401`
+(an explicit `Any`) off, since an `Any` is a statement rather than an omission. Exempt: `tests/`,
+where pytest's fixtures and test functions go unannotated by convention, and a board's firmware,
+which runs under MicroPython and which ty already skips. Typing the 212 functions that lacked
+annotations found a real bug at once: `/search` failed with an `AttributeError` whenever a loaded
+profile had device commands, because it handed a device command's view to `resolve_long_help`,
+which reads attributes only a `PluginInfo` has. **Where:** `[tool.ruff.lint]` in
+`pyproject.toml`; the pre-commit hook and `release_prep` run `ruff check`.

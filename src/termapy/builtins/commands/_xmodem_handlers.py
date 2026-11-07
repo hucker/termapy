@@ -21,6 +21,8 @@ from termapy.scripting import resolve_seq_filename
 from termapy.vendor.xmodem import XMODEM
 
 if TYPE_CHECKING:
+    import threading
+
     from termapy.plugins import PluginContext
 
 
@@ -37,7 +39,7 @@ class QueueByteReader:
             immediately to abort the transfer.
     """
 
-    def __init__(self, rx_queue: queue.Queue[bytes], cancel=None) -> None:
+    def __init__(self, rx_queue: queue.Queue[bytes], cancel: threading.Event | None = None) -> None:
         self._queue = rx_queue
         self._buf = bytearray()
         self._cancel = cancel

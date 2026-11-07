@@ -13,6 +13,8 @@ from termapy.plugins import CapabilitySet, CmdResult, Column, Command, TextLine,
 from termapy.port_format import find_chips
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from termapy.plugins import PluginContext
 
 
@@ -294,7 +296,7 @@ _CHIP_COLUMNS = (
 )
 
 
-def _make_chip_field_handler(field: str):
+def _make_chip_field_handler(field: str) -> Callable[[PluginContext, str], CmdResult]:
     """Build a handler for /port.chip.<field>.
 
     The handler takes an optional port name, or ``*`` for every port as
@@ -365,7 +367,7 @@ def _joined_value(result: port_control.Result) -> str:
     return "\n".join(text for text, color in msgs if color not in ("red", "yellow"))
 
 
-def _make_prop_handler(key: str):
+def _make_prop_handler(key: str) -> Callable[[PluginContext, str], CmdResult]:
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         result = port_control.get_set_prop(ctx.internal.port(), ctx.cfg, key, args)
         # Only return value on read (no args); set returns prose not useful as value
@@ -398,7 +400,7 @@ def _handler_baud_rate(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.record(data, [TextLine(shown)], value=rate)
 
 
-def _make_hw_handler(line: str):
+def _make_hw_handler(line: str) -> Callable[[PluginContext, str], CmdResult]:
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         result = port_control.get_set_hw_line(ctx.internal.port(), line, args)
         return _answer(ctx, result, _read_value(result) if not args.strip() else "")
@@ -408,7 +410,7 @@ def _make_hw_handler(line: str):
     return _handler
 
 
-def _make_signal_handler(signal: str):
+def _make_signal_handler(signal: str) -> Callable[[PluginContext, str], CmdResult]:
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         # Signals are always read-only; extract value from the single msg
         result = port_control.read_signal(ctx.internal.port(), signal, args)

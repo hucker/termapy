@@ -32,10 +32,10 @@ from termapy.dialogs import PortPicker
 from termapy.plugins import interpolate_help
 
 if TYPE_CHECKING:
-    from termapy.app import SerialTerminal  # noqa: F401 -- type-hint surface
+    from termapy.app import SerialTerminal
 
 
-def show_config_info(app, path: str) -> None:
+def show_config_info(app: SerialTerminal, path: str) -> None:
     """Print config dir, file, and log file paths (verbose only)."""
     if not getattr(app.repl, "ctx", None):
         return
@@ -54,7 +54,7 @@ def show_config_info(app, path: str) -> None:
         app._status(f"Log file:    {log_path}", "green")
 
 
-def show_port_picker(app) -> None:
+def show_port_picker(app: SerialTerminal) -> None:
     """Open the PortPicker modal, or short-circuit to the only port.
 
     When the system has exactly one serial port, skips the modal and
@@ -73,7 +73,7 @@ def show_port_picker(app) -> None:
     app.push_screen(PortPicker(), callback=app._on_port_picked)
 
 
-def show_commands(app) -> None:
+def show_commands(app: SerialTerminal) -> None:
     """Show the REPL command picker with smart arg handling.
 
     Filters to commands whose name contains the substring currently

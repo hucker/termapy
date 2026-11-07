@@ -21,6 +21,11 @@ from prompt_toolkit.history import History
 from termapy.folders import ensure_folder
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from prompt_toolkit.completion import CompleteEvent
+    from prompt_toolkit.document import Document
+
     from termapy.repl import ReplEngine
 
 
@@ -38,7 +43,7 @@ class PlainFileHistory(History):
         self.filename = filename
         super().__init__()
 
-    def load_history_strings(self):
+    def load_history_strings(self) -> Iterable[str]:
         """Yield stored commands, newest first (prompt_toolkit contract)."""
         try:
             lines = Path(self.filename).read_text(encoding="utf-8").splitlines()
@@ -100,7 +105,9 @@ class _TermapyCompleter(Completer):
         self._repl = repl
         self._prefix = prefix
 
-    def get_completions(self, document, complete_event):  # noqa: ARG002 -- prompt_toolkit interface
+    def get_completions(  # noqa: ARG002 -- prompt_toolkit interface
+        self, document: Document, complete_event: CompleteEvent
+    ) -> Iterable[Completion]:
         """Yield completions for the current input."""
         line = document.text
 

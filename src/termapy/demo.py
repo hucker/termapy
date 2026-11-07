@@ -16,6 +16,10 @@ import struct
 import threading
 import time
 from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from crcglot import Crc
 
 
 class FakeSerial:
@@ -1316,7 +1320,7 @@ class FakeSerial:
     # pin the polynomial; 24 appears third so init/xorout get separated.
     _RND_CUSTOM_LENGTHS: tuple[int, ...] = (8, 16, 8, 16, 24)
 
-    def _custom_crc(self):
+    def _custom_crc(self) -> Crc:
         """Build the secret Crc value object from the params dict.
 
         Split out for typing: ``**dict[str, int|bool]`` confuses ty's

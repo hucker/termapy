@@ -675,7 +675,7 @@ def delete_config(config_path: str | Path) -> int:
     return len(files)
 
 
-def connection_string(cfg: dict, level: str = "medium", actual_port: str = "") -> str:
+def connection_string(cfg: Mapping, level: str = "medium", actual_port: str = "") -> str:
     """Format connection info from config at different detail levels.
 
     Args:

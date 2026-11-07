@@ -36,11 +36,11 @@ from termapy.scripting import format_duration, format_size
 SHUTDOWN_RACE: tuple[type[BaseException], ...] = (NoMatches, RuntimeError)
 
 if TYPE_CHECKING:
-    from termapy.app import SerialTerminal  # noqa: F401 -- type-hint surface
+    from termapy.app import SerialTerminal
 
 
 def _cap_start(
-    app,
+    app: SerialTerminal,
     *,
     path: Path,
     file_mode: str,
@@ -94,7 +94,7 @@ def _cap_start(
     return True
 
 
-def _cap_stop(app) -> None:
+def _cap_stop(app: SerialTerminal) -> None:
     """End file capture: delegate to engine, restore UI."""
     if not app._capture.active:
         return
@@ -126,7 +126,7 @@ def _cap_stop(app) -> None:
     app._sync_cap_button()
 
 
-def _cap_show_progress(app) -> None:
+def _cap_show_progress(app: SerialTerminal) -> None:
     """Mount a progress overlay in the bottom bar."""
     if app.repl.in_script:
         return  # script overlay owns the bar
@@ -147,7 +147,7 @@ def _cap_show_progress(app) -> None:
         pass  # capture started before mount or during teardown
 
 
-def _cap_update_progress(app) -> None:
+def _cap_update_progress(app: SerialTerminal) -> None:
     """Update the capture progress label."""
     prog = app._capture.get_progress()
     if not prog:
@@ -168,7 +168,7 @@ def _cap_update_progress(app) -> None:
         )
 
 
-def _cap_hide_progress(app) -> None:
+def _cap_hide_progress(app: SerialTerminal) -> None:
     """Remove the capture overlay and restore normal buttons."""
     if app._cap_progress_timer:
         app._cap_progress_timer.stop()

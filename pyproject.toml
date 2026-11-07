@@ -278,9 +278,24 @@ exclude = ["src/termapy/usb/_vendors_full.py"]
 # to the Python floor ruff infers from requires-python: added 2026-10-17
 # when 3.10 was dropped, and it flags the next set when the floor moves.
 #
+# ANN (annotations) requires every function to be fully typed, added
+# 2026-11-06.  ty only checks code that has annotations: an unannotated
+# parameter is unknown to it, so `ctx.io.reslt()` on an untyped `ctx`
+# passes.  Without ANN, "type hints" is a style note that no gate checks.
+# ANN401 (explicit `Any`) stays off: an `Any` is a deliberate statement,
+# not a missing one.
+#
 # Adding a rule family is a deliberate change: select it here, fix the
 # findings, and land it on its own branch.
-select = ["E4", "E7", "E9", "F", "I", "UP"]
+select = ["E4", "E7", "E9", "F", "I", "UP", "ANN"]
+ignore = ["ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests follow pytest convention: fixtures and test functions go unannotated.
+"tests/**" = ["ANN"]
+# A board's starter firmware runs under MicroPython, which has no typing
+# module; it is outside ty's scope for the same reason ([tool.ty.src]).
+"src/termapy/boards/*/firmware/**" = ["ANN"]
 
 [tool.ruff.lint.isort]
 # Keep aliased members in the SAME statement as their siblings.  isort's

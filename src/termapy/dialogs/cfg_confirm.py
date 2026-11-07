@@ -40,7 +40,7 @@ class CfgConfirm(ModalScreen[bool]):
         self.query_one("#cfg-yes", Button).tooltip = "Apply the config change."
         self.query_one("#cfg-no", Button).tooltip = "Discard the config change."
 
-    def __init__(self, key: str, old_val, new_val) -> None:
+    def __init__(self, key: str, old_val: object, new_val: object) -> None:
         super().__init__()
         self.key = key
         self.old_val = old_val

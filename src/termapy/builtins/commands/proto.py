@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from crcglot import DetectMatch, DetectResult, detect
+from crcglot import DetectMatch, DetectResult, LanguageInfo, detect
 
 from termapy import diag_log
 from termapy.builtins.commands._crc_verbs import build_crc_verb_command
@@ -2320,7 +2320,7 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
     return ctx.internal.dispatch("help proto")
 
 
-def _build_one_crc_lang_command(code: str, info) -> Command:
+def _build_one_crc_lang_command(code: str, info: LanguageInfo) -> Command:
     """Build one ``/proto.crc.<lang>`` Command from a crcglot LanguageInfo.
 
     Flags are derived from the language's ``variants`` set:

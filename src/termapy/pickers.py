@@ -43,10 +43,10 @@ from termapy.dialogs import (
 from termapy.plugins import CmdResult, cfg_users
 
 if TYPE_CHECKING:
-    from termapy.app import SerialTerminal  # noqa: F401 -- type-hint surface
+    from termapy.app import SerialTerminal
 
 
-def on_config_result(app, result: tuple | None) -> None:
+def on_config_result(app: SerialTerminal, result: tuple | None) -> None:
     """Apply the result of a config-editor dismissal.
 
     Validates the new cfg, swaps it into the live session via
@@ -80,7 +80,7 @@ def on_config_result(app, result: tuple | None) -> None:
     app._show_config_info(new_path)
 
 
-def on_port_picked(app, port: str | None) -> None:
+def on_port_picked(app: SerialTerminal, port: str | None) -> None:
     """Update the title-bar port display when the port picker dismisses.
 
     Args:
@@ -92,7 +92,7 @@ def on_port_picked(app, port: str | None) -> None:
     app._update_port(port)
 
 
-def on_quick_setup(app, result: tuple | None) -> None:
+def on_quick_setup(app: SerialTerminal, result: tuple | None) -> None:
     """Apply the QuickSetup wizard result.
 
     On ``"advanced"`` action, opens the full config editor with the
@@ -156,7 +156,10 @@ def on_quick_setup(app, result: tuple | None) -> None:
 
 
 def prompt_rename(
-    app, path_str: str, command: str, then: Callable[[str | None], None] | None = None
+    app: SerialTerminal,
+    path_str: str,
+    command: str,
+    then: Callable[[str | None], None] | None = None,
 ) -> None:
     """Ask for a new name, then dispatch ``/<command>.rename <old> <new>``.
 
@@ -197,7 +200,7 @@ def prompt_rename(
 
 
 def file_action(
-    app, command: str, verb: str, path_str: str, done: Callable[[str | None], None]
+    app: SerialTerminal, command: str, verb: str, path_str: str, done: Callable[[str | None], None]
 ) -> None:
     """Rename or delete a picker's file with its own command, the picker staying open.
 
@@ -222,7 +225,7 @@ def file_action(
         )
 
 
-def on_script_picked(app, result: tuple | None) -> None:
+def on_script_picked(app: SerialTerminal, result: tuple | None) -> None:
     """Apply the script-picker result.
 
     Dispatches to one of: run the script (clears vars, calls
@@ -254,7 +257,7 @@ def on_script_picked(app, result: tuple | None) -> None:
         )
 
 
-def on_proto_picked(app, result: tuple | None) -> None:
+def on_proto_picked(app: SerialTerminal, result: tuple | None) -> None:
     """Handle result from the ProtoPicker dialog: run, debug, new or edit.
 
     Rename and Delete do not dismiss the picker: they go through
@@ -286,7 +289,7 @@ def on_proto_picked(app, result: tuple | None) -> None:
         )
 
 
-def open_picker(app, name: str) -> CmdResult:
+def open_picker(app: SerialTerminal, name: str) -> CmdResult:
     """Open the picker/dialog for a top-level command name.
 
     Wired into ``InternalHandle.open_picker`` from ``_register_tui_hooks``;

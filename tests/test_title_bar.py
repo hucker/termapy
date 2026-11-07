@@ -43,7 +43,7 @@ def test_update_port_handles_readonly_cfg():
     app = _FakeApp(original)
 
     # Act -- switch COM4 -> COM3 (raised TypeError on the mappingproxy before the fix)
-    update_port(app, "COM3")
+    update_port(app, "COM3")  # ty: ignore[invalid-argument-type] -- a stub stands in for the app
 
     # Assert -- the switched cfg carries the new port
     assert app.switched is not None, "update_port switched to a new cfg"
@@ -58,7 +58,7 @@ def test_update_port_is_not_a_config_load():
     app = _FakeApp({"serial": {"port": "COM4"}, "title": "Proj"})
 
     # Act
-    update_port(app, "COM3")
+    update_port(app, "COM3")  # ty: ignore[invalid-argument-type] -- a stub stands in for the app
 
     # Assert
     actual = app.switch_options
@@ -73,7 +73,7 @@ def test_update_port_does_not_mutate_the_source_cfg():
     app = _FakeApp(original)
 
     # Act
-    update_port(app, "COM3")
+    update_port(app, "COM3")  # ty: ignore[invalid-argument-type] -- a stub stands in for the app
 
     # Assert -- the read-only source's nested dict is untouched (it's a deep copy)
     assert original["serial"]["port"] == "COM4", "source cfg's nested dict not mutated"

@@ -37,10 +37,11 @@ from termapy.scripting import (
 )
 
 if TYPE_CHECKING:
+    from termapy.app import SerialTerminal
     from termapy.plugins import PluginContext
 
 
-def _bind(app, hook: Callable) -> Callable:
+def _bind(app: SerialTerminal, hook: Callable) -> Callable:
     """Bind ``hook(app, ctx, args)`` to ``app`` as a ``(ctx, args)`` handler that keeps its docstring.
 
     A bare lambda has no ``__doc__``, so ``/help.dev`` and developer
@@ -60,7 +61,7 @@ def _bind(app, hook: Callable) -> Callable:
 # and developer /search indexes it, so keep it true (registry handler-docstring).
 
 
-def _hook_ss_svg(app, ctx, args: str) -> CmdResult:
+def _hook_ss_svg(app: SerialTerminal, ctx: PluginContext, args: str) -> CmdResult:
     """Save a timestamped SVG screenshot of the terminal.
 
     Writes to ``<ss_dir>/<name>_<YYYYmmdd_HHMMSS>.svg`` and prints a
@@ -85,7 +86,7 @@ def _hook_ss_svg(app, ctx, args: str) -> CmdResult:
     return CmdResult.ok(value=path)
 
 
-def _hook_ss_svg_quiet(app, ctx, args: str) -> CmdResult:
+def _hook_ss_svg_quiet(app: SerialTerminal, ctx: PluginContext, args: str) -> CmdResult:
     """Save an SVG screenshot without a status message (scripting friendly).
 
     Used by ``/ss.svg.silent`` for scripts that want a screenshot
@@ -111,7 +112,7 @@ def _hook_ss_svg_quiet(app, ctx, args: str) -> CmdResult:
     return CmdResult.ok(value=path)
 
 
-def _hook_ss_txt(app, ctx, args: str) -> CmdResult:
+def _hook_ss_txt(app: SerialTerminal, ctx: PluginContext, args: str) -> CmdResult:
     """Save a timestamped plain-text screenshot of the terminal scrollback.
 
     Renders ``app._get_screen_text()`` (the visible scrollback as
@@ -146,7 +147,7 @@ def _hook_ss_txt(app, ctx, args: str) -> CmdResult:
     return CmdResult.ok(value=path)
 
 
-def register_tui_hooks(app) -> None:
+def register_tui_hooks(app: SerialTerminal) -> None:
     """Register TUI-specific commands as plugin hooks."""
 
     # Make a bare /cfg, /run, /proto, /port (and every other command that

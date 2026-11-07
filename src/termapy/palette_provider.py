@@ -11,7 +11,12 @@ matter:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from textual.command import DiscoveryHit, Hit, Hits, Provider
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class PaletteProvider(Provider):
@@ -49,7 +54,7 @@ class PaletteProvider(Provider):
                     self._invoke_factory(handler_name),
                 )
 
-    def _invoke_factory(self, handler_name: str):
+    def _invoke_factory(self, handler_name: str) -> Callable[[], None]:
         """Build a no-arg callable that invokes the named handler on the app."""
 
         def _invoke() -> None:

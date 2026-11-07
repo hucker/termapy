@@ -25,7 +25,7 @@ Carried here until Textual's ``RichLog`` does this itself (decision
 
 from __future__ import annotations
 
-from typing import Self
+from typing import Any, Self
 
 from rich.console import RenderableType
 from textual import events
@@ -80,7 +80,7 @@ class SelectableRichLog(RichLog):
         *(Binding(key, f"extend_selection('{move}')", show=False) for key, move in _MOVES.items()),
     ]
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         # The keyboard selection: where it began, where its moving end is,
         # and the Selection it last set (a different one means the mouse

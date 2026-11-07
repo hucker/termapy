@@ -44,6 +44,8 @@ from termapy.folders import FIRMWARE, PROFILE_SUFFIX, ensure_folder
 from termapy.port_control import PortSource, list_port_records
 
 if TYPE_CHECKING:
+    from importlib.resources.abc import Traversable
+
     from termapy.usb_tree import UsbSource
 
 
@@ -253,7 +255,7 @@ def not_attached_message(board: Board, found: Attached) -> str:
     )
 
 
-def _package(board: Board):
+def _package(board: Board) -> Traversable:
     """The board's folder of package data."""
     return files(__name__) / board.name
 

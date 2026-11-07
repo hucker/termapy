@@ -10,11 +10,11 @@ real ``SerialTerminal`` on a throwaway DEMO config, the
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from pilot_wait import until
@@ -731,7 +731,7 @@ class TestHeadlessProto:
         _, path = _write_cfg(tmp_path)
         _write_pro(path, "smoke", _AT_PASS)
         with pytest.raises(SystemExit) as exit_info:
-            _run_proto_headless(SimpleNamespace(demo=False, config=path, proto="smoke"))
+            _run_proto_headless(argparse.Namespace(demo=False, config=path, proto="smoke"))
         assert exit_info.value.code == 0
         assert "1/1 PASS" in capsys.readouterr().out
 
@@ -742,7 +742,7 @@ class TestHeadlessProto:
         _, path = _write_cfg(tmp_path)
         _write_pro(path, "smoke", _AT_FAIL)
         with pytest.raises(SystemExit) as exit_info:
-            _run_proto_headless(SimpleNamespace(demo=False, config=path, proto="smoke"))
+            _run_proto_headless(argparse.Namespace(demo=False, config=path, proto="smoke"))
         assert exit_info.value.code == 1
         assert "0/1 FAIL" in capsys.readouterr().out
 
@@ -752,7 +752,7 @@ class TestHeadlessProto:
 
         _, path = _write_cfg(tmp_path)
         with pytest.raises(SystemExit) as exit_info:
-            _run_proto_headless(SimpleNamespace(demo=False, config=path, proto="nope"))
+            _run_proto_headless(argparse.Namespace(demo=False, config=path, proto="nope"))
         assert exit_info.value.code == 2
         assert "proto file not found" in capsys.readouterr().err
 
@@ -763,7 +763,7 @@ class TestHeadlessProto:
         broken = tmp_path / "broken.cfg"
         broken.write_text("{not json", encoding="utf-8")
         with pytest.raises(SystemExit) as exit_info:
-            _run_proto_headless(SimpleNamespace(demo=False, config=str(broken), proto="smoke"))
+            _run_proto_headless(argparse.Namespace(demo=False, config=str(broken), proto="smoke"))
         assert exit_info.value.code == 2
         assert "failed to load config" in capsys.readouterr().err
 

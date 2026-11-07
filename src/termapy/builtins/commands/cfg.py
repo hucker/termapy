@@ -54,6 +54,8 @@ from termapy.plugins.params import ParamSpec
 from termapy.scripting import BOOL_TOKENS_HELP, coerce_to_type
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from termapy.plugins import PluginContext
 
 
@@ -132,7 +134,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     return _cfg_answer(new_val)
 
 
-def _typed_value(ctx: PluginContext, container, key: str, value_str: str) -> object:
+def _typed_value(ctx: PluginContext, container: Mapping, key: str, value_str: str) -> object:
     """``value_str`` as the value ``key`` will hold, checked by the schema's one validator.
 
     A key the schema does not hold takes the type of what the config has.
@@ -161,23 +163,20 @@ def _typed_value(ctx: PluginContext, container, key: str, value_str: str) -> obj
     return value
 
 
-def _unknown_key(cfg, key: str) -> CmdResult:
+def _unknown_key(cfg: Mapping, key: str) -> CmdResult:
     """The failure for a key the config does not have, naming the nearest keys it does."""
     serial = cfg.get("serial", {})
     keys = [*cfg, *(serial if isinstance(serial, dict) else ())]
     return CmdResult.fail(msg=f"Unknown config key: {key}{did_you_mean(closest(key, keys))}")
 
 
-def _find_cfg_container(cfg, key: str):
+def _find_cfg_container(cfg: Mapping, key: str) -> Mapping | None:
     """Return the dict that owns ``key`` (top-level or under cfg["serial"]).
 
     Lets ``/cfg port`` keep working post-v22 even though port now lives
     under ``cfg["serial"]``.  ``None`` means the key isn't known.  Only
     looks one level deep (top + serial sub-dict); deeper nesting would
     require dotted-path support.
-
-    ``cfg`` is typed loosely (``MappingProxyType | dict`` in callers)
-    so the helper just relies on duck-typed ``in`` / ``get``.
     """
     if key in cfg:
         return cfg

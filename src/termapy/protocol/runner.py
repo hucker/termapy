@@ -14,6 +14,7 @@ import time
 from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from termapy import diag_log
 from termapy.config import cap_folder_of, open_serial
@@ -43,7 +44,7 @@ def _bytes_to_text(data: bytes) -> str:
     return repr(text)[1:-1]  # strip surrounding quotes
 
 
-def _read_frame(ser, frame_gap_ms: int, timeout_ms: int) -> bytes:
+def _read_frame(ser: Any, frame_gap_ms: int, timeout_ms: int) -> bytes:
     """Read a complete frame from the serial port using silence-gap detection.
 
     Reads directly from the serial object (no queue, no Textual).
@@ -81,7 +82,7 @@ def _read_frame(ser, frame_gap_ms: int, timeout_ms: int) -> bytes:
 _DRAIN_LIMIT_S = 0.5
 
 
-def _drain(ser) -> None:
+def _drain(ser: Any) -> None:
     """Discard pending input, bounded in time."""
     deadline = time.monotonic() + _DRAIN_LIMIT_S
     while time.monotonic() < deadline:
@@ -91,7 +92,7 @@ def _drain(ser) -> None:
         ser.read(waiting)
 
 
-def _run_setup_cmds(ser, cmds: list[str], cfg: dict, frame_gap_ms: int) -> None:
+def _run_setup_cmds(ser: Any, cmds: list[str], cfg: dict, frame_gap_ms: int) -> None:
     """Send setup/teardown commands and drain responses."""
     line_ending = cfg_value(cfg, "eol")
     enc = cfg_value(cfg, "encoding")
@@ -268,7 +269,7 @@ def write_results(results: dict, out_path: Path) -> None:
         json.dump(results, f, indent=2)
 
 
-def run_script_tests(ser, script: ProtoScript, cfg: dict) -> tuple[list[dict], int, int]:
+def run_script_tests(ser: Any, script: ProtoScript, cfg: dict) -> tuple[list[dict], int, int]:
     """Run every test of ``script`` on an open port.
 
     A port error mid-run (the device unplugged, a driver fault) is

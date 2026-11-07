@@ -47,11 +47,13 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import argparse
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable
     from pathlib import Path
     from typing import NoReturn
 
+    from termapy.breadcrumbs import Crumb
     from termapy.port_control import ChipFacts, PortSource
+    from termapy.usb_tree import UsbSource
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -154,13 +156,13 @@ def _parse_hex_int(s: str) -> int | None:
         return None
 
 
-def _vid_of(facts) -> int | None:
+def _vid_of(facts: ChipFacts) -> int | None:
     from termapy.port_format import split_vid_pid
 
     return split_vid_pid(facts.vid_pid)[0]
 
 
-def _pid_of(facts) -> int | None:
+def _pid_of(facts: ChipFacts) -> int | None:
     from termapy.port_format import split_vid_pid
 
     return split_vid_pid(facts.vid_pid)[1]
@@ -280,7 +282,7 @@ _WATCH_WIDTHS = {
 }
 
 
-def _watch_port_width(devices, floor: int | None = None) -> int:
+def _watch_port_width(devices: Iterable[str], floor: int | None = None) -> int:
     """Port-column width for one watch session.
 
     A platform floor -- 6 on Windows (``COMxxx``) and 32 on POSIX
@@ -308,7 +310,9 @@ def _watch_port_width(devices, floor: int | None = None) -> int:
 _WATCH_GROWN = ("mfg", "description", "chip")
 
 
-def _watch_widths(fleet, start: dict[str, int] | None = None) -> dict[str, int]:
+def _watch_widths(
+    fleet: Iterable[ChipFacts], start: dict[str, int] | None = None
+) -> dict[str, int]:
     """Column widths for one watch session, grown to fit ``fleet``.
 
     The port column grows as ``_watch_port_width`` describes, and the
@@ -334,7 +338,7 @@ def _watch_widths(fleet, start: dict[str, int] | None = None) -> dict[str, int]:
     return widths
 
 
-def run_usb(args: argparse.Namespace, *, source=None) -> None:
+def run_usb(args: argparse.Namespace, *, source: UsbSource | None = None) -> None:
     """Print the whole USB tree to stdout and exit.
 
     Every hub, device and interface as physically connected, with the
@@ -447,7 +451,7 @@ def run_watch(args: argparse.Namespace, *, source: PortSource | None = None) -> 
         sys.exit(0)
 
 
-def _watch_cells(facts) -> dict[str, str]:
+def _watch_cells(facts: ChipFacts) -> dict[str, str]:
     """The text of each watch column for one port, before padding.
 
     The one place a cell's text is decided, so ``_watch_widths`` measures
@@ -476,7 +480,7 @@ def _watch_cells(facts) -> dict[str, str]:
 _WATCH_COLUMNS = ("port", "state", "mfg", "description", "chip", "speed", "vid_pid", "sn")
 
 
-def _format_state_line(marker: str, facts, widths: dict[str, int]) -> str:
+def _format_state_line(marker: str, facts: ChipFacts, widths: dict[str, int]) -> str:
     """Format a full ``[time] <marker> <port> <state> <chip data...>`` line.
 
     Used for baseline rows, open/close transitions, post-``+`` detail
@@ -500,7 +504,7 @@ def _format_marker_line(marker: str, device: str, widths: dict[str, int]) -> str
     return f"[{ts}] {marker:<{widths['marker']}}  {device:<{widths['port']}}"
 
 
-def _state_of(facts) -> str:
+def _state_of(facts: ChipFacts) -> str:
     """Return ``open`` / ``closed`` / ``-`` for the state column.
 
     Matches pyserial's ``serial.Serial.is_open`` terminology.  ``open``
@@ -513,7 +517,7 @@ def _state_of(facts) -> str:
     return "open" if facts.in_use.startswith("yes") else "closed"
 
 
-def _speed_of(facts) -> str:
+def _speed_of(facts: ChipFacts) -> str:
     """Return ``Full-Speed`` / ``High-Speed`` / ``-`` for the speed column."""
     if facts.usb_speed:
         if "Full-Speed" in facts.usb_speed:
@@ -681,7 +685,7 @@ def run_check(args: argparse.Namespace) -> None:
 _KILL_COLUMNS = ("PID", "MODE", "CONFIG", "PORT", "STARTED")
 
 
-def _print_crumbs(crumbs) -> None:
+def _print_crumbs(crumbs: Iterable[Crumb]) -> None:
     """Print running termapys as a table, each column as wide as its widest cell."""
     rows = [
         [

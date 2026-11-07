@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from textual.widgets import Checkbox
 
 
@@ -45,7 +47,7 @@ class StrongCheckbox(Checkbox):
     # where Textual queries BUTTON_INNER before the instance attr is set.
     BUTTON_INNER: str = " "
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         # Belt-and-suspenders: set the instance glyph from the current
         # value here in case watch_value didn't fire during super's

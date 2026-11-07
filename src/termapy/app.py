@@ -8,6 +8,7 @@ Runs well in most terminals (Windows Terminal, iTerm2, etc).
 VS Code's integrated terminal can be jerky due to its rendering pipeline.
 """
 
+import argparse
 import os
 import re
 import sys
@@ -18,11 +19,13 @@ from collections.abc import Callable, Sequence
 from functools import partial
 from pathlib import Path
 from threading import Event
+from types import MappingProxyType
+from typing import Any, ParamSpec, TypeVar
 
 import serial
 from rich.style import Style
 from rich.text import Text
-from textual import on, work
+from textual import events, on, work
 from textual.actions import SkipAction
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -32,6 +35,7 @@ from textual.message import Message
 from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widgets import Button, Input, Label, OptionList, RichLog, Static
+from textual.widgets.button import ButtonVariant
 
 from termapy import diag_log, port_control
 from termapy.capture import (
@@ -92,7 +96,7 @@ from termapy.plugins import (
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.views import Link, Piece
 from termapy.proto_debug import ProtoDebugScreen
-from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
+from termapy.protocol import ProtoScript, builtins_viz_dir, load_visualizers_from_dir
 from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label_markup
@@ -121,6 +125,10 @@ from termapy.widgets import (
 # hiding a real bug -- that's the whole point of keeping the tuple
 # narrow.
 SHUTDOWN_RACE: tuple[type[BaseException], ...] = (NoMatches, RuntimeError)
+
+# ``_on_main``'s signature: the arguments ``fn`` takes, and what it returns.
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 
 # scripting import kept low (below the module-level defs above); placement, not a cycle.
@@ -643,7 +651,7 @@ class SerialTerminal(TerminalHost, App):
         self._shutting_down = False
 
     @property
-    def cfg(self):  # ty: ignore[invalid-property-type-override] -- read-only by design, see below
+    def cfg(self) -> MappingProxyType:  # ty: ignore[invalid-property-type-override] -- read-only by design, see below
         """Read-only view of the config dict (single source of truth in ReplEngine).
 
         ``TerminalHost`` declares ``cfg`` writable because the CLI and MCP
@@ -656,11 +664,6 @@ class SerialTerminal(TerminalHost, App):
     @property
     def is_connected(self) -> bool:
         return self._engine.is_connected
-
-    @property
-    def ser(self):
-        """The underlying serial port object (for DTR/RTS/break access)."""
-        return self._engine.port_obj
 
     # -- TerminalHost abstract method implementations -------------------------
     # These satisfy the ABC contract by delegating to the TUI-specific methods
@@ -975,7 +978,13 @@ class SerialTerminal(TerminalHost, App):
                 yield StatusBar(id="traffic-bar")
                 yield StatusBar(id="status-bar")
 
-                def _btn(label, id, tip, variant="default", display=True):
+                def _btn(
+                    label: str,
+                    id: str,
+                    tip: str,
+                    variant: ButtonVariant = "default",
+                    display: bool = True,
+                ) -> Button:
                     b = Button(Text(label), id=id, variant=variant)
                     b.tooltip = tip
                     b.display = display
@@ -1007,11 +1016,11 @@ class SerialTerminal(TerminalHost, App):
                 yield _btn("SS", "btn-ss-dir", "Open screenshot folder.")
                 yield _btn("Cap", "btn-cap-dir", "Open captures folder.")
 
-    def _show_config_info(self, *args, **kwargs):
+    def _show_config_info(self, path: str) -> None:
         """Delegate to ``info_views.show_config_info``."""
         from termapy.info_views import show_config_info
 
-        show_config_info(self, *args, **kwargs)
+        show_config_info(self, path)
 
     def session_log_path(self) -> Path | None:
         """The TUI's session log: ``log_file`` when set, else ``<cfg>.log`` (``config.session_log_file``)."""
@@ -1215,7 +1224,7 @@ class SerialTerminal(TerminalHost, App):
         ctx.dispatch = self._dispatch_single
         # A plugin's notification is text unless it asks otherwise.
         ctx.io.notify = lambda text, **kw: self._on_main(
-            self.notify, text, **{"markup": False, **kw}
+            partial(self.notify, markup=False), text, **kw
         )
         ctx.io.clear_screen = lambda: self._on_main(self._clear_output)
         ctx.ui._save_screenshot_impl = lambda *a, **kw: self._on_main(
@@ -1423,7 +1432,7 @@ class SerialTerminal(TerminalHost, App):
             return
         self._set_conn_status(text, "retry")
 
-    def _open_proto_debug(self, path, script) -> None:
+    def _open_proto_debug(self, path: Path, script: ProtoScript) -> None:
         """Open the interactive protocol debug screen.
 
         Discovers available packet visualizers from built-in, global,
@@ -1498,7 +1507,7 @@ class SerialTerminal(TerminalHost, App):
                 time.sleep(delay_s)
             self._wait_for_idle(400)
 
-    def _on_main(self, fn, *args, **kwargs):
+    def _on_main(self, fn: Callable[_P, _R], *args: _P.args, **kwargs: _P.kwargs) -> _R | None:
         """Run *fn* on the main thread.  No-op if already there."""
         if self._main_thread_id == threading.get_ident():
             return fn(*args, **kwargs)
@@ -1955,11 +1964,11 @@ class SerialTerminal(TerminalHost, App):
             callback=_on_name,
         )
 
-    def _on_config_result(self, *args, **kwargs):
+    def _on_config_result(self, result: tuple | None) -> None:
         """Delegate to ``pickers.on_config_result``."""
         from termapy.pickers import on_config_result
 
-        return on_config_result(self, *args, **kwargs)
+        on_config_result(self, result)
 
     def _port_info_str(self) -> str:
         """Format port info like 'COM4 115200 8N1' for title bar.
@@ -1999,11 +2008,15 @@ class SerialTerminal(TerminalHost, App):
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
 
-    def _update_conn_tooltip(self, *args, **kwargs) -> None:
+    def _update_conn_tooltip(
+        self,
+        widget: Button | None = None,
+        display: tuple[str, port_control.ChipFacts | None] | None = None,
+    ) -> None:
         """Refresh the port-button tooltip.  Implementation in ``title_bar``."""
         from termapy.title_bar import update_conn_tooltip
 
-        update_conn_tooltip(self, *args, **kwargs)
+        update_conn_tooltip(self, widget, display)
 
     def _sync_hw_buttons(self, reset: bool = False) -> None:
         """Update DTR/RTS button labels to reflect actual pin state."""
@@ -2063,7 +2076,7 @@ class SerialTerminal(TerminalHost, App):
     def _on_btn_break(self) -> None:
         if self.is_connected:
 
-            def _send():
+            def _send() -> None:
                 self._engine.send_break()
                 self.notify("Break sent", timeout=1.5)
 
@@ -2450,35 +2463,35 @@ class SerialTerminal(TerminalHost, App):
         elif parts:
             self._dispatch_on_thread(parts[0])
 
-    def _show_port_picker(self, *args, **kwargs):
+    def _show_port_picker(self) -> None:
         """Delegate to ``info_views.show_port_picker``."""
         from termapy.info_views import show_port_picker
 
-        show_port_picker(self, *args, **kwargs)
+        show_port_picker(self)
 
-    def _update_port(self, *args, **kwargs) -> None:
+    def _update_port(self, port: str) -> None:
         """Refresh port-name display.  Implementation in ``title_bar``."""
         from termapy.title_bar import update_port
 
-        update_port(self, *args, **kwargs)
+        update_port(self, port)
         # Connection failure already reported by _try_open_port
 
-    def _on_port_picked(self, *args, **kwargs):
+    def _on_port_picked(self, port: str | None) -> None:
         """Delegate to ``pickers.on_port_picked``."""
         from termapy.pickers import on_port_picked
 
-        on_port_picked(self, *args, **kwargs)
+        on_port_picked(self, port)
 
     # -- Palette action wrappers --
 
     def _new_config(self) -> None:
         self.push_screen(QuickSetup(), callback=self._on_quick_setup)
 
-    def _on_quick_setup(self, *args, **kwargs):
+    def _on_quick_setup(self, result: tuple | None) -> None:
         """Delegate to ``pickers.on_quick_setup``."""
         from termapy.pickers import on_quick_setup
 
-        on_quick_setup(self, *args, **kwargs)
+        on_quick_setup(self, result)
 
     def _edit_file(self, path: Path) -> None:
         """``ctx.internal.edit_file``: the TUI's own editor for the config, a .run or a .pro file.
@@ -2843,7 +2856,7 @@ class SerialTerminal(TerminalHost, App):
 
     # ── File capture engine ──────────────────────────────────────────────────
 
-    def _cap_start(self, *args, **kwargs):
+    def _cap_start(self, **kwargs: Any) -> bool | None:
         """Start a capture on the main thread; ``capture_view._cap_start`` is the implementation.
 
         The host wires this onto ``internal.start_capture``.  ``/cap`` runs on
@@ -2851,7 +2864,7 @@ class SerialTerminal(TerminalHost, App):
         """
         from termapy.capture_view import _cap_start
 
-        return self._on_main(_cap_start, self, *args, **kwargs)
+        return self._on_main(_cap_start, self, **kwargs)
 
     def _cap_stop(self) -> None:
         """Stop the capture on the main thread, as ``_cap_start`` starts it.
@@ -3393,11 +3406,11 @@ class SerialTerminal(TerminalHost, App):
     # popup on non-Linux platforms.
     _LINUX_ONLY_RE = re.compile(r"linux[^.\n]*only|only[^.\n]*linux", re.IGNORECASE)
 
-    def _show_commands(self, *args, **kwargs):
+    def _show_commands(self) -> None:
         """Delegate to ``info_views.show_commands``."""
         from termapy.info_views import show_commands
 
-        show_commands(self, *args, **kwargs)
+        show_commands(self)
 
     def _hide_history(self) -> None:
         popup = self.query_one("#history-popup", OptionList)
@@ -3427,7 +3440,7 @@ class SerialTerminal(TerminalHost, App):
             inp.value = f"{prefix}{name} "
             inp.action_end()
 
-    def on_key(self, event) -> None:
+    def on_key(self, event: events.Key) -> None:
         """Handle Up/Down for history cycling, Escape to dismiss popup or clear.
 
         In the output pane a printable key goes back to the prompt and is
@@ -3828,7 +3841,7 @@ class SerialTerminal(TerminalHost, App):
             self._sync_hw_visibility()
             self._sync_hw_buttons()
 
-    def _refresh_after_cfg(self, key: str, new_val) -> None:
+    def _refresh_after_cfg(self, key: str, new_val: object) -> None:
         was_connected = self.is_connected
         if key in port_control.SERIAL_KEYS and was_connected:
             self._disconnect()
@@ -3842,7 +3855,7 @@ class SerialTerminal(TerminalHost, App):
         if key in port_control.SERIAL_KEYS and was_connected:
             self._connect()
 
-    def _hook_cfg_confirm(self, key: str, new_val) -> bool:
+    def _hook_cfg_confirm(self, key: str, new_val: object) -> bool:
         """``/cfg <key> <value>`` in the TUI: ask, wait for the answer, and apply on Yes.
 
         Returns:
@@ -3859,11 +3872,11 @@ class SerialTerminal(TerminalHost, App):
         self.repl._apply_cfg(key, new_val)
         return True
 
-    def _on_script_picked(self, *args, **kwargs):
+    def _on_script_picked(self, result: tuple | None) -> None:
         """Delegate to ``pickers.on_script_picked``."""
         from termapy.pickers import on_script_picked
 
-        on_script_picked(self, *args, **kwargs)
+        on_script_picked(self, result)
 
     def _on_script_saved(self, path: str | None) -> None:
         if path:
@@ -3871,11 +3884,11 @@ class SerialTerminal(TerminalHost, App):
             self._sync_scripts_button()
         self._sync_proto_button()
 
-    def _on_proto_picked(self, *args, **kwargs):
+    def _on_proto_picked(self, result: tuple | None) -> None:
         """Delegate to ``pickers.on_proto_picked``."""
         from termapy.pickers import on_proto_picked
 
-        on_proto_picked(self, *args, **kwargs)
+        on_proto_picked(self, result)
 
     def _on_proto_saved(self, path: str | None) -> None:
         """Handle result from the ProtoEditor dialog.
@@ -3887,11 +3900,11 @@ class SerialTerminal(TerminalHost, App):
             self._status(f"Proto script saved: {Path(path).name}", "green")
             self._sync_proto_button()
 
-    def _open_picker(self, *args, **kwargs):
+    def _open_picker(self, name: str) -> CmdResult:
         """Delegate to ``pickers.open_picker``."""
         from termapy.pickers import open_picker
 
-        return open_picker(self, *args, **kwargs)
+        return open_picker(self, name)
 
     _script_last_label: str = ""
 
@@ -4058,7 +4071,7 @@ def _reset_terminal() -> None:
         pass
 
 
-def _run_proto_headless(args) -> None:
+def _run_proto_headless(args: argparse.Namespace) -> None:
     """Run a .pro test script headlessly (no TUI) and write JSON results."""
     from termapy.protocol import run_proto_tests
 
@@ -4130,7 +4143,7 @@ def _run_proto_headless(args) -> None:
     sys.exit(0 if failed == 0 else 1)
 
 
-def _run_web_mode(args) -> None:
+def _run_web_mode(args: argparse.Namespace) -> None:
     """Serve the TUI in a web browser via textual-serve."""
     try:
         # No ty: ignore here -- the gate runs with all extras synced (see
@@ -4184,7 +4197,7 @@ def _run_web_mode(args) -> None:
     server.serve()
 
 
-def _run_tui_mode(args) -> str | None:
+def _run_tui_mode(args: argparse.Namespace) -> str | None:
     """Run in TUI mode. Returns mode to switch to, or None for exit."""
     if args.demo:
         from termapy.config import setup_demo_config

@@ -180,6 +180,11 @@ call with `cmd --<level>` or `cmd.<level>`:
 /cap.dump capture.bin --silent  # run, drop output, only value returns
 ```
 
+The flag and the suffix mean the same. A silent call is not echoed either
+way, and a connect or disconnect banner (`Connected: COM9`) is the command's
+output, so `/port.disconnect --quiet` closes the port without one. The
+session log keeps the banner.
+
 Set the level at startup with `--silent`, `--quiet`, or `--verbose` on the
 `termapy` command line.
 

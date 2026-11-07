@@ -2490,6 +2490,35 @@ class TestBatchedOutputIsEquivalent:
         _run(scenario)
 
 
+class TestPortBanners:
+    """A quiet command's connection banner stays off the pane and in the session log."""
+
+    def test_a_quiet_disconnect_is_logged_not_shown(self, app_factory):
+        """/port.disconnect --quiet puts no banner in the pane; the session log still records it."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                app._open_log()
+                assert app._connect() is True, "DEMO port should connect"
+                await pilot.pause()
+
+                # Act
+                result = app._dispatch_single("/port.disconnect --quiet")
+                await pilot.pause()
+
+                # Assert
+                assert result.success is True, result.error
+                text = app._get_screen_text()
+                assert "Disconnected" not in text, f"the banner reached the pane:\n{text}"
+                logged = Path(app.session_log_path()).read_text(encoding="utf-8")
+                assert "# Disconnected: DEMO" in logged, "the log keeps what happened"
+
+        _run(scenario)
+
+
 class TestReceivedJson:
     """A device's JSON line is laid out on screen by json.* and stays as it arrived everywhere else."""
 

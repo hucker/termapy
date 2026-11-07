@@ -584,6 +584,96 @@ class TestConnectTimeout:
         assert opener.calls < 10, "the wait ended at the stop, not after every try"
 
 
+# ── the connection banners follow the command's output level ───────────────
+
+
+_QUIET_SPELLINGS = ["{cmd}.quiet", "{cmd} --quiet", "{cmd}.silent", "{cmd} --silent"]
+
+
+class TestBannersFollowTheLevel:
+    """A connect or disconnect banner is the command's output: a quiet or silent call keeps it off the screen."""
+
+    @pytest.mark.parametrize("spelling", _QUIET_SPELLINGS)
+    def test_a_quiet_disconnect_prints_no_banner(self, cli, capsys, spelling):
+        """The suffix and the flag hide the banner alike, and the port still closes."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/" + spelling.format(cmd="port.disconnect"))
+        out = capsys.readouterr().out
+
+        # Assert
+        assert result.success is True, result.error
+        assert "Disconnected" not in out, f"{spelling} still printed the banner:\n{out}"
+        assert cli.engine.is_connected is False, "the port closed all the same"
+
+    @pytest.mark.parametrize("spelling", _QUIET_SPELLINGS)
+    def test_a_quiet_connect_prints_no_banner(self, cli, capsys, spelling):
+        """The connect banner hides alike, and the port opens."""
+        # Arrange
+        cli.repl.dispatch_full("/port.disconnect.silent")
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/" + spelling.format(cmd="port.connect"))
+        out = capsys.readouterr().out
+
+        # Assert
+        assert result.success is True, result.error
+        assert "Connected" not in out, f"{spelling} still printed the banner:\n{out}"
+        assert cli.engine.is_connected is True, "the port opened all the same"
+
+    def test_a_plain_call_still_prints_both_banners_after_a_quiet_one(self, cli, capsys):
+        """The level is the call's own: after a quiet pair, plain calls print their banners again."""
+        # Arrange
+        cli.repl.dispatch_full("/port.disconnect.quiet")
+        cli.repl.dispatch_full("/port.connect --quiet")
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/port.disconnect")
+        cli.repl.dispatch_full("/port.connect")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert "Disconnected: DEMO" in out, "a plain disconnect shows its banner"
+        assert "Connected: DEMO" in out, "a plain connect shows its banner"
+
+    @pytest.mark.parametrize(
+        ("cmd", "banner"),
+        [("/port.disconnect", "Disconnected: DEMO"), ("/port.connect", "Connected: DEMO")],
+    )
+    def test_a_json_call_carries_its_banner_in_the_envelope(self, cli, capsys, cmd, banner):
+        """--json answers with one envelope: the banner is in its output_lines and nothing prints beside it."""
+        # Arrange
+        if cmd == "/port.connect":
+            cli.repl.dispatch_full("/port.disconnect.silent")
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full(f"{cmd} --json")
+        lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+
+        # Assert
+        assert len(lines) == 1, f"only the envelope prints: {lines}"
+        output_lines = json.loads(lines[0])["output_lines"]
+        assert [line.startswith(banner) for line in output_lines] == [True], output_lines
+
+    def test_a_quiet_json_call_has_no_banner_anywhere(self, cli, capsys):
+        """--json --quiet: the envelope's output is empty and nothing prints beside it."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/port.disconnect --json --quiet")
+        lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+
+        # Assert
+        assert len(lines) == 1, f"only the envelope prints: {lines}"
+        assert json.loads(lines[0])["output_lines"] == [], "quiet keeps it out of the envelope too"
+
+
 # ── a failed command captured into a variable ───────────────────────────────
 
 

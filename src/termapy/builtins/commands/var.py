@@ -10,6 +10,7 @@ and the transform registration; it holds no state.
 from __future__ import annotations
 
 import re
+import textwrap
 from typing import TYPE_CHECKING
 
 from termapy.defaults import cfg_value
@@ -25,6 +26,7 @@ from termapy.plugins import (
     escape_markup,
 )
 from termapy.plugins.capabilities import STATE_MESSAGES
+from termapy.port_control import PORT_SETTINGS, SIGNAL_LINES, UNPROBED_CHIP_FIELDS
 from termapy.variables import (
     clear_vars,
     context_vars,
@@ -33,6 +35,7 @@ from termapy.variables import (
     folder_var_name,
     launch_var,
     launch_vars,
+    port_var_name,
     resolve_datetime_var,
     set_user_var,
     snapshot as variables_snapshot,
@@ -289,6 +292,33 @@ _FOLDER_VAR_LINES = "\n".join(
     f"  {'$(' + folder_var_name(folder) + ')':<21}- {folder}/ folder" for folder in FOLDER_NAMES
 )
 
+
+def _port_line(ref: str, text: str) -> str:
+    """One help entry, ``$(ref)`` then its text, wrapped under the text column."""
+    return textwrap.fill(
+        text, width=78, initial_indent=f"  {'$(' + ref + ')':<21}- ", subsequent_indent=" " * 25
+    )
+
+
+def _port_facts(facts: tuple[str, ...]) -> str:
+    """The facts as their variables spell them after ``PORT.``: ``BAUD_RATE, PARITY``."""
+    return ", ".join(port_var_name(fact).removeprefix("PORT.") for fact in facts)
+
+
+# The port variables' help, built from the tables that name them, so it cannot drift.
+_PORT_VAR_LINES = "\n".join(
+    [
+        _port_line("PORT.STATE", "connected or disconnected"),
+        _port_line("PORT.NAME", "the open port (e.g. COM9)"),
+        _port_line("PORT.<SETTING>", f"settings: {_port_facts(PORT_SETTINGS)}"),
+        _port_line("PORT.<LINE>", f"1 or 0: {_port_facts(SIGNAL_LINES)}"),
+        _port_line(
+            "PORT.<CHIP>",
+            f"the chip, as {{prefix}}port.chip shows it: {_port_facts(UNPROBED_CHIP_FIELDS)}",
+        ),
+    ]
+)
+
 _VAR_PROSE = (
     """\
 User-defined variables use $(NAME) syntax (case-sensitive).
@@ -342,6 +372,11 @@ Config variables (resolved paths from current config):
   $(CFG.BAUD)          - baud rate
   $(CFG.PORT_CFG)      - port config (e.g. 9600 8N1)
   $(CFG.PORT_FULL)     - full connection (e.g. COM4 9600 8N1)
+
+Port variables (the open port, read when used; empty when not connected):
+"""
+    + _PORT_VAR_LINES
+    + """
 
 Escaping (when your data contains literal $):
   \\$(PORT)           - literal $(PORT) (not expanded)

@@ -260,18 +260,29 @@ class TerminalHost:
         )
 
     def _register_vars(self) -> None:
-        """Register the session's variables: ``$(FRONT_END)``, ``$(CFG)``, ``$(CFG.*)``.
+        """Register the session's variables: ``$(FRONT_END)``, ``$(CFG)``, ``$(CFG.*)``, ``$(PORT.*)``.
 
         The same set in every frontend, named by its :attr:`front_end`.
-        The ``CFG`` values are read when expanded, so a config switch
-        needs no second registration.
+        The ``CFG`` and ``PORT`` values are read when expanded, so a config
+        switch or a reconnect needs no second registration.  ``PORT.*`` is the
+        port open now (``PORT.NAME`` is ``COM9`` for a config that connects by
+        serial number), empty while none is open: it never looks a port up.
         """
-        from termapy.variables import register_cfg_vars, set_context_var, set_launch_var
+        from termapy.variables import (
+            register_cfg_vars,
+            register_port_vars,
+            set_context_var,
+            set_launch_var,
+        )
 
         set_launch_var("FRONT_END", self.front_end)
         set_context_var(
             "CFG",
             lambda: Path(self.config_path).stem if self.config_path else "termapy",
+        )
+        register_port_vars(
+            get_cfg=lambda: self.cfg,
+            get_port=lambda: self.engine.port_obj if self.engine.is_connected else None,
         )
         register_cfg_vars(
             get_config_path=lambda: self.config_path,

@@ -150,6 +150,7 @@ $(BAUD) <- /port.baud_rate
 /port.baud_rate
 # A timed connect to a port that never opens: the message, then the reason
 /port.disconnect
+/print port=[$(PORT.NAME)] state=$(PORT.STATE) serial=[$(PORT.SERIAL)] dtr=[$(PORT.DTR)]
 /port.connect DEMO_FAIL timeout=300ms msg=Waiting for a port that never opens...
 /port.connect DEMO
 
@@ -523,6 +524,8 @@ MEM.R 0x1000 2 --json
 /port.disconnect
 /port.connect TERMAPY-DEMO
 /port.info
+# The OS name of the port the serial number opened, beside the spec it was opened by
+/print port=$(PORT.NAME) state=$(PORT.STATE) cfg=$(CFG.PORT) serial=$(PORT.SERIAL) dtr=$(PORT.DTR) baud=$(PORT.BAUD_RATE)
 
 # -- A load starts clean: what this session changed is gone -----------------
 /print === section: a load starts clean ===

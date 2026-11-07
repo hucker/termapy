@@ -495,6 +495,8 @@ demo> /port.baud_rate
   115200
 demo> /port.disconnect
 Disconnected: DEMO
+demo> /print port=[$(PORT.NAME)] state=$(PORT.STATE) serial=[$(PORT.SERIAL)] dtr=[$(PORT.DTR)]
+  port=[] state=disconnected serial=[] dtr=[]
 demo> /port.connect DEMO_FAIL timeout=300ms msg=Waiting for a port that never opens...
   Waiting for a port that never opens...
   Error: Cannot open DEMO_FAIL: DEMO_FAIL: simulated open failure (waited 300ms)
@@ -963,7 +965,7 @@ DESCRIPTION
   Named values you set or capture from a command or a device reply, then
   use in any command as $(NAME).
 
-  Currently defined: 0 user, 9 datetime, 19 context, 1 launch
+  Currently defined: 0 user, 9 datetime, 48 context, 1 launch
 
   User-defined variables use $(NAME) syntax (case-sensitive).
 
@@ -1024,6 +1026,18 @@ DESCRIPTION
     $(CFG.BAUD)          - baud rate
     $(CFG.PORT_CFG)      - port config (e.g. 9600 8N1)
     $(CFG.PORT_FULL)     - full connection (e.g. COM4 9600 8N1)
+
+  Port variables (the open port, read when used; empty when not connected):
+    $(PORT.STATE)        - connected or disconnected
+    $(PORT.NAME)         - the open port (e.g. COM9)
+    $(PORT.<SETTING>)    - settings: BAUD_RATE, BYTE_SIZE, PARITY, STOP_BITS,
+                           FLOW_CONTROL
+    $(PORT.<LINE>)       - 1 or 0: DTR, RTS, CTS, DSR, RI, CD
+    $(PORT.<CHIP>)       - the chip, as /port.chip shows it: DEVICE,
+                           DESCRIPTION, MANUFACTURER, VENDOR, PRODUCT, SERIAL,
+                           LOCATION, INTERFACE_NUMBER, INTERFACE, VID_PID,
+                           MODEL, USB_SPEED, NEGOTIATED, DRIVER, LATENCY_TIMER,
+                           MAX_BAUD
 
   Escaping (when your data contains literal $):
     \$(PORT)           - literal $(PORT) (not expanded)
@@ -2148,6 +2162,8 @@ demo> /port.info
   DSR: 1
   RI : 0
   CD : 1
+demo> /print port=$(PORT.NAME) state=$(PORT.STATE) cfg=$(CFG.PORT) serial=$(PORT.SERIAL) dtr=$(PORT.DTR) baud=$(PORT.BAUD_RATE)
+  port=DEMO state=connected cfg=TERMAPY-DEMO serial=TERMAPY-DEMO dtr=1 baud=115200
 demo> /print === section: a load starts clean ===
   === section: a load starts clean ===
 demo> /help cfg.load

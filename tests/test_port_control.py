@@ -13,6 +13,7 @@ from termapy.port_control import (
     parse_mode,
     parse_open_args,
     port_info,
+    problem,
     read_signal,
     send_break,
     set_mode,
@@ -472,7 +473,7 @@ class TestParseOpenArgs:
     def test_port_only(self):
         """A lone port name sets only the port; every other field stays None."""
         # Act
-        port, baud, mode, le, echo, err = parse_open_args("COM3")
+        port, baud, mode, le, echo, _, err = parse_open_args("COM3")
 
         # Assert
         assert port == "COM3", "should extract port name"
@@ -486,7 +487,7 @@ class TestParseOpenArgs:
         """A leading 8N1 is classified as a mode, not opened as a port named 8N1."""
         # 8N1 now parses as a mode; before, the unrecognized "8N1" was
         # treated as a port name -> "Cannot open 8N1".
-        port, baud, mode, le, echo, err = parse_open_args("8N1")
+        port, baud, mode, le, echo, _, err = parse_open_args("8N1")
 
         assert err is None, "8N1 is a valid mode, not an error"
         assert mode == ("N", 8, 1.0), f"8N1 -> mode, got {mode}"
@@ -496,19 +497,109 @@ class TestParseOpenArgs:
         """port= is the escape hatch for a numeric serial number that would read as baud."""
         # port= is the explicit escape hatch for a numeric SN that a bare
         # token would otherwise read as a baud rate.
-        port, baud, mode, le, echo, err = parse_open_args("port=0001 9600")
+        port, baud, mode, le, echo, _, err = parse_open_args("port=0001 9600")
 
         assert err is None, "port=0001 9600 parses cleanly"
         assert port == "0001", f"port= forces the value as the port, got {port!r}"
         assert baud == 9600, f"the bare 9600 is still baud, got {baud}"
 
     def test_bare_numeric_still_baud(self):
-        """A bare numeric first token stays a baud rate even when it looks like an SN."""
-        # Unchanged: a bare numeric first token is baud (use port= for an SN).
-        port, baud, _, _, _, err = parse_open_args("0001")
+        """A bare numeric first token is read as a baud rate, so an SN typed without port= is refused as one."""
+        # Act
+        *_, err = parse_open_args("0001")
 
-        assert err is None, "bare 0001 parses as baud"
-        assert port is None and baud == 1, f"bare numeric is baud, got port={port} baud={baud}"
+        # Assert
+        assert err == "Invalid baud rate: 1 (not a standard rate: add custom=true to allow it)", (
+            "a rate of 1 is refused rather than opened; port=0001 names the SN"
+        )
+
+
+class TestBaudStandardUnlessCustom:
+    """baud-standard-unless-custom: a typed rate off the standard list needs custom=true."""
+
+    def test_a_mistyped_rate_is_refused(self):
+        """11520 (a 115200 missing a digit) is refused, and the error says how to ask for it."""
+        *_, err = parse_open_args("COM3 11520")
+        assert err == "Invalid baud rate: 11520 (not a standard rate: add custom=true to allow it)"
+
+    def test_custom_true_allows_any_rate_from_300(self):
+        """custom=true takes a rate off the list, anywhere on the line, and says it was asked for."""
+        # Act
+        port, baud, _, _, _, custom, err = parse_open_args("COM3 custom=true 250000")
+
+        # Assert
+        assert err is None, err
+        assert (port, baud, custom) == ("COM3", 250000, True)
+
+    def test_custom_reads_the_boolean_vocabulary(self):
+        """custom= takes any parse_bool token and refuses anything else, never reading it as false."""
+        # Act
+        *_, custom_yes, err_yes = parse_open_args("COM3 250000 custom=yes")
+        *_, err_bad = parse_open_args("COM3 250000 custom=maybe")
+
+        # Assert
+        assert (custom_yes, err_yes) == (True, None), "yes is true"
+        assert err_bad is not None and err_bad.startswith("Invalid custom: maybe"), err_bad
+
+    def test_custom_still_requires_300(self):
+        """A custom rate under 300 is refused: no adapter runs that slow on purpose."""
+        *_, err = parse_open_args("COM3 150 custom=true")
+        assert err == "Invalid baud rate: 150 (custom baud requires >= 300)"
+
+    def test_a_standard_rate_needs_nothing(self):
+        """A standard rate parses as before, with custom false."""
+        _, baud, _, _, _, custom, err = parse_open_args("COM3 115200")
+        assert (baud, custom, err) == (115200, False, None)
+
+    def test_custom_twice_is_refused(self):
+        """Two custom= tokens are one too many, whatever they say."""
+        *_, err = parse_open_args("COM3 250000 custom=true custom=false")
+        assert err is not None and err.startswith("Duplicate custom"), err
+
+    def test_mode_refuses_a_mistyped_rate_and_takes_a_custom_one(self):
+        """/port.mode: 11520 is refused before the port is touched; custom=true sets the rate and custom_baud."""
+        # Arrange
+        port = _mock_ser()
+
+        # Act
+        refused = set_mode(port, _cfg(), "11520 8N1")
+        accepted = set_mode(port, _cfg(), "250000 8N1 custom=true")
+
+        # Assert
+        assert problem(refused) == (
+            "Invalid baud rate: 11520 (not a standard rate: add custom=true to allow it)"
+        )
+        assert problem(accepted) is None, accepted
+        assert port.baudrate == 250000, "the custom rate reached the port"
+        assert accepted[1]["cfg_update"]["custom_baud"] is True, "the session records it as custom"
+
+    def test_baud_rate_refuses_a_mistyped_rate_and_takes_a_custom_one(self):
+        """/port.baud_rate: 9460 is refused; 9460 custom=true sets it and custom_baud."""
+        # Arrange
+        port = _mock_ser()
+
+        # Act
+        refused = get_set_prop(port, _cfg(), "baud_rate", "9460")
+        accepted = get_set_prop(port, _cfg(), "baud_rate", "9460 custom=true")
+
+        # Assert
+        assert problem(refused) == (
+            "Invalid baud rate: 9460 (not a standard rate: add custom=true to allow it)"
+        )
+        assert port.baudrate == 9460, "the custom rate reached the port"
+        assert accepted[1]["cfg_update"] == {"baud_rate": 9460, "custom_baud": True}
+
+    def test_baud_rate_standard_leaves_custom_baud_alone(self):
+        """A standard rate sets only the rate: custom_baud is not touched."""
+        port = _mock_ser()
+        result = get_set_prop(port, _cfg(), "baud_rate", "9600")
+        assert result[1]["cfg_update"] == {"baud_rate": 9600}
+
+    def test_only_the_baud_rate_takes_custom(self):
+        """custom= belongs to the rate: on another property it is an invalid value, never ignored."""
+        port = _mock_ser()
+        result = get_set_prop(port, _cfg(), "byte_size", "8 custom=true")
+        assert problem(result) is not None, "custom= on the data bits is refused"
 
     def test_port_equals_requires_value(self):
         """An empty port= is an error rather than clearing the port."""
@@ -523,7 +614,7 @@ class TestParseOpenArgs:
     def test_port_and_baud(self):
         """A port followed by a number yields port and baud with no mode."""
         # Act
-        port, baud, mode, le, echo, err = parse_open_args("COM3 9600")
+        port, baud, mode, le, echo, _, err = parse_open_args("COM3 9600")
 
         # Assert
         assert port == "COM3", "should extract port name"
@@ -534,7 +625,7 @@ class TestParseOpenArgs:
     def test_port_baud_mode(self):
         """Port, baud and mode in order all classify correctly."""
         # Act
-        port, baud, mode, le, echo, err = parse_open_args("COM3 9600 N81")
+        port, baud, mode, le, echo, _, err = parse_open_args("COM3 9600 N81")
 
         # Assert
         assert port == "COM3", "should extract port name"
@@ -545,7 +636,7 @@ class TestParseOpenArgs:
     def test_port_and_mode_no_baud(self):
         """Baud may be omitted between port and mode."""
         # Act
-        port, baud, mode, le, echo, err = parse_open_args("COM3 N81")
+        port, baud, mode, le, echo, _, err = parse_open_args("COM3 N81")
 
         # Assert
         assert port == "COM3", "should extract port name"
@@ -556,7 +647,7 @@ class TestParseOpenArgs:
     def test_empty(self):
         """No args means no fields and no error, so a bare open reuses the config."""
         # Act
-        port, baud, mode, le, echo, err = parse_open_args("")
+        port, baud, mode, le, echo, _, err = parse_open_args("")
 
         # Assert
         assert port is None, "port should be None"
@@ -569,7 +660,7 @@ class TestParseOpenArgs:
     def test_linux_port(self):
         """A /dev path is accepted as a port name alongside baud and mode."""
         # Act
-        port, baud, mode, le, echo, err = parse_open_args("/dev/ttyUSB0 115200 E71")
+        port, baud, mode, le, echo, _, err = parse_open_args("/dev/ttyUSB0 115200 E71")
 
         # Assert
         assert port == "/dev/ttyUSB0", "should handle Linux device paths"
@@ -580,7 +671,7 @@ class TestParseOpenArgs:
     def test_duplicate_baud_error(self):
         """Two baud rates are an error rather than last-one-wins."""
         # Act
-        _, _, _, _, _, err = parse_open_args("COM3 9600 115200")
+        _, _, _, _, _, _, err = parse_open_args("COM3 9600 115200")
 
         # Assert
         assert err is not None, "should error on duplicate baud rate"
@@ -589,7 +680,7 @@ class TestParseOpenArgs:
     def test_duplicate_mode_error(self):
         """Two mode tokens are an error rather than last-one-wins."""
         # Act
-        _, _, _, _, _, err = parse_open_args("COM3 N81 E71")
+        _, _, _, _, _, _, err = parse_open_args("COM3 N81 E71")
 
         # Assert
         assert err is not None, "should error on duplicate mode"
@@ -600,7 +691,7 @@ class TestParseOpenArgs:
         # Act -- COM4 is not a line-ending / echo / mode / baud token,
         # and it isn't first, so the port-first enforcement rejects it
         # as "unexpected".
-        _, _, _, _, _, err = parse_open_args("COM3 COM4")
+        _, _, _, _, _, _, err = parse_open_args("COM3 COM4")
 
         # Assert
         assert err is not None, "should error on duplicate port name"
@@ -611,7 +702,7 @@ class TestParseOpenArgs:
     def test_line_ending_cr(self):
         """The cr token sets a carriage-return line ending."""
         # Act
-        port, baud, mode, le, echo, err = parse_open_args("COM3 cr")
+        port, baud, mode, le, echo, _, err = parse_open_args("COM3 cr")
 
         # Assert
         assert le == "\r", "cr -> carriage return"
@@ -620,7 +711,7 @@ class TestParseOpenArgs:
     def test_line_ending_lf(self):
         """The lf token sets a newline line ending."""
         # Act
-        _, _, _, le, _, err = parse_open_args("COM3 lf")
+        _, _, _, le, _, _, err = parse_open_args("COM3 lf")
 
         # Assert
         assert le == "\n", "lf -> newline"
@@ -629,7 +720,7 @@ class TestParseOpenArgs:
     def test_line_ending_crlf(self):
         """The crlf token sets a CR+LF line ending."""
         # Act
-        _, _, _, le, _, err = parse_open_args("COM3 crlf")
+        _, _, _, le, _, _, err = parse_open_args("COM3 crlf")
 
         # Assert
         assert le == "\r\n", "crlf -> carriage return + newline"
@@ -638,7 +729,7 @@ class TestParseOpenArgs:
     def test_line_ending_case_insensitive(self):
         """Line-ending tokens match regardless of case."""
         # Act -- uppercase/mixed should also match.
-        _, _, _, le, _, err = parse_open_args("COM3 CRLF")
+        _, _, _, le, _, _, err = parse_open_args("COM3 CRLF")
 
         # Assert
         assert le == "\r\n", "line ending match is case-insensitive"
@@ -647,7 +738,7 @@ class TestParseOpenArgs:
     def test_duplicate_line_ending(self):
         """Two line-ending tokens are an error naming the duplicate."""
         # Act
-        _, _, _, _, _, err = parse_open_args("COM3 cr lf")
+        _, _, _, _, _, _, err = parse_open_args("COM3 cr lf")
 
         # Assert
         assert err is not None, "two line endings should error"
@@ -658,7 +749,7 @@ class TestParseOpenArgs:
     def test_echo_on(self):
         """The echo token turns local echo on."""
         # Act
-        _, _, _, _, echo, err = parse_open_args("COM3 echo")
+        _, _, _, _, echo, _, err = parse_open_args("COM3 echo")
 
         # Assert
         assert echo is True, "echo token -> True"
@@ -667,7 +758,7 @@ class TestParseOpenArgs:
     def test_noecho(self):
         """The noecho token turns local echo off explicitly, distinct from unset."""
         # Act
-        _, _, _, _, echo, err = parse_open_args("COM3 noecho")
+        _, _, _, _, echo, _, err = parse_open_args("COM3 noecho")
 
         # Assert
         assert echo is False, "noecho token -> False"
@@ -676,7 +767,7 @@ class TestParseOpenArgs:
     def test_duplicate_echo(self):
         """Conflicting echo and noecho tokens are an error naming the duplicate."""
         # Act
-        _, _, _, _, _, err = parse_open_args("COM3 echo noecho")
+        _, _, _, _, _, _, err = parse_open_args("COM3 echo noecho")
 
         # Assert
         assert err is not None, "two echo tokens should error"
@@ -687,7 +778,7 @@ class TestParseOpenArgs:
     def test_all_fields_any_order_after_port(self):
         """After the port, baud, mode, line ending and echo may come in any order."""
         # Act -- the user's example from the feature ask.
-        port, baud, mode, le, echo, err = parse_open_args("COM3 echo crlf 9600 N81")
+        port, baud, mode, le, echo, _, err = parse_open_args("COM3 echo crlf 9600 N81")
 
         # Assert
         assert port == "COM3", "port stays first"
@@ -700,7 +791,7 @@ class TestParseOpenArgs:
     def test_no_port_still_accepts_other_fields(self):
         """Without a port the other fields still parse, for in-session changes."""
         # Act -- user just wants to change baud + echo in-session.
-        port, baud, mode, le, echo, err = parse_open_args("9600 echo")
+        port, baud, mode, le, echo, _, err = parse_open_args("9600 echo")
 
         # Assert
         assert port is None, "no port provided"
@@ -715,7 +806,7 @@ class TestParseOpenArgs:
         # Act -- putting a port-name-looking token after a classifier
         # should be rejected.  Previously (position-independent) this
         # would have been accepted as "port=COM3 with echo first".
-        _, _, _, _, _, err = parse_open_args("echo COM3")
+        _, _, _, _, _, _, err = parse_open_args("echo COM3")
 
         # Assert
         assert err is not None, "port-name-looking token after other fields must error"

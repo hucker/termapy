@@ -320,9 +320,12 @@ To repeat it from a source checkout, with a jumpered adapter and nothing
 else holding it:
 
 ```sh
-uv run python scripts/throughput.py --mode repl --baud 115200,230400,460800,921600,2000000
-uv run python scripts/throughput.py --kb 2048 --baud 230400,460800,600000,750000,921600,2000000
+uv run python scripts/throughput.py --mode repl --custom-baud --baud 115200,230400,460800,921600,2000000
+uv run python scripts/throughput.py --kb 2048 --custom-baud --baud 230400,460800,600000,750000,921600,2000000
 ```
+
+`--custom-baud` allows 600000, 750000 and 2 Mbaud, which are off the standard
+list, as a config's `custom_baud` does.
 
 It refuses to send unless the port echoes a probe, so it never sends into a
 device.

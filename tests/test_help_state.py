@@ -398,14 +398,16 @@ class TestThePortSettings:
         self, cli, capsys, command
     ):
         """With no port open a setting's page is the command's own answer, from the config, and no second hand-written value."""
-        # Arrange
-        expected = cli.repl.dispatch_full(f"/port.{command}").value
+        # Arrange -- the command's answer, read as the page reads it: its view's
+        # lines (baud_rate's record), else its value
+        answer = cli.repl.read_state(f"port.{command}")
+        expected = answer.view.lines() if answer.view is not None else [f"  {answer.value}"]
 
         # Act
         page = _page(cli, capsys, f"/help port.{command}")
 
         # Assert
-        assert _state_lines(page) == [f"  {expected}"], "the page and the command agree"
+        assert _state_lines(page) == expected, "the page and the command agree"
         assert "Current " not in page, "the value appears once, in CURRENT STATE"
 
     @pytest.mark.parametrize("line", ["dtr", "rts", "cts", "dsr", "ri", "cd"])
@@ -438,6 +440,25 @@ class TestEveryFrontend:
         # Assert
         assert (baud, dtr) == (["  115200"], ["  1"])
         assert len(record) == 16, "every row of /term.info: under the cap"
+
+    def test_the_baud_rate_page_says_when_it_is_custom(self, cli, capsys):
+        """baud-standard-unless-custom: in custom mode the page and the bare command say (custom); the value stays the number."""
+        # Arrange
+        cli._connect()
+        try:
+            cli.repl.dispatch("port.baud_rate 9460 custom=true")
+
+            # Act
+            state = _state_lines(_page(cli, capsys, "/help port.baud_rate"))
+            bare = cli.repl.dispatch("port.baud_rate")
+        finally:
+            cli._disconnect()
+
+        # Assert
+        assert state == ["  9460 (custom)"], "CURRENT STATE names the mode"
+        assert (bare.value, bare.data) == ("9460", {"baud": 9460, "custom": True}), (
+            "a script still captures the rate alone"
+        )
 
     def test_mcp_carries_the_section_in_its_output_lines(self, tmp_path):
         """An agent reading /help sees the same section, through the same read."""

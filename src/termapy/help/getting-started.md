@@ -28,7 +28,9 @@ It creates `termapy_cfg/my_device/my_device.cfg` in the current folder (or
 your `--cfg-dir`), titled `my_device`. The settings are
 [`/port.connect`](commands.md)'s: the port, which is required, then baud,
 frame (`8N1` or `N81`), `cr|lf|crlf` and `echo|noecho`; anything left off
-is 115200 8N1. Naming a config that already exists, here or in the dialog,
+is 115200 8N1. The baud rate must be a standard one, so a mistyped rate is
+refused; add `custom=true` for one off the list, as the dialog's custom box
+does (`termapy --new my_device COM4 250000 custom=true`). Naming a config that already exists, here or in the dialog,
 asks before its `.cfg` is replaced; the scripts and data in its folder are
 kept. Inside a session, `/cfg.new my_device COM4 115200 8N1` creates the
 same config where `/cfg.list` looks, and `/cfg.load my_device` switches to

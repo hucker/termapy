@@ -1045,6 +1045,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_palette.py                     | Tests for the command-palette additions that surface /find, /grep, /search                                                                         |
 | test_params.py                      | Tests for declarative command parameters (plugins/params.py + dispatch)                                                                            |
 | test_pickers.py                     | Tests for picker callbacks in `src/termapy/pickers.py`                                                                                             |
+| test_ping.py                        | /ping and /ping.quiet on the CLI DEMO rig: the value is the mean reply time, the data every round trip                                             |
 | test_plugin_resolve.py              | Tests for ReplEngine.resolve_plugins -- the one plugin-resolution step                                                                             |
 | test_plugins.py                     | Tests for plugin loading, COMMAND dataclass, and PluginContext                                                                                     |
 | test_port_commands.py               | The /port command family driven through the dispatcher on the CLI DEMO rig                                                                         |

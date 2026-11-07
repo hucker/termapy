@@ -360,7 +360,10 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """Show metadata of the active profile.
 
     A record answer (registry ``record-one-format``): the metadata is
-    ``data``, with ``device`` a dict or None and ``commands`` the count.
+    ``data``, with ``loaded`` True, ``device`` a dict or None and
+    ``commands`` the count.  With no profile the data is
+    ``{"loaded": False}`` beside the one-line answer, so an agent reads the
+    state rather than the prose.
     """
     ns = ctx.ns(_ACTIVE_PROFILE_NS)
     if not ns:
@@ -368,7 +371,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
             f"{STATE_MESSAGES['profile_loaded']}  {ctx.prefix}profile.load <path> to load one.",
             "yellow",
         )
-        return CmdResult.ok(value="")
+        return CmdResult.ok(value="", data={"loaded": False})
 
     source_path = ns.get("__source_path", "")
     source_cmd = ns.get("__source_cmd", "")
@@ -383,6 +386,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     device = ns.get("device") or {}
     cmd_count = len(ns.get("commands") or {})
     data = {
+        "loaded": True,
         "source": source_display,
         "profile_version": ns.get("profile_version"),
         "profile_revision": ns.get("profile_revision"),

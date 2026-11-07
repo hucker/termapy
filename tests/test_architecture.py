@@ -2150,7 +2150,6 @@ KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset(
         "edit.proto.list",
         "edit.run.list",
         "help.target",
-        "ping.quiet",
         "term.encoding",
         "term.log",
         "term.send_bare_enter",
@@ -3474,6 +3473,73 @@ def handler(ctx, args):
     assert printed == [10, 13, 16], (
         "a red line, a yellow status and a repeated message; not the hint"
     )
+
+
+# ── A value is a scalar ──────────────────────────────────────────────────────
+#
+# Audit 2026-11-06: /cap.wire, the demo /traffic.* commands and the MCP gate's
+# three refusals answered with a dict as ``value``, the scalar a script
+# captures, while ``data`` -- what an agent reads -- was empty.  A value is
+# one string or number; several facts are ``data``.  This catches the literal
+# shapes, a dict or list written at the call; a variable holding one is review.
+
+_SHAPED_LITERALS = (ast.Dict, ast.List, ast.Set, ast.Tuple, ast.DictComp, ast.ListComp, ast.SetComp)
+
+
+def _shaped_values(tree: ast.Module) -> list[tuple[str, int]]:
+    """``(qualname, line)`` of every ``CmdResult`` built with a dict, list, set or tuple literal as ``value``."""
+    sites: list[tuple[str, int]] = []
+    for qualname, node in _scoped_nodes(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        builds = (isinstance(func, ast.Name) and func.id == "CmdResult") or (
+            isinstance(func, ast.Attribute)
+            and isinstance(func.value, ast.Name)
+            and func.value.id == "CmdResult"
+        )
+        if not builds:
+            continue
+        value = next((keyword.value for keyword in node.keywords if keyword.arg == "value"), None)
+        if isinstance(value, _SHAPED_LITERALS):
+            sites.append((qualname, node.lineno))
+    return sites
+
+
+def test_a_value_is_a_scalar():
+    """value-is-scalar: no CmdResult carries a dict or list as value; the structure is data."""
+    # Arrange / Act
+    violations, _ = _unallowed(_shaped_values, {})
+
+    # Assert
+    assert violations == [], (
+        "value is the one scalar a script captures; put the structure in data= and pick "
+        "one fact for value=:\n  " + "\n  ".join(violations)
+    )
+
+
+def test_scalar_value_guard_fires_on_a_probe():
+    """The value-is-scalar guard flags a dict, a list and a comprehension as value, and passes data."""
+    # Arrange -- each forbidden shape, then the correct forms
+    source = """
+def handler(ctx, args):
+    if a:
+        return CmdResult.ok(value={"tx": 1})
+    if b:
+        return CmdResult.fail(msg="No.", value=[1, 2])
+    if c:
+        return CmdResult(value={k: v for k, v in pairs})
+    if d:
+        return CmdResult.ok(value="5", data={"tx": 1})
+    return CmdResult.ok(value=str(count))
+"""
+    tree = ast.parse(source)
+
+    # Act
+    actual = [line for _, line in _shaped_values(tree)]
+
+    # Assert
+    assert actual == [4, 6, 8], "a dict, a list and a comprehension; not data, not a scalar"
 
 
 def test_failure_printers_has_no_stale_entries():

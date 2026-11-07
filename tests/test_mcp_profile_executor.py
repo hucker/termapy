@@ -338,10 +338,10 @@ class TestUnknownSafetyTier:
         # Act
         result = asyncio.run(host.run_command_async("SPIN", "normal", 5.0))
         # Assert
-        value = result["value"]
+        marker = result["data"]
         assert result["success"] is False, "unknown tier gates like destructive"
-        assert value["needs_confirmation"] is True, "confirmation marker set"
-        assert value["safety"] == "hazardous", "raw declared tier surfaced"
+        assert marker["needs_confirmation"] is True, "confirmation marker set"
+        assert marker["safety"] == "hazardous", "raw declared tier surfaced"
         assert "unrecognized" in result["error"], "error explains the tier was unrecognized"
         assert host._sent == [], "no bytes hit the wire"
 
@@ -547,8 +547,8 @@ class TestDestructiveGate:
         )
         # Act — call without confirm
         result = asyncio.run(host.run_command_async("RESET", "normal", 5.0))
-        # Assert — fails BEFORE sending; surfaces an LLM-actionable shape
-        actual_marker = result["value"]
+        # Assert — fails BEFORE sending; surfaces an LLM-actionable shape as data
+        actual_marker = result["data"]
         expected_marker = {
             "needs_confirmation": True,
             "command": "RESET",
@@ -663,8 +663,8 @@ class TestEnabledGate:
         )
         # Act
         result = asyncio.run(host.run_command_async("AT", "normal", 5.0))
-        # Assert -- refused; no bytes on the wire; structured marker
-        actual_marker = result["value"]
+        # Assert -- refused; no bytes on the wire; structured marker as data
+        actual_marker = result["data"]
         expected_marker = {
             "disabled": True,
             "command": "AT",
@@ -721,7 +721,7 @@ class TestEnabledGate:
         result = asyncio.run(host.run_command_async("RESET", "normal", 5.0, confirm=True))
         # Assert
         assert result["success"] is False, "disabled refuses regardless of confirm"
-        assert result["value"].get("disabled") is True, "disabled marker, not needs_confirmation"
+        assert result["data"].get("disabled") is True, "disabled marker, not needs_confirmation"
         assert host._sent == [], "no bytes go out for a disabled entry"
 
 
@@ -1014,10 +1014,11 @@ class TestTypedArgValidation:
         )
         # Act
         result = asyncio.run(host.run_command_async("SET banana", "normal", 5.0))
-        # Assert -- the LLM gets the rejected value/type back in `value`.
-        value = result["value"]
-        assert isinstance(value, dict), "structured failure carries a value dict"
-        assert value["arg"] == "state", "arg name surfaced"
-        assert value["type"] == "on_off", "type name surfaced"
-        assert value["value"] == "banana", "rejected value surfaced"
-        assert value["command"] == "SET", "canonical command name surfaced"
+        # Assert -- the LLM gets the rejected value/type back in `data`.
+        detail = result["data"]
+        assert isinstance(detail, dict), "structured failure carries a data dict"
+        assert detail["arg"] == "state", "arg name surfaced"
+        assert detail["type"] == "on_off", "type name surfaced"
+        assert detail["value"] == "banana", "rejected value surfaced"
+        assert detail["command"] == "SET", "canonical command name surfaced"
+        assert result["value"] == "", "the scalar is never the structure"

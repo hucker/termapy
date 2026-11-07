@@ -68,7 +68,7 @@ def _run_line(cli: CLITerminal, tmp_path: Path, line: str) -> None:
 
 
 # AT+RAMP\r goes out (8 bytes) and the DEMO answers x.x\r\n (5 bytes).
-_RAMP = {"tx": 8, "rx": 5}
+_RAMP = {"tx_bytes": 8, "rx_bytes": 5}
 
 
 class TestCount:
@@ -77,7 +77,12 @@ class TestCount:
     def test_the_reply_is_counted(self, cli):
         """With the default 50ms gap, AT+RAMP counts its 8 bytes out and its 5-byte reply."""
         result = cli.repl.dispatch_full("/traffic.count AT+RAMP")
-        assert result.value == _RAMP, result.error
+        assert result.data == _RAMP, result.error
+
+    def test_the_value_is_the_reply_size(self, cli):
+        """The scriptable value is a scalar, the RX byte count; both counts are the data."""
+        result = cli.repl.dispatch_full("/traffic.count wait_gap=200ms AT+RAMP")
+        assert result.value == "5", "the value is a scalar, never the data dict"
 
     def test_twice_in_a_row_each_counts_its_own_reply(self, cli):
         """A second count sees its own reply and none of the first one's."""
@@ -86,7 +91,7 @@ class TestCount:
         second = cli.repl.dispatch_full("/traffic.count wait_gap=200ms AT+RAMP")
 
         # Assert
-        assert (first.value, second.value) == (_RAMP, _RAMP), "each count is its own exchange"
+        assert (first.data, second.data) == (_RAMP, _RAMP), "each count is its own exchange"
 
     @pytest.mark.parametrize(
         "line",
@@ -95,12 +100,12 @@ class TestCount:
     def test_wait_gap_goes_anywhere_on_the_line(self, cli, line):
         """wait_gap= is read before or after the command, and never sent with it."""
         result = cli.repl.dispatch_full(line)
-        assert result.value == _RAMP, result.error
+        assert result.data == _RAMP, result.error
 
     def test_an_equals_sign_stays_in_the_command(self, cli):
         """AT+NAME=probe is the device command, not an unknown keyword: all of it goes out."""
         result = cli.repl.dispatch_full("/traffic.count wait_gap=200ms AT+NAME=probe")
-        assert result.value["tx"] == len(b"AT+NAME=probe\r"), result.error
+        assert result.data["tx_bytes"] == len(b"AT+NAME=probe\r"), result.error
 
     def test_a_bad_wait_gap_is_refused(self, cli):
         """A wait_gap= that is not a duration fails, and the error names it."""
@@ -118,8 +123,8 @@ class TestCount:
         count = cli.repl.dispatch_full("/traffic.count wait_gap=200ms AT+RAMP")
 
         # Assert
-        actual = {"tx": wire.value["tx_bytes"], "rx": wire.value["rx_bytes"]}
-        assert actual == count.value == _RAMP, "the two commands disagree on one exchange"
+        actual = {key: wire.data[key] for key in _RAMP}
+        assert actual == count.data == _RAMP, "the two commands disagree on one exchange"
 
 
 def test_hexdump_lands_in_cap(cli, tmp_path):
@@ -131,7 +136,21 @@ def test_hexdump_lands_in_cap(cli, tmp_path):
     assert result.success is True, result.error
     expected = tmp_path / "rig" / "cap" / "wire.txt"
     assert expected.exists(), "the file is in cap/"
-    assert result.value["path"] == str(expected.resolve()), "the reply names the full path"
+    assert result.value == str(expected.resolve()), "the reply names the full path"
+    assert result.data["path"] == result.value, "the data carries the same path"
+
+
+def test_rate_answers_a_scalar_and_its_data(cli):
+    """/traffic.rate's value is the RX rate as text; the window's counts and rates are the data."""
+    # Act
+    result = cli.repl.dispatch_full("/traffic.rate 50ms")
+
+    # Assert
+    assert result.success is True, result.error
+    assert isinstance(result.value, str), "the value is a scalar, never the data dict"
+    actual = sorted(result.data)
+    expected = ["duration_s", "rx_bytes", "rx_rate_bps", "tx_bytes", "tx_rate_bps"]
+    assert actual == expected, "the data carries both directions' counts and rates"
 
 
 def test_hexdump_twice_replaces_for_a_person(cli, tmp_path):

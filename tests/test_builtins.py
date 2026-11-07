@@ -574,6 +574,15 @@ class TestVer:
             f"value is the human-readable version line, got: {result.value!r}"
         )
 
+    def test_app_ver_data_is_the_bare_version(self, repl_env):
+        """An agent reads the version itself from the data, not out of the 'termapy v...' line."""
+        # Arrange / Act
+        engine, _, _, _ = repl_env
+        result = engine.dispatch("app.ver")
+
+        # Assert
+        assert result.value == f"termapy v{result.data['version']}", "the line wraps the version"
+
     def test_legacy_ver_forwards_to_app_ver(self, repl_env):
         """The hidden /ver forwarder keeps the /app.ver value intact for old scripts."""
         # Arrange / Act -- the old /ver keeps working via a hidden forwarder
@@ -2602,7 +2611,7 @@ class TestCapWire:
         assert "Usage" in result.error, "error names usage"
 
     def test_wire_envelope_shape(self, repl_env):
-        """The value envelope carries byte counts, hex and decoded text for both TX and RX."""
+        """The data envelope carries byte counts, hex and decoded text both ways; the value is the RX hex."""
         # Arrange
         engine, _, _, _ = repl_env
         ctx = engine.ctx
@@ -2624,7 +2633,8 @@ class TestCapWire:
         result = engine.dispatch("cap.wire cmd=AT+VER")
 
         # Assert -- 7-byte TX ("AT+VER\r"), 11-byte RX ("VER=1.2.3\r\n")
-        envelope = result.value
+        assert result.value == "5645523D312E322E330D0A", "the scalar is the reply's bytes"
+        envelope = result.data
         assert envelope["tx_bytes"] == 7, "TX byte count"
         assert envelope["rx_bytes"] == 11, "RX byte count"
         assert envelope["tx_hex"] == "41542B5645520D", "TX hex, uppercase"
@@ -2683,7 +2693,7 @@ class TestCapWire:
         assert "no wire traffic" in rendered.lower(), "warning header present"
         assert "TX (  0)" in rendered, "TX line rendered with 0-byte count"
         assert "RX (  0)" in rendered, "RX line rendered with 0-byte count"
-        envelope = result.value
+        envelope = result.data
         assert envelope["tx_bytes"] == 0, "zero TX"
         assert envelope["rx_bytes"] == 0, "zero RX"
 
@@ -3485,7 +3495,7 @@ class TestPortChipList:
     """/port.chip.list dumps the USB-serial chip lookup table."""
 
     def test_unfiltered_lists_many_chips(self, repl_env):
-        """With no filter, a header and many rows print, and the value is 'Count=<N>'."""
+        """With no filter, a header and many rows print, and the value is the row count."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -3498,29 +3508,26 @@ class TestPortChipList:
         assert any("VID:PID" in text for text in texts), "header row printed"
         # Spot-check one well-known chip makes it into the dump.
         assert any("FT232R" in text for text in texts), "FTDI FT232R present"
-        # Return value is "Count=<N>" for script capture.
-        assert result.value.startswith("Count="), (
-            f"value should be 'Count=<N>', got: {result.value!r}"
-        )
-        count = int(result.value.split("=")[1])
-        assert count > 20, f"expected many chip rows, got Count={count}"
+        # Return value is the bare count for script capture, the records' length.
+        assert result.value == str(len(result.data)), "the value is the count, a scalar"
+        assert int(result.value) > 20, f"expected many chip rows, got {result.value}"
 
     def test_filter_narrows_output(self, repl_env):
-        """A vendor filter keeps only matching rows, and Count reflects the match size."""
+        """A vendor filter keeps only matching rows, and the value is the match count."""
         # Arrange
         engine, _, _, output = repl_env
 
         # Act
         result = engine.dispatch("port.chip.list ftdi")
 
-        # Assert -- only FTDI rows printed, Count reflects the match size.
+        # Assert -- only FTDI rows printed, the value is the match count.
         assert result.success, "filtered list succeeds"
         texts = [text for text, _ in output]
         chip_rows = [text for text in texts if ":" in text and "FTDI" in text]
         assert chip_rows, "at least one FTDI row rendered"
         # There are ~10 FTDI chips in the table.
-        count = int(result.value.split("=")[1])
-        assert 5 <= count <= 25, f"expected roughly a dozen FTDI rows, got Count={count}"
+        count = int(result.value)
+        assert 5 <= count <= 25, f"expected roughly a dozen FTDI rows, got {count}"
 
     def test_filter_is_case_insensitive(self, repl_env):
         """An uppercase filter still matches mixed-case vendor names like SparkFun."""
@@ -3532,11 +3539,10 @@ class TestPortChipList:
 
         # Assert
         assert result.success, "case-insensitive filter works"
-        count = int(result.value.split("=")[1])
-        assert count > 0, "entries found despite uppercase filter"
+        assert int(result.value) > 0, "entries found despite uppercase filter"
 
     def test_no_matches_is_an_empty_table(self, repl_env):
-        """name-one-matcher: no matches is still success, Count=0 and the table's empty line."""
+        """name-one-matcher: no matches is still success, a 0 value and the table's empty line."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -3545,7 +3551,7 @@ class TestPortChipList:
 
         # Assert
         assert result.success, "no-match still returns ok"
-        assert result.value == "Count=0", f"Count=0 on no matches, got: {result.value!r}"
+        assert result.value == "0", f"0 on no matches, got: {result.value!r}"
         assert any("USB-serial chips - empty" in text for text, _ in output), (
             "the empty table says so, like every list"
         )
@@ -3559,7 +3565,7 @@ class TestPortChipList:
         result = engine.dispatch("port.chip.list high")
 
         # Assert
-        actual = int(result.value.split("=")[1])
+        actual = int(result.value)
         assert actual > 0, "the high-speed chips are found by their speed"
 
 

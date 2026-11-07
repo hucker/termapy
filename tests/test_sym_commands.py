@@ -1653,6 +1653,7 @@ class TestSymInfo:
         # Assert
         assert result.value == str(DEMO_COUNT)
         assert result.data is not None and result.data["sections"] == table.stats()
+        assert result.data["loaded"] is True, "the loaded record says so, as the empty one says not"
         rows = [text for text, color in output if color == "markup"]
         assert any(f"sym/rig{SYMBOLS_SUFFIX}" in row for row in rows), "file row is config-relative"
         assert not any(str(config_path.parent) in row for row in rows), "no absolute path in-folder"
@@ -1667,6 +1668,7 @@ class TestSymInfo:
         # Assert
         assert result.success, result.error
         assert result.value == "", "no table = empty value, not an error"
+        assert result.data == {"loaded": False}, "an agent reads the state, not the prose"
         assert (
             f"{STATE_MESSAGES['symbols_loaded']}  /sym.import <map> or /sym.load {{path}} to load one.",
             "yellow",

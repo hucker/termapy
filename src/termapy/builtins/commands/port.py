@@ -216,9 +216,19 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_mode(ctx: PluginContext, args: str) -> CmdResult:
-    """Query (bare) or set the frame as one token such as 8N1, with an optional baud rate."""
+    """Query (bare) or set the frame as one token such as 8N1, with an optional baud rate.
+
+    Bare is a one-line record: ``value`` is the frame as one token a script
+    captures (``115200 8N1``), ``data`` its fields (``port_control.mode_facts``).
+    """
     result = port_control.set_mode(ctx.internal.port(), ctx.cfg, args)
-    return _answer(ctx, result, _joined_value(result))
+    if args.strip():
+        return _answer(ctx, result, _joined_value(result))
+    refusal = port_control.problem(result)
+    if refusal is not None:
+        return CmdResult.fail(msg=refusal)
+    shown = [TextLine(_joined_value(result))]
+    return CmdResult.record(port_control.mode_facts(ctx.cfg), shown, value=_read_value(result))
 
 
 def _handler_flow(ctx: PluginContext, args: str) -> CmdResult:
@@ -250,11 +260,10 @@ def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
     speed matches (``port_format.find_chips``).  Typical use:
     ``/port.chip.list ftdi``, ``/port.chip.list high``.
 
-    ``CmdResult.value`` is ``"Count=<N>"`` where ``<N>`` is the number
-    of chips matching the filter (or the total when unfiltered), so a
-    script can capture the match count with
-    ``$(COUNT) <- /port.chip.list ftdi``.  None matching is an empty
-    table and ``Count=0``.
+    ``CmdResult.value`` is the number of chips matching the filter (or
+    the total when unfiltered), so a script can capture the match count
+    with ``$(COUNT) <- /port.chip.list ftdi``.  None matching is an empty
+    table and ``0``.
     """
     rows = find_chips(args.strip())
 
@@ -272,7 +281,7 @@ def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
         "chip",
         _CHIP_COLUMNS,
         records,
-        value=f"Count={len(records)}",
+        value=str(len(records)),
     )
 
 

@@ -69,6 +69,45 @@ class TestCfgShowKey:
         engine.dispatch("cfg baud_rate")
         assert any("115200" in t for t, _ in output), "value displayed"
 
+    def test_query_data_keeps_the_json_type(self, repl_env):
+        """A query's data is the value with its JSON type; the value stays the scalar text."""
+        # Arrange
+        engine, _, _, _ = repl_env
+
+        # Act
+        rate = engine.dispatch("cfg baud_rate")
+        echo = engine.dispatch("cfg echo")
+
+        # Assert
+        assert (rate.value, rate.data) == ("115200", 115200), "a number is data as a number"
+        assert (echo.value, echo.data) == ("False", False), "a boolean is data as a boolean"
+
+    def test_container_key_is_json_never_repr(self, repl_env):
+        """A dict or list key answers compact JSON, shown and as the value; its data is the structure."""
+        # Arrange -- a container key, as serial and custom_buttons are in a real config
+        engine, cfg, _, output = repl_env
+        cfg["custom_buttons"] = [{"enabled": True, "name": "Go"}]
+
+        # Act
+        result = engine.dispatch("cfg custom_buttons")
+
+        # Assert
+        expected = '[{"enabled": true, "name": "Go"}]'
+        assert result.value == expected, "JSON as the config file spells it, not Python's repr"
+        assert result.data == [{"enabled": True, "name": "Go"}], "the structure itself is the data"
+        assert any(text == expected for text, _ in output), "shown as JSON too"
+
+    def test_set_answers_the_new_value_as_data(self, repl_env):
+        """A set's data is the value it applied, with its JSON type."""
+        # Arrange
+        engine, _, _, _ = repl_env
+
+        # Act
+        result = engine.dispatch("cfg.auto baud_rate 9600")
+
+        # Assert
+        assert (result.value, result.data) == ("9600", 9600), "the applied value, typed"
+
     def test_show_unknown_key(self, repl_env):
         """A query for a key not in the config is an Unknown error rendered in red."""
         engine, _, _, output = repl_env

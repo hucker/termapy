@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.plugins.params import ParamSpec
@@ -34,7 +34,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_regex(ctx: PluginContext, args: str) -> CmdResult:
-    """Wait for a received line matching the ``match=`` regex; that line is the value."""
+    """Wait for a received line matching the ``match=`` regex; that line is the value, its captures the data."""
     return _expect(ctx, use_regex=True)
 
 
@@ -84,7 +84,20 @@ def _expect(ctx: PluginContext, *, use_regex: bool) -> CmdResult:
     if fails is not None and fails(line):
         return _missed(ctx, f'Expect "{pattern}" failed: {line}')
     ctx.io.output(f'Expect "{pattern}" matched', "green")
-    return CmdResult.ok(value=line)
+    return CmdResult.ok(value=line, data=_regex_record(pattern, line) if use_regex else None)
+
+
+def _regex_record(pattern: str, line: str) -> dict[str, Any]:
+    """A regex expect's data: the line and what the pattern captured from it.
+
+    ``groups`` lists the numbered groups (``None`` for one that took no
+    part), ``named`` the named ones, so an agent reads a reading out of the
+    reply without applying its own pattern a second time.
+    """
+    found = re.search(pattern, line)
+    groups = list(found.groups()) if found else []
+    named = found.groupdict() if found else {}
+    return {"line": line, "groups": groups, "named": named}
 
 
 def _missed(ctx: PluginContext, msg: str) -> CmdResult:

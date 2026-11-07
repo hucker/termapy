@@ -1067,7 +1067,7 @@ def _confirmation_required(
         )
     return CmdResult.fail(
         msg=msg,
-        value={
+        data={
             "needs_confirmation": True,
             "command": name,
             "safety": safety,
@@ -1165,7 +1165,7 @@ def _dispatch_via_profile(
                 f"Command {name!r} is disabled in the active profile. "
                 "Edit the profile and set enabled=true after auditing."
             ),
-            value={
+            data={
                 "disabled": True,
                 "command": name,
                 "help": spec.get("help", ""),
@@ -1210,7 +1210,7 @@ def _dispatch_via_profile(
             if not outcome.ok:
                 return CmdResult.fail(
                     msg=(f"Arg {arg_name!r} invalid for {name!r}: {outcome.error}"),
-                    value={
+                    data={
                         "arg": arg_name,
                         "type": arg_type,
                         "value": bound[arg_name],

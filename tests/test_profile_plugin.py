@@ -164,6 +164,7 @@ class TestProfileInfo:
         result = eng.dispatch("profile.info")
         # Assert
         assert result.success is True, "info still succeeds with no profile"
+        assert result.data == {"loaded": False}, "an agent reads the state, not the prose"
         full = " ".join(t for t, _ in output)
         assert "no profile" in full.lower(), "informs user no profile loaded"
 
@@ -176,6 +177,7 @@ class TestProfileInfo:
         data = eng.dispatch("profile.info").data
         # Assert -- profile-only metadata; wire-level settings like baud
         # live in cfg and are inspected via /cfg.dump, not /profile.info.
+        assert data["loaded"] is True, "the loaded record says so, as the empty one says not"
         assert data["profile_revision"] == "1.0.0", "shows revision"
         assert data["device"]["name"] == "Generic AT Modem", "device block surfaced"
         assert "baud_rate" not in data, "baud is the cfg's, not the profile's"

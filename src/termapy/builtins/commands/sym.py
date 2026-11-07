@@ -368,7 +368,9 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """Show the loaded table's provenance and shape.
 
     A record answer (registry ``record-one-format``): ``table_record`` is
-    the ``data``, ``info_rows`` its prose twin.
+    the ``data``, ``info_rows`` its prose twin.  Its ``loaded`` key is
+    ``True``; with no table the data is ``{"loaded": False}`` beside the
+    one-line answer, so an agent reads the state rather than the prose.
     """
     table = get_table(ctx)
     if table is None:
@@ -376,10 +378,10 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
             f"{STATE_MESSAGES['symbols_loaded']}  {ctx.prefix}sym.import <map> or {ctx.prefix}sym.load {{path}} to load one.",
             "yellow",
         )
-        return CmdResult.ok(value="")
+        return CmdResult.ok(value="", data={"loaded": False})
     file = _display_path(ctx, table.path)
     return CmdResult.record(
-        table_record(table, file=file),
+        {"loaded": True, **table_record(table, file=file)},
         info_rows(table, file=file),
         value=str(len(table)),
     )

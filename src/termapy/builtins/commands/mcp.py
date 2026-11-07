@@ -100,9 +100,6 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """
     from termapy.plugins import ENVIRONMENTS
 
-    # Catalog metadata is host-independent (profile + device come from
-    # the active profile namespace, not capabilities).  Wire-level
-    # values (protocol, baud) live in the cfg now.
     cat = build_catalog(ctx)
     device_count = len(cat.get("device_commands", []))
     profile_rev = cat.get("profile_revision") or None

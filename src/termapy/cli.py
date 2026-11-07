@@ -289,12 +289,6 @@ class CLITerminal(TerminalHost):
             """Already in CLI mode: a no-op, so a script written for the TUI runs unchanged."""
             return CmdResult.ok(value="")
 
-        # /term.color (device-color toggle) is now a portable builtin
-        # backed by flags["color"], with /color as its legacy alias in
-        # legacy.py -- so it works in the TUI too, not just the CLI.
-        # /run and its sub_commands (.help, .legacy, .list, .dump,
-        # .show, .explore, .profile) are owned by the run.py builtin; the
-        # host only wires ctx.internal.run_script via TerminalHost.
         self.repl.register_hook(
             "help.open",
             "{topic}",

@@ -1191,14 +1191,7 @@ def _parse_int_value(value: str, key: str) -> int:
 
 
 def _did_you_mean(name: str) -> str:
-    """Build the `` -- did you mean X, Y?`` suffix for an unknown algorithm.
-
-    Calls ``crcglot.suggest_algorithms`` (0.25+), which runs a
-    three-tier match -- exact prefix, ``crc<width>`` family, then
-    fuzzy.  Returns ``""`` when crcglot has no suggestion to offer
-    (the caller appends the suffix unconditionally; an empty string
-    is a no-op).
-    """
+    """The `` -- did you mean X, Y?`` suffix for an unknown algorithm, ``""`` when crcglot has none."""
     from crcglot import suggest_algorithms
 
     # crcglot owns its names and how to rank them; termapy owns the phrasing.
@@ -1343,11 +1336,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     if symbol_override == "":
         return CmdResult.fail(msg="symbol= requires a value")
 
-    # Doc-comment style: crcglot 0.13+ exposes a per-language curated
-    # set (Python: plain/google/numpy/rest; C/Java: doxygen/...; Rust:
-    # rustdoc; TypeScript: jsdoc; etc).  Default ``plain`` is applied
-    # by crcglot when the kwarg is omitted, so we only forward when the
-    # user explicitly passes ``style=``.
+    # crcglot applies its default style when style= is omitted, so forward only one typed.
     style = kv.get("style")
     if style == "":
         return CmdResult.fail(msg="style= requires a value")
@@ -2374,9 +2363,6 @@ def _build_one_crc_lang_command(code: str, info) -> Command:
             f"Accepted but falls back to --table (no native slice-by-8 for {info.display_name})."
         )
 
-    # Doc-comment styles per language (crcglot 0.13+).  ``plain`` is
-    # always available; the rest are language-specific (e.g. doxygen
-    # for C/Java, rustdoc for Rust, google/numpy/rest for Python).
     from crcglot.comments.registry import styles_for_language
 
     styles = tuple(styles_for_language(code))
@@ -2386,10 +2372,7 @@ def _build_one_crc_lang_command(code: str, info) -> Command:
         else ""
     )
 
-    # Naming convention (crcglot 0.13+ via ``LanguageInfo.naming``):
-    # snake / camel / pascal subset per language, with one idiomatic
-    # default emitted when ``naming=`` is omitted.  Only advertise when
-    # the language offers more than one option.
+    # Advertised, like the styles, only when the language offers a choice.
     naming_options = tuple(sorted(info.naming))
     naming_line = (
         f"Naming conventions: {', '.join(naming_options)} "

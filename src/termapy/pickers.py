@@ -113,10 +113,8 @@ def on_quick_setup(app, result: tuple | None) -> None:
     config_path = str(cfg_path_for_name(name))
     cfg = new_config(name, port=port or "", baud=baud, custom_baud=custom_baud)
     if action == "advanced":
-        # Open the full config editor with pre-filled values.
-        # Advanced users skip the checkbox -- they can /cfg.icon
-        # manually after editing.  The editor's Save creates the folder;
-        # Cancel leaves nothing behind.
+        # Advanced users skip the icon checkbox -- they can /cfg.icon after
+        # editing.  The editor's Save creates the folder; Cancel leaves nothing.
         app.push_screen(
             ConfigEditor(
                 cfg,

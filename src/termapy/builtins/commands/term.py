@@ -481,11 +481,7 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
         # bundled module or sanity-check which copy is loaded.
         rows.append(("path", str(data["path"])))
 
-    # Update hint targets end users (PyPI installs) -- the bundled
-    # data refreshes on each termapy release, so upgrading is the
-    # right path for newer entries.  Maintainers update via
-    # scripts/refresh_usb_ids.py during release prep, but that's a
-    # repo-level workflow, not exposed to package users.
+    # For an installed termapy: the table is refreshed at each release.
     notes = (
         ("", ""),
         (

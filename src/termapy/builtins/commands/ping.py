@@ -13,10 +13,7 @@ if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-# Declarative parameters -- the dispatcher parses/coerces/validates these and
-# fails with a synthesized usage message before the handler runs.  Shared by
-# /ping and /ping.quiet.  ``timeout`` default is 0.25 == 250ms (post-coercion
-# float seconds); the old hand-written help claimed "1s", which was drift.
+# Shared by /ping and /ping.quiet; a duration arrives as float seconds (0.25 = 250 ms).
 _PING_PARAMS = [
     ParamSpec("count", "int", default=1, min=1, help="number of pings"),
     ParamSpec("timeout", "duration", default=0.25, help="response timeout per ping"),

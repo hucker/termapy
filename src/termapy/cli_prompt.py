@@ -143,13 +143,8 @@ def build_session(repl: ReplEngine, prefix: str, history_path: str) -> PromptSes
         history=PlainFileHistory(history_path),
         completer=_TermapyCompleter(repl, prefix),
         auto_suggest=AutoSuggestFromHistory(),
-        # Prompt-toolkit reserves space below the prompt for the
-        # completion dropdown, which renders as a visible empty
-        # band when nothing's being typed.  Scale the reservation
-        # to the terminal height so tall windows get a roomy
-        # dropdown and short windows aren't dominated by dead
-        # space (or give up completion entirely when there's
-        # simply no room).  Read once at startup -- prompt_toolkit
-        # captures this value at PromptSession construction.
+        # The space kept below the prompt for the completion dropdown shows as
+        # an empty band, so it scales with the terminal's height.  Read once:
+        # prompt_toolkit takes it at construction.
         reserve_space_for_menu=_menu_rows_for_terminal(),
     )

@@ -606,11 +606,8 @@ class SerialTerminal(TerminalHost, App):
         # user keeps their visual context when leaving find mode.
         # Cleared after restore or when find ends with no matches.
         self._find_last_current_line: int | None = None
-        # When _write_batch auto-dismisses find (new live data),
-        # we DON'T want to scroll #output back to the find
-        # position -- the user's interest just shifted to fresh
-        # output.  This flag is False during auto-dismiss and True
-        # during user-initiated close.
+        # False while new live data dismisses find: the user's interest moved
+        # to the fresh output, so #output does not scroll back to the match.
         self._find_restore_scroll_on_close: bool = True
 
         # File capture engine
@@ -818,10 +815,7 @@ class SerialTerminal(TerminalHost, App):
                 ver = _get_version("termapy")
             except PackageNotFoundError:
                 ver = "?"
-            # Windows puts the close "X" top-right (Windows convention);
-            # mac/linux put it top-left (macOS convention, standard on
-            # Linux too).  Same button, same id/handler -- only position
-            # differs.
+            # Each platform's window-close convention: top-right on Windows.
             exit_on_right = sys.platform == "win32"
 
             def _make_exit_btn() -> Button:
@@ -1790,9 +1784,7 @@ class SerialTerminal(TerminalHost, App):
         self.history = self._load_history()
         self._history_nav.reset()
         self.repl.ctx.config_path = path
-        # Every path the handle declares, so none is left on the old config:
-        # prof_dir was missed here for as long as this list has existed, and
-        # /help run.profile went on counting the previous config's CSVs.
+        # Every path the handle declares, so none is left on the old config.
         self.repl.ctx.fs.ss_dir = self.repl.ss_dir
         self.repl.ctx.fs.scripts_dir = self.repl.scripts_dir
         self.repl.ctx.fs.proto_dir = self.repl.proto_dir
@@ -2203,9 +2195,7 @@ class SerialTerminal(TerminalHost, App):
         """
         is_rec = self.ctx.internal.is_recording
         if is_rec is not None and is_rec():
-            # Active: dispatch bare /run.record to stop.  The handler
-            # closes the file, deregisters the observer, and prints
-            # the "Recorded N commands" message.
+            # Recording: a bare /run.record stops it.
             self._dispatch_on_thread(self._repl_line("run.record"))
             self._refresh_record_button()
         else:
@@ -2854,30 +2844,19 @@ class SerialTerminal(TerminalHost, App):
     # ── File capture engine ──────────────────────────────────────────────────
 
     def _cap_start(self, *args, **kwargs):
-        """Start a capture.  Implementation in ``capture_view``.
+        """Start a capture on the main thread; ``capture_view._cap_start`` is the implementation.
 
-        Stub kept on the App because the host wires this onto
-        ``internal.start_capture`` (bound-method reference).
-        Signature pass-through so this file stays unaware of the
-        real arg list, which lives in ``capture_view._cap_start``.
-
-        Marshalled to the main thread: the ``/cap`` command runs on the
-        dispatch worker thread, but ``_cap_start`` schedules Textual
-        timers and mounts the progress overlay, which require the event
-        loop.  ``_on_main`` runs it inline when already on the main thread.
+        The host wires this onto ``internal.start_capture``.  ``/cap`` runs on
+        a worker, and the capture mounts Textual timers and an overlay.
         """
         from termapy.capture_view import _cap_start
 
         return self._on_main(_cap_start, self, *args, **kwargs)
 
     def _cap_stop(self) -> None:
-        """Stop the current capture.  Implementation in ``capture_view``.
+        """Stop the capture on the main thread, as ``_cap_start`` starts it.
 
-        Stub kept on the App because the host wires this onto
-        ``internal.stop_capture`` and the cap-stop button looks it up
-        by attribute name.  Marshalled to the main thread for the same
-        reason as ``_cap_start`` -- ``/cap.stop`` arrives on the worker
-        thread but the overlay teardown is Textual work.
+        Wired onto ``internal.stop_capture``; the cap-stop button looks it up by name.
         """
         from termapy.capture_view import _cap_stop
 
@@ -2898,7 +2877,7 @@ class SerialTerminal(TerminalHost, App):
         Fired by ``CaptureEngine.on_complete`` inside ``stop()`` for every
         completion path (manual /cap.stop, timed, target-reached), so the
         message prints exactly once.  ``_cap_stop`` handles the log line and
-        UI teardown; it no longer prints the status itself.
+        UI teardown.
         """
         text, color = format_capture_result(result)
         self._status(text, color)

@@ -965,8 +965,7 @@ class ProtoDebugScreen(ModalScreen[None]):
 
         The screen explains none of itself otherwise: what ``{name}``
         means in the JSON file field, that a list needs one row checked,
-        what each option does (Chuck 2026-10-28: "I feel a bit lost
-        here").
+        what each option does.
 
         Through dispatch rather than the host's method, so the one
         handler for ``help.open`` serves this button too, in whatever
@@ -1379,12 +1378,8 @@ class ProtoDebugScreen(ModalScreen[None]):
             # call_from_thread fails during app shutdown - ignore
             pass
         except BoundaryException as e:
-            # Test runner executes user .pro scripts -- any underlying
-            # command handler or protocol step can raise anything.
-            # Report in the test log and let the finally clean up.
-            # The serial-port release is handled by the ctx.serial.io()
-            # context manager wrapping the test loop, so no defensive
-            # flag flip is needed here.
+            # A user .pro script can raise anything: report it in the test log.
+            # The ctx.serial.io() around the test loop releases the port.
             diag_log.exception("proto debug test runner raised")
             self._log(f"Test runner error: {type(e).__name__}: {e}{diag_log.traceback_note()}")
         finally:
@@ -1417,13 +1412,9 @@ class ProtoDebugScreen(ModalScreen[None]):
             )
         except RuntimeError:
             # call_from_thread fails during app shutdown - exit silently.
-            # Serial-port release is handled by the ctx.serial.io() context
-            # manager; no defensive flag flip needed.
             pass
         except BoundaryException as e:
-            # Setup/teardown commands from the .pro script go through
-            # the same user-code path as the main test runner; a broken
-            # step reports to the log.  Serial-port release is handled
-            # by the ctx.serial.io() context manager.
+            # A broken setup/teardown step reports to the log, as a test does;
+            # the ctx.serial.io() above releases the port.
             diag_log.exception("proto debug %s commands raised", label)
             self._log(f"Command runner error: {type(e).__name__}: {e}{diag_log.traceback_note()}")

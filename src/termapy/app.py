@@ -67,7 +67,7 @@ from termapy.config_resolve import (
     resolve_config as _resolve_config,
     resolve_proto_path,
 )
-from termapy.defaults import DEFAULT_CMD_PREFIX, cfg_value, cmd_prefix, default_cfg
+from termapy.defaults import DEFAULT_CMD_PREFIX, cfg_slot, cfg_value, cmd_prefix, default_cfg
 from termapy.dialogs import (
     CfgConfirm,
     ConfigEditor,
@@ -85,7 +85,7 @@ from termapy.dialogs import (
 from termapy.folders import FOLDER_EXTS, FOLDER_PATTERNS, ensure_folder
 from termapy.help_tooltip import build_help_tooltip
 from termapy.history_nav import HistoryNavigator, merge_history, read_history
-from termapy.markup import markup_to_plain
+from termapy.markup import escape_markup, markup_to_plain, received_json_markup
 from termapy.palette_provider import PaletteProvider
 from termapy.plugins import (
     BoundaryException,
@@ -540,6 +540,7 @@ class SerialTerminal(TerminalHost, App):
             config_path,
             write=self._status,
         )
+        self.repl.screen_json = True
         # Set by _load_history; declared first so _sync_history is safe
         # however early it runs.
         self._history_mtime_seen: float = 0.0
@@ -2961,19 +2962,29 @@ class SerialTerminal(TerminalHost, App):
             shown = lines if color_on else plain
         else:
             shown = rows
+        # A device's JSON line is laid out by json_display.indent and json_display.highlight
+        # (display only); highlighting needs color.  The hex view shows bytes.
+        json_text = rows is None
+        json_indent = cfg_value(self.cfg, "json_display.indent")
+        json_highlight = color_on and cfg_value(self.cfg, "json_display.highlight")
         # Lines beyond what the pane keeps are counted (line numbers stay
         # true) but not rendered: RichLog would discard them on arrival.
         skip = max(0, len(shown) - log.max_lines) if log.max_lines else 0
         self._line_counter += skip
         renderables: list[Text] = []
-        for text in shown[skip:]:
+        for index, text in enumerate(shown[skip:], skip):
             self._line_counter += 1
             prefix = ""
             if show_ln:
                 prefix += f"{self._line_counter:>5} | "
             if show_ts:
                 prefix += f"[{format_timestamp()}] "
-            if from_ansi:
+            shown_markup = None
+            if json_text:
+                shown_markup = received_json_markup(plain[index], json_indent, json_highlight)
+            if shown_markup is not None:
+                renderables.append(Text.from_markup(escape_markup(prefix) + shown_markup))
+            elif from_ansi:
                 renderables.append(Text.from_ansi(f"{prefix}{text}"))
             else:
                 renderables.append(Text(f"{prefix}{text}"))
@@ -3862,11 +3873,10 @@ class SerialTerminal(TerminalHost, App):
             True when the change was applied; False on Cancel, and on a
             call from the main thread, which cannot wait.
         """
-        # baud_rate / port / etc. live under cfg["serial"] post-v22, so read
-        # the current value from wherever the key sits (mirrors the routing
-        # in repl._apply_cfg).  A naive self.cfg[key] KeyErrors on serial keys.
-        serial = self.cfg.get("serial", {})
-        old_val = serial[key] if isinstance(serial, dict) and key in serial else self.cfg[key]
+        # The current value from wherever the key sits: a section (serial,
+        # json_display) or the top level, as /cfg found it.
+        slot = cfg_slot(self.cfg, key)
+        old_val = slot[0][slot[1]] if slot is not None else None
         if not self._ask(CfgConfirm(key, old_val, new_val)):
             return False
         self.repl._apply_cfg(key, new_val)

@@ -65,7 +65,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 37,
+    "config_version": 38,
     "title": "IoT Device",
     "border_color": "blue",
     "serial": {
@@ -112,7 +112,10 @@ Here is an example config for a device called `iot_device`:
     "request_mode": false,
     "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
     "strip_device_echo": false,
-    "json_style": "compact",
+    "json_display": {
+        "highlight": true,
+        "indent": 2
+    },
     "profile_path": "",
     "validate_typed_args": false,
     "default_response_timeout_ms": 1000,
@@ -204,7 +207,8 @@ reported as a type warning.
 | `request_mode`                | `false`                       | Turn bare device commands into synchronous request/response (see `/term.request`) |
 | `request_err_pattern`         | `(?i)^(ERROR\|ERR\|FAULT)\\b` | Regex detecting device-side errors in `request_mode` responses. Empty disables. Override per-session via `/term.request on err=<regex>` |
 | `strip_device_echo`           | `false`                       | Drop a half-duplex device's echoed command from `request_mode` responses (opt in per device) |
-| `json_style`                  | `compact`                     | How JSON answers print (`request_mode`, `--json`): `compact` one line per answer, `indent`, or `color` (indented and highlighted). Set: `/term.json` |
+| `json_display.highlight`      | `true`                        | Highlight JSON on screen: `request_mode` and `--json` answers, and each JSON line a device sends. Shows only with color on (`/term.color`). A pipe or a file gets plain JSON. Set: `/term.json.highlight` |
+| `json_display.indent`         | `2`                           | Spaces per level for JSON on screen: `0` (one line), `2` or `4`. A pipe or a file always gets one line per JSON value, for a program reading stdout line by line. Set: `/term.json.indent` |
 | `profile_path`                | `""`                          | Explicit v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention |
 | `validate_typed_args`         | `false`                       | Opt-in: validate bare-command `typed_args` against the active profile's type registry. Off = raw access; on = mirrors MCP (bad values fail before the wire). |
 | `default_response_timeout_ms` | `1000`                        | Fallback wait (ms) for a profile command lacking its own `response.timeout_ms` |

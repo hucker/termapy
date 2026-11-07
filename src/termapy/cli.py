@@ -30,7 +30,7 @@ from termapy.config import (
 from termapy.config_resolve import find_config, infer_config_from_run_file, resolve_config
 from termapy.defaults import cfg_value, cmd_prefix
 from termapy.folders import FOLDER_EXTS, RUN
-from termapy.markup import escape_markup
+from termapy.markup import escape_markup, received_json_markup
 from termapy.plugins import CapabilitySet, CmdResult
 from termapy.repl import ReplEngine
 from termapy.scripting import (
@@ -162,6 +162,8 @@ class CLITerminal(TerminalHost):
         # The CLI keeps no session log: session_log_path is None, so it never opens.
         self.session_log = SessionLog()
         self.repl = ReplEngine(cfg, config_path, write=self.status)
+        # A person reads a terminal; a program reads a pipe line by line.
+        self.repl.screen_json = sys.stdout.isatty()
 
         self._setup_context()
         self._register_hooks()
@@ -460,14 +462,29 @@ class CLITerminal(TerminalHost):
 
     # -- Reader thread --------------------------------------------------------
 
+    def _show_rx(self, lines: list[str]) -> None:
+        """Print received lines as they came, a JSON one laid out by ``json.*`` at a terminal.
+
+        Display only, as in the TUI; a pipe gets every line as received.
+        """
+        color_on = self.repl.ctx.ns("flags").get("color", True)
+        indent = cfg_value(self.cfg, "json_display.indent") if self.repl.screen_json else 0
+        highlight = (
+            self.repl.screen_json and color_on and cfg_value(self.cfg, "json_display.highlight")
+        )
+        for line in lines:
+            plain = strip_ansi(line)
+            shown_markup = received_json_markup(plain, indent, highlight)
+            if shown_markup is not None:
+                self.write_markup(shown_markup)
+            else:
+                self._raw(line if color_on else plain)
+
     def _start_reader(self) -> None:
         """Start the background serial reader thread."""
 
         def on_lines(lines: list[str]) -> None:
-            color_on = self.repl.ctx.ns("flags").get("color", True)
-            plain = [strip_ansi(line) for line in lines]
-            for shown in lines if color_on else plain:
-                self._raw(shown)
+            self._show_rx(lines)
             # Expect watcher and text capture, the same as every frontend.
             self._feed_rx_consumers(lines)
 

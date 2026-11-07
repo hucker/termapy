@@ -777,7 +777,7 @@ class TestCfgChoice:
         [
             ("custom_buttons_side", "Right", "right"),
             ("parity", "e", "E"),
-            ("json_style", "INDENT", "indent"),
+            ("indent", "4", 4),
             ("byte_size", 7, 7),
         ],
     )

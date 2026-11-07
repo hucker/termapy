@@ -159,17 +159,22 @@ _ROW_SPLIT = re.compile(r"(?<!\\)\|")  # split on unescaped pipes
 _REF_SKIP = {"config_version"}
 
 
+# Sections whose keys are set one at a time (/cfg baud_rate, /term.json.indent)
+# get a row per key; any other section is one row.
+_REF_EXPANDED = {"serial", "json_display"}
+
+
 def _flat_default_map() -> dict:
-    """Display-key -> default value.  serial.* is expanded to dotted keys."""
+    """Display-key -> default value.  An expanded section's keys are dotted keys."""
     from termapy.defaults import DEFAULT_CFG
 
     out: dict = {}
     for k, v in DEFAULT_CFG.items():
         if k in _REF_SKIP:
             continue
-        if k == "serial" and isinstance(v, dict):
+        if k in _REF_EXPANDED and isinstance(v, dict):
             for sk, sv in v.items():
-                out[f"serial.{sk}"] = sv
+                out[f"{k}.{sk}"] = sv
         else:
             out[k] = v
     return out

@@ -279,6 +279,13 @@ $(BAUD) <- /port.baud_rate
 /mem.write sCfg 0302
 /mem.read sCfg
 MEM.M 0x1000 F0 05 --json
+# /term.json lays JSON out on screen only: into this pipe a device's JSON line
+# comes as it arrived, whatever the indent says.
+/term.json
+/term.json.highlight
+/term.json.indent 4
+MEM.INFO
+/term.json indent 2
 
 # ── REPL: help for specific commands ────────────────────────────────────────
 /print === section: help ===

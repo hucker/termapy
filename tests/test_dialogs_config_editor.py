@@ -281,7 +281,7 @@ class TestValueValidation:
             ("echo", '"false"', "must be true or false"),
             ("custom_baud", "maybe", "must be true or false"),
             ("parity", '"X"', "must be one of: E, M, N, O, S"),
-            ("json_style", '"pretty"', "must be one of: color, compact, indent"),
+            ("indent", "3", "must be one of: 0, 2, 4"),
             ("custom_buttons_side", '"top"', "must be one of: bottom, left, right"),
             ("baud_rate", '"fast"', "must be a positive integer"),
             ("baud_rate", "0", "must be a positive integer"),

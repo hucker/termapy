@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -37,7 +38,7 @@ from termapy.config import (
     rename_config,
 )
 from termapy.config_resolve import resolve_config
-from termapy.defaults import CFG_CHOICES, cfg_key, cfg_value
+from termapy.defaults import CFG_CHOICES, cfg_key, cfg_slot, cfg_value
 from termapy.folder_ops import FILE_COLUMNS, edit_cfg_command, file_record, list_entries
 from termapy.folders import (
     FOLDER_PATTERNS,
@@ -54,8 +55,6 @@ from termapy.plugins.params import ParamSpec
 from termapy.scripting import BOOL_TOKENS_HELP, coerce_to_type
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
     from termapy.plugins import PluginContext
 
 
@@ -107,20 +106,21 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not parts:
         raise UsageError()
     key = parts[0]
-    container = _find_cfg_container(ctx.cfg, key)
-    if container is None:
+    slot = cfg_slot(ctx.cfg, key)
+    if slot is None:
         return _unknown_key(ctx.cfg, key)
+    container, leaf = slot
     # /cfg key - show value
     if len(parts) == 1:
-        val = container[key]
+        val = container[leaf]
         ctx.io.result(_value_text(val))
         return _cfg_answer(val)
     # /cfg key value - validate and delegate for confirmation
     try:
-        new_val = _typed_value(ctx, container, key, parts[1])
+        new_val = _typed_value(ctx, container, leaf, parts[1])
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
-    old_val = container[key]
+    old_val = container[leaf]
     if new_val == old_val:
         ctx.io.output(f"{key} is already {old_val!r}")
         return _cfg_answer(old_val)
@@ -165,25 +165,9 @@ def _typed_value(ctx: PluginContext, container: Mapping, key: str, value_str: st
 
 def _unknown_key(cfg: Mapping, key: str) -> CmdResult:
     """The failure for a key the config does not have, naming the nearest keys it does."""
-    serial = cfg.get("serial", {})
-    keys = [*cfg, *(serial if isinstance(serial, dict) else ())]
+    leaves = [leaf for value in cfg.values() if isinstance(value, Mapping) for leaf in value]
+    keys = [*cfg, *leaves]
     return CmdResult.fail(msg=f"Unknown config key: {key}{did_you_mean(closest(key, keys))}")
-
-
-def _find_cfg_container(cfg: Mapping, key: str) -> Mapping | None:
-    """Return the dict that owns ``key`` (top-level or under cfg["serial"]).
-
-    Lets ``/cfg port`` keep working post-v22 even though port now lives
-    under ``cfg["serial"]``.  ``None`` means the key isn't known.  Only
-    looks one level deep (top + serial sub-dict); deeper nesting would
-    require dotted-path support.
-    """
-    if key in cfg:
-        return cfg
-    serial = cfg.get("serial", {})
-    if isinstance(serial, dict) and key in serial:
-        return serial
-    return None
 
 
 # ── /cfg.auto handler ─────────────────────────────────────────────────────────
@@ -197,11 +181,12 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     """
     key = ctx.arg("key")
     value_str = ctx.arg("value")
-    container = _find_cfg_container(ctx.cfg, key)
-    if container is None:
+    slot = cfg_slot(ctx.cfg, key)
+    if slot is None:
         return _unknown_key(ctx.cfg, key)
+    container, leaf = slot
     try:
-        new_val = _typed_value(ctx, container, key, value_str)
+        new_val = _typed_value(ctx, container, leaf, value_str)
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
     ctx.internal.apply_cfg(key, new_val)
@@ -751,8 +736,10 @@ Three modes:
 The value is read as the key's current type (int, float, bool,
 string). Bool accepts:
   {BOOL_TOKENS_HELP}
-A key with a fixed set of values (parity, json_style,
+A key with a fixed set of values (parity, json_display.indent,
 custom_buttons_side, ...) takes one of them in any case.
+A key inside a section is named by its path (json_display.indent) or,
+when no other section has one, its own name (baud_rate).
 A change lasts for this session; to keep it, set it in the
 config editor.
 

@@ -17,7 +17,7 @@ lands in its group, not at the end of the user's file.
 import re
 from collections.abc import Callable
 
-CURRENT_CONFIG_VERSION = 37
+CURRENT_CONFIG_VERSION = 38
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -87,6 +87,8 @@ DEPRECATED_CFG: dict[str, str] = {
         "removed in v37 (was never wired to a consumer); every traceback now "
         "goes to the diagnostic log, and the error names the file"
     ),
+    # v37 -> v38: one enum split in two
+    "json_style": "replaced in v38 by json_display.highlight and json_display.indent",
 }
 
 # Migration functions: {from_version: callable(cfg) -> cfg}
@@ -801,6 +803,24 @@ def _migrate_v36_to_v37(cfg: dict) -> dict:
 
 
 MIGRATIONS[36] = _migrate_v36_to_v37
+
+
+def _migrate_v37_to_v38(cfg: dict) -> dict:
+    """Replace ``json_style`` with the ``json_display`` section: ``highlight`` and ``indent``.
+
+    ``indent`` keeps the indent and drops the highlighting; ``color`` keeps
+    both.  ``compact`` was the default every config was written with, so it
+    takes the new defaults, highlighted and indented by 2: a pipe still gets
+    one line per JSON value, whatever the section says.
+    """
+    style = cfg.pop("json_style", "compact")
+    json_cfg = cfg.setdefault("json_display", {})
+    json_cfg.setdefault("highlight", style != "indent")
+    json_cfg.setdefault("indent", 2)
+    return cfg
+
+
+MIGRATIONS[37] = _migrate_v37_to_v38
 
 
 def migrate_config(cfg: dict) -> dict:

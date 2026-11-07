@@ -21,8 +21,14 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from termapy.defaults import cfg_value
+
+if TYPE_CHECKING:
+    import argparse
+
+    from termapy.vendor.serial.tools.miniterm import Transform
 
 
 def _miniterm_settings(cfg: dict) -> dict:
@@ -72,7 +78,7 @@ def _vscode_key_hint(cfg: dict) -> str | None:
     )
 
 
-def _passthrough_transforms(line_ending: str):
+def _passthrough_transforms(line_ending: str) -> tuple[list[Transform], list[Transform]]:
     """Build miniterm ``(rx, tx)`` transform lists for raw VT100 passthrough.
 
     VT100 passthrough must be byte-transparent: the device's bytes have to
@@ -93,13 +99,13 @@ def _passthrough_transforms(line_ending: str):
     from termapy.vendor.serial.tools.miniterm import Transform
 
     class _EnterEOL(Transform):
-        def tx(self, text):
+        def tx(self, text: str) -> str:
             return text.replace("\n", line_ending)
 
     return [], [_EnterEOL()]
 
 
-def _resolve_cfg(args) -> dict:
+def _resolve_cfg(args: argparse.Namespace) -> dict:
     """Resolve the config for vt100 mode (mirrors the cli.py resolution).
 
     demo -> in-memory cfg on the interactive ``DEMO_VT100`` device;
@@ -161,7 +167,7 @@ def _resolve_cfg(args) -> dict:
     return cfg
 
 
-def run_vt100_mode(args) -> str | None:
+def run_vt100_mode(args: argparse.Namespace) -> str | None:
     """Run --vt100 passthrough: raw serial <-> host terminal via miniterm.
 
     Opens the raw pyserial object (no termapy SerialReader) and hands it to

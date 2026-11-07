@@ -320,7 +320,9 @@ def dump_text_slice(ctx: PluginContext, path: Path, args: str) -> CmdResult:
     return CmdResult.ok(value=str(len(lines)))
 
 
-def _make_list_handler(folder: str, pattern: str, noun: str = "file", show: str = ""):
+def _make_list_handler(
+    folder: str, pattern: str, noun: str = "file", show: str = ""
+) -> Callable[[PluginContext, str], CmdResult]:
     """Handler: list files in the folder, newest first, with size and age.
 
     With ``show`` (``ss.show``), a click on a name opens that file in the
@@ -339,7 +341,9 @@ def _make_list_handler(folder: str, pattern: str, noun: str = "file", show: str 
     return handler
 
 
-def _make_explore_handler(folder: str, *, cwd_fallback: bool = False):
+def _make_explore_handler(
+    folder: str, *, cwd_fallback: bool = False
+) -> Callable[[PluginContext, str], CmdResult]:
     """Handler: open the folder in the system file explorer.
 
     Creates the folder first so the user has somewhere to drop a file:
@@ -410,7 +414,9 @@ def _named_or_newest(
     return max(files, key=lambda f: f.stat().st_mtime)
 
 
-def _make_show_handler(folder: str, pattern: str, ext: str = "*"):
+def _make_show_handler(
+    folder: str, pattern: str, ext: str = "*"
+) -> Callable[[PluginContext, str], CmdResult]:
     """Handler: open the newest (or named) file in the folder with the system viewer."""
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -428,7 +434,9 @@ def _make_show_handler(folder: str, pattern: str, ext: str = "*"):
     return handler
 
 
-def _make_dump_handler(folder: str, pattern: str, ext: str = "*"):
+def _make_dump_handler(
+    folder: str, pattern: str, ext: str = "*"
+) -> Callable[[PluginContext, str], CmdResult]:
     """Handler: print the newest (or named) file to the terminal."""
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -451,7 +459,9 @@ def _make_dump_handler(folder: str, pattern: str, ext: str = "*"):
     return handler
 
 
-def _make_delete_handler(folder: str, pattern: str, ext: str, generated: bool):
+def _make_delete_handler(
+    folder: str, pattern: str, ext: str, generated: bool
+) -> Callable[[PluginContext, str], CmdResult]:
     """Handler: delete one named file from the folder, or every file a pattern matches.
 
     A pattern (registry ``name-one-matcher``; ``*`` is every file) works
@@ -544,7 +554,7 @@ def rename_file(data_dir: Path, old_name: str, new_name: str, ext: str) -> Path:
     return new
 
 
-def _make_rename_handler(folder: str, ext: str):
+def _make_rename_handler(folder: str, ext: str) -> Callable[[PluginContext, str], CmdResult]:
     """Handler: ``/<folder>.rename <old> <new>`` via ``rename_file``."""
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -706,7 +716,7 @@ def _folder_long_help(folder: str, text: str = "") -> Callable[[PluginContext], 
     return long_help
 
 
-def _make_edit_handler(folder: str, ext: str):
+def _make_edit_handler(folder: str, ext: str) -> Callable[[PluginContext, str], CmdResult]:
     """Handler: open a file by name, or list the folder when no name is given.
 
     Returns the opened file path as ``CmdResult.value``; bare, the
@@ -732,7 +742,7 @@ def _make_edit_handler(folder: str, ext: str):
     return handler
 
 
-def _make_forward_list_handler(folder: str):
+def _make_forward_list_handler(folder: str) -> Callable[[PluginContext, str], CmdResult]:
     """``/edit.<folder>.list`` is ``/<folder>.list``: one listing per folder.
 
     Forwarded through the engine, so the listing (format, order, data

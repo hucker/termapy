@@ -17,7 +17,7 @@ The output-level vocabulary (``OUTPUT_LEVELS``, ``LEVEL_FLAGS``,
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, ItemsView, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -112,7 +112,7 @@ class PluginConfig:
     def __contains__(self, key: str) -> bool:
         return key in self._ensure_loaded()
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         return iter(self._ensure_loaded())
 
     def __len__(self) -> int:
@@ -122,7 +122,7 @@ class PluginConfig:
         """Remove and return a value.  Accepts an optional default."""
         return self._ensure_loaded().pop(key, *args)
 
-    def items(self):
+    def items(self) -> ItemsView[str, Any]:
         """Return key-value pairs."""
         return self._ensure_loaded().items()
 

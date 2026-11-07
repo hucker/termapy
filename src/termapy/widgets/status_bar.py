@@ -11,6 +11,7 @@ running and so had no coverage.
 from __future__ import annotations
 
 from functools import partial
+from typing import Any
 
 from rich.cells import cell_len
 from textual.timer import Timer
@@ -47,7 +48,7 @@ class StatusBar(Label):
     }
     """
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         # The text comes from plugins (ctx.io.status_bar) and progress
         # overlays: text, never markup (registry widget-text-literal).
         super().__init__("", markup=False, **kwargs)

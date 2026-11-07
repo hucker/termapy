@@ -48,7 +48,7 @@ class FilesystemHandle:
     # this in __post_init__ to its own CapabilitySet.
     capabilities: CapabilitySet = field(default_factory=CapabilitySet)
 
-    def open_file(self, path) -> None:
+    def open_file(self, path: str | Path) -> None:
         """Open a file or folder in the system viewer/editor.
 
         Requires the ``gui_apps`` capability -- without it, the call

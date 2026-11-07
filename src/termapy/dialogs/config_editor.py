@@ -403,11 +403,11 @@ class ConfigEditor(ModalScreen[tuple | None]):
             lines_safe = [*heading, "Value: [red]<invalid Rich formatting>[/]"]
             help_widget.update(Text.from_markup("\n".join(lines_safe)))
 
-    def on_text_area_selection_changed(self, event) -> None:
+    def on_text_area_selection_changed(self, event: TextArea.SelectionChanged) -> None:
         """Update help when cursor moves."""
         self._update_help()
 
-    def on_text_area_changed(self, event) -> None:
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Update help when text changes (live validation)."""
         self._update_help()
         self._check_json()

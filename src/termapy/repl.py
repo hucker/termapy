@@ -11,7 +11,7 @@ etc.) and exposes it through PluginContext lambdas.
 import re
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from io import TextIOWrapper
@@ -20,6 +20,7 @@ from threading import Event
 from types import MappingProxyType
 
 from termapy import diag_log, load_report
+from termapy.converters import ConverterSpec
 from termapy.defaults import (
     CFG_HELP,
     SESSION_FLAG_KEYS,
@@ -395,7 +396,7 @@ class ReplEngine:
         # The BUILT-IN converters are not here -- they live in the
         # symbols.converters registry, which /sym.import consults too.
         # Only folder-loaded ones need dropping on a config switch.
-        self._converters: list = []
+        self._converters: list[ConverterSpec] = []
 
         # What the last config load put in the session (fire_lifecycle).
         self.load_report = LoadReport()
@@ -938,7 +939,7 @@ class ReplEngine:
         """Register a plugin lifecycle hook. Appended in load order."""
         self._lifecycle_hooks.append(hook)
 
-    def register_converter(self, spec) -> None:
+    def register_converter(self, spec: ConverterSpec) -> None:
         """Register a converter (any kind). Appended in load order.
 
         Later layers override earlier ones by ``(kind, format)``, so a
@@ -956,7 +957,7 @@ class ReplEngine:
         self._converters.append(spec)
 
     @property
-    def converters(self) -> list:
+    def converters(self) -> list[ConverterSpec]:
         """Folder-loaded converters of every kind, in load order."""
         return self._converters
 
@@ -2163,10 +2164,10 @@ class ReplEngine:
                     # are display syntax, not data.
                     captured_lines: list[str] = []
 
-                    def _capture_plain(text, color=None):
+                    def _capture_plain(text: str, color: str | None = None) -> None:
                         captured_lines.append(str(text))
 
-                    def _capture_markup(text):
+                    def _capture_markup(text: str) -> None:
                         captured_lines.append(markup_to_plain(str(text)))
 
                     saved_write = self.ctx.io._write
@@ -2248,7 +2249,7 @@ class ReplEngine:
         self._cfg_data.update(cfg)
         self.config_path = path
 
-    def store_cfg(self, key: str, new_val) -> None:
+    def store_cfg(self, key: str, new_val: object) -> None:
         """Put a session value in the config, and in the session flag it starts.
 
         ``key`` may be a top-level cfg key or a pyserial key that lives
@@ -2263,7 +2264,7 @@ class ReplEngine:
         if key in SESSION_FLAG_KEYS:
             self.ctx.ns("flags")[key] = new_val
 
-    def _apply_cfg(self, key: str, new_val) -> None:
+    def _apply_cfg(self, key: str, new_val: object) -> None:
         """Apply a config change for this session (not saved to disk).
 
         The config editor is the only path that persists changes to disk.
@@ -2525,7 +2526,17 @@ class ReplEngine:
         return result
 
     @contextmanager
-    def _script_session(self, path, w, dispatch, profile, verbose, echo, progress, on_nest):
+    def _script_session(
+        self,
+        path: Path,
+        w: Callable,
+        dispatch: Callable | None,
+        profile: bool,
+        verbose: bool,
+        echo: bool,
+        progress: Callable[[int, int], None] | None,
+        on_nest: Callable[[], None] | None,
+    ) -> Generator[ScriptCtx, None, None]:
         """Context manager for script lifecycle - setup, yield, teardown."""
         # --echo overrides the force-off that start_script applied for the
         # outermost run, so the body echoes each command; the restore

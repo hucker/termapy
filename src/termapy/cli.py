@@ -45,6 +45,8 @@ from termapy.session_log import SessionLog
 from termapy.terminal_host import TerminalHost
 
 if TYPE_CHECKING:
+    import argparse
+
     from prompt_toolkit import PromptSession
 
     from termapy.plugins import PluginContext
@@ -356,7 +358,7 @@ class CLITerminal(TerminalHost):
             self.switch_to = switch_to
         self.repl._script_stop.set()
 
-    def _hook_tui(self, ctx, args: str) -> CmdResult:
+    def _hook_tui(self, ctx: PluginContext, args: str) -> CmdResult:
         """``/tui``: leave the CLI for the TUI, on the current config."""
         self._request_exit("tui")
         # SPECIAL CASE: the session ends after this returns; no caller
@@ -785,7 +787,7 @@ class CLITerminal(TerminalHost):
             return ""
 
 
-def _run_cli_mode(args) -> str | None:
+def _run_cli_mode(args: argparse.Namespace) -> str | None:
     """Run in CLI mode - plain text terminal, no TUI.
 
     Lives in ``cli.py`` (not ``app.py``) so that selecting CLI mode does

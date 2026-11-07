@@ -21,7 +21,10 @@ import re
 import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
+
+if TYPE_CHECKING:
+    from types import ModuleType
 
 from termapy.defaults import (
     VALID_BYTE_SIZES,
@@ -691,7 +694,7 @@ def _gather_windows_extras(facts: ChipFacts, device: str) -> None:
         enum_root.Close()
 
 
-def _enum_subkeys(winreg_mod, key) -> list[str]:
+def _enum_subkeys(winreg_mod: ModuleType, key: object) -> list[str]:
     """Return every immediate subkey name of ``key`` (winreg-only)."""
     names: list[str] = []
     i = 0
@@ -1049,8 +1052,8 @@ def _windows_usb_product(device_id: str, vid_pid: str) -> str | None:
 
 
 def _windows_match_inst(
-    winreg_mod,
-    parent_key,
+    winreg_mod: ModuleType,
+    parent_key: object,
     inst: str,
     device: str,
     facts: ChipFacts,
@@ -1115,7 +1118,7 @@ def _windows_match_inst(
         return True
 
 
-def _windows_lookup_location(winreg_mod, inst_key) -> str | None:
+def _windows_lookup_location(winreg_mod: ModuleType, inst_key: object) -> str | None:
     """Return the device's bus-location string, walking via ContainerID
     if necessary.
 

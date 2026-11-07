@@ -947,6 +947,7 @@ class TestFileCompletion:
 
     def test_proto_run_completes_from_proto(self, cli):
         """/proto.run Tab-completes .pro names, so the completer is not wired to run/ alone."""
+        from prompt_toolkit.completion import CompleteEvent
         from prompt_toolkit.document import Document
 
         from termapy.cli_prompt import _TermapyCompleter
@@ -958,7 +959,7 @@ class TestFileCompletion:
         completer = _TermapyCompleter(cli.repl, cli.prefix)
 
         # Act
-        completions = completer.get_completions(Document("/proto.run a"), None)
+        completions = completer.get_completions(Document("/proto.run a"), CompleteEvent())
         actual = [(completion.text, completion.start_position) for completion in completions]
 
         # Assert

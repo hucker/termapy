@@ -39,6 +39,8 @@ from termapy.session_log import (
 from termapy.typed_lines import TypedLine
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from termapy.capture import CaptureEngine
     from termapy.repl import ReplEngine
     from termapy.serial_engine import SerialEngine
@@ -757,7 +759,7 @@ class TerminalHost:
         if self.engine.serial_port:
             self.engine.serial_port.wait_for_idle(timeout_ms, max_wait_s)
 
-    def _serial_op(self, label: str, fn) -> None:
+    def _serial_op(self, label: str, fn: Callable[[], object]) -> None:
         """Run a serial operation, catching OSError/SerialException."""
         from serial import SerialException
 
@@ -950,7 +952,7 @@ class TerminalHost:
 
     # -- Capture helpers ------------------------------------------------------
 
-    def _start_capture(self, **kwargs) -> bool:
+    def _start_capture(self, **kwargs: Any) -> bool:
         """Start a capture session.
 
         Subclasses may override to add UI (timer, progress).
@@ -1006,10 +1008,10 @@ class TerminalHost:
         html_dir = str(Path(str(pkg_files("termapy").joinpath("html"))).resolve())
 
         class _QuietHandler(SimpleHTTPRequestHandler):
-            def __init__(self, *a, **kw):
+            def __init__(self, *a: Any, **kw: Any) -> None:
                 super().__init__(*a, directory=html_dir, **kw)
 
-            def log_message(self, format, *args):
+            def log_message(self, format: str, *args: object) -> None:
                 pass
 
         server = HTTPServer(("127.0.0.1", 0), _QuietHandler)
@@ -1028,7 +1030,7 @@ class TerminalHost:
         self._help_server_port = port
         return port
 
-    def _hook_help_open(self, ctx, args: str) -> CmdResult:
+    def _hook_help_open(self, ctx: PluginContext | None, args: str) -> CmdResult:
         """Open a help topic in the local docs server (the one /help.open, TUI and CLI).
 
         An unknown topic lists the pages that exist, read from the built

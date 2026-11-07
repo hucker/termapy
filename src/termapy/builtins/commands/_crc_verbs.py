@@ -43,7 +43,7 @@ def _enum_values(choices: tuple) -> tuple[EnumValue, ...]:
     return tuple(EnumValue(choice.name) for choice in choices)
 
 
-def _input_group(verb: Any):
+def _input_group(verb: Any) -> crcglot.ExclusiveGroup | None:
     """The required mutually-exclusive input-representation group, if any.
 
     crcglot models "supply the frame as hex OR text OR base64" as a required

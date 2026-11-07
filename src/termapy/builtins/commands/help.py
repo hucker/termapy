@@ -48,8 +48,9 @@ from termapy.run_docstring import extract_docstring
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+    from types import SimpleNamespace
 
-    from termapy.plugins import PluginContext
+    from termapy.plugins import PluginContext, PluginInfo
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -136,7 +137,7 @@ def _status_pieces(maturity: str) -> tuple[Piece, ...]:
     )
 
 
-def _name_tip(plugin) -> tuple[Piece, ...]:
+def _name_tip(plugin: PluginInfo) -> tuple[Piece, ...]:
     """What hovering a command's name on its page adds: what every page shares, one hover away."""
     maturity = getattr(plugin, "maturity", "stable")
     where = " ".join(
@@ -341,7 +342,7 @@ def _write_docstring(ctx: PluginContext, docstring: str) -> None:
 # ── Capability rendering ─────────────────────────────────────────────────────
 
 
-def _required_capability_rows(needs) -> list[tuple[str, str]]:
+def _required_capability_rows(needs: CapabilitySet) -> list[tuple[str, str]]:
     """Return ``(name, hint)`` pairs for restrictive capabilities a command
     declares. Baseline capabilities are skipped -- a command that uses
     terminal output doesn't need a line saying so.
@@ -406,7 +407,7 @@ def _siblings_for_see_also(name: str, plugins: dict) -> list[str]:
 
 
 def _landscape_row(
-    prefix: str, name: str, plugin, cmd_w: int, needles: list[str] | None = None
+    prefix: str, name: str, plugin: PluginInfo, cmd_w: int, needles: list[str] | None = None
 ) -> list[Piece]:
     """One row of the clean name + one-liner layout, as pieces.
 
@@ -517,7 +518,7 @@ def _compute_cmd_w(names: list[str], prefix: str) -> int:
 # ── Man-page detail view ─────────────────────────────────────────────────────
 
 
-def _bare_pieces(plugin, name: str, prefix: str, plugins: Mapping) -> list[Piece]:
+def _bare_pieces(plugin: PluginInfo, name: str, prefix: str, plugins: Mapping) -> list[Piece]:
     """What a bare invocation does, from ``picker=`` and ``bare_sub=``; ``[]`` when undeclared.
 
     The one wording for every command (registry ``bare-declared``), in
@@ -543,7 +544,9 @@ def _bare_pieces(plugin, name: str, prefix: str, plugins: Mapping) -> list[Piece
     return [Piece("bare: runs "), *sub] if sub else []
 
 
-def _render_man_page(ctx: PluginContext, name: str, plugin, dev_mode: bool = False) -> None:
+def _render_man_page(
+    ctx: PluginContext, name: str, plugin: PluginInfo, dev_mode: bool = False
+) -> None:
     """Render a command's full detail view in man-page format.
 
     Sections: NAME, STATUS, CURRENT STATE (if declared), SYNOPSIS (if args),
@@ -819,7 +822,7 @@ def _render_current_state(ctx: PluginContext, name: str) -> None:
         _write_more_link(ctx, len(lines) - _HELP_STATE_ROWS, name)
 
 
-def _render_help_list(ctx: PluginContext, name: str, plugin) -> None:
+def _render_help_list(ctx: PluginContext, name: str, plugin: PluginInfo) -> None:
     """End the page with the table of the list ``help_list`` names, indented like a section.
 
     ``/help cfg`` shows the configs and ``/help run`` the scripts: the
@@ -844,7 +847,7 @@ def _render_help_list(ctx: PluginContext, name: str, plugin) -> None:
     _write_table(ctx, view, list_name, _HELP_LIST_ROWS)
 
 
-def _render_target_man_page(ctx: PluginContext, tc) -> None:
+def _render_target_man_page(ctx: PluginContext, tc: SimpleNamespace) -> None:
     """Render a device-supplied command in the same man-page shape as plugins.
 
     Sections: NAME, SYNOPSIS (if args), DESCRIPTION (if long_help),

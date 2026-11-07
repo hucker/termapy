@@ -23,6 +23,10 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class _Version(argparse.Action):
@@ -33,10 +37,18 @@ class _Version(argparse.Action):
     the MCP server for a string only ``--version`` prints.
     """
 
-    def __init__(self, option_strings, dest=argparse.SUPPRESS, **kwargs) -> None:
+    def __init__(
+        self, option_strings: Sequence[str], dest: str = argparse.SUPPRESS, **kwargs: Any
+    ) -> None:
         super().__init__(option_strings, dest, nargs=0, default=argparse.SUPPRESS, **kwargs)
 
-    def __call__(self, parser, namespace, values, option_string=None):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
         from importlib.metadata import PackageNotFoundError, version
 
         try:
@@ -58,7 +70,13 @@ class _OneCommand(argparse.Action):
     file, the one multi-command format.
     """
 
-    def __call__(self, parser, namespace, values, option_string=None):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
         if getattr(namespace, self.dest) is not None:
             parser.error(
                 f"{option_string} takes one command; put several in a .run file and use --run"

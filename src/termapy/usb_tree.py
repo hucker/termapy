@@ -30,8 +30,12 @@ import os
 import re
 import sys
 import unicodedata
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from types import ModuleType
 
 # ── Records ───────────────────────────────────────────────────────────────
 
@@ -81,7 +85,7 @@ class UsbNode:
             return self.path
         return f":{self.interface_number}"
 
-    def walk(self):
+    def walk(self) -> Iterator[UsbNode]:
         """Yield this node and every descendant, depth first."""
         yield self
         for child in self.children:
@@ -411,7 +415,7 @@ def _windows_records() -> list[UsbRecord]:
     return records
 
 
-def _subkeys(winreg_mod, key) -> list[str]:
+def _subkeys(winreg_mod: ModuleType, key: object) -> list[str]:
     """Every immediate subkey name of ``key``."""
     names: list[str] = []
     i = 0
@@ -423,7 +427,7 @@ def _subkeys(winreg_mod, key) -> list[str]:
         i += 1
 
 
-def _reg_value(winreg_mod, key, name: str) -> str | None:
+def _reg_value(winreg_mod: ModuleType, key: object, name: str) -> str | None:
     """One registry value, or None if it isn't there."""
     try:
         value, _ = winreg_mod.QueryValueEx(key, name)

@@ -175,7 +175,7 @@ def _flat_default_map() -> dict:
     return out
 
 
-def _fmt_default(v) -> str:
+def _fmt_default(v: object) -> str:
     """Render a default value for a table cell (escapes shown, containers short)."""
     if isinstance(v, bool):
         return "true" if v else "false"
@@ -198,7 +198,7 @@ def _esc_cell(s: str) -> str:
     return s.replace("|", r"\|")
 
 
-def _sync_reference_table(path, write: bool = True) -> str | None:
+def _sync_reference_table(path: Path, write: bool = True) -> str | None:
     text = path.read_text(encoding="utf-8")
     mstart = REF_START_RE.search(text)
     if not mstart or REF_END not in text:

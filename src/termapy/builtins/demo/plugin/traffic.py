@@ -36,6 +36,8 @@ from termapy.protocol import parse_data
 from termapy.scripting import parse_duration, parse_keywords
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from termapy.plugins import PluginContext
 
 
@@ -119,7 +121,7 @@ def _handler_hexdump(ctx: PluginContext, args: str) -> CmdResult:
     ensure_folder(out_path.parent)
     with out_path.open("w", encoding="utf-8") as f:
 
-        def tee(direction: str):
+        def tee(direction: str) -> Callable[[bytes], None]:
             def cb(data: bytes) -> None:
                 ts = time.monotonic() - t0
                 f.write(f"[+{ts:6.3f}s] {direction}  {data.hex(' ').upper()}\n")

@@ -30,8 +30,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 from termapy.plugins.capabilities import CapabilitySet, MissingCapability
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @dataclass
@@ -77,7 +81,7 @@ class UIHandle:
 
     # ── Toast / status bar / clear screen (TUI-strict variants) ──────
 
-    def notify(self, text: str, **kw) -> None:
+    def notify(self, text: str, **kw: Any) -> None:
         """Show a real Textual toast.  Use ``ctx.io.notify`` for the always-works fallback.
 
         Raises:
@@ -109,7 +113,7 @@ class UIHandle:
 
     # ── Screen capture ───────────────────────────────────────────────
 
-    def screenshot(self, path) -> None:
+    def screenshot(self, path: str | Path) -> None:
         """Save the current TUI render surface to ``path``.
 
         Raises:

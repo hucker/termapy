@@ -15,6 +15,8 @@ from termapy.protocol import get_crc_registry, parse_format_spec
 from termapy.scripting import parse_bool, parse_duration, resolve_seq_filename
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from termapy.plugins import PluginContext
 
 # Shared enum vocabularies for the declarative-param capture subcommands.
@@ -684,7 +686,7 @@ def _cap_folder_line(ctx: PluginContext) -> str:
     return folder_line(ctx, "cap")
 
 
-def _cap_long_help_with_prose(prose: str):
+def _cap_long_help_with_prose(prose: str) -> Callable[[PluginContext], str]:
     """Build a callable that prepends the cap/ file count to a fixed prose body."""
 
     def _long(ctx: PluginContext) -> str:

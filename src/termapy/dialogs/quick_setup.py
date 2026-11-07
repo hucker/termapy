@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from textual import on
+from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
@@ -231,7 +231,7 @@ class QuickSetup(ModalScreen[tuple | None]):
             btn.variant = "error"
             btn.disabled = True
 
-    def on_resize(self, _event) -> None:
+    def on_resize(self, _event: events.Resize) -> None:
         """Re-render the port list when the terminal/dialog resizes.
 
         Without this, columns dropped while the screen was narrow

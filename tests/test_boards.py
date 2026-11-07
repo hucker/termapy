@@ -13,6 +13,8 @@ injected (``source=`` / ``usb_source=``), so no test needs the board.
 from __future__ import annotations
 
 import ast
+import asyncio
+import contextlib
 import importlib.util
 import json
 import os
@@ -86,6 +88,10 @@ BOARD_FORMS = {
         "led 1": "led",
         "temp": "temp",
         "id": "id",
+        "MEM.R 0x20000000 16": "MEM.R",
+        "MEM.W 0x20000000 DEADBEEF": "MEM.W",
+        "MEM.M 0x20000000 FFFFFF00 00000001": "MEM.M",
+        "MEM.INFO": "MEM.INFO",
     },
     "esp32s3": {
         "help": "help",
@@ -151,7 +157,7 @@ class TestTable:
             assert isinstance(table, ast.Dict), "COMMANDS is a dict literal"
             firmware = {key.value for key in table.keys if isinstance(key, ast.Constant)}
             expected = firmware | monitor_commands
-            if "termapy_mem.py" in board.runtime_extras:
+            if "termapy_mem.py" in board.runtime.files:
                 expected |= mem_commands
             actual = set(load_profile(BOARDS_DIR / board.name / "profile.json")["commands"])
             assert actual == expected, f"{board.name}: profile and firmware disagree"
@@ -176,16 +182,18 @@ class TestTable:
                         assert outcome.ok, f"{board.name}: {line!r} refused: {outcome.error}"
 
     def test_runtime_code_ships_once(self):
-        """Every MicroPython board gets the runtime's one termapy_json.py; no board folder holds a copy."""
+        """Every MicroPython board gets the runtime's one copy of each shared file; no board folder holds its own."""
         shared = {
             path
             for board in BOARDS
             for path in firmware_paths(board)
             if path.name in board.runtime.files
         }
-        assert len(shared) == 1, f"one shared file, not one per board: {shared}"
+        assert len(shared) == len({path.name for path in shared}), (
+            f"one copy of each shared file, not one per board: {shared}"
+        )
         for board in BOARDS:
-            for name in board.runtime.files + board.runtime_extras:
+            for name in board.runtime.files:
                 copy = BOARDS_DIR / board.name / "firmware" / name
                 assert not copy.exists(), f"{board.name} carries its own {name}"
 
@@ -460,10 +468,21 @@ BOARD_JSON = _load_board_module(PICO, "termapy_json.py")
 BOARD_MEM = _load_board_module(ESP32S3, "termapy_mem.py")
 
 
+class Waiting:
+    """The characters that have arrived on a link, read one at a time; ``""`` once none is left."""
+
+    def __init__(self, text: str = "") -> None:
+        self.text = text
+
+    def __call__(self) -> str:
+        char, self.text = self.text[:1], self.text[1:]
+        return char
+
+
 class Link:
     """A Monitor over a fake command table and any native commands, with the reply bytes it wrote."""
 
-    def __init__(self, native=None):
+    def __init__(self, native=None, read: Waiting | None = None):
         def fail(args):
             raise BOARD_JSON.CommandError("usage: fail")
 
@@ -486,12 +505,18 @@ class Link:
             name: ("the " + name + " command", handler) for name, handler in handlers.items()
         }
         self.out: list[str] = []
-        self.monitor = BOARD_JSON.Monitor(self.commands, self.out.append, native)
+        self.monitor = BOARD_JSON.Monitor(self.commands, self.out.append, native, read)
 
     def ask(self, line: str) -> list[str]:
         """Send one line; return the reply lines it produced."""
         start = len(self.out)
         self.monitor.handle(line)
+        return self.out[start:]
+
+    def poll(self) -> list[str]:
+        """Run one poll(); return the reply lines it produced."""
+        start = len(self.out)
+        self.monitor.poll()
         return self.out[start:]
 
 
@@ -655,6 +680,116 @@ class TestMicroPythonJson:
         """A table row named help or json is refused at construction instead of silently shadowed."""
         with pytest.raises(ValueError, match="command name taken by the monitor: help"):
             BOARD_JSON.Monitor({"help": ("mine", lambda args: "")}, print)
+
+
+class TestMonitorLines:
+    """The monitor gathers characters into lines and never waits for one (super-loop poll)."""
+
+    def test_a_line_is_answered_when_its_ending_arrives(self):
+        """Characters before the line ending only gather; the ending answers the line."""
+        # Arrange
+        link = Link()
+
+        # Act
+        gathered = [link.monitor.feed(char) for char in "num"]
+
+        # Assert
+        assert (gathered, link.out) == ([False, False, False], []), "no reply mid-line"
+        assert link.monitor.feed("\r") is True
+        assert link.out == ["3.14\r\n"]
+
+    def test_each_line_ending_ends_a_line_once(self):
+        """CR, LF and CRLF each end one line; CRLF's second character is not a second command."""
+        link = Link(read=Waiting("num\rnum\nnum\r\n\r\n"))
+        replies = [link.poll() for _ in range(4)]
+        assert replies == [["3.14\r\n"]] * 3 + [[]], "three replies, and the blank line gets none"
+
+    def test_poll_returns_at_once_without_a_whole_line(self):
+        """With no line ending waiting, poll() returns with no reply and keeps what it read."""
+        # Arrange
+        waiting = Waiting("nu")
+        link = Link(read=waiting)
+
+        # Act / Assert
+        assert link.poll() == [], "half a command answers nothing"
+        assert link.poll() == [], "and so does an empty link"
+        waiting.text = "m\r"
+        assert link.poll() == ["3.14\r\n"], "the rest of the line completes it"
+
+    def test_poll_answers_one_line_per_call(self):
+        """Two commands waiting at once are answered on two polls, in order, and the third finds nothing."""
+        link = Link(read=Waiting("num\rneg\r"))
+        actual = [link.poll(), link.poll(), link.poll()]
+        assert actual == [["3.14\r\n"], ["-42\r\n"], []]
+
+    def test_poll_says_whether_it_answered(self):
+        """poll() is True after answering a line and False when no whole line was waiting."""
+        link = Link(read=Waiting("num\rnu"))
+        assert [link.monitor.poll(), link.monitor.poll()] == [True, False]
+
+    def test_run_answers_as_a_task_beside_another(self):
+        """run() answers a burst of commands as an asyncio task, and another task gets its turns."""
+        # Arrange
+        link = Link(read=Waiting("num\rneg\recho hi\r"))
+        turns: list[int] = []
+
+        async def project() -> None:
+            for turn in range(5):
+                turns.append(turn)
+                await asyncio.sleep(0)
+
+        async def scenario() -> None:
+            monitor = asyncio.create_task(link.monitor.run(interval=0))
+            await project()
+            for _ in range(10):
+                await asyncio.sleep(0)
+            monitor.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await monitor
+
+        # Act
+        asyncio.run(scenario())
+
+        # Assert
+        assert link.out == ["3.14\r\n", "-42\r\n", "hi\r\n"], "every command, in order"
+        assert turns == [0, 1, 2, 3, 4], "the monitor never kept the loop to itself"
+
+    def test_the_same_line_twice_answers_twice(self):
+        """A command sent twice is answered twice: the buffer empties at each line ending."""
+        link = Link(read=Waiting("echo hi\r\necho hi\r\n"))
+        actual = [link.poll(), link.poll()]
+        assert actual == [["hi\r\n"], ["hi\r\n"]]
+
+    def test_a_line_of_line_max_is_taken(self):
+        """A line of exactly LINE_MAX characters is answered whole."""
+        words = "x" * (BOARD_JSON.LINE_MAX - len("echo "))
+        link = Link(read=Waiting("echo " + words + "\r"))
+        assert link.poll() == [words + "\r\n"]
+
+    def test_a_line_that_never_ends_stays_bounded(self):
+        """With no line ending the held line never passes LINE_MAX; the ending refuses it, and the next line works."""
+        # Arrange -- a sustained run, four limits' worth, with no consumer of a line
+        link = Link()
+        for char in "y" * (4 * BOARD_JSON.LINE_MAX):
+            link.monitor.feed(char)
+
+        # Act
+        held = len(link.monitor._chars)
+        link.monitor.feed("\n")
+        refused = list(link.out)
+
+        # Assert
+        assert held <= BOARD_JSON.LINE_MAX, "memory stays bounded however long the line runs"
+        assert refused == ["ERR line too long\r\n"], "the line is refused once, at its ending"
+        assert link.ask("num") == ["3.14\r\n"], "the monitor takes the next line"
+
+    def test_a_long_line_in_json_framing_is_a_json_error(self):
+        """In JSON framing the refusal is an envelope, -32700, with no id from an earlier request."""
+        link = Link()
+        link.ask('{"cmd":"num","id":5}')
+        for char in "{" + "z" * BOARD_JSON.LINE_MAX + "\r":
+            link.monitor.feed(char)
+        assert link.out[-1] == '{"error":{"code":-32700,"message":"line too long"}}\n'
 
 
 class TestIntArg:

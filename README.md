@@ -265,7 +265,7 @@ The most common ones:
 | `/edit.cfg`                          | Edit the current config file                                                  |
 | `/edit.log`                          | Open the session log in the system viewer                                     |
 | `/edit.info`                         | Open the info report in the system viewer                                     |
-| `/os <cmd>`                          | Run a shell command (10s timeout, requires `TERMAPY_OS_CMD_ENABLED=1` in env) |
+| `/os <cmd>`                          | Run a shell command (10s timeout, requires `TERMAPY_OS_CMD_ENABLED=1` in env); a nonzero exit stops a script |
 | `/grep <pattern>`                    | Search scrollback for regex matches (case-insensitive, skips own output)      |
 | `/cfg.info {--display}`              | Write and show the project report (folder tree, config, buttons, log and history tails); also written at exit; `--display` opens it |
 | `/proto`                             | Open Proto picker (bare TUI) or list proto/ (bare CLI)                        |

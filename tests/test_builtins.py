@@ -2260,6 +2260,57 @@ class TestOs:
         # Assert
         assert any("Usage" in t for t, _ in output), "usage message"
 
+    def test_a_nonzero_exit_fails_with_its_code(self, cli, monkeypatch):
+        """A shell command that exits nonzero fails the line, and the error names the exit code."""
+        # Arrange
+        from termapy.builtins.commands import os_cmd
+
+        monkeypatch.setattr(os_cmd, "OS_CMD_ENABLED", True)
+
+        # Act -- `exit 3` means the same to cmd.exe and to sh
+        result = cli.repl.dispatch_full("/os exit 3")
+
+        # Assert
+        assert result.success is False, "a nonzero exit is a failure, not an ok beside red text"
+        assert result.error == "Command failed (exit code 3)"
+
+    def test_a_nonzero_exit_stops_the_script(self, cli, tmp_path, monkeypatch, capsys):
+        """The line after a failed /os in a script never runs: it usually depends on the command having worked."""
+        # Arrange
+        from termapy.builtins.commands import os_cmd
+
+        monkeypatch.setattr(os_cmd, "OS_CMD_ENABLED", True)
+        script = tmp_path / "check.run"
+        script.write_text("/os exit 3\n/print reached-the-end\n", encoding="utf-8")
+
+        # Act
+        cli.repl.dispatch_full(f"/run {script}")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert "Command failed (exit code 3)" in out, "the failure is reported"
+        assert "reached-the-end" not in out, "a failed shell command stops the script"
+
+    def test_the_next_script_runs_after_a_stopped_one(self, cli, tmp_path, monkeypatch, capsys):
+        """A script stopped by a failed /os leaves the next one free to run to its end, a zero exit included."""
+        # Arrange
+        from termapy.builtins.commands import os_cmd
+
+        monkeypatch.setattr(os_cmd, "OS_CMD_ENABLED", True)
+        failing = tmp_path / "failing.run"
+        failing.write_text("/os exit 3\n", encoding="utf-8")
+        passing = tmp_path / "passing.run"
+        passing.write_text("/os exit 0\n/print reached-the-end\n", encoding="utf-8")
+        cli.repl.dispatch_full(f"/run {failing}")
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full(f"/run {passing}")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert "reached-the-end" in out, "the earlier stop does not carry into the next script"
+
 
 # -- dispatch edge cases ---------------------------------------------------
 

@@ -25,13 +25,25 @@ if TYPE_CHECKING:
 # and developer /search indexes it, so keep it true (registry handler-docstring).
 
 
+def _failed(ctx: PluginContext, msg: str) -> CmdResult:
+    """The failure for a shell command that exited nonzero or timed out.
+
+    Inside a .run script the next lines usually depend on the command
+    having worked (a copy before a reconnect), so the script stops here.
+    """
+    if ctx.internal.in_script():
+        ctx.internal.script_stop()
+    return CmdResult.fail(msg=msg)
+
+
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Run a shell command and display its output.
 
     Gated by the ``TERMAPY_OS_CMD_ENABLED`` env var (any boolean token,
     read once at startup by ``env_flags``).  Runs the command via
     ``subprocess.run()`` with a 10-second timeout.  Stdout is
-    displayed in white, stderr in red.
+    displayed in white, stderr in red.  A nonzero exit code or the
+    timeout fails the line and stops a running script.
 
     Args:
         ctx: Plugin context for output.
@@ -55,7 +67,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         for line in result.stderr.splitlines():
             ctx.io.output(line, "red")
     except subprocess.TimeoutExpired:
-        return CmdResult.fail(msg="Command timed out (10s limit)")
+        return _failed(ctx, "Command timed out (10s limit)")
+    if result.returncode != 0:
+        return _failed(ctx, f"Command failed (exit code {result.returncode})")
     # Return stdout so scripts can capture command output via
     # ``$(OUT) <- /os hostname`` etc.
     return CmdResult.ok(value=result.stdout)
@@ -79,7 +93,9 @@ for safety).  Set it to 1 in your shell to enable:
     # PowerShell
     $env:TERMAPY_OS_CMD_ENABLED = "1"
 
-Commands time out after 10 seconds.
+Commands time out after 10 seconds.  A nonzero exit code or a
+timeout is an error, and in a script it stops the script, so the
+lines after a failed copy or build never run.
 
 Examples:
   {prefix}os dir                - list files (Windows)

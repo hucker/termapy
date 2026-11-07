@@ -478,6 +478,112 @@ class TestConnect:
         )
 
 
+class _OpensAfter:
+    """``ctx.serial.connect`` that misses the first tries as an absent port does, then opens the real one."""
+
+    def __init__(self, cli: CLITerminal, misses: int, on_miss=None) -> None:
+        self._real = cli.repl.ctx.serial.connect
+        self._misses = misses
+        self._on_miss = on_miss
+        self.calls = 0
+        cli.repl.ctx.serial.connect = self
+
+    def __call__(self, port: str | None = None) -> None:
+        self.calls += 1
+        if self.calls <= self._misses:
+            if self._on_miss is not None:
+                self._on_miss()
+            raise OSError("Cannot open DEMO: Port not found")
+        self._real(port)
+
+
+class TestConnectTimeout:
+    """/port.connect timeout=: tries until the port opens or the time runs out."""
+
+    def test_a_timed_connect_waits_until_the_port_opens_twice(self, cli, capsys):
+        """A port that misses twice opens on the third try, and a second timed connect does the same."""
+        for _ in range(2):
+            # Arrange
+            cli._disconnect()
+            opener = _OpensAfter(cli, misses=2)
+            capsys.readouterr()
+
+            # Act
+            result = cli.repl.dispatch_full("/port.connect timeout=5s")
+
+            # Assert
+            assert result.success, result.error
+            assert cli.engine.is_connected is True
+            assert opener.calls == 3, "two misses, then the open"
+            out = capsys.readouterr().out
+            assert out.count("Waiting for DEMO...") == 1, "the default message, said once"
+
+    def test_msg_replaces_the_waiting_line_and_takes_the_rest(self, cli, capsys):
+        """msg= is the waiting line, verbatim to the end; a 9600 inside it is not a baud rate."""
+        # Arrange
+        cli._disconnect()
+        _OpensAfter(cli, misses=1)
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full(
+            "/port.connect timeout=5s msg=Waiting for reboot at 9600..."
+        )
+
+        # Assert
+        assert result.success, result.error
+        out = capsys.readouterr().out
+        assert "Waiting for reboot at 9600..." in out
+        assert "Waiting for DEMO" not in out, "the message replaces the default"
+        assert cli.cfg["serial"]["baud_rate"] == 115200, "text in msg= sets nothing"
+
+    def test_a_port_that_opens_at_once_shows_no_waiting_line(self, cli, capsys):
+        """When the first try opens the port there is nothing to wait for and no message."""
+        cli._disconnect()
+        capsys.readouterr()
+        result = cli.repl.dispatch_full("/port.connect DEMO 9600 timeout=5s msg=Waiting...")
+        assert result.success, result.error
+        assert "Waiting" not in capsys.readouterr().out
+        assert cli.cfg["serial"]["baud_rate"] == 9600, "the settings before timeout= still apply"
+
+    def test_without_a_timeout_it_tries_once(self, cli):
+        """No timeout= is one try, as /port.connect always was: the miss is the failure."""
+        cli._disconnect()
+        opener = _OpensAfter(cli, misses=1)
+        result = cli.repl.dispatch_full("/port.connect")
+        assert (result.success, opener.calls) == (False, 1)
+        assert result.error == "Cannot open DEMO: Port not found"
+
+    def test_a_timeout_that_runs_out_fails_with_the_last_reason(self, cli):
+        """A port that never opens fails once the time is up, with why and how long it waited."""
+        cli._disconnect()
+        result = cli.repl.dispatch_full("/port.connect DEMO_FAIL timeout=300ms")
+        assert result.success is False
+        assert result.error.startswith("Cannot open DEMO_FAIL"), result.error
+        assert "(waited " in result.error, result.error
+
+    def test_a_bad_timeout_is_refused(self, cli):
+        """A timeout that is not a duration fails before any try."""
+        cli._disconnect()
+        result = cli.repl.dispatch_full("/port.connect timeout=soon")
+        assert result.error == "Invalid timeout: soon"
+        assert cli.engine.is_connected is False
+
+    def test_a_stop_ends_the_wait(self, cli):
+        """Escape or Ctrl+C during the wait cancels the connect: typed, it says so."""
+        # Arrange -- the stop arrives while the second try misses
+        cli._disconnect()
+        stops = iter([None, cli.repl.ctx.internal.script_stop])
+        opener = _OpensAfter(cli, misses=10, on_miss=lambda: (next(stops) or (lambda: None))())
+
+        # Act
+        result = cli.repl.dispatch_full("/port.connect timeout=5s")
+
+        # Assert
+        assert result.error == "Connect canceled."
+        assert opener.calls < 10, "the wait ended at the stop, not after every try"
+
+
 # ── a failed command captured into a variable ───────────────────────────────
 
 

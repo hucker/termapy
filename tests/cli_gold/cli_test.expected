@@ -493,6 +493,13 @@ demo> /port.connect
 Connected: DEMO
 demo> /port.baud_rate
   115200
+demo> /port.disconnect
+Disconnected: DEMO
+demo> /port.connect DEMO_FAIL timeout=300ms msg=Waiting for a port that never opens...
+  Waiting for a port that never opens...
+  Error: Cannot open DEMO_FAIL: DEMO_FAIL: simulated open failure (waited 300ms)
+demo> /port.connect DEMO
+Connected: DEMO
 demo> /print === section: port break ===
   === section: port break ===
 demo> /port.break

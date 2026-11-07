@@ -266,16 +266,31 @@ def parse_open_args(
     return port, baud, mode, line_ending, echo, custom, None
 
 
+def baud_facts(cfg: Mapping[str, Any], rate: str | None = None) -> dict[str, Any]:
+    """The rate as data, ``{"baud", "custom"}``: the one producer of those two keys.
+
+    Args:
+        cfg: Config dict; ``custom`` is its ``custom_baud``.
+        rate: The rate as read, which bare ``/port.baud_rate`` takes from
+            the open port; ``None`` takes the config's, as ``/port.mode``
+            prints it.  Digits become a number, anything else stays text.
+    """
+    baud: Any = cfg["serial"]["baud_rate"] if rate is None else rate
+    if isinstance(baud, str) and baud.isdigit():
+        baud = int(baud)
+    return {"baud": baud, "custom": bool(cfg_value(cfg, "serial.custom_baud"))}
+
+
 def mode_facts(cfg: Mapping[str, Any]) -> dict[str, Any]:
     """The frame bare ``/port.mode`` reports, with JSON types: its ``data``.
 
-    ``baud`` and ``custom`` are spelled as ``/port.baud_rate``'s data
-    spells them, so the two answers agree on the rate.
+    The config's frame, as the line ``/port.mode`` prints it, with the rate
+    from ``baud_facts``.  ``/port.baud_rate`` reads the open port's rate
+    instead, so the two differ only when the port and the config do.
     """
     serial = cfg["serial"]
     return {
-        "baud": serial["baud_rate"],
-        "custom": bool(cfg_value(cfg, "serial.custom_baud")),
+        **baud_facts(cfg),
         "byte_size": serial["byte_size"],
         "parity": serial["parity"],
         "stop_bits": serial["stop_bits"],

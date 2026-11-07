@@ -12,7 +12,7 @@ text) and print hex uppercase.  Until 2026-10-13 no test drove
 renamed variable in its match and timeout messages, caught only by ruff and
 ty.  The rig copies the plugin into the config's ``plugin/`` folder, where the
 engine loads it at config load exactly as ``--demo`` sets it up, and connects
-the DEMO port (the ``tests/test_port_commands.py`` shape).
+the DEMO port (``conftest.py``'s ``cli``, with the plugin added).
 """
 
 from __future__ import annotations

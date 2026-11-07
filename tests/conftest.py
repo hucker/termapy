@@ -149,6 +149,36 @@ def _isolate_variables():
         _restore_store(store, before)
 
 
+@pytest.fixture
+def cli(tmp_path):
+    """The DEMO rig: a ``CLITerminal`` connected to the DEMO port, its config at ``tmp_path/rig/rig.cfg``.
+
+    Commands are driven the way a user or a script drives them,
+    ``cli.repl.dispatch_full("/cmd")``, against the simulated device.
+    Seven test files carried this fixture word for word until 2026-11-06.  A
+    file that needs another rig (a plugin in the config folder, another port,
+    an unconnected CLI) defines its own ``cli``, which pytest uses in place of
+    this one for that file.
+    """
+    import json
+
+    from termapy.cli import CLITerminal
+    from termapy.defaults import DEFAULT_CFG
+
+    default_serial = DEFAULT_CFG["serial"]
+    assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
+    cfg = {**DEFAULT_CFG, "serial": {**default_serial, "port": "DEMO", "baud_rate": 115200}}
+    config_path = tmp_path / "rig" / "rig.cfg"
+    config_path.parent.mkdir()
+    config_path.write_text(json.dumps(cfg))
+    terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=120)
+    # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
+    terminal.repl.global_root = tmp_path
+    assert terminal._connect() is True, "the DEMO port opens"
+    yield terminal
+    terminal._disconnect()
+
+
 def pytest_addoption(parser) -> None:
     """Add ``--run-hw-loopback`` (see ``tests/test_hw_loopback.py``)."""
     parser.addoption(

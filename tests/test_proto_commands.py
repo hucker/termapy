@@ -7,7 +7,7 @@ delays, the hex dump of a long reply, the quoted-text view) was unexecuted,
 and ``/proto.help`` and ``/proto.info`` were named by no test at all.
 These tests drive each command the way a user or a script does --
 ``repl.dispatch_full`` on a ``CLITerminal`` connected to the DEMO port
-(the ``tests/test_port_commands.py`` shape) -- and pin the scriptable
+(``conftest.py``'s ``cli``) -- and pin the scriptable
 ``value``, the printed lines and the effect on the device and the session
 flags.  A send without its line ending is never answered, and the DEMO
 device, like a real one, keeps the partial command in its input buffer
@@ -22,26 +22,8 @@ from pathlib import Path
 import pytest
 
 from termapy.cli import CLITerminal
-from termapy.defaults import DEFAULT_CFG
 from termapy.folders import ensure_folder
 from termapy.protocol import get_crc_registry
-
-
-@pytest.fixture
-def cli(tmp_path):
-    """A connected CLI on the DEMO port, its cfg folder under tmp_path."""
-    default_serial = DEFAULT_CFG["serial"]
-    assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
-    cfg = {**DEFAULT_CFG, "serial": {**default_serial, "port": "DEMO", "baud_rate": 115200}}
-    config_path = tmp_path / "rig" / "rig.cfg"
-    config_path.parent.mkdir()
-    config_path.write_text(json.dumps(cfg))
-    terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=120)
-    # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
-    terminal.repl.global_root = tmp_path
-    assert terminal._connect() is True, "the DEMO port opens"
-    yield terminal
-    terminal._disconnect()
 
 
 def _pro(folder: Path, name: str, text: str) -> Path:

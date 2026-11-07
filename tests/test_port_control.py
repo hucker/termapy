@@ -7,9 +7,11 @@ from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.port_control import (
     PORT_PROPS,
     SERIAL_KEYS,
+    baud_facts,
     get_set_flow,
     get_set_hw_line,
     get_set_prop,
+    mode_facts,
     parse_mode,
     parse_open_args,
     port_info,
@@ -814,6 +816,31 @@ class TestBaudStandardUnlessCustom:
 
 
 # ── set_mode ────────────────────────────────────────────────────────────────
+
+
+class TestBaudFacts:
+    """baud_facts is the one producer of the {"baud", "custom"} pair /port.baud_rate and /port.mode answer."""
+
+    def test_no_rate_reads_the_config(self):
+        """With no rate given, the baud is the config's, as /port.mode prints it."""
+        actual = baud_facts(_cfg(serial={"baud_rate": 9600, "custom_baud": True}))
+        assert actual == {"baud": 9600, "custom": True}, "the config's rate and custom flag"
+
+    def test_a_read_rate_is_a_number(self):
+        """A rate read off the open port as text answers as a number, the config's custom flag beside it."""
+        actual = baud_facts(_cfg(), "250000")
+        assert actual == {"baud": 250000, "custom": False}, "digits become an int"
+
+    def test_a_rate_that_is_not_digits_stays_text(self):
+        """A rate the port reports as something other than digits is kept as written, never guessed."""
+        actual = baud_facts(_cfg(), "?")
+        assert actual["baud"] == "?", "no number to make"
+
+    def test_mode_facts_carry_the_same_pair(self):
+        """mode_facts spreads baud_facts, so the two answers spell the rate one way."""
+        cfg = _cfg(serial={"baud_rate": 9600})
+        actual = {key: mode_facts(cfg)[key] for key in ("baud", "custom")}
+        assert actual == baud_facts(cfg), "one producer, one spelling"
 
 
 class TestSetMode:

@@ -1,7 +1,7 @@
 """``/cap.poll``: the scheduled polling loop, its files, its validation, and its stop.
 
-Runs on the ``CLITerminal`` DEMO rig (the ``tests/test_capture_claim.py``
-pattern): a real engine and the demo device, no mocks.  REPL commands
+Runs on the ``CLITerminal`` DEMO rig (``conftest.py``'s ``cli``): a real
+engine and the demo device, no mocks.  REPL commands
 (``/print``) drive the loop without the port; one test polls the device.
 The handler had no test at all until this file (2026-10-12).
 """
@@ -14,26 +14,6 @@ import time
 from pathlib import Path
 
 import pytest
-
-from termapy.cli import CLITerminal
-from termapy.defaults import DEFAULT_CFG
-
-
-@pytest.fixture
-def cli(tmp_path):
-    """A connected CLI on the DEMO port, its cfg folder under tmp_path."""
-    default_serial = DEFAULT_CFG["serial"]
-    assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
-    cfg = {**DEFAULT_CFG, "serial": {**default_serial, "port": "DEMO", "baud_rate": 115200}}
-    config_path = tmp_path / "rig" / "rig.cfg"
-    config_path.parent.mkdir()
-    config_path.write_text(json.dumps(cfg))
-    terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=120)
-    # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
-    terminal.repl.global_root = tmp_path
-    assert terminal._connect() is True, "the DEMO port opens"
-    yield terminal
-    terminal._disconnect()
 
 
 def _cap_dir(tmp_path: Path) -> Path:

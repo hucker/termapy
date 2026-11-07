@@ -6,7 +6,7 @@ import textwrap
 from typing import TYPE_CHECKING
 
 from termapy import port_control
-from termapy.defaults import STANDARD_BAUD_RATES, cfg_value
+from termapy.defaults import STANDARD_BAUD_RATES
 from termapy.help_dynamic import compose, port_status
 from termapy.legacy import make_forwarder
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, TextLine, UsageError
@@ -390,10 +390,11 @@ def _handler_baud_rate(ctx: PluginContext, args: str) -> CmdResult:
     if refusal is not None:
         return CmdResult.fail(msg=refusal)
     rate = _read_value(result)
-    custom = bool(cfg_value(ctx.cfg, "serial.custom_baud"))
+    data = port_control.baud_facts(ctx.cfg, rate)
     connected = ctx.serial.is_connected()
-    shown = rate + (" (custom)" if custom else "") + ("" if connected else " (disconnected)")
-    data = {"baud": int(rate) if rate.isdigit() else rate, "custom": custom}
+    shown = (
+        rate + (" (custom)" if data["custom"] else "") + ("" if connected else " (disconnected)")
+    )
     return CmdResult.record(data, [TextLine(shown)], value=rate)
 
 

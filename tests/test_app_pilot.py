@@ -15,6 +15,7 @@ faithfully.  So these cover STATE TRANSITIONS, not input-focus behavior.
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import shutil
 import threading
@@ -62,7 +63,7 @@ def _write_cfg(tmp_path, name: str = "proj", **overrides) -> tuple[dict, str]:
     serial = DEFAULT_CFG["serial"]
     assert isinstance(serial, dict), "DEFAULT_CFG['serial'] is a dict"
     cfg = {
-        **DEFAULT_CFG,
+        **copy.deepcopy(DEFAULT_CFG),
         "serial": {**serial, "port": "DEMO"},
         # No auto-connect: these tests are about app state, and chasing a
         # port would make them depend on the demo device's timing.

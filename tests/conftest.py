@@ -125,6 +125,53 @@ def _isolate_diag_log(tmp_path_factory):
         os.environ[DIAG_DIR_ENV] = saved
 
 
+def _restore_nested(store: dict[str, Any], saved: dict[str, Any]) -> None:
+    """Put a nested dict back to ``saved`` in place, keeping each inner dict's identity.
+
+    A module may hold an inner dict of the defaults by reference
+    (``DEFAULT_CFG["serial"]``), so a section is refilled, never replaced.
+    """
+    for key in [key for key in store if key not in saved]:
+        del store[key]
+    for key, value in saved.items():
+        current = store.get(key)
+        if isinstance(current, dict) and isinstance(value, dict):
+            _restore_nested(current, value)
+        else:
+            store[key] = value
+
+
+@pytest.fixture(autouse=True)
+def _defaults_untouched():
+    """Fail a test that leaves ``DEFAULT_CFG`` changed, then put it back (registry ``defaults-untouched``).
+
+    ``DEFAULT_CFG`` is the process's one copy of the defaults.  A rig that
+    builds its config as ``{**DEFAULT_CFG, ...}`` shares the nested sections
+    with it, so a setting a test changed (``json_display.indent``) became the
+    default for every later test in that worker, and tests failed at random
+    far from the cause.  Failing here names the test; restoring keeps the
+    rest of the worker on the real defaults.  A rig copies them with
+    ``copy.deepcopy``.
+    """
+    import copy
+
+    from termapy.defaults import DEFAULT_CFG
+
+    before = copy.deepcopy(DEFAULT_CFG)
+    yield
+    if DEFAULT_CFG == before:
+        return
+    changed = sorted(
+        key for key in before.keys() | DEFAULT_CFG.keys() if before.get(key) != DEFAULT_CFG.get(key)
+    )
+    _restore_nested(DEFAULT_CFG, before)
+    pytest.fail(
+        f"this test changed DEFAULT_CFG ({', '.join(changed)}); "
+        "build a rig's config from copy.deepcopy(DEFAULT_CFG)",
+        pytrace=False,
+    )
+
+
 @pytest.fixture(autouse=True)
 def _isolate_variables():
     """Hand every test the ``$(NAME)`` stores as they were before it ran (registry ``variables-isolated``).
@@ -160,6 +207,7 @@ def cli(tmp_path):
     an unconnected CLI) defines its own ``cli``, which pytest uses in place of
     this one for that file.
     """
+    import copy
     import json
 
     from termapy.cli import CLITerminal
@@ -167,7 +215,10 @@ def cli(tmp_path):
 
     default_serial = DEFAULT_CFG["serial"]
     assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
-    cfg = {**DEFAULT_CFG, "serial": {**default_serial, "port": "DEMO", "baud_rate": 115200}}
+    cfg = {
+        **copy.deepcopy(DEFAULT_CFG),
+        "serial": {**default_serial, "port": "DEMO", "baud_rate": 115200},
+    }
     config_path = tmp_path / "rig" / "rig.cfg"
     config_path.parent.mkdir()
     config_path.write_text(json.dumps(cfg))

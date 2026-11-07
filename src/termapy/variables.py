@@ -35,11 +35,13 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from termapy.defaults import cfg_value
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from termapy.plugins import PluginContext
 
 # Match $(NAME) or $(NAME.SUB), with an optional :strftime format on
@@ -242,6 +244,11 @@ def folder_var_name(folder: str) -> str:
     return f"CFG.{folder.upper()}_DIR"
 
 
+def port_var_name(fact: str) -> str:
+    """The context variable holding one fact of the open port: ``vid_pid`` -> ``PORT.VID_PID``."""
+    return f"PORT.{fact.upper()}"
+
+
 def register_cfg_vars(
     get_config_path: Callable[[], str],
     get_cfg: Callable[[], dict],
@@ -279,6 +286,63 @@ def register_cfg_vars(
     set_context_var("CFG.BAUD", lambda: str(cfg_value(get_cfg(), "serial.baud_rate")))
     set_context_var("CFG.PORT_CFG", lambda: connection_string(get_cfg(), "short"))
     set_context_var("CFG.PORT_FULL", lambda: connection_string(get_cfg(), "medium"))
+
+
+def register_port_vars(
+    get_cfg: Callable[[], Mapping[str, Any]],
+    get_port: Callable[[], Any | None],
+) -> None:
+    """Register the PORT.* context variables: the open port as it is when expanded.
+
+    ``PORT.STATE`` is ``connected`` or ``disconnected``; every other one is
+    empty while no port is open, so none of them looks a port up or opens
+    one.  The rest are named from ``port_control``'s tables, as
+    ``/port.info`` reports them: the serial settings (from the session
+    config), the six modem lines (``1`` / ``0``, read from the open port)
+    and the chip fields a lookup fills without opening anything, which
+    leaves out the probed ``in_use`` and ``permissions``.
+
+    Args:
+        get_cfg: Returns the session config.
+        get_port: Returns the open serial object, or None.
+    """
+    from termapy.port_control import (
+        PORT_SETTINGS,
+        SIGNAL_LINES,
+        UNPROBED_CHIP_FIELDS,
+        gather_chip_facts,
+    )
+
+    def _name() -> str:
+        port = get_port()
+        return (getattr(port, "port", "") or "") if port is not None else ""
+
+    def _setting(key: str) -> str:
+        return str(cfg_value(get_cfg(), f"serial.{key}")) if get_port() is not None else ""
+
+    def _line(name: str) -> str:
+        port = get_port()
+        if port is None:
+            return ""
+        try:
+            return str(int(bool(getattr(port, name))))
+        except OSError:
+            return ""  # a port lost under us has no lines to read
+
+    def _chip(field_name: str) -> str:
+        name = _name()
+        facts = gather_chip_facts(name, name, fast=True, enrich=True) if name else None
+        value = getattr(facts, field_name, None) if facts is not None else None
+        return "" if value is None else str(value)
+
+    set_context_var("PORT.STATE", lambda: "connected" if get_port() is not None else "disconnected")
+    set_context_var("PORT.NAME", _name)
+    for key in PORT_SETTINGS:
+        set_context_var(port_var_name(key), lambda key=key: _setting(key))
+    for line in SIGNAL_LINES:
+        set_context_var(port_var_name(line), lambda line=line: _line(line))
+    for field_name in UNPROBED_CHIP_FIELDS:
+        set_context_var(port_var_name(field_name), lambda field_name=field_name: _chip(field_name))
 
 
 def snapshot(ctx: PluginContext) -> dict[str, dict[str, str]]:

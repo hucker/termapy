@@ -11,6 +11,12 @@ from termapy.builtins.commands.var import (
 )
 from termapy.folders import FOLDER_NAMES
 from termapy.plugins import DirectiveInfo, DirectiveResult, PluginContext
+from termapy.port_control import (
+    PORT_SETTINGS,
+    PROBED_CHIP_FIELDS,
+    SIGNAL_LINES,
+    UNPROBED_CHIP_FIELDS,
+)
 from termapy.repl import ReplEngine
 from termapy.variables import (
     _CONTEXT_VARS,
@@ -20,9 +26,11 @@ from termapy.variables import (
     deref_ref,
     expand_vars,
     folder_var_name,
+    port_var_name,
     register_cfg_vars,
     resolve_one,
     set_start_time_vars,
+    snapshot,
     user_vars,
 )
 
@@ -956,6 +964,104 @@ class TestCfgContextVars:
 
         # Assert
         assert actual == expected, "a folder variable a script may name went missing"
+
+
+class TestPortContextVars:
+    """PORT.STATE and PORT.NAME read the port as it is when expanded, in every frontend's host."""
+
+    def _port_vars(self, cli) -> list[str]:
+        """The two values as a script would capture them."""
+        return [
+            cli.repl.dispatch_full("/var PORT.STATE").value,
+            cli.repl.dispatch_full("/var PORT.NAME").value,
+        ]
+
+    def test_they_follow_a_disconnect_and_a_reconnect(self, cli):
+        """Connected names the open port, a disconnect empties the name, and a reconnect brings it back."""
+        # Arrange
+        cli._fire_app_start()
+
+        # Act
+        connected = self._port_vars(cli)
+        cli.repl.dispatch_full("/port.disconnect")
+        closed = self._port_vars(cli)
+        cli.repl.dispatch_full("/port.connect")
+        reopened = self._port_vars(cli)
+
+        # Assert
+        assert connected == ["connected", "DEMO"]
+        assert closed == ["disconnected", ""], "no name for a port that is not open"
+        assert reopened == ["connected", "DEMO"], "a reconnect is seen, not the earlier state"
+
+    def test_the_name_is_the_port_a_serial_number_opened(self, cli):
+        """A config that connects by USB serial number still gets the OS port name, beside CFG.PORT's spec."""
+        # Arrange
+        cli._fire_app_start()
+        cli.repl.dispatch_full("/port.disconnect")
+
+        # Act
+        cli.repl.dispatch_full("/port.connect TERMAPY-DEMO")
+        actual = [
+            cli.repl.dispatch_full("/var PORT.NAME").value,
+            cli.repl.dispatch_full("/var CFG.PORT").value,
+        ]
+
+        # Assert
+        assert actual == ["DEMO", "TERMAPY-DEMO"], (
+            "the open port's name, while the config keeps the serial number"
+        )
+
+    def test_every_port_fact_has_its_variable_and_no_probe_does(self, cli):
+        """Each setting, modem line and unprobed chip field is a PORT variable; in_use and permissions are not."""
+        # Arrange
+        cli._fire_app_start()
+        facts = (*PORT_SETTINGS, *SIGNAL_LINES, *UNPROBED_CHIP_FIELDS)
+        expected = {"PORT.STATE", "PORT.NAME", *(port_var_name(fact) for fact in facts)}
+
+        # Act
+        actual = {name for name in _CONTEXT_VARS if name.startswith("PORT.")}
+
+        # Assert
+        assert actual == expected, "a port fact without its variable, or one nobody named"
+        assert not actual & {port_var_name(fact) for fact in PROBED_CHIP_FIELDS}, (
+            "a probed field would make reading a variable open a port"
+        )
+
+    def test_the_demo_port_reads_as_port_info_shows_it(self, cli):
+        """While connected the variables hold the open port's settings, lines and chip, as text."""
+        # Arrange
+        cli._fire_app_start()
+
+        # Act
+        context = snapshot(cli.repl.ctx)["context"]
+        actual = {
+            name: context[name]
+            for name in ("PORT.BAUD_RATE", "PORT.PARITY", "PORT.DTR", "PORT.RI", "PORT.SERIAL")
+        }
+
+        # Assert
+        expected = {
+            "PORT.BAUD_RATE": "115200",
+            "PORT.PARITY": "N",
+            "PORT.DTR": "1",
+            "PORT.RI": "0",
+            "PORT.SERIAL": "TERMAPY-DEMO",
+        }
+        assert actual == expected
+
+    def test_all_but_the_state_are_empty_when_no_port_is_open(self, cli):
+        """After a disconnect every PORT variable but PORT.STATE is empty: none looks a port up."""
+        # Arrange
+        cli._fire_app_start()
+        cli.repl.dispatch_full("/port.disconnect")
+
+        # Act
+        context = snapshot(cli.repl.ctx)["context"]
+        actual = {name: value for name, value in context.items() if name.startswith("PORT.")}
+
+        # Assert
+        assert actual.pop("PORT.STATE") == "disconnected"
+        assert set(actual.values()) == {""}, f"a fact of a port that is not open: {actual}"
 
 
 # ── resolve_one ──────────────────────────────────────────────────────────────

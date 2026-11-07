@@ -489,6 +489,22 @@ CHIP_FIELDS: tuple[str, ...] = (
     "in_use",
 )
 
+# The fields only the in-use probe fills: finding them can open the port
+# (``_check_in_use``), so a ``fast`` lookup leaves them None.
+PROBED_CHIP_FIELDS: tuple[str, ...] = ("permissions", "in_use")
+
+# The chip fields a lookup fills without opening any port.
+UNPROBED_CHIP_FIELDS: tuple[str, ...] = tuple(
+    field_name for field_name in CHIP_FIELDS if field_name not in PROBED_CHIP_FIELDS
+)
+
+# The serial settings a port page reports, as the config's ``serial`` keys.
+PORT_SETTINGS: tuple[str, ...] = ("baud_rate", "byte_size", "parity", "stop_bits", "flow_control")
+
+# The six modem lines, as the serial object's attributes.  Reading one
+# changes nothing: DTR and RTS report what was set, the rest the line's level.
+SIGNAL_LINES: tuple[str, ...] = ("dtr", "rts", "cts", "dsr", "ri", "cd")
+
 # Field labels, in Title Case like every display label on a label/value page:
 # the rows of the /port.chip and /port.info pages, and the
 # title and column header of a /port.chip.<field> table, so one field reads
@@ -2119,11 +2135,7 @@ def port_info(
         "port": actual or None,
         "connected": connected,
         "spec": spec or None,
-        "baud_rate": serial["baud_rate"],
-        "byte_size": serial["byte_size"],
-        "parity": serial["parity"],
-        "stop_bits": sb,
-        "flow_control": serial["flow_control"],
+        **{key: serial[key] for key in PORT_SETTINGS},
         "encoding": cfg_value(cfg, "encoding"),
         "xfer_root": xfer_root or None,
         "chip": None,
@@ -2151,9 +2163,7 @@ def port_info(
 
     if connected:
         try:
-            signals = {
-                name: bool(getattr(ser, name)) for name in ("dtr", "rts", "cts", "dsr", "ri", "cd")
-            }
+            signals = {name: bool(getattr(ser, name)) for name in SIGNAL_LINES}
         except OSError:
             signals = None
         if signals is not None:

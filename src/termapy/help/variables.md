@@ -97,6 +97,11 @@ value and cannot become a flag, a keyword, or a counter bump.
 | `$(CFG.RUN_DIR)`     | Context | The config's `run/` folder; every data folder has one, `CFG.<NAME>_DIR` (`CFG.CAP_DIR`, `CFG.FIRMWARE_DIR`, ...), and `/help var` lists them |
 | `$(CFG.LOG_FILE)`    | Context | Session log path                   |
 | `$(CFG.PORT)`        | Context | Configured port (`CFG.BAUD` the baud; `CFG.PORT_CFG` / `CFG.PORT_FULL` the short / full connection strings) |
+| `$(PORT.STATE)`      | Context | `connected` or `disconnected`      |
+| `$(PORT.NAME)`       | Context | The open port's name (`COM9`, even when the config connects by serial number) |
+| `$(PORT.BAUD_RATE)`  | Context | The open port's settings: also `BYTE_SIZE`, `PARITY`, `STOP_BITS`, `FLOW_CONTROL` |
+| `$(PORT.DTR)`        | Context | A modem line, `1` or `0`: also `RTS`, `CTS`, `DSR`, `RI`, `CD` |
+| `$(PORT.VID_PID)`    | Context | The USB chip as `/port.chip` shows it: `SERIAL`, `MANUFACTURER`, `MODEL`, `DRIVER`, and the rest; `/help var` lists them |
 | `$(LAUNCH_DATE)`     | Launch  | App start date (frozen)            |
 | `$(LAUNCH_TIME)`     | Launch  | App start time (frozen)            |
 | `$(LAUNCH_DATETIME)` | Launch  | App start date and time (frozen)   |
@@ -109,6 +114,10 @@ value and cannot become a flag, a keyword, or a counter bump.
 **Launch** variables are frozen when the app starts.
 **Session** variables are set when an outermost script starts, however
 it was launched.
+**Context** variables are read each time they are expanded. The `PORT`
+ones describe the port open at that moment and are empty while none is, so
+none of them looks a port up or opens one. They leave out the chip's
+`in_use` and `permissions`, which only a probe that can open a port finds.
 
 ### Custom time formats
 

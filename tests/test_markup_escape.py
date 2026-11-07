@@ -197,15 +197,16 @@ def test_a_bracketed_variable_value_lists_as_set(session, tag_var):
 
     # Act
     engine.dispatch("var")
-    listing = screen.text
+    rows = [line.split(maxsplit=2) for line in screen.text.splitlines()]
     screen.lines.clear()
     engine.dispatch(f"var {tag_var}")
     single = screen.text
 
     # Assert
-    expected = f"$({tag_var}) = [ok] boot done"
-    assert expected in listing, "the listing shows the value as stored"
-    assert expected in single, "so does the one-name form"
+    assert [tag_var, "user", "[ok] boot done"] in rows, (
+        "the listing's row shows the value as stored"
+    )
+    assert f"$({tag_var}) = [ok] boot done" in single, "so does the one-name form"
 
 
 def test_an_echoed_command_keeps_its_brackets(session):

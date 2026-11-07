@@ -272,7 +272,7 @@ sends to the device) waits in the input line for Enter.
 | `/term.usb_db`            | Report bundled USB vendor-database freshness (local read)                   |
 | `/var {name}`             | List user variables, or show one by name                                    |
 | `/var.clear`              | Clear all user variables                                                    |
-| `/var.list`               | List user variables (explicit alias for bare `/var`)                        |
+| `/var.list`               | List every variable as a table: name, kind, value (alias for bare `/var`)   |
 | `/var.set <NAME> <value>` | Set a user variable                                                         |
 | `/xfer.root {path}`            | Show or set the file transfer root directory                           |
 | `/xfer.xmodem.recv <file>`     | Receive a file from the device via XMODEM                              |

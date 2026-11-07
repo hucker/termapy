@@ -34,9 +34,13 @@ _PROGRESS_MIN_S = 1.0
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    """Wait the duration, cancellable by Escape or a script stop; a trailing label names the wait."""
+    """Wait the duration, cancellable by Escape or a script stop; ``msg=`` says what for, first."""
     seconds = ctx.arg("duration")
-    label = args.strip()
+    # The duration as typed (200ms), for the done line; msg= is the rest.
+    label = args.split(None, 1)[0]
+    msg = ctx.arg("msg")
+    if msg:
+        ctx.io.output(msg)
     stop = ctx.internal.script_stop_event
     # Typed, /delay is itself the outermost cancellable operation, so a stop
     # left set by an earlier Escape must not end it at once; inside a script
@@ -95,9 +99,13 @@ COMMAND = Command(
         "(CLI) cancels the wait and the script it is in, and the command\n"
         "fails.  {prefix}delay.silent waits with no progress and no output.\n"
         "\n"
+        "msg= says what the wait is for, printed when it starts.  It takes\n"
+        "the rest of the line as written, spaces and all, so it comes last\n"
+        "and needs no quotes.\n"
+        "\n"
         "Example:\n"
         "  AT+RESET\n"
-        "  {prefix}delay 2s"
+        "  {prefix}delay 2s msg=Waiting for the board to restart..."
     ),
     handler=_handler,
     params=[
@@ -107,6 +115,13 @@ COMMAND = Command(
             positional=True,
             required=True,
             help="how long to wait, e.g. 500ms, 1.5s, 2m",
+        ),
+        ParamSpec(
+            "msg",
+            "str",
+            rest=True,
+            hint="<text>",
+            help="what the wait is for, the rest of the line",
         ),
     ],
 )

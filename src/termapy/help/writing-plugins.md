@@ -190,7 +190,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not ctx.cfg.get("encoding"):  # plain config (read-only)
         ...
     ctx.io.result("Hello", "green")  # final answer (quiet+)
-    ctx.io.output("listing line")  # bulk data (normal+)
+    ctx.io.output("detail line")  # detail (normal+); a list is CmdResult.table
     ctx.io.status("loading...")  # progress chatter (verbose only)
 
     with ctx.serial.io():  # claim serial for sync read
@@ -832,8 +832,10 @@ plain methods for unstructured text (with optional color) and the
 
 | Method | Shown at | Use for |
 | --- | --- | --- |
-| `ctx.io.result(text, color)` | quiet+ | The command's final answer (single line). |
-| `ctx.io.output(text, color)` | normal+ | Bulk data: listings, dumps, file contents. |
+| `ctx.io.result(text, color)` | quiet+ | The command's answer. A table or status page returned as `CmdResult.table` or `CmdResult.record` is printed here by dispatch, so quiet shows it. |
+| `ctx.io.output(text, color)` | normal+ | Detail beside the answer: context lines, file contents. |
+| `ctx.io.result_segments(pieces)` | quiet+ | Like `result()`, built from pieces that may be links. |
+| `ctx.io.output_segments(pieces)` | normal+ | Like `output()`, built from pieces that may be links. |
 | `ctx.io.status(text)` | verbose only | Progress chatter, debug-y notes. |
 | `ctx.io.result_markup(text)` | quiet+ | Like `result()` but text is Rich markup. |
 | `ctx.io.output_markup(text)` | normal+ | Like `output()` but text is Rich markup. |

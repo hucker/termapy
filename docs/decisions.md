@@ -1222,3 +1222,16 @@ Settings after a config are refused rather than laid over it for the session (`t
 as minicom's `-b` overrides its configuration): every frontend's start, the TUI, CLI, VT100, web
 and protocol runner, would have to carry the override, with a rule for a frontend switch.
 **Where:** `tests/test_quick_open.py`.
+
+## 2026-11-08 — A command's table or status page shows at quiet
+
+Found testing quick open: `termapy COM9 --quiet --cli -e "/port.mode"` printed nothing, and so
+did every list and status command at quiet, because dispatch printed `CmdResult.view` on the
+output channel (normal and up). That broke the 2026-10-20 rule that the value a command computes
+is its answer and rides the result channel, and `--quiet`'s own help, "command results only".
+Now dispatch prints the view on the result channel (registry `view-is-the-answer`): quiet shows
+the table or page, silent shows nothing, a JSON or MCP caller still gets the records alone.
+`ctx.io.result_segments` is the result twin of `output_segments`, so a quiet table keeps its
+clickable cells in the TUI. Behavior changed: at quiet, every list and status page now prints.
+A handler that prints a listing or a file by hand on `ctx.io.output` (`/cfg.dump`, `/log.dump`,
+`/firmware.dump`) still shows it at normal and up only.

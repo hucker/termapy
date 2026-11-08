@@ -652,8 +652,9 @@ class ReplEngine:
                 else:
                     # Pieces with their links: the TUI makes them
                     # clickable, every other frontend prints the joined
-                    # text (registry links-are-data).
-                    for segments, color in view.segment_lines():
+                    # text (registry links-are-data), fitted to the
+                    # frontend's width (registry table-fits-the-frontend).
+                    for segments, color in view.segment_lines(self.ctx.io.width()):
                         self.ctx.io.result_segments(segments, color)
             finally:
                 self.ctx._call_level = saved_level
@@ -710,12 +711,14 @@ class ReplEngine:
         """How JSON shows here: ``(indent, highlight)``, one plain line where no person reads it.
 
         On a screen (``screen_json``) the indent is ``json_fmt.indent`` and the
-        highlight ``json_fmt.highlight`` with color on; in a pipe, a file or MCP
-        it is ``(0, False)``.  The one answer wherever JSON shows: termapy's
-        envelopes, a device's JSON line in the TUI and the CLI, and a command
-        printing a reply (``ctx.internal.json_layout``).
+        highlight ``json_fmt.highlight`` with color on; in a pipe, a file or MCP,
+        and for a caller that wants data (``--json``, whose ``output_lines``
+        keep a reply as it came), it is ``(0, False)``.  The one answer
+        wherever JSON shows: termapy's envelopes, a device's JSON line in the
+        TUI and the CLI, and a command printing a reply
+        (``ctx.internal.json_layout``), so no handler asks who is reading.
         """
-        if not self.screen_json:
+        if not self.screen_json or self.ctx.wants_data:
             return 0, False
         color_on = self.ctx.ns("flags").get("color", True)
         highlight = bool(color_on and cfg_value(self.cfg, "json_fmt.highlight"))

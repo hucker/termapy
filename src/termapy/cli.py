@@ -238,6 +238,17 @@ class CLITerminal(TerminalHost):
 
     # -- Context and hooks ----------------------------------------------------
 
+    def _output_width(self) -> int | None:
+        """How wide a table row may be here: the console's width less the two-space gutter.
+
+        Known at a terminal, or whenever ``--term-width`` named one; a pipe
+        has no width, so its tables show every column (registry
+        ``table-fits-the-frontend``).
+        """
+        if self.term_width is None and not sys.stdout.isatty():
+            return None
+        return self.console.width - 2
+
     def _setup_context(self) -> None:
         """Build PluginContext and InternalHandle, wire to REPL."""
         internal_handle = self._build_internal_handle()
@@ -245,6 +256,7 @@ class CLITerminal(TerminalHost):
 
         self.ctx = self._build_plugin_context(internal_handle)
         # CLI-specific callbacks
+        self.ctx.io.width = self._output_width
         self.ctx.io.notify = lambda text, **kw: self.write(f"[notice] {text}")
         self.ctx.io.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
         self.ctx.ui._exit_app_impl = self._request_exit

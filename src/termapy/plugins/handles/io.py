@@ -70,6 +70,11 @@ class IOHandle:
     # color is None.  None means it can't, and the two ``*_segments``
     # channels write the plain text or the markup instead.
     _write_segments: Callable | None = None
+    # How many columns a table row may take here (registry
+    # table-fits-the-frontend): the output pane's width in the TUI, the
+    # console's in a CLI at a terminal, None where nothing wraps (a pipe,
+    # MCP).  Dispatch reads it when it prints a TableView.
+    width: Callable[[], int | None] = lambda: None
     log: Callable = lambda prefix, text: None
 
     # ── Always-works fallbacks for TUI features ──────────────────────

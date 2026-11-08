@@ -23,12 +23,14 @@ from termapy.plugins import (
     Command,
     Directive,
     DirectiveResult,
+    TextLine,
     Transform,
     UsageError,
     escape_markup,
 )
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.port_control import PORT_SETTINGS, SIGNAL_LINES, UNPROBED_CHIP_FIELDS
+from termapy.scripting import value_text
 from termapy.variables import (
     clear_vars,
     context_vars,
@@ -159,12 +161,31 @@ _VAR_COLUMNS = (
 )
 
 
+def _lookup(ctx: PluginContext, name: str) -> tuple[str, str] | None:
+    """``(kind, value)`` for one variable, the kind as the listing names it, or None when nothing defines it."""
+    value = user_vars(ctx).get(name)
+    if value is not None:
+        return "user", value
+    value = launch_var(name)
+    if value is not None:
+        return "launch", value
+    value = resolve_datetime_var(name, None)
+    if value is not None:
+        return dict(datetime_var_names()).get(name, "datetime"), value
+    ctx_fn = context_vars().get(name)
+    if ctx_fn is not None:
+        return "context", str(ctx_fn())
+    return None
+
+
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """List all defined variables as a table, or show one by name.
 
     The listing is a table (registry ``list-one-format``) whose data is the
-    namespace snapshot, one mapping per kind, so a consumer looks a name up;
-    ``value`` is the ``NAME=value`` lines, in the table's order.
+    namespace snapshot, one mapping per kind, so a consumer looks a name up.
+    One name is a record page, the same ``name`` / ``kind`` / ``value`` shape
+    as a row of the table; a name nothing defines is a failure that says
+    which names come close.
 
     Args:
         ctx: Plugin context for output.
@@ -174,34 +195,19 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     m = _STRIP_WRAPPER_RE.match(raw)
     name = m.group(1) if m else raw
     if name:
-        users = user_vars(ctx)
-        contexts = context_vars()
-        val = users.get(name)
-        if val is None:
-            val = launch_var(name)
-        if val is None:
-            val = resolve_datetime_var(name, None)
-        if val is None:
-            ctx_fn = contexts.get(name)
-            if ctx_fn is not None:
-                val = ctx_fn()
-        if val is not None:
-            if not ctx.wants_data:
-                ctx.io.output_markup(_var_line_markup(name, val))
-            return CmdResult.ok(value=str(val))
-        if not ctx.wants_data:
-            ctx.io.output(f"  $({name}) - not defined", "red")
-        return CmdResult.ok(value="")
+        found = _lookup(ctx, name)
+        if found is None:
+            suggestions = closest(name, variable_names(ctx))
+            return CmdResult.fail(msg=f"Unknown variable: $({name}){did_you_mean(suggestions)}")
+        kind, value = found
+        return CmdResult.record(
+            {"name": name, "kind": kind, "value": value},
+            [TextLine(f"$({name}) = {value}")],
+            value=value,
+        )
     snap = variables_snapshot(ctx)
     records = _var_records(snap)
-    return CmdResult.table(
-        "Variables",
-        "variable",
-        _VAR_COLUMNS,
-        records,
-        value="\n".join(f"{record['name']}={record['value']}" for record in records),
-        data=snap,
-    )
+    return CmdResult.table("Variables", "variable", _VAR_COLUMNS, records, data=snap)
 
 
 def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
@@ -258,7 +264,9 @@ def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
         result = ctx.dispatch(silent_cmd, report=False)
         if not result.success:
             return result
-        value = result.value
+        # A variable is text: a typed value (a count, a switch) is spelled
+        # here, at the REPL's boundary (registry value-typed).
+        value = value_text(result.value)
     else:
         # Device command: send to serial and capture response
         if not ctx.serial.is_connected():

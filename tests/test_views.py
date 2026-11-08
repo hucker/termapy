@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from termapy.config import config_summary
 from termapy.folder_ops import FILE_COLUMNS
 from termapy.plugins import CmdResult, Column, PluginInfo, RecordView, TableView
@@ -78,9 +80,23 @@ def test_a_vanished_file_shows_question_marks():
 
 def test_cmdresult_table_carries_records_and_view():
     """CmdResult.table puts the records in data and their table in view; it renders nothing."""
-    result = CmdResult.table("Boards", "board", _COLUMNS, _RECORDS, value="bench\nlab")
+    result = CmdResult.table("Boards", "board", _COLUMNS, _RECORDS)
     assert result.data == list(_RECORDS), "the records, numbers still numbers"
     assert result.view == _view(), "the view describes the same records"
+
+
+def test_a_tables_value_is_its_row_count():
+    """table-value-is-count: the value is the number of rows as an int, for the records form and the mapping form alike."""
+    # Act
+    two = CmdResult.table("Boards", "board", _COLUMNS, _RECORDS)
+    none = CmdResult.table("Boards", "board", _COLUMNS, [])
+    mapping = CmdResult.table("Boards", "board", _COLUMNS, _RECORDS, data={"bench": 1, "lab": 2})
+
+    # Assert
+    assert (two.value, none.value, mapping.value) == (2, 0, 2)
+    assert type(two.value) is int, "a count, not its spelling: the envelope carries a number"
+    with pytest.raises(TypeError):
+        CmdResult.table("Boards", "board", _COLUMNS, _RECORDS, value="bench")  # ty: ignore[unknown-argument] -- the probe: the constructor refuses a value
 
 
 # -- dispatch: renders once, or not at all ------------------------------------
@@ -92,7 +108,7 @@ def _engine() -> tuple[ReplEngine, list[str]]:
     eng = ReplEngine({}, "", lambda text, color=None: output.append(text))
 
     def _handler(ctx, args: str) -> CmdResult:
-        return CmdResult.table("Boards", "board", _COLUMNS, _RECORDS, value="bench\nlab")
+        return CmdResult.table("Boards", "board", _COLUMNS, _RECORDS)
 
     eng.register_plugin(PluginInfo(name="boards", args="", help="h", handler=_handler))
     return eng, output
@@ -174,9 +190,7 @@ def test_a_forwarded_table_prints_once():
             name="rack.boards",
             args="",
             help="h",
-            handler=lambda ctx, args: CmdResult.table(
-                "Boards", "board", _COLUMNS, _RECORDS, value=""
-            ),
+            handler=lambda ctx, args: CmdResult.table("Boards", "board", _COLUMNS, _RECORDS),
         )
     )
 
@@ -605,6 +619,116 @@ def test_a_markup_line_is_markup_where_nothing_can_click():
     expected = "  [cyan]/cfg\\[x][/]  Show \\[red]config\\[/]"
     assert markup == [expected], "brackets in text stay text; the style is kept, the link is not"
     assert pieces_markup(pieces) == expected, "one builder for the markup form"
+
+
+# ── table-fits-the-frontend: a table is fitted to the frontend's width ──────
+
+_FIT_COLUMNS = (
+    Column("AAAA", lambda record: record["a"]),
+    Column("BB", lambda record: record["b"], drop=1),
+    Column("CCC", lambda record: record["c"], drop=2),
+)
+_FIT_RECORDS = ({"a": "aaaaa", "b": "bbbbbb", "c": "ccc"},)  # 5 + 6 + 3, two apart: 18 wide
+
+
+def _fit_view(columns=_FIT_COLUMNS, records=_FIT_RECORDS) -> TableView:
+    return TableView("Fit", "row", columns, tuple(records))
+
+
+def test_a_narrow_width_drops_the_highest_drop_column_first():
+    """table-fits-the-frontend: too wide by one, the highest-drop column goes; narrower still, the next; drop 0 never."""
+    # Act
+    whole = [text for text, _ in _fit_view().lines(18)]
+    one_gone = [text for text, _ in _fit_view().lines(17)]
+    two_gone = [text for text, _ in _fit_view().lines(12)]
+    kept = [text for text, _ in _fit_view().lines(3)]
+
+    # Assert
+    assert whole[3] == "aaaaa  bbbbbb  ccc", "a row that fits keeps every column"
+    assert one_gone[3] == "aaaaa  bbbbbb", "CCC (drop 2) went before BB (drop 1)"
+    assert two_gone[3] == "aaaaa", "then BB went"
+    assert kept[3] == "aaaaa", "a drop-0 column stays, wider than the frontend or not"
+
+
+def test_header_and_dashes_follow_the_surviving_columns():
+    """The header and the dash row are built from the columns that show, so they line up with the rows."""
+    # Act
+    lines = [text for text, _ in _fit_view().lines(17)]
+
+    # Assert
+    assert lines[1:3] == ["AAAA   BB", "-----  ------"], "two columns' header and dashes"
+
+
+def test_equal_drop_ranks_go_rightmost_first():
+    """Of two columns with the same drop rank, the rightmost goes first."""
+    # Arrange
+    columns = (
+        _FIT_COLUMNS[0],
+        Column("BB", lambda record: record["b"], drop=1),
+        Column("CCC", lambda record: record["c"], drop=1),
+    )
+
+    # Act
+    lines = [text for text, _ in _fit_view(columns).lines(17)]
+
+    # Assert
+    assert lines[3] == "aaaaa  bbbbbb", "CCC, the rightmost of the two, went"
+
+
+def test_a_hide_empty_column_goes_only_when_every_cell_is_blank():
+    """A hide_empty column is left out when no record fills it, whatever the width, and shown when one does."""
+    # Arrange
+    columns = (_FIT_COLUMNS[0], Column("SN", lambda record: record["sn"], hide_empty=True))
+    blank = ({"a": "x", "sn": ""}, {"a": "y", "sn": ""})
+    one_filled = ({"a": "x", "sn": ""}, {"a": "y", "sn": "A1"})
+
+    # Act
+    hidden = [text for text, _ in _fit_view(columns, blank).lines()]
+    shown = [text for text, _ in _fit_view(columns, one_filled).lines()]
+
+    # Assert
+    assert hidden[1] == "AAAA", "the all-blank column is gone from the header"
+    assert shown[1] == "AAAA  SN", "one filled cell keeps the column"
+
+
+def test_width_none_is_the_whole_table():
+    """With no width (a pipe, MCP, a log) every column shows: the table as it always was."""
+    # Act
+    actual = _fit_view().lines(None)
+
+    # Assert
+    assert actual == _fit_view().lines(), "None fits nothing away"
+    assert actual[3][0] == "aaaaa  bbbbbb  ccc"
+
+
+def test_a_negative_drop_is_refused():
+    """A column's drop rank is 0 or more; a negative one is a declaration error, caught at construction."""
+    with pytest.raises(ValueError, match="drop= is 0 or more"):
+        Column("X", lambda record: "", drop=-1)
+
+
+def test_dispatch_fits_the_table_to_the_frontends_width():
+    """table-fits-the-frontend: dispatch prints the table at IOHandle.width(), so a narrow frontend gets the fitted rows."""
+    # Arrange
+    output: list[str] = []
+    eng = ReplEngine({}, "", lambda text, color=None: output.append(text))
+    eng.register_plugin(
+        PluginInfo(
+            name="fit",
+            args="",
+            help="h",
+            handler=lambda ctx, args: CmdResult.table("Fit", "row", _FIT_COLUMNS, _FIT_RECORDS),
+        )
+    )
+    eng.ctx.io.width = lambda: 12
+
+    # Act
+    eng.dispatch("fit")
+
+    # Assert
+    assert "aaaaa" in output and "aaaaa  bbbbbb  ccc" not in output, (
+        "the frontend's width reached the table"
+    )
 
 
 def test_a_clicking_frontend_is_told_which_kind_of_line_it_gets():

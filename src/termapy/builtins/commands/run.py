@@ -260,9 +260,7 @@ def _handler_last(ctx: PluginContext, args: str) -> CmdResult:
     if count is None:
         stem = Path(ctx.config_path).stem
         title = f"typed in {stem}" if stem else "typed"
-        records = _last_records(lines)
-        value = "\n".join(line.text for line in lines)
-        return CmdResult.table(title, "line", _LAST_COLUMNS, records, value=value)
+        return CmdResult.table(title, "line", _LAST_COLUMNS, _last_records(lines))
     numbered = [line.text for line in lines if line.success]
     if not numbered:
         return CmdResult.fail(msg="No commands to replay.")

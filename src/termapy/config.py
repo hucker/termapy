@@ -57,7 +57,7 @@ from termapy.migration import (
     DEPRECATED_CFG,
     migrate_config,
 )
-from termapy.scripting import parse_bool
+from termapy.scripting import parse_bool, value_text
 
 CFG_DIR: str | None = None  # set by --cfg-dir; None = use resolution chain
 
@@ -1485,11 +1485,9 @@ def cfg_value_text(value: object) -> str:
     Returns:
         The text.
     """
-    if isinstance(value, bool):
-        return "on" if value else "off"
     if isinstance(value, (dict, list)) or value is None or value == "":
         return json.dumps(value)
-    return str(value)
+    return value_text(value)
 
 
 def load_config(path: str) -> dict:

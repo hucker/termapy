@@ -349,20 +349,21 @@ class CmdResult:
     error: str = ""
     elapsed_s: float = 0.0
     # ``value`` is the scriptable SCALAR: what ``$(X) <- cmd`` captures and
-    # what quiet-mode scripts read.  Keep it a string (or number) -- shaped
-    # structures belong in ``data``.  (Historically profile executors put
-    # dicts here; that traffic moved to ``data`` when the MCP envelope was
-    # unified.)
+    # what quiet-mode scripts read, in its natural type (registry
+    # value-typed): a count is an int, a switch a bool, text a str.  A JSON
+    # envelope passes it through as it is; the REPL spells it for a person
+    # at its boundary (``scripting.value_text``).  Shaped structures belong
+    # in ``data``.
     value: Any = ""
     # ``data`` is the STRUCTURED view of the same result: a JSON-shaped
     # dict/list/scalar for agent consumers (MCP, ``--json``).  ``None``
     # means "this command has no structured form" -- a legitimate permanent
     # state for side-effect and prose-page commands.  Never put a prose
-    # string here; that is what ``value``/``output_lines`` are for.
-    # A handler that hand-renders a large listing should build EITHER the
-    # prose OR ``data``, branching on ``ctx.wants_data``, so neither
-    # audience pays for the other's rendering -- or, better, return
-    # ``CmdResult.table(...)`` and let dispatch choose.
+    # string here; that is what ``value``/``output_lines`` are for.  A
+    # handler never branches on ``ctx.wants_data`` (registry
+    # plugins-never-read-wants-data): it returns ``CmdResult.table(...)``
+    # or ``CmdResult.record(...)`` and dispatch prints the view for a
+    # person or hands ``data`` to a caller that wants it.
     data: Any = None
     # ``view`` is how ``data`` reads as prose (a ``views.TableView`` or
     # ``views.RecordView``):
@@ -379,21 +380,22 @@ class CmdResult:
         columns: Sequence[Column],
         records: Sequence[dict[str, Any]],
         *,
-        value: Any,
         data: dict[str, Any] | None = None,
     ) -> CmdResult:
-        """A list answer: ``records`` as ``data``, their table as the view.
+        """A list answer: ``records`` as ``data``, their table as the view, their count as the value.
 
         The handler renders nothing; dispatch prints the table, or hands
         the records to a caller that wants data (``--json``,
-        ``/term.request``, MCP).  Registry ``list-one-format``.
+        ``/term.request``, MCP).  Registry ``list-one-format``.  The value
+        is the row count, an int (registry ``table-value-is-count``): a
+        script counts, an agent reads ``data``, and a JSON envelope never
+        carries the names twice.
 
         Args:
             title: What is listed (``run/``).
             noun: Singular noun the count is in (``script``).
             columns: The columns the prose shows, left to right.
             records: One raw-valued dict per row, in display order.
-            value: The scriptable scalar (usually the newline-joined names).
             data: A name-to-value mapping to answer with instead of the
                 records, when each row is one value under a unique name
                 (``/env.list``): a consumer looks a name up rather than
@@ -401,7 +403,7 @@ class CmdResult:
         """
         rows = tuple(records)
         return cls(
-            value=value,
+            value=len(rows),
             data=list(rows) if data is None else data,
             view=TableView(title, noun, tuple(columns), rows),
         )

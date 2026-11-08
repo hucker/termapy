@@ -223,10 +223,10 @@ class TestEnvCommands:
         # Assert
         assert result.data["LIST_TEST"] == "abc", "the exact name is one of the matches"
         assert result.data["MY_LIST_TEST_TWO"] == "d", "plain text is contained, not exact"
-        assert "LIST_TEST=abc" in result.value.split("\n"), "NAME=value lines for scripting"
+        assert result.value == 2, "the value counts the matches"
 
     def test_list_glob_pattern(self):
-        """A glob answers with a name-to-value mapping of only the matches, and NAME=value lines as the value."""
+        """A glob answers with a name-to-value mapping of only the matches, and their count as the value."""
         # Arrange
         ctx, _output = self._ctx()
         _ENV["USER_ALPHA"] = "a"
@@ -240,10 +240,7 @@ class TestEnvCommands:
         assert result.data["USER_ALPHA"] == "a", "a name is looked up, not searched for"
         assert result.data["USER_BETA"] == "b", "both matches present"
         assert not any("UNRELATED" in name for name in result.data), "non-match excluded"
-        # Glob path returns newline-joined NAME=VALUE for scripting.
-        lines = result.value.split("\n")
-        assert "USER_ALPHA=a" in lines, "glob value includes first match"
-        assert "USER_BETA=b" in lines, "glob value includes second match"
+        assert result.value == 2, "the value counts the matches; $(env.NAME) reads one"
 
     @pytest.mark.parametrize("pattern", ["ZZ_NO_EXIST_*", "ZZ_NO_EXIST_PLAIN"])
     def test_a_filter_matching_nothing_is_an_empty_answer(self, pattern):
@@ -256,7 +253,7 @@ class TestEnvCommands:
 
         # Assert
         assert result.success, "zero rows is an answer, not an error"
-        assert (result.value, result.data) == ("", {}), "nothing matched"
+        assert (result.value, result.data) == (0, {}), "nothing matched"
 
     def test_reload_resets_snapshot(self):
         """/env.reload drops session-only sets and returns the new variable count."""

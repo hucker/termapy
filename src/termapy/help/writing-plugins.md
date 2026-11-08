@@ -279,9 +279,10 @@ so an answer with several facts puts them in `data` and picks one for
 `value` and `{"tx_bytes": 8, "rx_bytes": 5}` as `data`.
 
 **A list returns `CmdResult.table`.**  Build records of raw values and
-declare the columns; the records become `data`, and termapy prints the
-table (title with count, header, dash row, rows) unless the caller wants
-data (`--json`, `/term.request`, MCP).  The handler renders nothing:
+declare the columns; the records become `data`, their count the `value`,
+and termapy prints the table (title with count, header, dash row, rows)
+unless the caller wants data (`--json`, `/term.request`, MCP).  The
+handler renders nothing, and never branches on `ctx.wants_data`:
 
 ```python
 from termapy.plugins import CmdResult, Column
@@ -294,9 +295,12 @@ _COLUMNS = (
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     records = [{"name": name, "temp_c": read_temp(name)} for name in sensors()]
-    names = "\n".join(record["name"] for record in records)
-    return CmdResult.table("Sensors", "sensor", _COLUMNS, records, value=names)
+    return CmdResult.table("Sensors", "sensor", _COLUMNS, records)
 ```
+
+A column may say how expendable it is when the table is wider than the
+window (`Column(..., drop=1)`: the highest `drop` goes first, 0 never) and
+whether to hide itself when every cell is blank (`hide_empty=True`).
 
 When each row is one value under a unique name, pass `data=` the mapping
 (`data={record["name"]: record["temp_c"] for record in records}`): a
@@ -322,8 +326,10 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.record(data, rows, value=f"{temp_c:.1f}")
 ```
 
-Handlers that ignore `wants_data` keep working: their prose reaches
-structured consumers via the response's `output_lines`.
+A handler never asks who is reading: it returns the table or the record
+and termapy decides.  A plain `ctx.io.output` line (progress, a note)
+reaches a structured consumer via the response's `output_lines`, at the
+levels it shows for a person.
 
 ```python
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -513,7 +519,7 @@ _COLUMNS = (
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """List the sensors, each name a click away from being read."""
     records = [{"name": name, "query": query} for name, query in _SENSORS.items()]
-    return CmdResult.table("sensors", "sensor", _COLUMNS, records, value="\n".join(_SENSORS))
+    return CmdResult.table("sensors", "sensor", _COLUMNS, records)
 
 
 def _handler_read(ctx: PluginContext, args: str) -> CmdResult:

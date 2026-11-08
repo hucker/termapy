@@ -31,6 +31,7 @@ from termapy.scripting import (
     split_cmd_lines,
     strip_leading_echo,
     transcript_commands,
+    value_text,
 )
 
 # ── transcript_commands ──────────────────────────────────────────
@@ -963,6 +964,27 @@ class TestParseBool:
 
 
 # ── select_lines (shared count scheme) ───────────────────────────
+
+
+class TestValueText:
+    """value-typed: the one speller turns a typed value into the text a person reads."""
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (True, "on"),
+            (False, "off"),
+            (7, "7"),
+            (0, "0"),
+            (2.5, "2.5"),
+            ("as is", "as is"),
+            (None, ""),
+        ],
+        ids=["true", "false", "int", "zero", "float", "str", "none"],
+    )
+    def test_each_type_is_spelled_once(self, value, expected):
+        """A bool is on/off (the boolean vocabulary), a number its digits, None nothing, text itself."""
+        assert value_text(value) == expected
 
 
 class TestSelectLines:

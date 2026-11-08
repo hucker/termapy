@@ -23,6 +23,7 @@ import pytest
 
 from termapy.cli import CLITerminal
 from termapy.demo import FakeSerial
+from termapy.plugins import CmdResult
 from termapy.plugins.capabilities import STATE_MESSAGES
 
 
@@ -696,7 +697,7 @@ class TestCapture:
             "the inner failure is the answer"
         )
         assert out.count("Invalid baud rate: fast") == 1, "printed once, at the capture's exit"
-        assert cli.repl.dispatch_full("/var B").value == "", "B was not assigned"
+        assert cli.repl.dispatch_full("/var B").success is False, "B was not assigned"
 
     def test_json_names_the_inner_error(self, cli, capsys):
         """--json on a failed capture carries the inner error in the envelope and prints no line outside it."""
@@ -764,12 +765,15 @@ class TestChip:
         assert result.value == "0001"
 
     def test_a_field_for_every_port_is_device_prefixed(self, cli, monkeypatch):
-        """/port.chip.model * values '<device>: <value>' per port, and answers with a device-to-value mapping."""
+        """/port.chip.model * answers with a device-to-value mapping, '-' kept as the roster has it, and counts the ports."""
         monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         result = cli.repl.dispatch_full("/port.chip.model *")
-        expected = "COM3: FTDI FT232R / FT245R\nCOM4: Silicon Labs CP2102\nCOM7: -"
-        assert result.value == expected, "'-' kept as the roster has it"
-        assert result.data["COM4"] == "Silicon Labs CP2102", "a port is looked up, not searched for"
+        assert result.data == {
+            "COM3": "FTDI FT232R / FT245R",
+            "COM4": "Silicon Labs CP2102",
+            "COM7": "-",
+        }, "a port is looked up, not searched for"
+        assert result.value == 3, "the value counts the ports"
 
     def test_a_field_table_is_titled_by_the_fields_label(self, cli, capsys, monkeypatch):
         """/port.chip.<field> * heads its table with the label the /port.chip page uses, never the raw field name."""
@@ -835,20 +839,96 @@ class TestChip:
         assert result.value == "n/a"
 
 
+# ── /port.list ──────────────────────────────────────────────────────────────
+
+
+class TestPortList:
+    """list-one-format, table-fits-the-frontend: /port.list is a table over the port records, fitted to the frontend."""
+
+    @staticmethod
+    def _header(cli, capsys, width: int) -> tuple[list[str], CmdResult]:
+        """The header words /port.list prints at ``width``, and its result."""
+        cli.repl.ctx.io.width = lambda: width
+        capsys.readouterr()
+        result = cli.repl.dispatch_full("/port.list")
+        lines = capsys.readouterr().out.splitlines()
+        return lines[1].split(), result
+
+    def test_a_wide_frontend_gets_every_filled_column(self, cli, capsys, monkeypatch):
+        """At 200 columns the table shows every column the fleet fills, and hides the ones no port has."""
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+        header, result = self._header(cli, capsys, 200)
+        assert result.value == 3 and len(result.data) == 3, "three ports, counted"
+        assert {"PORT", "MFG", "DESCRIPTION", "CHIP", "SPEED", "VID:PID"} <= set(header)
+        assert "SERIAL" in header, "the serial-number column, every port has one"
+        assert not {"DRIVER", "LOCATION", "IF", "VENDOR"} & set(header), (
+            "a column no port fills is hidden"
+        )
+
+    def test_a_narrow_frontend_loses_the_expendable_columns_first(self, cli, capsys, monkeypatch):
+        """At 60 columns SPEED and CHIP go, in DROP_ORDER; the port, its maker and description stay."""
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+        header, _ = self._header(cli, capsys, 60)
+        assert header[:3] == ["PORT", "MFG", "DESCRIPTION"], "never dropped"
+        assert not {"SPEED", "CHIP"} & set(header), "the most expendable went first"
+
+    def test_the_title_counts_the_ports(self, cli, capsys, monkeypatch):
+        """The table's title is Ports - N ports, the one list format."""
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+        capsys.readouterr()
+        cli.repl.dispatch_full("/port.list")
+        assert capsys.readouterr().out.splitlines()[0].strip() == "Ports - 3 ports"
+
+    def test_the_port_cell_prefills_a_connect(self):
+        """links-are-data: a click on a port name puts /port.connect <port> in the input line, never runs it."""
+        from termapy.plugins.views import Link
+        from termapy.port_format import PORT_TABLE_COLUMNS
+
+        assert PORT_TABLE_COLUMNS[0].link({"device": "COM3"}) == Link(
+            "port.connect COM3", run=False
+        )
+
+    def test_the_columns_mirror_the_schema(self):
+        """One list of column facts: drop ranks follow DROP_ORDER, hide_empty is OPTIONAL_COLUMNS, headers COLUMN_HEADERS."""
+        from termapy.port_format import (
+            COLUMN_HEADERS,
+            DROP_ORDER,
+            OPTIONAL_COLUMNS,
+            PORT_COLUMNS,
+            PORT_TABLE_COLUMNS,
+        )
+
+        by_name = dict(zip(PORT_COLUMNS, PORT_TABLE_COLUMNS))
+        assert [column.title for column in PORT_TABLE_COLUMNS] == [
+            COLUMN_HEADERS[name] for name in PORT_COLUMNS
+        ]
+        expendable = sorted(
+            (name for name in by_name if by_name[name].drop), key=lambda n: -by_name[n].drop
+        )
+        assert expendable == list(DROP_ORDER), "the highest drop rank is the first to go"
+        assert {name for name in by_name if by_name[name].hide_empty} == set(OPTIONAL_COLUMNS)
+        assert all(by_name[name].drop == 0 for name in ("port", "manufacturer", "description"))
+
+
 # ── /port.usb ───────────────────────────────────────────────────────────────
+
+
+def _ports_in(records: list[dict]) -> int:
+    """How many nodes of a record tree carry a serial port."""
+    return sum((1 if record["port"] else 0) + _ports_in(record["children"]) for record in records)
 
 
 class TestUsbTree:
     def test_the_tree_renders_where_a_backend_exists(self, cli, capsys):
-        """/port.usb draws the machine's tree on Windows and Linux and fails by name elsewhere."""
+        """/port.usb draws the machine's tree on Windows and Linux, counting its serial ports, and fails by name elsewhere."""
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.usb")
         out = capsys.readouterr().out
         if sys.platform == "win32" or sys.platform.startswith("linux"):
             assert result.success is True, result.error
-            # Whitespace removed: the console indents and may wrap a long row.
-            assert "".join(result.value.split()) == "".join(out.split()), (
-                "the rendered lines are the scriptable value"
+            assert out.strip(), "the drawing printed"
+            assert result.value == _ports_in(result.data), (
+                "the value counts the ports the tree carries"
             )
         else:
             assert result.success is False
@@ -863,6 +943,7 @@ class TestUsbTree:
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.usb --json")
         assert isinstance(result.data, list), "the record tree, one entry per root"
-        assert result.value == "", "no rendered text on the data path"
+        assert isinstance(result.value, int), "the port count, never the drawing"
         document = json.loads(capsys.readouterr().out.strip())
         assert document["data"] == result.data, "the one line printed is the JSON document"
+        assert document["output_lines"] == [], "the drawing never rides beside the tree"

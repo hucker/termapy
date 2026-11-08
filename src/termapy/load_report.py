@@ -248,9 +248,5 @@ def diag_line(record: Record) -> str:
 
 
 def result(records: list[Record]) -> CmdResult:
-    """The report as a list answer: what startup prints and ``/cfg.loaded`` returns.
-
-    ``value`` is the files that loaded, one per line.
-    """
-    files = "\n".join(record["file"] for record in records if not record["error"])
-    return CmdResult.table("Loaded", "file", COLUMNS, records, value=files)
+    """The report as a list answer: what startup prints and ``/cfg.loaded`` returns."""
+    return CmdResult.table("Loaded", "file", COLUMNS, records)

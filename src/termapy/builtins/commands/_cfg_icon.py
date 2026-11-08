@@ -479,13 +479,7 @@ def _list(ctx: PluginContext) -> CmdResult:
         return CmdResult.fail(msg=f"Unsupported platform: {_PLATFORM}")
     # A list answer (registry list-one-format): one record per launcher.
     records = [{"name": path.name, "path": str(path)} for path in scan()]
-    return CmdResult.table(
-        f"termapy launchers in {where}",
-        "launcher",
-        _LAUNCHER_COLUMNS,
-        records,
-        value="\n".join(record["path"] for record in records),
-    )
+    return CmdResult.table(f"termapy launchers in {where}", "launcher", _LAUNCHER_COLUMNS, records)
 
 
 _LAUNCHER_COLUMNS = (

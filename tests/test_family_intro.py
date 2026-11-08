@@ -129,7 +129,7 @@ class TestTheBareList:
         names = [record["command"] for record in envelope["data"]]
         assert names == ["xfer.root", "xfer.xmodem", "xfer.ymodem"], envelope
         assert envelope["output_lines"] == [], "no prose beside the records"
-        assert envelope["value"] == "xfer.root\nxfer.xmodem\nxfer.ymodem"
+        assert envelope["value"] == 3, "the value is the row count, an integer in the envelope"
 
     def test_a_hidden_child_stays_off_the_list(self, cli, capsys):
         """A hidden alias dispatches but is not listed, as on the help page."""

@@ -10,7 +10,7 @@ from termapy.builtins.commands.var import (
     rewrite_assignment,
 )
 from termapy.folders import FOLDER_NAMES
-from termapy.plugins import DirectiveInfo, DirectiveResult, PluginContext
+from termapy.plugins import CmdResult, DirectiveInfo, DirectiveResult, PluginContext, PluginInfo
 from termapy.port_control import (
     PORT_SETTINGS,
     PROBED_CHIP_FIELDS,
@@ -1051,7 +1051,56 @@ class TestVarListing:
         assert ["GOLD", "user", "42"] in rows, "a user variable"
         assert ["PORT.NAME", "context", "DEMO"] in rows, "a context variable, read when listed"
         assert any(row[:2] == ["DATE", "dynamic"] for row in rows), "the clock says which time"
-        assert result.value.splitlines()[0] == "GOLD=42", "value lists the table's rows in order"
+        assert result.value == len(rows) - 3, (
+            "the value counts the table's rows (title, header, dashes aside)"
+        )
+
+    def test_one_name_is_a_record_with_its_kind(self, cli, capsys):
+        """/var NAME is a record page shaped like one row of the table: name, kind, value; the line is $(NAME) = value."""
+        # Arrange
+        cli._fire_app_start()
+        cli.repl.dispatch_full("/var.set GOLD 42")
+        capsys.readouterr()
+
+        # Act
+        user = cli.repl.dispatch_full("/var GOLD")
+        context = cli.repl.dispatch_full("/var PORT.NAME")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert user.data == {"name": "GOLD", "kind": "user", "value": "42"}
+        assert (user.value, context.data["kind"]) == ("42", "context")
+        assert "$(GOLD) = 42" in out, "the one line a person reads"
+
+    def test_one_name_shows_at_quiet(self, cli, capsys):
+        """view-is-the-answer: the variable's line is the answer, so .quiet prints it."""
+        cli.repl.dispatch_full("/var.set GOLD 42")
+        capsys.readouterr()
+        cli.repl.dispatch_full("/var.quiet GOLD")
+        assert "$(GOLD) = 42" in capsys.readouterr().out
+
+    def test_one_names_json_is_the_record_alone(self, cli, capsys):
+        """--json on one name carries the record as data and no printed line beside it."""
+        cli.repl.dispatch_full("/var.set GOLD 42")
+        capsys.readouterr()
+        cli.repl.dispatch_full("/var GOLD --json")
+        envelope = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+        assert envelope["data"] == {"name": "GOLD", "kind": "user", "value": "42"}
+        assert envelope["output_lines"] == [], "the facts ride once, as data"
+
+    def test_an_undefined_name_fails_naming_the_closest(self, cli, capsys):
+        """A name nothing defines fails with the standard phrasing and a did-you-mean over the names that exist."""
+        # Arrange
+        cli.repl.dispatch_full("/var.set GOLD 42")
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/var GOLF")
+
+        # Assert
+        assert result.success is False
+        assert result.error == "Unknown variable: $(GOLF) -- did you mean GOLD?"
+        assert capsys.readouterr().out.count("Unknown variable") == 1, "reported once, by dispatch"
 
     def test_the_json_answer_is_the_snapshot(self, cli, capsys):
         """--json answers with one name-to-value mapping per kind, so an agent looks a name up."""
@@ -1069,6 +1118,37 @@ class TestVarListing:
         assert set(data) == {"user", "launch", "datetime", "context"}
         assert data["user"] == {"GOLD": "42"}
         assert data["context"]["PORT.NAME"] == "DEMO"
+
+
+class TestCaptureSpellsTypedValues:
+    """value-typed: a command's typed value is captured as text, spelled once at the REPL's boundary."""
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [(7, "7"), (True, "on"), (False, "off"), (2.5, "2.5")],
+        ids=["int", "true", "false", "float"],
+    )
+    def test_a_typed_value_lands_in_the_variable_as_text(self, cli, capsys, value, expected):
+        """$(X) <- cmd stores the spelled value, so $(X) expands to digits or on/off, never True/7 as repr."""
+        # Arrange -- a command whose value is typed, as a count or a switch is
+        cli.repl.register_plugin(
+            PluginInfo(
+                name="probe",
+                args="",
+                help="h",
+                handler=lambda ctx, args: CmdResult.ok(value=value),
+            )
+        )
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/var.capture X /probe")
+        cli.repl.dispatch_full("/print $(X)")
+
+        # Assert
+        assert result.success is True, result.error
+        assert user_vars(cli.repl.ctx)["X"] == expected, "the variable holds text"
+        assert capsys.readouterr().out.splitlines()[-1].strip() == expected
 
 
 class TestPortContextVars:

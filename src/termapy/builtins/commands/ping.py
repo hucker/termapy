@@ -77,9 +77,9 @@ def _show_reply(ctx: PluginContext, text: str) -> None:
     A JSON line reads like one arriving from the device (``json_fmt`` on a
     screen, one line in a pipe), so a JSON-speaking board's reply looks the
     same under ``/ping.verbose`` as at the prompt.  An answer for a program
-    (``--json``, MCP) keeps each line as it came.
+    (``--json``, MCP) keeps each line as it came; ``json_layout`` knows.
     """
-    indent, highlight = (0, False) if ctx.wants_data else ctx.internal.json_layout()
+    indent, highlight = ctx.internal.json_layout()
     for line in text.splitlines():
         shown = received_json_markup(line, indent, highlight)
         if shown is None:

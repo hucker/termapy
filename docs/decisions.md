@@ -1235,3 +1235,61 @@ the table or page, silent shows nothing, a JSON or MCP caller still gets the rec
 clickable cells in the TUI. Behavior changed: at quiet, every list and status page now prints.
 A handler that prints a listing or a file by hand on `ctx.io.output` (`/cfg.dump`, `/log.dump`,
 `/firmware.dump`) still shows it at normal and up only.
+
+## 2026-11-08 — A value is typed, and a table answers its count
+
+Found testing quick open: every table but `/port.chip.list` set `value` to the newline-joined
+names of its rows, so a `--json` or MCP envelope carried them twice, 58 `NAME=value` lines
+beside `data` for `/var`. Chuck: a non-JSON answer gets the table, and under JSON "your result
+is something like X records, which is a count of items, and data contains the list/tree form".
+And the count is a number, not `"58"`: the JSON is for the AI first, so it gets typed data, not
+"data soiled with human shortcuts". `data` already had real JSON types (2026-10-15); `value`
+never did, because every handler spelled it for a person at the source.
+
+Now a value carries its natural type (registry `value-typed`): an int count, a bool switch, a
+str, None for nothing. A JSON envelope and MCP pass it through (MCP's `None`/`""` coercion
+compares by equality, so `0` and `False` survive); the REPL spells it for a person at its
+boundary only, through one function, `scripting.value_text` (a bool as `on`/`off`, the boolean
+vocabulary's answer), at the three places a value becomes text: `$(X) <- cmd`, a `/cap.poll`
+cell and `/help`'s CURRENT STATE line. `config.cfg_value_text` spells its scalars through it.
+`CmdResult.table` takes no `value` any more and sets `len(records)` itself (registry
+`table-value-is-count`): the constructor is the guard, and an empty list answers `0`, so
+`/help`'s state section shows an empty table as its own `<title> - empty` line rather than the
+value. Behavior changed: every list's captured value is its count (`$(N) <- /run.list` is a
+number; `$(env.X)` reads one environment variable where `/env.list X` once gave `X=value`), and
+`/port.chip.list`'s `"12"` is `12`. The audit of every other `value=str(count)` and `"on"`/`"off"`
+answer, and of composite tokens such as `/port.mode`'s `115200 8N1`, is the next branch, as the
+2026-11-06 `data` audit was its own. **Where:** `tests/test_views.py`, `tests/test_scripting.py`,
+`tests/test_var.py`, `tests/test_mcp_server.py`.
+
+## 2026-11-08 — A plugin never reads `wants_data`; it returns a view and dispatch chooses
+
+The same test found `/port.list` printing nothing at `--quiet` after the entry above it: it had
+never become a table. It branched on `ctx.wants_data` and printed its rows by hand, as the
+`CmdResult.data` bullet of CLAUDE.md told a "LARGE listing" to, while the list bullet two lines
+down said never; the `list-one-format` guard checks only the data shape of `.list` and `.lib`
+names, so seven commands kept their branches. Now no module under `builtins/` reads
+`wants_data` (registry `plugins-never-read-wants-data`, an `ast` guard with no allowlist): a
+handler returns `CmdResult.table` or `CmdResult.record` and dispatch prints the view for a
+person or hands the data on. `/port.list` and `/sym.search` are tables; `/port.usb` (the tree as
+data, its drawing the page, the serial-port count the value), `/mem.dump` (its hex grid the
+page, the hex string still the value, as help/memory.md promises) and `/firmware.dump` are
+record pages; `/var NAME` is a record shaped like one row of the table, and a name nothing
+defines fails with `Unknown variable: $(NAME)` and a did-you-mean, as `/print` already said;
+`/proto.run` always carries its results as `data` and its narration is progress on the output
+channel, which quiet, MCP's default level, hides; `/ping` asks `json_layout`, which answers
+`(0, False)` for a caller that wants data. Behavior changed: `/firmware.dump`, which the entry
+above left at normal and up, shows at quiet, the file being the answer; `/var MISSING` fails
+where it reported success with an empty value; `/port.list` prints `Ports - empty` for no ports
+and `/sym.search` an empty table for no match; `/proto.run --json` at normal carries the
+narration in `output_lines`.
+
+A table is fitted to the frontend (registry `table-fits-the-frontend`), which the port table
+needed: `Column(drop=)` ranks a column's expendability and `Column(hide_empty=)` hides one no
+row fills, and dispatch passes `IOHandle.width()`, the output pane's width in the TUI (posted by
+`LinkLog.Width` on resize, held for the dispatch workers), the console's less the gutter in a CLI
+at a terminal, None in a pipe. `port_format.PORT_TABLE_COLUMNS` is built from the schema the
+picker and `--ports` already used (`PORT_COLUMNS`, `COLUMN_HEADERS`, `DROP_ORDER`,
+`OPTIONAL_COLUMNS`), so the three agree; moving the picker and `--ports` onto the view is a
+follow-up. **Where:** `tests/test_architecture.py`, `tests/test_views.py`,
+`tests/test_port_commands.py`, `tests/test_sym_commands.py`, the CLI gold.

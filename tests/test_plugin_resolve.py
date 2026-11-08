@@ -543,7 +543,7 @@ class TestLoadReport:
         # Assert
         assert result.success, result.error
         assert result.data == engine.load_report.records, "data is the rows themselves"
-        assert result.value == "plugin/hello.py", "value is the loaded files"
+        assert result.value == len(engine.load_report.records), "the value is the row count"
         assert output == startup, "the command prints exactly the startup table"
 
     def test_folder_prestart_hook_is_skipped_with_a_warning(self, rig):

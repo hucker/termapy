@@ -226,11 +226,11 @@ def _run_toml_script(
 ) -> dict:
     """Execute a TOML-format proto script.
 
-    Prose goes to ``ctx.io`` unless the caller wants data, in which case
-    the run is silent and the returned document is the whole output
-    (``/proto.run … --json``, MCP).  A stop request (Escape) ends the
-    run after the current test and skips the script-level teardown: a
-    stop means stop.
+    The run's narration is progress on the output channel, so the level
+    decides who sees it (quiet, MCP's default, hides it) and the returned
+    document is the structured answer whoever asked.  A stop request
+    (Escape) ends the run after the current test and skips the
+    script-level teardown: a stop means stop.
 
     Args:
         ctx: Plugin context for serial I/O and output.
@@ -243,12 +243,10 @@ def _run_toml_script(
         for the tests that ran.
     """
     stop_event = _stop_event(ctx)
-    quiet_run = ctx.wants_data
-    quiet_cmds = script.quiet or quiet_run
+    quiet_cmds = script.quiet
 
     def say(text: str, color: str = "dim") -> None:
-        if not quiet_run:
-            ctx.io.output(text, color)
+        ctx.io.output(text, color)
 
     test_results: list[dict] = []
     pass_count = 0
@@ -730,11 +728,10 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
                 write_results(results, out_path)
             except OSError as e:
                 return CmdResult.fail(msg=f"Write error: {e}")
-            if not ctx.wants_data:
-                ctx.io.output(f"  JSON: {out_path}")
+            ctx.io.output(f"  JSON: {out_path}")
         # The path is the scriptable value; the results document is the
-        # structured twin for --json / MCP, on a failing run too.
-        data = results if ctx.wants_data else None
+        # structured twin, on a failing run too.
+        data = results
         summary = results["summary"]
         if summary["failed"]:
             return CmdResult.fail(
@@ -923,14 +920,7 @@ def _handler_crc_list(ctx: PluginContext, args: str) -> CmdResult:
             }
         )
     records.sort(key=lambda record: (record["width"], record["name"]))
-    # The value is the matched names, alphabetical, so scripts can iterate or count.
-    return CmdResult.table(
-        "CRC algorithms",
-        "algorithm",
-        _CRC_COLUMNS,
-        records,
-        value="\n".join(names),
-    )
+    return CmdResult.table("CRC algorithms", "algorithm", _CRC_COLUMNS, records)
 
 
 _CRC_COLUMNS = (

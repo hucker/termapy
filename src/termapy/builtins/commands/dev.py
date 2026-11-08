@@ -227,14 +227,7 @@ def _write_reference(
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """What THIS config loaded: one row per device, with its layer."""
-    devices = get_devices(ctx)
-    return CmdResult.table(
-        "devices",
-        "device",
-        device_columns(),
-        device_records(devices),
-        value="\n".join(device.name for device in devices),
-    )
+    return CmdResult.table("devices", "device", device_columns(), device_records(get_devices(ctx)))
 
 
 def _handler_regs(ctx: PluginContext, args: str) -> CmdResult:
@@ -267,7 +260,6 @@ def _handler_regs(ctx: PluginContext, args: str) -> CmdResult:
         "register",
         register_columns(),
         register_records(matched, address_bits=table.address_bits if table else 32),
-        value="\n".join(register.symbol.name for register in matched),
     )
 
 
@@ -366,7 +358,6 @@ def _handler_lib(ctx: PluginContext, args: str) -> CmdResult:
         "part",
         library_columns(),
         library_records(matched, loaded),
-        value="\n".join(part.device for part in matched),
     )
 
 

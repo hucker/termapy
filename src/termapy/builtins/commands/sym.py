@@ -58,7 +58,7 @@ from termapy.symbols import (
     table_record,
 )
 from termapy.symbols.converters import FORMATS, find_converter
-from termapy.symbols.format import hex_addr
+from termapy.symbols.format import hex_addr, symbol_columns
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -341,7 +341,12 @@ def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_search(ctx: PluginContext, args: str) -> CmdResult:
-    """Search symbol names: the exact name, else a name pattern (``SymbolTable.search``)."""
+    """Search symbol names: the exact name, else a name pattern (``SymbolTable.search``), as a table of the matches.
+
+    A list answer (registry ``list-one-format``): the records are
+    ``symbol_record``s in address order, the columns every fact a symbol
+    line shows, the value the match count; no match is the empty table.
+    """
     # Hand-rolled: trivial single-arg (CLAUDE.md rates the migration
     # net-zero); a params positional would render <pattern> identically.
     pattern = args.strip()
@@ -350,18 +355,13 @@ def _handler_search(ctx: PluginContext, args: str) -> CmdResult:
     # needs=symbols_loaded: the gate answered a missing table already.
     table = get_table(ctx)
     matches = table.search(pattern) if table is not None else []
-    if table is None or not matches:
-        ctx.io.output(f"No symbols matching '{pattern}'", "yellow")
-        return CmdResult.ok(value="", data=[])
-    bits = table.address_bits
-    if ctx.wants_data:
-        return CmdResult.ok(
-            value=matches[0].name,
-            data=[symbol_record(symbol, address_bits=bits) for symbol in matches],
-        )
-    for symbol in matches:
-        ctx.io.output(f"  {format_symbol(symbol, address_bits=bits)}")
-    return CmdResult.ok(value=matches[0].name)
+    bits = table.address_bits if table is not None else 32
+    return CmdResult.table(
+        f"Symbols matching {pattern}",
+        "symbol",
+        symbol_columns(address_bits=bits),
+        [symbol_record(symbol, address_bits=bits) for symbol in matches],
+    )
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:

@@ -289,6 +289,11 @@ def _flatten(roots: list[UsbNode], prefix: str = "") -> list[tuple[str, UsbNode]
     return out
 
 
+def count_ports(roots: list[UsbNode]) -> int:
+    """How many serial ports the tree carries: the nodes ``tag_serial_ports`` gave a port name."""
+    return sum(1 for root in roots for node in root.walk() if node.port_name)
+
+
 def to_json_records(roots: list[UsbNode]) -> list[dict]:
     """Convert the tree to nested dicts for ``--json``.
 

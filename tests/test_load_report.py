@@ -146,7 +146,7 @@ class TestResult:
         # Assert
         assert result.data == records, "data is the rows"
         assert result.view.records == tuple(records), "the table shows the same rows"
-        assert result.value == "plugin/x.py", "value is the files that loaded"
+        assert result.value == 2, "the value counts every row, the failed one too"
         assert result.view.lines()[0] == ("Loaded - 2 files", ""), "titled with the file count"
 
     def test_empty_report_reads_empty(self):

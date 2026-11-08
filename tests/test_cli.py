@@ -1076,8 +1076,13 @@ class TestEditTwins:
         original = cli.repl.dispatch("edit.proto")
 
         # Assert
-        assert twin.value == "a.pro", "bare /proto.edit lists the folder"
-        assert original.value == twin.value, "both spellings list alike"
+        assert [record["name"] for record in twin.data] == ["a.pro"], (
+            "bare /proto.edit lists the folder"
+        )
+        assert [record["name"] for record in original.data] == ["a.pro"], (
+            "both spellings list alike"
+        )
+        assert original.value == twin.value == 1, "and count alike"
 
     def test_cfg_edit_opens_the_current_config(self, cli):
         """/cfg.edit opens the loaded config, the file /edit.cfg opens."""
@@ -2675,3 +2680,21 @@ class TestCfgDeleteAndRename:
         # Assert
         assert result.returncode == 1
         assert "Cannot rename the active config: demo" in result.stdout
+
+
+class TestOutputWidth:
+    """table-fits-the-frontend: the CLI tells dispatch how wide a table row may be."""
+
+    def test_a_named_width_less_the_gutter(self):
+        """--term-width 60 leaves 58 columns for a row: the console's width less the two-space indent."""
+        from termapy.defaults import default_cfg
+
+        terminal = CLITerminal(default_cfg(), "", no_color=True, term_width=60, zero_config=True)
+        assert terminal.ctx.io.width() == 58
+
+    def test_a_pipe_has_no_width(self):
+        """With no --term-width and stdout not a terminal (as under pytest), a table shows every column."""
+        from termapy.defaults import default_cfg
+
+        terminal = CLITerminal(default_cfg(), "", no_color=True, zero_config=True)
+        assert terminal.ctx.io.width() is None

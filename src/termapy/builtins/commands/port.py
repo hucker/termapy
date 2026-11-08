@@ -12,7 +12,7 @@ from termapy.help_dynamic import compose, port_status
 from termapy.legacy import make_forwarder
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, TextLine, UsageError
 from termapy.plugins.waiting import wait
-from termapy.port_format import find_chips
+from termapy.port_format import PORT_TABLE_COLUMNS, find_chips
 from termapy.scripting import format_duration, parse_duration
 
 if TYPE_CHECKING:
@@ -97,27 +97,21 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
-    """List the serial ports: a table for a person, records for a structured consumer; the value is the device names."""
-    # Structured consumer: records only, no table.  ``value`` is the
-    # comma-joined device names (the useful scalar for an agent or a
-    # capture) rather than the rendered table text the human branch
-    # returns -- the table is exactly the big prose ``wants_data``
-    # exists to skip.
-    if ctx.wants_data:
-        records = port_control.list_port_records()
-        return CmdResult.ok(
-            value=",".join(record["device"] or "" for record in records),
-            data=records,
-        )
-    result = port_control.list_ports()
-    _apply(ctx, result)
-    return CmdResult.ok(value=_joined_value(result))
+    """List the serial ports: a table fitted to the frontend's width, the records as data, their count the value.
+
+    A list answer (registry ``list-one-format``) over
+    ``port_control.list_port_records``, the same records ``--ports --json``
+    prints; the columns are ``port_format.PORT_TABLE_COLUMNS``, whose drop
+    ranks let a narrow screen lose SPEED and CHIP before the port names.
+    """
+    return CmdResult.table("Ports", "port", PORT_TABLE_COLUMNS, port_control.list_port_records())
 
 
 def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
-    """Render the USB device tree, or its records for a structured consumer; fails on an unsupported platform."""
+    """The USB device tree as a page, its nested records as data and its serial-port count as the value; fails on an unsupported platform."""
     from termapy.usb_tree import (
         UnsupportedPlatform,
+        count_ports,
         gather_usb_tree,
         render_tree,
         to_json_records,
@@ -127,14 +121,13 @@ def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
         roots = gather_usb_tree()
     except UnsupportedPlatform as exc:
         return CmdResult.fail(msg=str(exc))
-    # Structured consumer: the nested record tree (same shape as
-    # ``--usb --json``), skipping the box-drawing render entirely.
-    if ctx.wants_data:
-        return CmdResult.ok(value="", data=to_json_records(roots))
-    lines = render_tree(roots)
-    for line in lines:
-        ctx.io.output(line)
-    return CmdResult.ok(value="\n".join(lines))
+    # The tree is the data (the shape ``--usb --json`` prints), its drawing
+    # the page dispatch prints for a person (registry record-one-format).
+    return CmdResult.record(
+        to_json_records(roots),
+        [TextLine(line) for line in render_tree(roots)],
+        value=count_ports(roots),
+    )
 
 
 class _Opener:
@@ -352,13 +345,7 @@ def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
         }
         for vid, pid, info in rows
     ]
-    return CmdResult.table(
-        "USB-serial chips",
-        "chip",
-        _CHIP_COLUMNS,
-        records,
-        value=str(len(records)),
-    )
+    return CmdResult.table("USB-serial chips", "chip", _CHIP_COLUMNS, records)
 
 
 # /port.chip.list columns: the records keep max_baud an int for a data consumer.
@@ -393,14 +380,9 @@ def _make_chip_field_handler(field: str) -> Callable[[PluginContext, str], CmdRe
             if not records:
                 ctx.io.output("No serial ports found", "yellow")
                 return CmdResult.ok(value="")
-            lines = "\n".join(
-                f"{record['device']}: {columns[1].cell(record)}" for record in records
-            )
             # The data maps each device to its value, so a consumer looks a port up.
             by_device = {str(record["device"]): record[field] for record in records}
-            return CmdResult.table(
-                f"Chip {label}", "port", columns, records, value=lines, data=by_device
-            )
+            return CmdResult.table(f"Chip {label}", "port", columns, records, data=by_device)
         result = port_control.chip_field(field, args, current, connected)
         _apply(ctx, result)
         # Single-port single-field call: return value via CmdResult.value

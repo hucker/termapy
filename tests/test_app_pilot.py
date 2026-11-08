@@ -1399,6 +1399,25 @@ class TestMultilinePaste:
         folder.mkdir(exist_ok=True)
         (folder / f"{name}.run").write_text(text, encoding="utf-8")
 
+    def test_the_output_panes_width_reaches_dispatch(self, app_factory):
+        """table-fits-the-frontend: after layout, IOHandle.width() is the output pane's row width, the scrollbar reserved."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory()
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                output = app.query_one("#output")
+
+                # Act
+                actual = app.repl.ctx.io.width()
+
+                # Assert
+                expected = output.content_size.width - output.styles.scrollbar_size_vertical
+                assert actual == expected and actual > 0, "the pane told the app its width"
+
+        _run(scenario)
+
     def test_a_pasted_connect_finishes_its_on_connect_script_before_the_next_line(
         self, app_factory
     ):

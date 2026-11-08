@@ -72,7 +72,7 @@ from termapy.memory_views import (
     scalar_size,
     symbol_columns,
 )
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, TextLine
 from termapy.plugins.params import ParamSpec
 from termapy.protocol.core import apply_format, column_value, parse_hex
 from termapy.scripting import strip_ansi
@@ -630,25 +630,22 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(
             msg=f"Invalid length: {len(data)} (not a multiple of {size} for {type_name})"
         )
-    if ctx.wants_data:
-        records = []
-        for row in rows:
-            record = row_record(row, address_bits=bits)
-            if type_name:
-                record["values"] = decode_words(row.data, type_name, info.endian)
-            records.append(record)
-        return CmdResult.ok(
-            value=value,
-            data={
-                "addr": parsed.addr,
-                "addr_hex": hex_addr(parsed.addr, bits),
-                "len": len(data),
-                "type": type_name or "u8",
-                "bytes_hex": value,
-                "rows": records,
-            },
-        )
+    records = []
+    for row in rows:
+        record = row_record(row, address_bits=bits)
+        if type_name:
+            record["values"] = decode_words(row.data, type_name, info.endian)
+        records.append(record)
+    facts = {
+        "addr": parsed.addr,
+        "addr_hex": hex_addr(parsed.addr, bits),
+        "len": len(data),
+        "type": type_name or "u8",
+        "bytes_hex": value,
+        "rows": records,
+    }
     # Cell width keeps columns aligned across rows (a short last row too).
+    grid: list[TextLine] = []
     for row in rows:
         parts: list[str] = []
         if show_addr:
@@ -671,12 +668,12 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
             parts.append(f"|{row.ascii}|")
         if show_labels and row.label and (show_addr or show_ascii):
             parts.append(row.label)
-        # The dump grid is the command's answer, so it rides the result
-        # channel (quiet+) -- .quiet still prints the bytes.  Which COLUMNS
-        # appear is the level's job above (show_addr / show_ascii /
-        # show_labels), not the channel's.
-        ctx.io.result("  ".join(parts).rstrip())
-    return CmdResult.ok(value=value)
+        # The dump grid is the command's answer: a record page dispatch
+        # prints at quiet and up, so .quiet still prints the bytes, and never
+        # beside the data (registry record-one-format).  Which COLUMNS appear
+        # is the level's job above (show_addr / show_ascii / show_labels).
+        grid.append(TextLine("  ".join(parts).rstrip(), "green"))
+    return CmdResult.record(facts, grid, value=value)
 
 
 def _handler_read(ctx: PluginContext, args: str) -> CmdResult:

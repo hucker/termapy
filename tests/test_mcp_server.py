@@ -616,6 +616,29 @@ class TestUnifiedEnvelope:
         assert data["user"] == {"PORT": "COM9"}, "set variable visible in data"
         assert data["launch"]["FRONT_END"] == "mcp", "launch namespace resolved into data"
 
+    @pytest.mark.parametrize("value", [0, False, 7, True], ids=["zero", "false", "int", "true"])
+    def test_a_typed_value_reaches_the_agent_as_itself(self, host, value):
+        """value-typed: an envelope carries a value in its own type; 0 and False are values, never emptied."""
+        # Arrange
+        from termapy.plugins import CmdResult, PluginInfo
+
+        host.repl._plugins["__probe"] = PluginInfo(
+            name="__probe",
+            args="",
+            help="synthetic test plugin",
+            handler=lambda ctx, args: CmdResult.ok(value=value),
+        )
+        try:
+            # Act
+            result = asyncio.run(host.run_command_async("/__probe", "normal", 5.0))
+        finally:
+            del host.repl._plugins["__probe"]
+
+        # Assert
+        assert result["value"] == value and type(result["value"]) is type(value), (
+            "the agent gets the value typed, not spelled"
+        )
+
     def test_mcp_info_returns_its_record_as_data_at_normal_level(self, host):
         """/mcp.info reaches an MCP client as one record of real values, pid first, and no rows of display text beside it."""
         # Act
@@ -649,7 +672,7 @@ class TestUnifiedEnvelope:
         )
 
     def test_port_list_returns_records_in_data(self, host, monkeypatch):
-        """/port.list returns per-port records in data and comma-joined names in value."""
+        """/port.list returns per-port records in data and their count in value."""
         # Arrange -- layer-2 fleet: the handler calls list_port_records()
         # with no source arg, so injection can't reach it; the env layer
         # exists exactly for a party outside the call (here, the test).
@@ -666,8 +689,8 @@ class TestUnifiedEnvelope:
         assert "vid" in first and "serial_number" in first, (
             "records carry the fixed facts_to_json_record schema"
         )
-        assert result["value"] == ",".join(actual_devices), (
-            "value is the scriptable scalar: comma-joined device names"
+        assert result["value"] == len(actual_devices), (
+            "value is the port count, an integer; the names are the records"
         )
 
 

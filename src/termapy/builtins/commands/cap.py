@@ -12,7 +12,7 @@ from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
 from termapy.plugins.params import EnumValue, ParamSpec
 from termapy.protocol import get_crc_registry, parse_format_spec
-from termapy.scripting import parse_bool, parse_duration, resolve_seq_filename
+from termapy.scripting import parse_bool, parse_duration, resolve_seq_filename, value_text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -469,7 +469,9 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
                 if len(parts) > 1:
                     silent += " " + parts[1]
             result = ctx.dispatch(silent)
-            raw = result.value if result.success else ""
+            # A CSV cell is text: a typed value is spelled at this boundary
+            # (registry value-typed).
+            raw = value_text(result.value) if result.success else ""
         else:
             if not ctx.serial.is_connected():
                 return ""

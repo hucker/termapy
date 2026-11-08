@@ -142,11 +142,10 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     running = _running_record()
     if running is not None:
         records.insert(0, running)
-    names = "\n".join(record["name"] for record in records)
     if len(folders) == 1:
-        return CmdResult.table(str(folders[0]), "item", _LIST_COLUMNS, records, value=names)
+        return CmdResult.table(str(folders[0]), "item", _LIST_COLUMNS, records)
     columns = (*_LIST_COLUMNS, Column("FOLDER", lambda record: record["folder"]))
-    return CmdResult.table("app folders", "item", columns, records, value=names)
+    return CmdResult.table("app folders", "item", columns, records)
 
 
 # ── /app.state ────────────────────────────────────────────────────────────────
@@ -338,8 +337,7 @@ _SESSION_COLUMNS = (
 def _handler_running(ctx: PluginContext, args: str) -> CmdResult:
     """List the termapys running on this machine, from their breadcrumbs (``breadcrumbs``)."""
     records = [_session_record(crumb) for crumb in breadcrumbs.read_running()]
-    value = "\n".join(str(record["pid"]) for record in records)
-    return CmdResult.table("running termapys", "session", _SESSION_COLUMNS, records, value=value)
+    return CmdResult.table("running termapys", "session", _SESSION_COLUMNS, records)
 
 
 def _handler_kill(ctx: PluginContext, args: str) -> CmdResult:

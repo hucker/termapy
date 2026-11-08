@@ -196,6 +196,30 @@ def parse_bool_setting(args: str) -> str | bool:
         raise ValueError(f"Invalid value: {args.strip()} (use {SETTING_TOKENS_HELP})") from None
 
 
+def value_text(value: object) -> str:
+    """A command's value as a person reads it: the one speller at the REPL's boundary.
+
+    A ``CmdResult.value`` carries its natural type (registry
+    ``value-typed``): a count is an int, a switch a bool, and a JSON
+    envelope passes it through as it is.  Where the REPL turns it into
+    text, a captured variable (``$(X) <- cmd``), a ``/cap.poll`` cell or
+    ``/help``'s CURRENT STATE line, it is spelled here: a bool as ``on`` /
+    ``off``, the boolean vocabulary's answer, a number as its digits, None
+    as nothing.
+
+    Args:
+        value: The value as the command returned it.
+
+    Returns:
+        The text.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "on" if value else "off"
+    return str(value)
+
+
 _CycleT = TypeVar("_CycleT")
 
 

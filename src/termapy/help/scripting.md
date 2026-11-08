@@ -204,11 +204,13 @@ for `--quiet`), which renders that one result as an envelope:
 
 ```text
 /port.list --json
-{"cmd": "/port.list", "success": true, "error": "", "value": "COM3,COM4",
+{"cmd": "/port.list", "success": true, "error": "", "value": 2,
  "data": [{"device": "COM3", ...}], "output_lines": [], "elapsed_s": 0.02}
 ```
 
-`data` carries the structured form, with no rows of text beside it:
+`value` is one scalar in its own type: a list's row count as a number, a
+switch as a boolean, text as a string.  `data` carries the structured form,
+with no rows of text beside it:
 
 - **Every list** (`/port.list`, `/port.chip.list`, `/proto.crc.list`, the
   folder listings `/run.list` / `/cap.list` / `/ss.list` / `/proto.list` /

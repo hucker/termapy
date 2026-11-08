@@ -36,6 +36,35 @@ kept. Inside a session, `/cfg.new my_device COM4 115200 8N1` creates the
 same config where `/cfg.list` looks, and `/cfg.load my_device` switches to
 it. The dialog, the flag and the command make the same files.
 
+## Quick open: just a port
+
+Name a port instead of a config and termapy opens it, the way `screen` and
+`miniterm` do:
+
+```text
+termapy COM3 9600 8N1            # a port, then /port.connect's settings
+termapy COM3                     # the same port, with the settings it had last
+termapy 58E6C5716A840000 115200  # a board by its USB serial number
+termapy --vt100 COM5 115200      # a U-Boot or Linux console
+```
+
+The first open gives the port a config of its own, `quick-COM3`, in your
+user folder and never in the current project: `%APPDATA%\termapy` on
+Windows, `~/Library/Application Support/termapy` on macOS,
+`~/.config/termapy` on Linux. So its log, history and screenshots have a home and your
+project gains nothing. The settings you type are saved there, so the next
+`termapy COM3` opens with them, and a port you have opened before still
+opens while it is unplugged, as any config whose port is missing does. Each
+port has its own config, so two termapys on two ports share nothing. A
+serial number follows the board whatever COM number it gets.
+
+A config wins the name: with a config called `COM3`, `termapy COM3` loads
+it. Settings follow a port only, and flags may go anywhere on the line
+(`termapy COM3 9600 --quiet 8N1`). A name that is neither a config nor a
+port that is here fails, naming the closest of both. `--cfg-dir` or
+`TERMAPY_CFG_DIR` puts quick configs in that folder instead; `--mcp` takes
+a config only.
+
 ## Launching with a config
 
 ```text
@@ -47,6 +76,7 @@ termapy --cfg-dir /path/to/cfgs  # use a custom config directory
 termapy --check my_device.cfg    # validate config (no UI)
 termapy --cli my_device          # plain-text CLI mode
 termapy --cli smoke_test.run     # run a .run script in CLI mode
+termapy COM3 9600 8N1            # no config: a port (see Quick open)
 ```
 
 **Config resolution.** Termapy finds your config automatically. Pass a bare

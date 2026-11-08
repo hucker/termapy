@@ -1198,3 +1198,27 @@ goal: a keystroke mode and a screen emulator in the TUI, which had been planned 
 match TeraTerm's terminal. A console termapy did not write uses `--vt100`; Phase 2 of
 [vt100-build-plan.md](vt100-build-plan.md), an emulator with no display that an agent reads,
 stays open. The argument is [why-line-based.md](why-line-based.md). **Where:** review only.
+
+## 2026-11-08 — A port on the command line opens its own config
+
+Chuck wanted `termapy COM1 9600 8N1` to work the way `termapy foo.cfg` does, for the "just a
+terminal" use of 2026-10-29. The positional named a config only. Now it is tried as a config
+first and then as a port, as ssh tries a `Host` alias before a host name and tio a profile before
+a device, so a config always wins its name. A port is one `port_control.port_present` finds (a
+device name, a USB serial number, a reserved port, a URL) or one a quick session opened before.
+The words after it are `/port.connect`'s settings, read by its reader, and flags may go anywhere
+on the line (`parse_intermixed_args`).
+
+A quick session is a real config, never a temporary one, because its log, history, screenshots
+and captures all live in a config's folder. It is `quick-<port>` (`config.quick_config`), one
+per port so that two termapys on two ports share no file, created at the first open, updated
+with the settings typed after the port, and kept, so `termapy COM3` opens with what it had last.
+It lives in the OS user folder, never a `./termapy_cfg` (registry `quick-open-outside-project`):
+a project gains no config, which would also change the config its MCP server starts on by
+itself. `--cfg-dir` and `TERMAPY_CFG_DIR` still decide where. `--mcp` keeps its own lookup, a
+config in the project's folder, and never opens a port for its positional.
+
+Settings after a config are refused rather than laid over it for the session (`termapy foo 9600`,
+as minicom's `-b` overrides its configuration): every frontend's start, the TUI, CLI, VT100, web
+and protocol runner, would have to carry the override, with a rule for a frontend switch.
+**Where:** `tests/test_quick_open.py`.

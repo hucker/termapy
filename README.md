@@ -48,7 +48,13 @@ Low time commitment: about 1 minute from scratch, or under 10 seconds if you alr
     uv tool uninstall termapy
     ```
 
-For your own device, one line creates a config and connects:
+For your own device, name its port, as with `screen`. termapy keeps the settings for next time, in your user folder rather than the project:
+
+```sh
+termapy COM4 115200 8N1
+```
+
+When the device deserves a project of its own (scripts, plugins, a profile, MCP), one line creates its config here and connects:
 
 ```sh
 termapy --new my_device COM4 115200 8N1

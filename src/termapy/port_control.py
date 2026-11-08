@@ -1800,6 +1800,16 @@ def resolve_port_trace(
     return trace
 
 
+def present_ports(*, source: PortSource | None = None) -> list[str]:
+    """The device names of the ports here now, as the system spells them; opens none.
+
+    Args:
+        source: A substitute port list, as ``resolve_port`` takes it.
+    """
+    facts = _gather_all_chip_facts(fast=True, source=source)
+    return [fact.device for fact in facts if fact.device is not None]
+
+
 def port_present(spec: str, *, source: PortSource | None = None) -> bool:
     """Whether connecting to ``spec`` would find its port now: the one "is it here?" test.
 

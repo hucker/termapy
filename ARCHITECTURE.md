@@ -1003,6 +1003,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_folder_ops_delete.py           | The shared `.delete` folder handler (`/cap.delete`, `/run.delete`, ...)                                                                            |
 | test_folder_ops_dump.py             | Containment tests for the shared `.dump` folder handler                                                                                            |
 | test_folder_ops_listing.py          | Tests for the shared listing producers in `folder_ops`                                                                                             |
+| test_folder_ops_stamped.py          | folder_ops.stamped_path: a timestamped file name never lands on one that exists                                                                    |
 | test_folders.py                     | Tests for termapy.folders -- folder/file constants                                                                                                 |
 | test_format_tables_sync.py          | Guard the format-spec type tables against hand edits and decoder drift                                                                             |
 | test_fs_sandbox.py                  | MCP filesystem/network sandbox: the fs chokepoint and its command gates                                                                            |
@@ -1049,7 +1050,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_palette.py                     | Tests for the command-palette additions that surface /find, /grep, /search                                                                         |
 | test_params.py                      | Tests for declarative command parameters (plugins/params.py + dispatch)                                                                            |
 | test_pickers.py                     | Tests for picker callbacks in `src/termapy/pickers.py`                                                                                             |
-| test_ping.py                        | /ping and /ping.quiet on the CLI DEMO rig: the value is the mean reply time, the data every round trip                                             |
+| test_ping.py                        | /ping on the CLI DEMO rig: the value is the mean reply time, the data every round trip, the level what prints                                      |
 | test_plugin_resolve.py              | Tests for ReplEngine.resolve_plugins -- the one plugin-resolution step                                                                             |
 | test_plugins.py                     | Tests for plugin loading, COMMAND dataclass, and PluginContext                                                                                     |
 | test_port_commands.py               | The /port command family driven through the dispatcher on the CLI DEMO rig                                                                         |

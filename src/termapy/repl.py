@@ -30,7 +30,7 @@ from termapy.defaults import (
     quiet_start,
 )
 from termapy.env_flags import TRUSTED_PLUGINS_ONLY
-from termapy.folder_ops import list_entries
+from termapy.folder_ops import list_entries, stamped_path
 from termapy.folders import (
     CAP,
     FOLDER_EXTS,
@@ -79,7 +79,6 @@ from termapy.plugins.params import parse_params
 from termapy.plugins.views import error_pieces
 from termapy.scripting import (
     expand_template,
-    filename_timestamp,
     format_duration,
     strip_ansi,
     strip_leading_echo,
@@ -212,10 +211,12 @@ def _asks_silent(repl_cmd: str) -> bool:
     """Whether a REPL line asks to be silent, by the ``.silent`` suffix or the ``--silent`` flag.
 
     The two spellings mean the same everywhere, so the line's echo honors
-    both, as dispatch does.  An empty line asks for nothing.
+    both, as dispatch does; a ``.json`` after the suffix (``.silent.json``)
+    leaves it silent.  An empty line asks for nothing.
     """
     name, _, args = repl_cmd.strip().partition(" ")
-    return name.endswith(".silent") or _strip_level_flags(args)[1] == "silent"
+    silent_name = name.lower().removesuffix(".json").endswith(".silent")
+    return silent_name or _strip_level_flags(args)[1] == "silent"
 
 
 def _strip_json_flag(args: str) -> tuple[str, bool]:
@@ -317,7 +318,7 @@ class ReplEngine:
         self.config_path = config_path
         self.write = write  # write(text, color="dim") callback
         # Whether JSON goes to a screen a person reads (the TUI, a CLI at a
-        # terminal), where json_display.indent and json_display.highlight lay it out.  The
+        # terminal), where json_fmt.indent and json_fmt.highlight lay it out.  The
         # host says so; a pipe and MCP keep one line per JSON value.
         self.screen_json = False
         # Prototype families that have said so this session (_note_prototype).
@@ -705,11 +706,11 @@ class ReplEngine:
             self.ctx._call_level = saved_emit_level
 
     def _write_json(self, data: object, *, result: bool, indent: bool = True) -> None:
-        """Print ``data`` as JSON, laid out by ``json_display.indent`` and ``json_display.highlight`` on a screen.
+        """Print ``data`` as JSON, laid out by ``json_fmt.indent`` and ``json_fmt.highlight`` on a screen.
 
         On a screen a person reads (``screen_json``) it is indented by
-        ``json_display.indent`` spaces per level (0 is one line) and highlighted
-        when ``json_display.highlight`` is on.  Anywhere else -- a pipe, a file --
+        ``json_fmt.indent`` spaces per level (0 is one line) and highlighted
+        when ``json_fmt.highlight`` is on.  Anywhere else -- a pipe, a file --
         it is one line per value, for a program reading stdout line by
         line.  ``indent=False`` keeps a one-key echo on one line.
 
@@ -717,13 +718,13 @@ class ReplEngine:
             data: The JSON-shaped value.
             result: The result channel (quiet+, the answer envelope);
                 otherwise the output channel (normal+, the request echo).
-            indent: Whether ``json_display.indent`` applies.
+            indent: Whether ``json_fmt.indent`` applies.
         """
         import json as _json
 
-        spaces = cfg_value(self.cfg, "json_display.indent") if indent and self.screen_json else 0
+        spaces = cfg_value(self.cfg, "json_fmt.indent") if indent and self.screen_json else 0
         spaces = spaces or None
-        if self.screen_json and cfg_value(self.cfg, "json_display.highlight"):
+        if self.screen_json and cfg_value(self.cfg, "json_fmt.highlight"):
             markup = json_markup(data, indent=spaces)
             if result:
                 self.ctx.io.result_markup(markup)
@@ -1413,9 +1414,9 @@ class ReplEngine:
         """The registered command a prefix-stripped line names, or None.
 
         Mirrors dispatch's own resolution -- first token, lowercased, the
-        universal ``.<level>`` suffix stripped when no command claims it --
-        so a caller that must know what WILL run (the MCP safety gate)
-        cannot drift from what dispatch decides.
+        universal ``.<level>`` and ``.json`` suffixes read by
+        :meth:`split_suffixes` -- so a caller that must know what WILL run
+        (the MCP safety gate) cannot drift from what dispatch decides.
 
         Args:
             repl_cmd: The line without its REPL prefix.
@@ -1424,14 +1425,43 @@ class ReplEngine:
             The PluginInfo, or None when nothing is registered by that name.
         """
         name = repl_cmd.split(None, 1)[0].lower() if repl_cmd.strip() else ""
-        plugin = self._plugins.get(name)
-        if plugin is not None:
-            return plugin
-        for level in OUTPUT_LEVELS:
-            suffix = "." + level
-            if name.endswith(suffix):
-                return self._plugins.get(name[: -len(suffix)])
-        return None
+        return self._plugins.get(self.split_suffixes(name)[0])
+
+    def split_suffixes(self, name: str) -> tuple[str, str | None, bool]:
+        """A typed command name, the level it asks for, and whether it asks for JSON.
+
+        Any command takes ``.<level>`` (``.quiet``, ...) and ``.json`` on
+        its name for one call, as it takes ``--quiet`` and ``--json``: at
+        most one of each, in either order (``/port.info.json.quiet``).  A
+        name that is a command keeps its meaning, and so does a name whose
+        suffixes leave no command; both come back as given.  No built-in
+        command's name ends in one of these words (registry
+        ``suffix-words-reserved``), so the suffix means the same on every
+        command.
+
+        Args:
+            name: The command's first token, lowercased.
+
+        Returns:
+            ``(command name, level or None, json)``.
+        """
+        if name in self._plugins:
+            return name, None, False
+        bare, level, wants_json = name, None, False
+        for _ in range(2):
+            head, dot, tail = bare.rpartition(".")
+            if not dot:
+                break
+            if tail in OUTPUT_LEVELS and level is None:
+                level = tail
+            elif tail == "json" and not wants_json:
+                wants_json = True
+            else:
+                break
+            bare = head
+            if bare in self._plugins:
+                return bare, level, wants_json
+        return name, None, False
 
     def _bare_handler(self, plugin: PluginInfo, args: str) -> Callable | None:
         """The declared bare behavior that replaces the handler, or None.
@@ -1544,8 +1574,7 @@ class ReplEngine:
         Returns:
             True if the command exists and has ``raw_args=True``.
         """
-        name = repl_cmd.split(None, 1)[0].lower() if repl_cmd.strip() else ""
-        plugin = self._plugins.get(name)
+        plugin = self.plugin_for(repl_cmd)
         return plugin.raw_args if plugin else False
 
     def _validate_bare_typed_args(self, cmd: str) -> CmdResult | None:
@@ -1979,6 +2008,10 @@ class ReplEngine:
         # the level flags) so an unknown command still answers with a JSON
         # envelope rather than leaking the flag into the error message.
         args, wants_json = _strip_json_flag(args)
+        # The suffix forms of the level and --json, read off the name when
+        # no command claims the whole of it.
+        name, call_level, suffix_json = self.split_suffixes(name)
+        wants_json = wants_json or suffix_json
 
         # Request mode is the SESSION's structured dial, and from the
         # user's seat the device/termapy demarcation is invisible: with
@@ -2010,24 +2043,9 @@ class ReplEngine:
         # that never ran the handler.
         json_output_lines: list[str] = []
 
-        # Universal level-suffix modifier: any command can be invoked as
-        # ``<cmd>.<level>`` (silent/quiet/normal/verbose) to override the
-        # output level for that one call.  We only fall back to this if
-        # no real plugin is registered with that suffix (so commands that
-        # explicitly define a ``.<level>`` subcommand still win).
-        call_level: str | None = None
+        # ``call_level`` came from a ``.<level>`` suffix (split_suffixes
+        # above); a ``--<level>`` flag is read with the plugin below.
         plugin = self._plugins.get(name)
-        if plugin is None:
-            for level in OUTPUT_LEVELS:
-                suffix = "." + level
-                if name.endswith(suffix):
-                    bare_name = name[: -len(suffix)]
-                    bare_plugin = self._plugins.get(bare_name)
-                    if bare_plugin is not None:
-                        plugin = bare_plugin
-                        name = bare_name
-                        call_level = level
-                    break
 
         def _finish(result: CmdResult) -> CmdResult:
             """The single exit: envelope in JSON mode, red line otherwise.
@@ -2260,7 +2278,7 @@ class ReplEngine:
     def store_cfg(self, key: str, new_val: object) -> None:
         """Put a session value in the config, and in the session flag it starts.
 
-        ``key`` is a top-level key, a path (``json_display.indent``) or a nested
+        ``key`` is a top-level key, a path (``json_fmt.indent``) or a nested
         key's unique leaf (``baud_rate``, which lives in cfg["serial"]).  It
         lands where ``defaults.cfg_slot`` finds it, the top level first, else
         in its section, so callers stay oblivious to nesting.
@@ -2583,10 +2601,9 @@ class ReplEngine:
         sctx.lines = [ln for ln in all_lines if ln.strip() and not ln.strip().startswith("#")]
         sctx.total = len(sctx.lines)
         if profile:
-            ts = filename_timestamp()
-            sctx.prof_name = f"{Path(self.config_path).stem}_{ts}.csv"
             prof_dir = ensure_folder(Path(self.config_path).parent / PROF)
-            sctx.prof_path = prof_dir / sctx.prof_name
+            sctx.prof_path = stamped_path(prof_dir, Path(self.config_path).stem, FOLDER_EXTS[PROF])
+            sctx.prof_name = sctx.prof_path.name
             sctx.prof_fh = open(sctx.prof_path, "w", encoding="utf-8")
             sctx.prof_fh.write("Duration (sec),Command\n")
             w(f"── profile: {path.name} -> {sctx.prof_name} ──")

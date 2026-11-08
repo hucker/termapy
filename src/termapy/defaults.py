@@ -40,7 +40,7 @@ VALID_PARITIES = {"N", "E", "O", "M", "S"}
 VALID_STOP_BITS = {1, 1.5, 2}
 VALID_FLOW_CONTROLS = {"none", "rtscts", "xonxoff", "manual"}
 # The spaces per level JSON is indented by on screen; 0 is one line.  The
-# order is /term.json.indent's cycle order.
+# order is /term.json_fmt.indent's cycle order.
 JSON_INDENTS = (0, 2, 4)
 # How loud commands are, quietest first.  The order is /term.output's cycle order.
 OUTPUT_LEVELS = ("silent", "quiet", "normal", "verbose")
@@ -602,25 +602,25 @@ CFG_KEYS: tuple[CfgKey, ...] = (
         hint="true, false. On: a first reply line matching the command is dropped.",
     ),
     CfgKey(
-        "json_display",
+        "json_fmt",
         None,
         "section",
         help="How JSON shows on screen, termapy's and a device's.",
         hint="Keys highlight, indent. A pipe always gets one line per JSON value.",
     ),
     CfgKey(
-        "json_display.highlight",
+        "json_fmt.highlight",
         True,
         "bool",
-        help="Highlight JSON on screen ({prefix}term.json.highlight).",
+        help="Highlight JSON on screen ({prefix}term.json_fmt.highlight).",
         hint="true, false. Shows only with color on ({prefix}term.color).",
     ),
     CfgKey(
-        "json_display.indent",
+        "json_fmt.indent",
         2,
         "enum",
         choices=JSON_INDENTS,
-        help="Spaces per level for JSON on screen ({prefix}term.json.indent).",
+        help="Spaces per level for JSON on screen ({prefix}term.json_fmt.indent).",
         hint="0 (one line), 2 or 4.",
     ),
     # Device profile
@@ -926,7 +926,7 @@ def cfg_slot(cfg: Mapping, name: str) -> tuple[Mapping, str] | None:
     A top-level key, the table's or one only the file has, is ``cfg``
     itself; a path or a unique leaf of a nested key is its section's dict
     (``baud_rate`` and ``serial.baud_rate`` both give ``cfg["serial"]``,
-    ``indent`` and ``json_display.indent`` give ``cfg["json_display"]``).  The one answer for
+    ``indent`` and ``json_fmt.indent`` give ``cfg["json_fmt"]``).  The one answer for
     ``/cfg``, the session store and the TUI's confirm.
 
     Returns:

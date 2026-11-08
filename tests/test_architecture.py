@@ -2326,7 +2326,6 @@ NOT_IN_GOLD: dict[str, str] = {
     "mcp.info": "prints the process id",
     "os": "runs a shell command, gated by TERMAPY_OS_CMD_ENABLED, a machine setting",
     "ping": _TIMED,
-    "ping.quiet": _TIMED,
     "port.chip": _HARDWARE,
     "port.chip.description": _HARDWARE,
     "port.chip.list": _HARDWARE,
@@ -3903,6 +3902,44 @@ def frontend_tables(frontend_plugins) -> dict[str, dict[str, object]]:
         frontend: {name: _handler_identity(info.handler) for name, info in plugins.items()}
         for frontend, plugins in frontend_plugins.items()
     }
+
+
+def _names_on_suffix_words(frontend_plugins: dict[str, dict[str, object]]) -> list[str]:
+    """``frontend:name`` of every command whose name ends in ``.json`` or a level word."""
+    from termapy.defaults import OUTPUT_LEVELS
+
+    words = {"json", *OUTPUT_LEVELS}
+    return sorted(
+        f"{frontend}:{name}"
+        for frontend, plugins in frontend_plugins.items()
+        for name in plugins
+        if "." in name and name.rpartition(".")[2] in words
+    )
+
+
+def test_no_command_name_ends_in_a_suffix_word(frontend_plugins):
+    """suffix-words-reserved: no command in any frontend ends its name in .json or a level word, so the suffix means one thing on every command."""
+    # Arrange / Act
+    taken = _names_on_suffix_words(frontend_plugins)
+
+    # Assert
+    assert taken == [], (
+        "a name ending in .json/.silent/.quiet/.normal/.verbose takes the per-call suffix "
+        "away from its family (ReplEngine.split_suffixes); give the behavior a parameter "
+        f"or a level instead: {taken}"
+    )
+
+
+def test_suffix_word_guard_fires_on_a_probe():
+    """The guard flags a dotted name ending in a suffix word and passes a plain or undotted one."""
+    # Arrange
+    plugins = {"probe": {"ping.quiet": None, "term.json_fmt": None, "verbose": None, "a.b": None}}
+
+    # Act
+    taken = _names_on_suffix_words(plugins)
+
+    # Assert
+    assert taken == ["probe:ping.quiet"], "only the dotted name ending in a suffix word"
 
 
 def _docstring_of(handler) -> str:

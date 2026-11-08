@@ -118,7 +118,7 @@ def test_markup_to_plain_strips_tags_and_keeps_escaped_text():
 
 @pytest.mark.parametrize(("indent", "highlight"), [(2, False), (2, True), (4, False), (4, True)])
 def test_a_received_json_line_shows_laid_out(indent, highlight):
-    """A device's JSON line is indented by json_display.indent; highlighting changes only its color."""
+    """A device's JSON line is indented by json_fmt.indent; highlighting changes only its color."""
     # Arrange
     line = '{"result":{"temp":21.4,"leds":[0,0,32]}}'
 
@@ -133,7 +133,7 @@ def test_a_received_json_line_shows_laid_out(indent, highlight):
 
 
 def test_indent_zero_with_highlight_keeps_one_line():
-    """json_display.indent 0 keeps the line on one line, highlighted."""
+    """json_fmt.indent 0 keeps the line on one line, highlighted."""
     shown_markup = received_json_markup('{"result":{"temp":21.4}}', 0, True)
     assert shown_markup is not None, "highlighting alone still marks it up"
     assert "\n" not in Text.from_markup(shown_markup).plain
@@ -156,7 +156,7 @@ def test_a_line_that_is_not_a_json_object_or_array_shows_as_received(line):
 
 
 def test_no_indent_and_no_highlight_shows_json_as_received():
-    """With json_display.indent 0 and highlighting off, a JSON line shows as it arrived."""
+    """With json_fmt.indent 0 and highlighting off, a JSON line shows as it arrived."""
     assert received_json_markup('{"result":1}', 0, False) is None
 
 

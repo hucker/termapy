@@ -984,9 +984,9 @@ class TestReceivedJson:
         assert "plain text" in lines, "a line that is not JSON prints as it came"
 
     def test_a_pipe_prints_the_line_as_it_came(self, cli, capsys):
-        """Into a pipe a JSON line prints on one line as received, whatever json_display.indent says."""
+        """Into a pipe a JSON line prints on one line as received, whatever json_fmt.indent says."""
         assert cli.repl.screen_json is False, "capsys stands in for a pipe"
-        cli.repl.store_cfg("json_display.indent", 4)
+        cli.repl.store_cfg("json_fmt.indent", 4)
         capsys.readouterr()
         cli._show_rx(['{"result":1}'])
         assert '{"result":1}' in capsys.readouterr().out.splitlines()

@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-# Shared by /ping and /ping.quiet; a duration arrives as float seconds (0.25 = 250 ms).
+# A duration arrives as float seconds (0.25 = 250 ms).
 _PING_PARAMS = [
     ParamSpec("count", "int", default=1, min=1, help="number of pings"),
     ParamSpec("timeout", "duration", default=0.25, help="response timeout per ping"),
@@ -26,12 +26,15 @@ _PING_PARAMS = [
 # and developer /search indexes it, so keep it true (registry handler-docstring).
 
 
-def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> CmdResult:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Send ``cmd=`` ``count`` times, printing each round trip, then the avg/min/max summary.
 
-    The value is the mean reply time (``61ms``), ``""`` when every ping
-    timed out; the data is every round trip (``_ping_record``).  A timeout
-    is not a reply time, so it is counted, never averaged.
+    The output levels shape it: each round trip's time is output (normal),
+    the reply's text under it is detail (verbose), and the summary is the
+    result, so ``.quiet`` shows the summary alone.  The value is the mean
+    reply time (``61ms``), ``""`` when every ping timed out; the data is
+    every round trip (``_ping_record``).  A timeout is not a reply time, so
+    it is counted, never averaged.
     """
     cmd = ctx.arg("cmd")
     count = ctx.arg("count")
@@ -48,10 +51,9 @@ def _handler(ctx: PluginContext, args: str, *, quiet: bool = False) -> CmdResult
         if response:
             times.append(ms)
             ctx.io.output(f"{cmd} -- {ms:.0f}ms", "green")
-            if not quiet:
-                text = response.decode(cfg_value(ctx.cfg, "encoding"), errors="replace").strip()
-                if text:
-                    ctx.io.output(f"  {text}")
+            text = response.decode(cfg_value(ctx.cfg, "encoding"), errors="replace").strip()
+            if text:
+                ctx.io.status(f"  {text}")
         else:
             times.append(None)
             ctx.io.output(f"{cmd} -- timeout ({timeout_ms}ms)", "red")
@@ -88,35 +90,18 @@ def _ping_record(cmd: str, times: list[float | None]) -> dict[str, Any]:
     }
 
 
-def _handler_quiet(ctx: PluginContext, args: str) -> CmdResult:
-    """``ping`` without echoing the device's reply under each round trip."""
-    return _handler(ctx, args, quiet=True)
-
-
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     "Send a command and measure response time.",
-    intro=(
-        "Sends a command to the device and measures round-trip time, repeating for "
-        "count iterations. Reports min/max/mean timing."
+    long_help=(
+        "Sends a command to the device and measures the round trip, count times,\n"
+        "then reports min/max/mean.  Each round trip prints its time; add .verbose\n"
+        "for each reply's text under it, or .quiet for the summary alone."
     ),
     group="protocol",
     name="ping",
     handler=_handler,
-    cfg={"encoding": "decodes each reply"},
+    cfg={"encoding": "decodes each reply (shown at verbose)"},
     needs=CapabilitySet.SERIAL_CONNECTED,
     params=_PING_PARAMS,
-    sub_commands={
-        "quiet": Command(
-            "Ping without showing device response.",
-            long_help=(
-                "Same as {prefix}ping but suppresses the device response text;\n"
-                "only the timing summary is printed."
-            ),
-            handler=_handler_quiet,
-            cfg={"encoding": "decodes each reply"},
-            needs=CapabilitySet.SERIAL_CONNECTED,
-            params=_PING_PARAMS,
-        ),
-    },
 )

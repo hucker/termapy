@@ -147,7 +147,7 @@ def _defaults_untouched():
 
     ``DEFAULT_CFG`` is the process's one copy of the defaults.  A rig that
     builds its config as ``{**DEFAULT_CFG, ...}`` shares the nested sections
-    with it, so a setting a test changed (``json_display.indent``) became the
+    with it, so a setting a test changed (``json_fmt.indent``) became the
     default for every later test in that worker, and tests failed at random
     far from the cause.  Failing here names the test; restoring keeps the
     rest of the worker on the real defaults.  A rig copies them with

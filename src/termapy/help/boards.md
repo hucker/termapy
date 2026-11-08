@@ -137,8 +137,8 @@ to it, and a request line such as `{"method":"temp","id":1}` switches by
 itself and gets its `id` back. Each board's config sends `json on` at
 every connect, so the TUI, the CLI and an MCP agent all see the same JSON.
 On screen termapy shows each JSON line the board sends indented and
-highlighted (`/term.json`), while the session log and captures keep it as
-it arrived. `/term.json.indent 0` with `/term.json.highlight off` shows
+highlighted (`/term.json_fmt`), while the session log and captures keep it as
+it arrived. `/term.json_fmt.indent 0` with `/term.json_fmt.highlight off` shows
 the lines as they arrive.
 
 Each command in `main.py` is a row of its `COMMANDS` table: the name, a

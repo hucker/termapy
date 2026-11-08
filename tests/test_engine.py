@@ -1026,6 +1026,17 @@ class TestDispatchFull:
         assert not any("hidden-line" in t for t in echoed), "--silent is not echoed"
         assert any("shown-line" in t for t in echoed), "quiet hides output, not the typed line"
 
+    def test_a_silent_suffix_before_json_is_still_not_echoed(self, dispatch_env):
+        """/cmd.silent.json is silent: the .json after the level does not bring the echo back."""
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
+
+        # Act
+        do("/print.silent.json hidden-line")
+
+        # Assert
+        assert not any("hidden-line" in t for t in echoed), ".silent.json is not echoed"
+
     def test_device_echo_follows_echo_flag_not_echo_repl(self, dispatch_env):
         """Device echo stays on with echo on even when echo_repl is off."""
         # Arrange - device-command echo is gated by `echo`; turning REPL

@@ -736,9 +736,9 @@ Three modes:
 The value is read as the key's current type (int, float, bool,
 string). Bool accepts:
   {BOOL_TOKENS_HELP}
-A key with a fixed set of values (parity, json_display.indent,
+A key with a fixed set of values (parity, json_fmt.indent,
 custom_buttons_side, ...) takes one of them in any case.
-A key inside a section is named by its path (json_display.indent) or,
+A key inside a section is named by its path (json_fmt.indent) or,
 when no other section has one, its own name (baud_rate).
 A change lasts for this session; to keep it, set it in the
 config editor.

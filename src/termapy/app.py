@@ -82,6 +82,7 @@ from termapy.dialogs import (
     ScriptPicker,
     UpdateAvailableDialog,
 )
+from termapy.folder_ops import stamped_path
 from termapy.folders import FOLDER_EXTS, FOLDER_PATTERNS, ensure_folder
 from termapy.help_tooltip import build_help_tooltip
 from termapy.history_nav import HistoryNavigator, merge_history, read_history
@@ -134,7 +135,6 @@ _R = TypeVar("_R")
 # scripting import kept low (below the module-level defs above); placement, not a cycle.
 from termapy.scripting import (  # noqa: E402
     ANSI_RE,
-    filename_timestamp,
     format_age,
     format_duration,
     format_size,
@@ -2962,11 +2962,11 @@ class SerialTerminal(TerminalHost, App):
             shown = lines if color_on else plain
         else:
             shown = rows
-        # A device's JSON line is laid out by json_display.indent and json_display.highlight
+        # A device's JSON line is laid out by json_fmt.indent and json_fmt.highlight
         # (display only); highlighting needs color.  The hex view shows bytes.
         json_text = rows is None
-        json_indent = cfg_value(self.cfg, "json_display.indent")
-        json_highlight = color_on and cfg_value(self.cfg, "json_display.highlight")
+        json_indent = cfg_value(self.cfg, "json_fmt.indent")
+        json_highlight = color_on and cfg_value(self.cfg, "json_fmt.highlight")
         # Lines beyond what the pane keeps are counted (line numbers stay
         # true) but not rendered: RichLog would discard them on arrival.
         skip = max(0, len(shown) - log.max_lines) if log.max_lines else 0
@@ -3635,16 +3635,18 @@ class SerialTerminal(TerminalHost, App):
             pass
 
     def action_screenshot(self, filename: str | None = None, path: str | None = None) -> None:
-        ts = filename_timestamp()
-        svg_path = str((ensure_folder(self.repl.ss_dir) / f"screenshot_{ts}.svg").resolve())
+        svg_path = str(
+            stamped_path(ensure_folder(self.repl.ss_dir), "screenshot", ".svg").resolve()
+        )
         self.save_screenshot(svg_path)
         self.last_screenshot = svg_path
         self.notify(f"Screenshot saved: {svg_path}", timeout=1.5, markup=False)
         self._sync_ss_button()
 
     def action_text_screenshot(self) -> None:
-        ts = filename_timestamp()
-        txt_path = str((ensure_folder(self.repl.ss_dir) / f"screenshot_{ts}.txt").resolve())
+        txt_path = str(
+            stamped_path(ensure_folder(self.repl.ss_dir), "screenshot", ".txt").resolve()
+        )
         text = self._get_screen_text()
         Path(txt_path).write_text(text, encoding="utf-8")
         self.last_screenshot = txt_path
@@ -3874,7 +3876,7 @@ class SerialTerminal(TerminalHost, App):
             call from the main thread, which cannot wait.
         """
         # The current value from wherever the key sits: a section (serial,
-        # json_display) or the top level, as /cfg found it.
+        # json_fmt) or the top level, as /cfg found it.
         slot = cfg_slot(self.cfg, key)
         old_val = slot[0][slot[1]] if slot is not None else None
         if not self._ask(CfgConfirm(key, old_val, new_val)):

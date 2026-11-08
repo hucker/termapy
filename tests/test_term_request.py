@@ -1110,18 +1110,18 @@ class TestBareLineJsonFlag:
         assert result.value in ("", None), "no reply is captured"
 
 
-# ── /term.json: how the envelopes print ─────────────────────────────────────
+# ── /term.json_fmt: how the envelopes print ─────────────────────────────────────
 
 
 class TestJsonLayout:
-    """``json_display.indent`` and ``json_display.highlight`` lay an envelope out on screen; a pipe gets one line."""
+    """``json_fmt.indent`` and ``json_fmt.highlight`` lay an envelope out on screen; a pipe gets one line."""
 
     def _exchange(self, repl_env, *, screen: bool, indent: int, highlight: bool):
         """One request-mode exchange printed with these settings: (plain lines, markup lines)."""
         engine, ctx, _, output, markup_output = repl_env
         engine.screen_json = screen
-        engine.store_cfg("json_display.indent", indent)
-        engine.store_cfg("json_display.highlight", highlight)
+        engine.store_cfg("json_fmt.indent", indent)
+        engine.store_cfg("json_fmt.highlight", highlight)
         _wire_fake_serial(ctx, _FakeSerial(response=b"5.5\r\n"))
         engine._exec_request_mode("get_voltage")
         return output, markup_output
@@ -1135,7 +1135,7 @@ class TestJsonLayout:
 
     @pytest.mark.parametrize("indent", [2, 4])
     def test_indent_lays_the_envelope_out_on_screen(self, repl_env, indent):
-        """On screen json_display.indent spreads the envelope over lines, and it parses to the same answer."""
+        """On screen json_fmt.indent spreads the envelope over lines, and it parses to the same answer."""
         # Act
         output, _ = self._exchange(repl_env, screen=True, indent=indent, highlight=False)
 
@@ -1145,7 +1145,7 @@ class TestJsonLayout:
         assert json.loads(text)["value"] == "5.5", "the indented text is still the envelope"
 
     def test_highlight_marks_up_the_indented_envelope(self, repl_env):
-        """On screen json_display.highlight emits markup that flattens back to exactly the indented envelope."""
+        """On screen json_fmt.highlight emits markup that flattens back to exactly the indented envelope."""
         from termapy.markup import markup_to_plain
 
         # Act
@@ -1159,7 +1159,7 @@ class TestJsonLayout:
         assert json.loads(plain)["value"] == "5.5", "the colored text is still the envelope"
 
     def test_indent_zero_with_highlight_is_one_highlighted_line(self, repl_env):
-        """json_display.indent 0 keeps one line on screen, still highlighted."""
+        """json_fmt.indent 0 keeps one line on screen, still highlighted."""
         from termapy.markup import markup_to_plain
 
         _, markup_output = self._exchange(repl_env, screen=True, indent=0, highlight=True)
@@ -1174,52 +1174,52 @@ class TestJsonLayout:
         assert echo == '{"cmd": "get_voltage"}', "the one-key echo is not spread over three lines"
 
     def test_term_json_indent_sets_queries_and_cycles(self, repl_env):
-        """/term.json.indent: a value sets it, bare reports it, cycle advances and wraps, twice in a row."""
+        """/term.json_fmt.indent: a value sets it, bare reports it, cycle advances and wraps, twice in a row."""
         # Arrange
         engine, _, cfg, _, _ = repl_env
 
         # Act
-        set_result = engine.dispatch("term.json.indent 4")
-        bare = engine.dispatch("term.json.indent")
-        first = engine.dispatch("term.json.indent cycle")
-        second = engine.dispatch("term.json.indent cycle")
+        set_result = engine.dispatch("term.json_fmt.indent 4")
+        bare = engine.dispatch("term.json_fmt.indent")
+        first = engine.dispatch("term.json_fmt.indent cycle")
+        second = engine.dispatch("term.json_fmt.indent cycle")
 
         # Assert
         assert set_result.value == "4", "a value sets it"
         assert bare.value == "4", "bare reports it, changing nothing"
         assert (first.value, second.value) == ("0", "2"), "cycle wraps 4 -> 0 -> 2"
-        assert cfg["json_display"]["indent"] == 2, "the session cfg follows, inside its section"
+        assert cfg["json_fmt"]["indent"] == 2, "the session cfg follows, inside its section"
 
     def test_term_json_indent_refuses_another_number(self, repl_env):
         """Anything but 0, 2, 4 or cycle is an error naming the choices, never a silent change."""
         engine, _, cfg, _, _ = repl_env
-        before = cfg_value(cfg, "json_display.indent")
-        result = engine.dispatch("term.json.indent 3")
+        before = cfg_value(cfg, "json_fmt.indent")
+        result = engine.dispatch("term.json_fmt.indent 3")
         assert result.error == "Invalid JSON indent: 3 (use 0/2/4/cycle)"
-        assert cfg_value(cfg, "json_display.indent") == before, "nothing changed"
+        assert cfg_value(cfg, "json_fmt.indent") == before, "nothing changed"
 
     def test_term_json_highlight_is_a_boolean_setting(self, repl_env):
-        """/term.json.highlight: off sets, bare reports, toggle flips back on."""
+        """/term.json_fmt.highlight: off sets, bare reports, toggle flips back on."""
         engine, _, cfg, _, _ = repl_env
         actual = [
-            engine.dispatch("term.json.highlight off").value,
-            engine.dispatch("term.json.highlight").value,
-            engine.dispatch("term.json.highlight toggle").value,
+            engine.dispatch("term.json_fmt.highlight off").value,
+            engine.dispatch("term.json_fmt.highlight").value,
+            engine.dispatch("term.json_fmt.highlight toggle").value,
         ]
         assert actual == ["off", "off", "on"]
-        assert cfg["json_display"]["highlight"] is True, "the session cfg follows"
+        assert cfg["json_fmt"]["highlight"] is True, "the session cfg follows"
 
     def test_bare_term_json_reports_both(self, repl_env):
-        """Bare /term.json answers both settings as data; the space form reaches a setting, any other word is a usage error."""
+        """Bare /term.json_fmt answers both settings as data; the space form reaches a setting, any other word is a usage error."""
         engine, _, _, _, _ = repl_env
-        assert engine.dispatch("term.json indent 4").value == "4", "the space form sets it"
-        bare = engine.dispatch("term.json")
+        assert engine.dispatch("term.json_fmt indent 4").value == "4", "the space form sets it"
+        bare = engine.dispatch("term.json_fmt")
         assert bare.data == {"highlight": True, "indent": 4}
-        assert engine.dispatch("term.json pretty").error.startswith("Usage:")
+        assert engine.dispatch("term.json_fmt pretty").error.startswith("Usage:")
 
     def test_a_bad_indent_in_a_cfg_warns_at_load(self):
-        """A hand-edited json_display.indent outside the choices is flagged by validate_config."""
+        """A hand-edited json_fmt.indent outside the choices is flagged by validate_config."""
         from termapy.config import validate_config
 
-        warnings = validate_config({"json_display": {"highlight": True, "indent": 3}})
+        warnings = validate_config({"json_fmt": {"highlight": True, "indent": 3}})
         assert any("must be one of: 0, 2, 4" in warning for warning in warnings), warnings

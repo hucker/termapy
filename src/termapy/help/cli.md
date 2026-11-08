@@ -394,7 +394,7 @@ if your one-shot needs init steps, write a `.run` file and use
 (`{cmd, success, error, elapsed_s, result}`) instead of plain text.
 Piped or captured, each envelope is one line, so a consumer can read
 stdout line by line. At a terminal termapy lays it out for a person, as
-`json_display.indent` and `json_display.highlight` say (`/term.json`).
+`json_fmt.indent` and `json_fmt.highlight` say (`/term.json_fmt`).
 
 **Mutual exclusion.** `--exec` and `--run` can't both be set; passing
 both exits with an argparse error.

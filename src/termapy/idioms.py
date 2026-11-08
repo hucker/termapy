@@ -101,11 +101,13 @@ can pick.""",
         page="""\
 Any command takes --json, and so does a line for the device. That one call
 answers as one JSON object: cmd, success, error, value, data, output_lines.
+A .json suffix on a command's name says the same thing.
 
   {prefix}port.list --json
+  {prefix}port.list.json
   AT+INFO --json
 
-{prefix}term.request on does the same for the whole session, and {prefix}term.json sets
+{prefix}term.request on does the same for the whole session, and {prefix}term.json_fmt sets
 how the JSON prints. The flag is taken off the line wherever it appears, so a
 command's text cannot carry it. Typed as {prefix}help --json it means help as JSON,
 which is why this page is {prefix}help json.""",

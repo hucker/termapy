@@ -1164,8 +1164,8 @@ Chuck: the board should stay JSON-native, with JSON a person can read, rather th
 the text REPL. `json_style` (`compact|indent|color`) shaped only termapy's own envelopes, so a
 board's JSON lines printed raw whatever it said. Now the setting covers every JSON line on screen,
 the board's included (`markup.received_json_markup`), and is two settings instead of one enum:
-the `json_display` section, `highlight` (on) and `indent` (0, 2 or 4, default 2; 0 is one line,
-as in `JSON.stringify` and `jq --indent`), set by `/term.json.highlight` and `/term.json.indent`.
+the `json_fmt` section, `highlight` (on) and `indent` (0, 2 or 4, default 2; 0 is one line,
+as in `JSON.stringify` and `jq --indent`), set by `/term.json_fmt.highlight` and `/term.json_fmt.indent`.
 Highlighting is separate from `color`, the terminal's ANSI color, and shows only when that is on.
 **Laid out for a person only:** the TUI and a CLI at a terminal (`ReplEngine.screen_json`) get
 the layout; a pipe, a file, MCP and the session log get one line per JSON value, so
@@ -1174,8 +1174,18 @@ help/cli.md's promise to a program reading stdout line by line holds with the ne
 This reverses the 2026-10-30 entry's "only the pyserial arguments are nested" for one more
 section, Chuck's call. What it cost is what that entry named: `/cfg`, the session store and the
 TUI's confirm learned to find a key through its path (`defaults.cfg_slot`, `store_cfg`), so a
-nested key is set as `/cfg json_display.indent 4` or by its unique leaf, `/cfg indent 4`. The
-section is not called `json`: `/help json` is the `--json` idiom's page, and `/help` reads a
-config key before an idiom. Config v38 maps `json_style` across (`indent` turns highlighting off;
-`compact`, which every config was written with, takes the defaults). Behavior removed:
-`/term.json compact|indent|color` and `cycle`; bare `/term.json` reports both settings.
+nested key is set as `/cfg json_fmt.indent 4` or by its unique leaf, `/cfg indent 4`. The
+section and its command are named `json_fmt` (`fmt` as in `echo_fmt`), not `json`: `/help json`
+is the `--json` idiom's page and `/help` reads a config key before an idiom, and `.json` on a
+command's name asks for a JSON answer, as `.quiet` asks for a level, so no command may end in it
+(registry `suffix-words-reserved`). It was `/term.json` and `json_display` for an afternoon,
+unreleased, until Chuck found the two `.json`s colliding. Config v38 maps `json_style` across
+(`indent` turns highlighting off; `compact`, which every config was written with, takes the
+defaults). Behavior removed: the old `/term.json compact|indent|color` and `cycle`; bare
+`/term.json_fmt` reports both settings.
+
+The same rule took two more names off the suffix words, also Chuck's call ("do the right thing
+without worrying about the existing code"). `/ping.quiet` (each round trip without the reply's
+text) is now plain `/ping`: the reply's text is its detail, shown at `.verbose`, and
+`/ping.quiet` is the level, the summary alone. Behavior changed: bare `/ping` no longer prints
+each reply. The hidden `/term.verbose` alias is gone; `/term.output verbose` is the command.

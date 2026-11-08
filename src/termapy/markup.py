@@ -61,7 +61,7 @@ def escape_markup(value: object) -> str:
 
 
 def json_markup(data: object, indent: int | None = 2, *, ensure_ascii: bool = True) -> str:
-    """``data`` as highlighted JSON in Rich markup (``json_display.highlight``).
+    """``data`` as highlighted JSON in Rich markup (``json_fmt.highlight``).
 
     Rich's JSON highlighter escapes what it emits, so a ``[`` inside a
     string value stays literal and ``markup_to_plain`` of the result is
@@ -93,8 +93,8 @@ def received_json_markup(line: str, indent: int, highlight: bool) -> str | None:
 
     Args:
         line: One received line, ANSI already stripped.
-        indent: Spaces per level, ``json_display.indent``; 0 for one line.
-        highlight: Whether to highlight it (``json_display.highlight`` with color on).
+        indent: Spaces per level, ``json_fmt.indent``; 0 for one line.
+        highlight: Whether to highlight it (``json_fmt.highlight`` with color on).
 
     Returns:
         The markup to show in place of the line, or None to show the line as

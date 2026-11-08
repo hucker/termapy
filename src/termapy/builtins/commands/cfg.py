@@ -25,6 +25,7 @@ from termapy.config import (
     cfg_dir,
     cfg_history_path,
     cfg_path_for_name,
+    cfg_value_text,
     check_cfg_value,
     config_names,
     config_summary,
@@ -69,15 +70,11 @@ if TYPE_CHECKING:
 def _cfg_answer(val: object) -> CmdResult:
     """A key's value as the answer: ``data`` with its JSON type, ``value`` its text.
 
-    A container's text is compact JSON, never Python's repr, so a script
-    and an agent read ``{"port": "DEMO"}`` the way the config file spells it.
+    The text is ``config.cfg_value_text``'s: a switch ``on`` / ``off``, a
+    container compact JSON the way the config file spells it, never
+    Python's spelling.
     """
-    return CmdResult.ok(value=_value_text(val), data=val)
-
-
-def _value_text(val: object) -> str:
-    """A key's value as text: a dict or list as compact JSON, a scalar as ``str``."""
-    return json.dumps(val) if isinstance(val, (dict, list)) else str(val)
+    return CmdResult.ok(value=cfg_value_text(val), data=val)
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -113,7 +110,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # /cfg key - show value
     if len(parts) == 1:
         val = container[leaf]
-        ctx.io.result(_value_text(val))
+        ctx.io.result(cfg_value_text(val))
         return _cfg_answer(val)
     # /cfg key value - validate and delegate for confirmation
     try:

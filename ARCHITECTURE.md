@@ -942,6 +942,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_architecture_sync.py           | Guard ARCHITECTURE.md's generated module tree and test table against hand edits and drift                                                          |
 | test_bare_forms.py                  | bare-declared: a bare call's behavior is a declaration the dispatcher honors                                                                       |
 | test_boards.py                      | Dev-board starter projects: the `/board` table, finding a board, its config, its firmware                                                          |
+| test_bom_files.py                   | A file a person writes, saved with a UTF-8 byte-order mark, reads as if it had none                                                                |
 | test_breadcrumbs.py                 | breadcrumbs: the file each running termapy leaves, and how --kill reads, picks and stops them                                                      |
 | test_builtins.py                    | Tests for built-in REPL commands dispatched through ReplEngine                                                                                     |
 | test_cap_poll.py                    | `/cap.poll`: the scheduled polling loop, its files, its validation, and its stop                                                                   |

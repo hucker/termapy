@@ -45,6 +45,8 @@ $(BAUD) <- /port.baud_rate
 /var BAUD
 /var.clear
 /var DEVICE
+# A name that names nothing warns with the one it meant, and the line runs as typed
+/print $(CFG.FIRMWAR_DIR)
 
 # ── REPL: config queries ────────────────────────────────────────────────────
 /print === section: config read ===

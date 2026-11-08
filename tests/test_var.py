@@ -31,6 +31,7 @@ from termapy.variables import (
     resolve_one,
     set_start_time_vars,
     snapshot,
+    unknown_names,
     user_vars,
 )
 
@@ -964,6 +965,71 @@ class TestCfgContextVars:
 
         # Assert
         assert actual == expected, "a folder variable a script may name went missing"
+
+
+class TestUnknownNames:
+    """A $(NAME) that names nothing is warned about, with what it likely meant, and the line still runs."""
+
+    def test_only_a_name_that_names_nothing_is_unknown(self):
+        """A clock, an escaped reference, an env name and a formatted name are not unknown; a typo is, once."""
+        # Act
+        actual = unknown_names(_CTX, "$(DATE) \\$(LITERAL) $(env.HOME) $(TIME:%H) $(NOPE) $(NOPE)")
+
+        # Assert
+        assert actual == ["NOPE"]
+
+    def test_a_typo_warns_with_the_name_it_meant(self, cli, capsys):
+        """/print $(CFG.FIRMWAR_DIR) warns and suggests CFG.FIRMWARE_DIR; the command still runs."""
+        # Arrange
+        cli._fire_app_start()
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/print $(CFG.FIRMWAR_DIR)")
+        out = capsys.readouterr().out
+
+        # Assert
+        expected = "Unknown variable: $(CFG.FIRMWAR_DIR) -- did you mean CFG.FIRMWARE_DIR?"
+        assert expected in out, out
+        assert result.success is True, "a warning, not a refusal: the line runs as typed"
+
+    def test_a_plain_name_set_later_warns_nothing(self, cli, capsys):
+        """/repeat var=I sets $(I) each pass, so the outer line's $(I) is no typo: no warning, and it counts."""
+        # Arrange
+        cli._fire_app_start()
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/repeat count=2 var=I cmd=/print pass $(I)")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert "Unknown variable" not in out, out
+        assert "pass 1" in out and "pass 2" in out, "the name was set later, as meant"
+
+    def test_a_plain_near_miss_still_warns(self, cli, capsys):
+        """A plain name a step from one that exists ($(DAT) for $(DATE)) is a typo: it warns with the name."""
+        # Arrange
+        cli._fire_app_start()
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/print $(DAT)")
+
+        # Assert
+        assert "Unknown variable: $(DAT) -- did you mean DATE" in capsys.readouterr().out
+
+    def test_a_known_name_warns_nothing(self, cli, capsys):
+        """A line whose names all expand prints no warning."""
+        # Arrange
+        cli._fire_app_start()
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/print $(CFG.PORT)")
+
+        # Assert
+        assert "Unknown variable" not in capsys.readouterr().out
 
 
 class TestVarListing:

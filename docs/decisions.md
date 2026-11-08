@@ -1189,3 +1189,12 @@ without worrying about the existing code"). `/ping.quiet` (each round trip witho
 text) is now plain `/ping`: the reply's text is its detail, shown at `.verbose`, and
 `/ping.quiet` is the level, the summary alone. Behavior changed: bare `/ping` no longer prints
 each reply. The hidden `/term.verbose` alias is gone; `/term.output verbose` is the command.
+
+## 2026-11-07 — The terminal is line-based; the TUI gets no keystroke mode
+
+Chuck: line-based tooling is the design, not a gap. The device collects characters until a line
+ending and acts on the whole line; editing, history and type-ahead are termapy's. Dropped as a
+goal: a keystroke mode and a screen emulator in the TUI, which had been planned as the way to
+match TeraTerm's terminal. A console termapy did not write uses `--vt100`; Phase 2 of
+[vt100-build-plan.md](vt100-build-plan.md), an emulator with no display that an agent reads,
+stays open. The argument is [why-line-based.md](why-line-based.md). **Where:** review only.

@@ -10,6 +10,8 @@ DEMO port, which answers ``AT`` with ``OK`` in tens of milliseconds.
 
 from __future__ import annotations
 
+import json
+
 
 def test_one_ping_answers_its_reply_time(cli):
     """One answered ping: the value is its time in ms, the data one reply and no timeout."""
@@ -72,6 +74,50 @@ def test_verbose_adds_the_reply_text(cli, capsys):
     # Assert
     assert "AT -- " in out, "the round trip's time"
     assert "OK" in out, "the device's reply under it"
+
+
+def test_a_json_reply_is_laid_out_on_a_screen(cli, capsys):
+    """/ping.verbose lays a JSON reply out as the screen lays device JSON out (json_fmt), each line under the time."""
+    # Arrange -- a terminal, as the TUI and an interactive CLI are; the rig has color off
+    cli.repl.screen_json = True
+    capsys.readouterr()
+
+    # Act -- the DEMO answers MEM.INFO with one JSON line, then OK
+    cli.repl.dispatch_full("/ping.verbose cmd=MEM.INFO")
+    lines = [line.strip() for line in capsys.readouterr().out.splitlines()]
+
+    # Assert -- stripped: the CLI's own margin is not what is pinned
+    assert '"max_block": 64,' in lines, f"one key per line, as json_fmt lays it out: {lines}"
+    assert "OK" in lines, "a line that is not JSON shows as it came"
+
+
+def test_a_json_reply_stays_one_line_in_a_pipe(cli, capsys):
+    """Off a screen, a pipe or MCP, the JSON reply is one line, as it arrived."""
+    # Arrange
+    cli.repl.screen_json = False
+    capsys.readouterr()
+
+    # Act
+    cli.repl.dispatch_full("/ping.verbose cmd=MEM.INFO")
+    lines = [line.strip() for line in capsys.readouterr().out.splitlines()]
+
+    # Assert
+    assert any(line.startswith('{"max_block": 64, "address_bits"') for line in lines), lines
+
+
+def test_a_json_answer_keeps_the_reply_as_it_came(cli, capsys):
+    """/ping.verbose.json on a screen: output_lines hold the device's JSON reply as one line, not laid out."""
+    # Arrange -- a terminal, where the reply alone would be laid out
+    cli.repl.screen_json = True
+    capsys.readouterr()
+
+    # Act -- only the envelope prints, itself laid out for the screen
+    cli.repl.dispatch_full("/ping.verbose.json cmd=MEM.INFO")
+    envelope = json.loads(capsys.readouterr().out)
+
+    # Assert
+    replies = [line.strip() for line in envelope["output_lines"]]
+    assert any(line.startswith('{"max_block": 64, "address_bits"') for line in replies), replies
 
 
 def test_quiet_prints_only_the_summary(cli, capsys):

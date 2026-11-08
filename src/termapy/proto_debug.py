@@ -1263,7 +1263,7 @@ class ProtoDebugScreen(ModalScreen[None]):
         results = build_results(
             self._script,
             self._path,
-            self._path.read_text(encoding="utf-8"),
+            self._path.read_text(encoding="utf-8-sig"),
             cfg,
             config_name,
             test_results,

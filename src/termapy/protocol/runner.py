@@ -352,7 +352,7 @@ def run_proto_tests(
         serial.SerialException: If the serial port cannot be opened.
     """
     # Parse script
-    text = pro_path.read_text(encoding="utf-8")
+    text = pro_path.read_text(encoding="utf-8-sig")  # skip a byte-order mark an editor saved
     result = load_proto_script(text)
     if result[0] != "toml":
         raise ValueError(

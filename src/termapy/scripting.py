@@ -525,6 +525,29 @@ def split_cmd_lines(text: str) -> list[str]:
     return [line.strip() for line in text.replace("\\n", "\n").split("\n") if line.strip()]
 
 
+def transcript_commands(lines: list[str], prompt: str) -> list[str] | None:
+    """The commands in a pasted transcript, or None when the paste is not one.
+
+    A transcript is copied output: each command it ran follows the echo's
+    prompt (``esp32s3> ``), and everything else is what came back.  A paste
+    with at least one line starting with the prompt is a transcript; its
+    commands are those lines with the prompt taken off, each kept as it was
+    typed after it.  A paste with no such line, or no prompt to look for,
+    is a paste of commands.
+
+    Args:
+        lines: The pasted lines.
+        prompt: The plain text the echo puts before a command.
+
+    Returns:
+        The commands in order, or None for a paste that is not a transcript.
+    """
+    if not prompt.strip():
+        return None
+    commands = [line[len(prompt) :] for line in lines if line.startswith(prompt)]
+    return commands or None
+
+
 # A line-count token: an optional sign followed by digits.  Shared by every
 # command that takes a "how many lines" argument so the parse stays uniform.
 _COUNT_RE = re.compile(r"[+-]?\d+")

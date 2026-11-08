@@ -108,6 +108,15 @@ they never reach the device ahead of that setup.  A one-line paste lands in
 the prompt for you to edit.  Set `multiline_paste` to `false` to paste
 only the first line, as before.
 
+Paste a **transcript**, text copied from the output pane, and only its
+commands run: termapy knows the prompt it puts before each command it
+echoes (`esp32s3>` and a space, from `echo_fmt`), so the lines that start with it run,
+the prompt taken off, and the output between them is skipped rather than
+sent to the device.  A status line says how many of each.  Only the current
+config's prompt is recognized; a transcript from another config pastes as
+before.  It is best effort: a command wider than the window copies wrapped,
+and only its first line runs, so paste a long one by itself.
+
 ## Copying text
 
 Drag across the main output window to select text, then press

@@ -954,7 +954,7 @@ def script_name(path: Path) -> str:
     name rather than an error, since a listing must still show it.
     """
     try:
-        _, parsed = load_proto_script(path.read_text(encoding="utf-8"))
+        _, parsed = load_proto_script(path.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeDecodeError, ValueError):
         return ""
     name = parsed.name if isinstance(parsed, ProtoScript) else parsed[0].get("name", "")

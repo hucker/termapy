@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy import diag_log
+from termapy.config import cfg_value_text
 from termapy.defaults import JSON_INDENTS, RX_NEWLINE_MODES, cfg_value
 from termapy.plugins import (
     OUTPUT_LEVELS,
@@ -402,7 +403,7 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
         # Explicit session override (including "" to disable detection)
         flags["request_err_pattern_override"] = err_token
         if err_token:
-            ctx.io.output(f"request_err_pattern = {err_token!r}  (session)", "green")
+            ctx.io.output(f"request_err_pattern = {cfg_value_text(err_token)}  (session)", "green")
         else:
             ctx.io.output(
                 "request_err_pattern cleared -- error detection disabled  (session)",

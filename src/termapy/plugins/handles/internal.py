@@ -151,6 +151,11 @@ class InternalHandle:
     # that happens to touch the port, not a serial primitive.
     load_config: Callable = lambda name: None
 
+    # json_layout() -> (indent, highlight): how JSON shows in this frontend
+    # (ReplEngine.json_layout), for a command printing a device's reply:
+    # json_fmt on a screen, one plain line in a pipe, a file or MCP.
+    json_layout: Callable[[], tuple[int, bool]] = lambda: (0, False)
+
     start_capture: Callable = lambda **kw: None
     stop_capture: Callable = lambda: None
     # Whether a capture is running: the dispatch gate's ``capture_idle``.

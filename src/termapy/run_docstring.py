@@ -59,7 +59,7 @@ def extract_docstring(path: Path) -> tuple[str, str]:
         (no comment on line 1, missing file, read error, etc.).
     """
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = path.read_text(encoding="utf-8-sig", errors="replace")
     except OSError:
         return "", ""
 

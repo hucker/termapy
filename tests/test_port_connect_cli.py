@@ -106,8 +106,8 @@ class TestPortConnectExtendedArgs:
         assert "\\r\\n" in out or "crlf" in out.lower(), (
             f"line_ending should show CRLF; stdout: {out!r}"
         )
-        # echo_input should show True
-        assert "True" in out, f"echo_input should show True; stdout: {out!r}"
+        # /cfg echo answers on, as termapy spells a switch
+        assert "\n  on\n" in out, f"echo should show on; stdout: {out!r}"
 
     def test_port_connect_order_independent_after_port(self, tmp_path):
         """Tokens after the port name apply whatever order they are typed in."""
@@ -126,7 +126,7 @@ class TestPortConnectExtendedArgs:
         # Assert
         assert result.returncode == 0, f"stderr: {result.stderr!r}"
         assert "9600" in result.stdout, f"baud should be 9600; stdout: {result.stdout!r}"
-        assert "True" in result.stdout, f"echo_input should be True; stdout: {result.stdout!r}"
+        assert "\n  on\n" in result.stdout, f"echo should be on; stdout: {result.stdout!r}"
 
     def test_port_connect_noecho_disables_echo(self, tmp_path):
         """The noecho token turns off an echo the config had enabled."""
@@ -142,11 +142,9 @@ class TestPortConnectExtendedArgs:
 
         # Assert
         assert result.returncode == 0, f"stderr: {result.stderr!r}"
-        # echo_input should now be False -- look for "False" in the
-        # /cfg output and make sure "True" doesn't also appear (would
-        # indicate noecho was ignored).
+        # echo should now be off: /cfg echo answers "off" after the connect.
         lines_after_connect = result.stdout.split("/port.connect")[-1]
-        assert "False" in lines_after_connect, (
+        assert "\n  off\n" in lines_after_connect, (
             f"noecho should disable echo_input; stdout: {result.stdout!r}"
         )
 

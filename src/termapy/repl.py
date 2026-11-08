@@ -705,6 +705,21 @@ class ReplEngine:
         finally:
             self.ctx._call_level = saved_emit_level
 
+    def json_layout(self) -> tuple[int, bool]:
+        """How JSON shows here: ``(indent, highlight)``, one plain line where no person reads it.
+
+        On a screen (``screen_json``) the indent is ``json_fmt.indent`` and the
+        highlight ``json_fmt.highlight`` with color on; in a pipe, a file or MCP
+        it is ``(0, False)``.  The one answer wherever JSON shows: termapy's
+        envelopes, a device's JSON line in the TUI and the CLI, and a command
+        printing a reply (``ctx.internal.json_layout``).
+        """
+        if not self.screen_json:
+            return 0, False
+        color_on = self.ctx.ns("flags").get("color", True)
+        highlight = bool(color_on and cfg_value(self.cfg, "json_fmt.highlight"))
+        return cfg_value(self.cfg, "json_fmt.indent"), highlight
+
     def _write_json(self, data: object, *, result: bool, indent: bool = True) -> None:
         """Print ``data`` as JSON, laid out by ``json_fmt.indent`` and ``json_fmt.highlight`` on a screen.
 
@@ -722,9 +737,9 @@ class ReplEngine:
         """
         import json as _json
 
-        spaces = cfg_value(self.cfg, "json_fmt.indent") if indent and self.screen_json else 0
-        spaces = spaces or None
-        if self.screen_json and cfg_value(self.cfg, "json_fmt.highlight"):
+        layout_indent, highlight = self.json_layout()
+        spaces = (layout_indent if indent else 0) or None
+        if highlight:
             markup = json_markup(data, indent=spaces)
             if result:
                 self.ctx.io.result_markup(markup)
@@ -1649,6 +1664,20 @@ class ReplEngine:
         fmt = expand_vars(self.ctx, cfg_value(self.cfg, "echo_fmt"))
         return fmt.replace("{cmd}", escape_markup(text) + marker_markup)
 
+    def echo_prompt(self) -> str:
+        """The plain text the echo puts before a command (``esp32s3> ``); ``""`` when none.
+
+        ``echo_fmt`` with its ``$(VAR)`` expanded and its markup dropped, up
+        to ``{cmd}``: exactly what precedes each command this session echoes,
+        so the command lines of a copied transcript can be told from its
+        output (``scripting.transcript_commands``).
+        """
+        from termapy.variables import expand_vars
+
+        fmt = markup_to_plain(expand_vars(self.ctx, cfg_value(self.cfg, "echo_fmt")))
+        head, found, _ = fmt.partition("{cmd}")
+        return head if found else ""
+
     def dispatch_full(
         self,
         cmd: str,
@@ -2299,8 +2328,10 @@ class ReplEngine:
         The config editor is the only path that persists changes to disk.
         This keeps $(env.NAME) templates in the JSON file intact.
         """
+        from termapy.config import cfg_value_text
+
         self.store_cfg(key, new_val)
-        self.write(f"{key} = {new_val!r}  (session)", "green")
+        self.write(f"{key} = {cfg_value_text(new_val)}  (session)", "green")
         if self._after_cfg:
             self._after_cfg(key, new_val)
 
@@ -2584,7 +2615,8 @@ class ReplEngine:
             on_nest=on_nest,
         )
         try:
-            all_lines = path.read_text(encoding="utf-8").splitlines()
+            # utf-8-sig: an editor that saves a byte-order mark must not break line 1.
+            all_lines = path.read_text(encoding="utf-8-sig").splitlines()
         except OSError as e:
             w(f"Script error: {e}", "red")
             self._script_depth -= 1

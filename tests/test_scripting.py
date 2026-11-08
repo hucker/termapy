@@ -30,7 +30,40 @@ from termapy.scripting import (
     select_lines,
     split_cmd_lines,
     strip_leading_echo,
+    transcript_commands,
 )
+
+# ── transcript_commands ──────────────────────────────────────────
+
+
+class TestTranscriptCommands:
+    """A pasted transcript's commands are its prompted lines; a paste without the prompt is commands."""
+
+    def test_only_the_prompted_lines_are_commands(self):
+        """Prompted lines lose the prompt and keep what followed it, indent included; output lines drop."""
+        # Arrange
+        lines = [
+            "esp32s3> /print one",
+            "one",
+            "esp32s3> help",
+            "MEM.INFO  the memory interface",
+            "esp32s3>     indented",
+        ]
+
+        # Act
+        actual = transcript_commands(lines, "esp32s3> ")
+
+        # Assert
+        assert actual == ["/print one", "help", "    indented"]
+
+    def test_a_paste_without_the_prompt_is_not_a_transcript(self):
+        """No line starts with the prompt: a paste of commands, sent as it is."""
+        assert transcript_commands(["/print one", "AT"], "esp32s3> ") is None
+
+    def test_no_prompt_means_no_transcript(self):
+        """An echo with nothing before {cmd} has no prompt to find, so no paste is a transcript."""
+        assert transcript_commands(["> x", "y"], "") is None
+
 
 # ── strip_leading_echo ───────────────────────────────────────────
 

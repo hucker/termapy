@@ -546,3 +546,102 @@ class TestBuiltinsRespectLevels:
         # Assert
         texts = [t for t, _ in writes]
         assert "Hello" in texts, "/print at normal emits the payload"
+
+
+# ── A table or status page is the answer ──────────────────────────────────────
+
+
+class TestSegmentChannelGating:
+    """The pieces channels gate as their plain twins do: result_segments at quiet+, output_segments at normal+."""
+
+    @pytest.mark.parametrize(
+        "level,result_shown,output_shown",
+        [
+            ("silent", False, False),
+            ("quiet", True, False),
+            ("normal", True, True),
+            ("verbose", True, True),
+        ],
+    )
+    def test_segment_channels_for_level(self, ctx_with_writes, level, result_shown, output_shown):
+        """Each pieces channel appears from its own level up, its pieces joined where nothing can click."""
+        # Arrange
+        from termapy.plugins.views import Piece
+
+        ctx, writes = ctx_with_writes
+        ctx.ns("flags")["output_level"] = level
+
+        # Act
+        ctx.io.result_segments([Piece("ANS"), Piece("WER")])
+        ctx.io.output_segments([Piece("DA"), Piece("TA")])
+
+        # Assert
+        texts = [text for text, _ in writes]
+        assert ("ANSWER" in texts) == result_shown, f"result_segments at {level}"
+        assert ("DATA" in texts) == output_shown, f"output_segments at {level}"
+
+    def test_a_frontend_that_can_click_gets_the_pieces(self):
+        """With _write_segments wired, as the TUI wires it, result_segments hands the pieces over unjoined."""
+        # Arrange
+        from termapy.plugins import IOHandle
+        from termapy.plugins.views import Piece
+
+        handed: list[tuple[list, str | None]] = []
+        ctx = PluginContext(
+            io=IOHandle(_write_segments=lambda pieces, color: handed.append((list(pieces), color)))
+        )
+        ctx.ns("flags")["output_level"] = "quiet"
+        pieces = [Piece("COM3"), Piece(" FTDI")]
+
+        # Act
+        ctx.io.result_segments(pieces, "dim")
+
+        # Assert
+        assert handed == [(pieces, "dim")], "the clickable frontend renders each piece itself"
+
+
+class TestTheAnswerShowsAtQuiet:
+    """view-is-the-answer: dispatch prints a command's table or status page on the result channel."""
+
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [("/port.mode", "115200 8N1"), ("/var", "LAUNCH_DATE")],
+        ids=["status-page", "table"],
+    )
+    def test_quiet_keeps_the_answer(self, cli, capsys, command, expected):
+        """view-is-the-answer: at quiet a status page and a table both print; the level drops chatter, not the answer."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full(f"{command}.quiet")
+
+        # Assert
+        assert result.success is True, result.error
+        assert expected in capsys.readouterr().out, f"{command}.quiet shows what was asked for"
+
+    @pytest.mark.parametrize("command", ["/port.mode", "/var"], ids=["status-page", "table"])
+    def test_silent_prints_nothing(self, cli, capsys, command):
+        """At silent neither prints, and the value is still the answer a script reads."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full(f"{command}.silent")
+
+        # Assert
+        assert capsys.readouterr().out.strip() == "", f"{command}.silent prints nothing"
+        assert result.value, "the value still carries the answer"
+
+    def test_a_json_answer_carries_the_data_alone(self, cli, capsys):
+        """/port.mode.quiet.json: the envelope holds the facts as data and no printed copy of the page."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/port.mode.quiet.json")
+        envelope = json.loads(capsys.readouterr().out)
+
+        # Assert
+        assert envelope["data"], "the facts are the data"
+        assert envelope["output_lines"] == [], "the page is never printed beside its data"

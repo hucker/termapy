@@ -620,9 +620,10 @@ class ReplEngine:
 
         The prose form of a typed answer (``CmdResult.view``: a
         ``views.TableView`` for a list, a ``views.RecordView`` for a
-        status page) is printed here, once, on the output channel -- never
+        status page) is printed here, once, on the result channel, so
+        ``--quiet`` keeps the answer and only ``--silent`` hides it -- never
         by the handler (registries ``list-one-format``,
-        ``record-one-format``).  A caller
+        ``record-one-format``, ``view-is-the-answer``).  A caller
         that wants data (an MCP session, or a dispatch nested inside a
         ``--json`` call, which sets ``ctx.wants_data``) gets the records
         alone.  Because the view is stripped, a forwarded command's table
@@ -647,13 +648,13 @@ class ReplEngine:
                 if isinstance(view, RecordView):
                     # Cyan labels: markup, every value already escaped.
                     for line in view.lines():
-                        self.ctx.io.output_markup(line)
+                        self.ctx.io.result_markup(line)
                 else:
                     # Pieces with their links: the TUI makes them
                     # clickable, every other frontend prints the joined
                     # text (registry links-are-data).
                     for segments, color in view.segment_lines():
-                        self.ctx.io.output_segments(segments, color)
+                        self.ctx.io.result_segments(segments, color)
             finally:
                 self.ctx._call_level = saved_level
         return replace(result, view=None)

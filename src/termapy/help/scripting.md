@@ -170,6 +170,9 @@ A single dial controls how loud commands are. Four monotonic levels:
 | `normal`  |   ✓    |   ✓    |   —    | default                                   |
 | `verbose` |   ✓    |   ✓    |   ✓    | show progress chatter and timing          |
 
+A table or status page is a command's answer, so `quiet` shows it:
+`/var.quiet` is the variable table and `/port.mode.quiet` is `115200 8N1`.
+
 Set the session default with `/term.output <level>`. Override for a single
 call with `cmd --<level>` or `cmd.<level>`:
 

@@ -95,12 +95,17 @@ class IOHandle:
     # so it's safe for content containing ``[`` / ``]`` characters.
 
     def result(self, text: str, color: str = "green") -> None:
-        """Write a command result (single-line answer).  Shown at quiet+."""
+        """Write a command's answer.  Shown at quiet+.
+
+        The answer is what the command was asked for: a one-line value, and
+        the table or status page dispatch prints from ``CmdResult.view``
+        (``result_segments``, ``result_markup``), so ``--quiet`` keeps it.
+        """
         if self._shows(RESULT_MIN_RANK):
             self._write(text, color)
 
     def output(self, text: str, color: str = "dim") -> None:
-        """Write data output (listings, dumps, file contents).  Shown at normal+."""
+        """Write detail beside the answer (context lines, file contents).  Shown at normal+."""
         if self._shows(OUTPUT_MIN_RANK):
             self._write(text, color)
 
@@ -109,16 +114,26 @@ class IOHandle:
         if self._shows(STATUS_MIN_RANK):
             self._write(text, "dim")
 
-    def output_segments(self, segments: Sequence[Piece], color: str = "dim") -> None:
-        """Write one ``output`` line built from pieces, some clickable: a table row.  Shown at normal+.
+    def result_segments(self, segments: Sequence[Piece], color: str = "dim") -> None:
+        """Write one ``result`` line built from pieces, some clickable: a table row.  Shown at quiet+.
 
         A frontend that can click supplies ``_write_segments`` and renders
         each linked piece as a link.  Everywhere else the pieces are joined
-        into the plain ``output`` line in ``color`` the row always was --
-        registry ``links-are-data``.
+        into one plain line in ``color`` (registry ``links-are-data``).
         """
-        if not self._shows(OUTPUT_MIN_RANK):
-            return
+        if self._shows(RESULT_MIN_RANK):
+            self._write_pieces(segments, color)
+
+    def output_segments(self, segments: Sequence[Piece], color: str = "dim") -> None:
+        """Write one ``output`` line built from pieces, some clickable.  Shown at normal+.
+
+        The detail twin of :meth:`result_segments`.
+        """
+        if self._shows(OUTPUT_MIN_RANK):
+            self._write_pieces(segments, color)
+
+    def _write_pieces(self, segments: Sequence[Piece], color: str) -> None:
+        """The pieces as links where the frontend can click, else as their joined text."""
         if self._write_segments is not None:
             self._write_segments(segments, color)
         else:

@@ -90,10 +90,12 @@ PuTTY works. So does minicom, screen, and CoolTerm. Use them if they do what you
 - **Runs anywhere Python does.** Same tool on Windows, macOS, Linux. No GUI installer, no system dependencies.
 - **Session logging and screenshots.** Every session is logged. Ctrl+S saves an SVG screenshot you can paste into a report or email.
 - **Scripting.** Record a sequence of commands in a text file and replay it with one click, or rerun the last few commands you typed with `/run.last`. Add delays, prompts, and REPL commands.
+- **Paste to run, no script file needed.** Paste a block of commands into the prompt and every line runs as if you typed it: device lines go to the device, `/` lines run as termapy commands, Escape stops the rest. Paste a copied session, prompts, replies and all, and only its commands run again; the replies are skipped, never sent to the device. Copy what you did, paste it, and it happens again. See [Pasting several lines](src/termapy/help/toolbar.md#pasting-several-lines).
 - **Data capture.** Capture serial text (timed) or binary data (by byte/record count) to files. Binary captures use the same format spec language as protocol testing to decode mixed-type records into CSV/TSV.
 - **Binary protocol testing.** Send raw hex, run scripted send/expect tests with pass/fail, decode Modbus and custom protocols with pluggable visualizers.
 - **Plugin system.** Add custom commands with a simple Python API. Drop a file in a folder, define a handler, done. Includes examples to get started.
 - **Everything in one folder.** Each device config gets its own subfolder with logs, screenshots, scripts, and plugins. Check it into git so the whole team has the same config.
+- **Line-based, so device code stays small.** Editing, history and type-ahead happen in termapy, and a line goes out only when you press Enter, so the device needs a line buffer and nothing more: no backspace, cursor or completion code. Name a C variable or a register and termapy sends the address. The same lines replay from a log or a paste and are what an MCP agent sends. See [Why termapy is line-based](docs/why-line-based.md).
 
 See the [detailed feature comparison](docs/comparison.md) against RealTerm, CoolTerm, Tera Term, Docklight, and HTerm.
 

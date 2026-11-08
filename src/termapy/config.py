@@ -1360,6 +1360,27 @@ def _write_migration_run_files(cfg: dict, path: str) -> list[str]:
     return warnings
 
 
+def cfg_value_text(value: object) -> str:
+    """A config value as termapy shows it: what ``/cfg <key>`` answers and a change reports.
+
+    A switch is ``on`` / ``off``, as every setting command answers; a
+    container is compact JSON, as the config file spells it; an empty string
+    is ``""`` so it reads as one; anything else is as written, with no
+    Python spelling (``True``, ``'right'``).
+
+    Args:
+        value: The value from the config.
+
+    Returns:
+        The text.
+    """
+    if isinstance(value, bool):
+        return "on" if value else "off"
+    if isinstance(value, (dict, list)) or value is None or value == "":
+        return json.dumps(value)
+    return str(value)
+
+
 def load_config(path: str) -> dict:
     """Load and validate JSON config, applying defaults for missing fields.
 
@@ -1379,7 +1400,9 @@ def load_config(path: str) -> dict:
     if not p.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
 
-    with open(path) as f:
+    # UTF-8 whatever the platform's default, and a byte-order mark an editor
+    # saved is skipped rather than failing the JSON parse.
+    with open(path, encoding="utf-8-sig") as f:
         try:
             cfg = json.load(f)
         except json.JSONDecodeError as e:
@@ -1447,7 +1470,7 @@ def config_summary(path: Path) -> dict[str, Any]:
     ``DEFAULT_CFG`` grew.
     """
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8-sig") as f:  # as load_config reads it
             cfg = migrate_config(json.load(f))
     except Exception:  # see the docstring: a broken cfg still gets its row
         # Once per file: a listing reads every config each time it refreshes.

@@ -1292,6 +1292,31 @@ class TestMultilinePaste:
 
         _run(scenario)
 
+    def test_a_pasted_transcript_runs_only_its_commands(self, app_factory):
+        """A copied transcript runs the prompted lines without the prompt; its output lines never reach the port."""
+
+        async def scenario():
+            # Arrange -- the config is "proj", so the echo's prompt is "proj> "
+            app, _, _ = app_factory(multiline_paste_delay_ms=0)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert app._connect() is True, "DEMO port should connect"
+                port = _RecordingPort()
+                app._engine._serial_port = port
+
+                # Act
+                _paste(app, "proj> /print transcript-marker\ntranscript-marker\nproj> AT\nOK\n")
+                await until(pilot, lambda: len(port.written) == 1)
+                await until(pilot, lambda: "transcript-marker" in app._get_screen_text())
+
+                # Assert
+                assert port.written == [b"AT\r"], "only the prompted device line, not the output"
+                text = app._get_screen_text()
+                assert "running its 2 commands, skipping 2 lines of output" in text, text
+                app._disconnect()
+
+        _run(scenario)
+
     def test_escape_stops_the_rest_and_the_next_paste_sends_all(self, app_factory):
         """Escape ends a paste part way; a paste after it is not stopped by the old Escape."""
 

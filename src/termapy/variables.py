@@ -440,6 +440,42 @@ def deref_ref(ctx: PluginContext, ref: str) -> str | None:
     return resolve_one(ctx, name, fmt if sep else None)
 
 
+def variable_names(ctx: PluginContext) -> list[str]:
+    """Every name ``$(NAME)`` can expand right now: user, launch, clock and context variables."""
+    return [
+        *user_vars(ctx),
+        *_LAUNCH_VARS,
+        *(name for name, _tag in datetime_var_names()),
+        *_CONTEXT_VARS,
+    ]
+
+
+def unknown_names(ctx: PluginContext, text: str) -> list[str]:
+    """The ``$(NAME)`` references in ``text`` that name nothing, in order, each once.
+
+    What :func:`expand_vars` leaves as typed and would otherwise pass on
+    in silence.  An escaped ``\\$(NAME)`` is meant literally and is not
+    one; nor is a name with a ``:fmt`` (only a clock takes one, and
+    ``expand_vars`` leaves the rest literal by design), nor ``env.NAME``,
+    which the ``env`` transform expands.
+
+    Args:
+        ctx: Plugin context holding the session's variables.
+        text: A line before expansion.
+
+    Returns:
+        The unknown names, without ``$( )``.
+    """
+    found: list[str] = []
+    for match in _VAR_REF_RE.finditer(text.replace("\\$", _ESCAPE_SENTINEL)):
+        name, fmt = match.group(1), match.group(2)
+        if fmt is not None or name.startswith("env.") or name in found:
+            continue
+        if resolve_one(ctx, name) is None:
+            found.append(name)
+    return found
+
+
 def expand_vars(ctx: PluginContext, text: str) -> str:
     """Expand $(NAME) references in a string.
 

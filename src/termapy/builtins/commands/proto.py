@@ -702,7 +702,7 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=str(e))
 
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8-sig")
         result = load_proto_script(text)
     except (ValueError, OSError) as e:
         return CmdResult.fail(msg=f"Script error: {e}")
@@ -808,7 +808,7 @@ def _handler_debug(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=str(e))
 
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8-sig")
         script = parse_toml_script(text)
     except (ValueError, OSError) as e:
         return CmdResult.fail(msg=f"Script error: {e}")

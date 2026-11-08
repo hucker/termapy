@@ -44,6 +44,19 @@ AT+ADDR=$(ADDR)
 /cap.text $(LABEL)_log.txt timeout=5s
 ```
 
+A name that names nothing stays in the line as typed, and a warning says so,
+with the name it most likely meant:
+
+```text
+/print $(CFG.FIRMWAR_DIR)
+  Unknown variable: $(CFG.FIRMWAR_DIR) -- did you mean CFG.FIRMWARE_DIR?
+```
+
+A dotted name always warns, since no variable you set has a dot in it. A plain
+name warns only when it is a step from one that exists (`$(DAT)` for
+`$(DATE)`), because it may be set later in the same run: `/repeat var=I cmd=...
+$(I)` sets `$(I)` on each pass. Write `\$(NAME)` to send the text on purpose.
+
 ### `$(*NAME)` - one argument, whatever it holds
 
 `$(NAME)` is expanded **before** the line is split into arguments, so its value

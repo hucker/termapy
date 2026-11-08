@@ -13,6 +13,7 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button
 
+from termapy.config import cfg_value_text
 from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS
 
 
@@ -51,7 +52,7 @@ class CfgConfirm(ModalScreen[bool]):
 
         with Vertical(id="cfg-confirm-dialog"):
             yield Static(
-                f"{self.key}: {self.old_val!r} -> {self.new_val!r}",
+                f"{self.key}: {cfg_value_text(self.old_val)} -> {cfg_value_text(self.new_val)}",
                 id="cfg-confirm-msg",
                 markup=False,
             )

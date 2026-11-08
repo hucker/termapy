@@ -141,6 +141,7 @@ from termapy.scripting import (  # noqa: E402
     format_timestamp,
     render_progress_bar,
     split_cmd_lines,
+    transcript_commands,
 )
 
 # Single source of truth for top-row hotkeys.
@@ -2965,8 +2966,7 @@ class SerialTerminal(TerminalHost, App):
         # A device's JSON line is laid out by json_fmt.indent and json_fmt.highlight
         # (display only); highlighting needs color.  The hex view shows bytes.
         json_text = rows is None
-        json_indent = cfg_value(self.cfg, "json_fmt.indent")
-        json_highlight = color_on and cfg_value(self.cfg, "json_fmt.highlight")
+        json_indent, json_highlight = self.repl.json_layout()
         # Lines beyond what the pane keeps are counted (line numbers stay
         # true) but not rendered: RichLog would discard them on arrival.
         skip = max(0, len(shown) - log.max_lines) if log.max_lines else 0
@@ -3048,9 +3048,20 @@ class SerialTerminal(TerminalHost, App):
 
         With ``multiline_paste`` off, the first line lands in the prompt as
         Textual's own paste puts it, and a status line says the rest were
-        left out, so none go missing silently.
+        left out, so none go missing silently.  A copied transcript (a line
+        starting with the echo's prompt) runs only its commands, the prompt
+        taken off; its output lines would otherwise go to the device.
         """
         lines = event.lines
+        commands = transcript_commands(lines, self.repl.echo_prompt())
+        if commands is not None:
+            skipped = len(lines) - len(commands)
+            self._status(
+                f"Pasted a transcript: running its {len(commands)} commands, "
+                f"skipping {skipped} lines of output.",
+                "yellow",
+            )
+            lines = commands
         inp = self.query_one("#cmd", Input)
         if not cfg_value(self.cfg, "multiline_paste"):
             inp.insert_text_at_cursor(lines[0])

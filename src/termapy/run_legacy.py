@@ -105,7 +105,7 @@ def _scan_one_file(ctx: PluginContext, path: Path, prefix: str, fix_mode: bool) 
     matched in this file.
     """
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8-sig")
     except OSError as e:
         ctx.io.output(f"  {path.name}: read error: {e}", "red")
         return 0

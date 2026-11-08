@@ -156,10 +156,10 @@ class TestPrefixDispatchShapes:
             ],
         )
 
-        # Assert -- the set took effect (value reads back as False).
+        # Assert -- the set took effect (value reads back as off).
         actual = result.stdout
         assert result.returncode == 0, f"stderr: {result.stderr}"
-        assert "False" in actual, f"!cfg.auto set didn't take effect: {actual!r}"
+        assert "\n  off\n" in actual, f"!cfg.auto set didn't take effect: {actual!r}"
 
     def test_device_command_unprefixed_still_reaches_serial(self, tmp_path):
         """A line with no prefix still falls through to the device and gets the demo OK."""

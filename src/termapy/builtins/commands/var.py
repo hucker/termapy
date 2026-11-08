@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from termapy.defaults import cfg_value
 from termapy.folders import FOLDER_NAMES
 from termapy.help_dynamic import compose, green
+from termapy.matching import closest, did_you_mean
 from termapy.plugins import (
     CmdResult,
     Column,
@@ -40,7 +41,9 @@ from termapy.variables import (
     resolve_datetime_var,
     set_user_var,
     snapshot as variables_snapshot,
+    unknown_names,
     user_vars,
+    variable_names,
 )
 
 if TYPE_CHECKING:
@@ -403,6 +406,27 @@ def _var_long_help(ctx: PluginContext) -> str:
     return compose(_var_state_line(ctx), _VAR_PROSE)
 
 
+def _expand_and_warn(ctx: PluginContext, text: str) -> str:
+    """Expand ``$(NAME)`` in a line, warning about a name that names nothing.
+
+    An unknown name stays in the line as typed, which a device may want
+    (it can also be written ``\\$(NAME)``), so this warns rather than
+    refuses, with the names it most likely meant: a typo would otherwise
+    reach the device or a shell as ``$(CFG.FIRMWAR_DIR)`` in silence.  A
+    dotted name always warns, since no variable a user sets has a dot; a
+    plain one warns only as a near miss, since it may be set later in the
+    line's own run (``/repeat var=I cmd=... $(I)`` sets it each pass).
+    """
+    unknown = unknown_names(ctx, text)
+    if unknown:
+        names = variable_names(ctx)
+        for name in unknown:
+            suggestions = closest(name, names)
+            if "." in name or suggestions:
+                ctx.io.output(f"Unknown variable: $({name}){did_you_mean(suggestions)}", "yellow")
+    return expand_vars(ctx, text)
+
+
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 COMMAND = Command(
     group="advanced",
@@ -453,8 +477,8 @@ COMMAND = Command(
 TRANSFORM = Transform(
     name="var",
     help="Expand $(NAME) placeholders from user-defined variables.",
-    repl=expand_vars,
-    serial=expand_vars,
+    repl=_expand_and_warn,
+    serial=_expand_and_warn,
 )
 
 

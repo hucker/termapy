@@ -21,6 +21,7 @@ from termapy.config import (
     BOOL_CFG_PATHS,
     CFG_CHECKS,
     cfg_choice,
+    cfg_value_text,
     check_cfg_value,
     validate_config,
 )
@@ -264,6 +265,41 @@ class TestSetting:
         """The check refuses only what is wrong: an ordinary edit goes through."""
         result = cli.repl.dispatch("cfg.auto max_lines 500")
         assert (result.success, cli.repl.cfg["max_lines"]) == (True, 500)
+
+    def test_a_change_reports_the_value_as_termapy_spells_it(self, cli, capsys):
+        """The session line says echo = off, as /term.echo answers, never Python's False."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch("cfg.auto echo off")
+        query = cli.repl.dispatch("cfg echo")
+
+        # Assert
+        assert "echo = off  (session)" in capsys.readouterr().out, "the change line"
+        assert query.value == "off", "the query answers the same spelling"
+
+
+class TestValueText:
+    """config.cfg_value_text: one spelling for a config value wherever termapy shows one."""
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (True, "on"),
+            (False, "off"),
+            ("right", "right"),
+            ("", '""'),
+            (4, "4"),
+            (1.5, "1.5"),
+            (None, "null"),
+            ({"port": "DEMO"}, '{"port": "DEMO"}'),
+            (["a", 1], '["a", 1]'),
+        ],
+    )
+    def test_each_kind_reads_as_termapy_writes_it(self, value, expected):
+        """A switch is on/off, a container compact JSON, an empty string quoted, anything else as written."""
+        assert cfg_value_text(value) == expected
 
 
 class TestTheCheck:

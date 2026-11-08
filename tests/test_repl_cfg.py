@@ -80,7 +80,9 @@ class TestCfgShowKey:
 
         # Assert
         assert (rate.value, rate.data) == ("115200", 115200), "a number is data as a number"
-        assert (echo.value, echo.data) == ("False", False), "a boolean is data as a boolean"
+        assert (echo.value, echo.data) == ("off", False), (
+            "a boolean is data as a boolean, shown as off"
+        )
 
     def test_container_key_is_json_never_repr(self, repl_env):
         """A dict or list key answers compact JSON, shown and as the value; its data is the structure."""

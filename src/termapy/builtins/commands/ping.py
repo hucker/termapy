@@ -6,6 +6,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from termapy.defaults import cfg_value
+from termapy.markup import received_json_markup
 from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.plugins.params import ParamSpec
 
@@ -52,8 +53,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             times.append(ms)
             ctx.io.output(f"{cmd} -- {ms:.0f}ms", "green")
             text = response.decode(cfg_value(ctx.cfg, "encoding"), errors="replace").strip()
-            if text:
-                ctx.io.status(f"  {text}")
+            _show_reply(ctx, text)
         else:
             times.append(None)
             ctx.io.output(f"{cmd} -- timeout ({timeout_ms}ms)", "red")
@@ -69,6 +69,23 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # script tells "tried but nothing" from "didn't run".
     value = f"{record['avg_ms']:.0f}ms" if replies else ""
     return CmdResult.ok(value=value, data=record)
+
+
+def _show_reply(ctx: PluginContext, text: str) -> None:
+    """The reply's text under its time, a detail line each (verbose), JSON laid out as the screen lays it out.
+
+    A JSON line reads like one arriving from the device (``json_fmt`` on a
+    screen, one line in a pipe), so a JSON-speaking board's reply looks the
+    same under ``/ping.verbose`` as at the prompt.  An answer for a program
+    (``--json``, MCP) keeps each line as it came.
+    """
+    indent, highlight = (0, False) if ctx.wants_data else ctx.internal.json_layout()
+    for line in text.splitlines():
+        shown = received_json_markup(line, indent, highlight)
+        if shown is None:
+            ctx.io.status(f"  {line}")
+        else:
+            ctx.io.status_markup("\n".join(f"  {row}" for row in shown.split("\n")))
 
 
 def _ping_record(cmd: str, times: list[float | None]) -> dict[str, Any]:

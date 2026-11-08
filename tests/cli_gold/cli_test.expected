@@ -61,6 +61,9 @@ demo> /var.clear
   Cleared 3 variable(s).
 demo> /var DEVICE
     $(DEVICE) - not defined
+demo> /print $(CFG.FIRMWAR_DIR)
+  Unknown variable: $(CFG.FIRMWAR_DIR) -- did you mean CFG.FIRMWARE_DIR?
+  $(CFG.FIRMWAR_DIR)
 demo> /print === section: config read ===
   === section: config read ===
 demo> /cfg baud_rate
@@ -80,33 +83,33 @@ demo> /cfg stop_bits
 demo> /cfg flow_control
   none
 demo> /cfg echo
-  True
+  on
 demo> /cfg send_bare_enter
-  False
+  off
 demo> /cfg cmd_prefix
   /
 demo> /cfg quiet_start
-  True
+  on
 demo> /print === section: config auto-set ===
   === section: config auto-set ===
 demo> /cfg.auto echo true
-  echo = True  (session)
+  echo = on  (session)
 demo> /cfg echo
-  True
+  on
 demo> /cfg.auto echo false
-  echo = False  (session)
+  echo = off  (session)
 demo> /cfg echo
-  False
+  off
 demo> /term.echo
   off
 demo> /cfg.auto echo true
-  echo = True  (session)
+  echo = on  (session)
 demo> /cfg.auto output_level quiet
-  output_level = 'quiet'  (session)
+  output_level = quiet  (session)
 demo> /term.output
   quiet
 demo> /cfg.auto output_level normal
-  output_level = 'normal'  (session)
+  output_level = normal  (session)
 demo> /term.output
   normal
 demo> /cfg.auto output_level loud
@@ -234,13 +237,13 @@ AVAILABLE
 SEE ALSO
   /term.color, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.info, /term.json_fmt, /term.line_endings, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.traffic, /term.usb_db, /term
 demo> /cfg.auto custom_buttons_side Right
-  custom_buttons_side = 'right'  (session)
+  custom_buttons_side = right  (session)
 demo> /cfg custom_buttons_side
   right
 demo> /cfg.auto custom_buttons_side up
   Error: Invalid custom_buttons_side: up (use bottom/left/right)
 demo> /cfg.auto custom_buttons_side bottom
-  custom_buttons_side = 'bottom'  (session)
+  custom_buttons_side = bottom  (session)
 demo> /cfg.auto max_lines 0
   Error: Invalid max_lines: 0 (must be a positive integer)
 demo> /cfg.auto encoding nope
@@ -555,10 +558,10 @@ demo> /print === section: line endings ===
   === section: line endings ===
 demo> /show_line_endings on
     Note: /show_line_endings is legacy; use /term.line_endings.
-  eol_markers = True  (session)
+  eol_markers = on  (session)
   on
 demo> /show_line_endings off
-  eol_markers = False  (session)
+  eol_markers = off  (session)
   off
 demo> /print === section: seq ===
   === section: seq ===
@@ -1762,7 +1765,7 @@ demo> /port.baud_rate
 demo> /port.baud_rate 115200
   Baud rate -> 115200
 demo> /cfg custom_baud false
-  custom_baud = False  (session)
+  custom_baud = off  (session)
 demo> /port.parity X
   Error: Invalid parity: X (use E, M, N, O, S)
 demo> /port.dtr maybe
@@ -1785,7 +1788,7 @@ demo> /term.line_no --json
 demo> /term.line_no.json
   {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires: tui_mode (not available in this environment)", "value": "", "data": null, "output_lines": [], "elapsed_s": 0}
 demo> /term.request on
-  request_mode = True  (session)
+  request_mode = on  (session)
   on
 demo> /print hello enveloped
   {"cmd": "/print hello enveloped", "success": true, "error": "", "value": "hello enveloped", "data": null, "output_lines": ["hello enveloped"], "elapsed_s": 0}
@@ -1802,7 +1805,7 @@ demo> /nope_bogus_cmd
 demo> /mem
   {"cmd": "/mem", "success": true, "error": "", "value": "termapy", "data": {"available": true, "dialect": "termapy", "max_block": 64, "address_bits": 32, "endian": "le", "atomic_modify": true, "sources": {"dialect": "default", "max_block": "device", "address_bits": "device", "endian": "device", "modify": "device"}, "device_info": {"max_block": 64, "address_bits": 32, "endian": "le", "modify": true, "regions": [{"name": "ram", "start": "0x00000000", "size": 16384, "w": true}, {"name": "sfr", "start": "0xBF806000", "size": 32, "w": true}]}, "device_error": null, "problem": null, "template": null}, "output_lines": [], "elapsed_s": 0}
 demo> /term.request off
-  request_mode = False  (session)
+  request_mode = off  (session)
   {"cmd": "/term.request off", "success": true, "error": "", "value": "off", "data": null, "output_lines": ["off"], "elapsed_s": 0}
 demo> MEM.R 0x1000 2 --json
 {"cmd": "MEM.R 0x1000 2"}

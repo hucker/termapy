@@ -284,13 +284,13 @@ $(BAUD) <- /port.baud_rate
 /mem.write sCfg 0302
 /mem.read sCfg
 MEM.M 0x1000 F0 05 --json
-# /term.json lays JSON out on screen only: into this pipe a device's JSON line
+# /term.json_fmt lays JSON out on screen only: into this pipe a device's JSON line
 # comes as it arrived, whatever the indent says.
-/term.json
-/term.json.highlight
-/term.json.indent 4
+/term.json_fmt
+/term.json_fmt.highlight
+/term.json_fmt.indent 4
 MEM.INFO
-/term.json indent 2
+/term.json_fmt indent 2
 
 # ── REPL: help for specific commands ────────────────────────────────────────
 /print === section: help ===
@@ -398,6 +398,8 @@ MEM.INFO
 # device's fixed replies are exact.  elapsed_s is masked by the harness.
 /print === section: json mode ===
 /term.line_no --json
+# The suffix form: the same envelope as --json
+/term.line_no.json
 /term.request on
 /print hello enveloped
 /var.set GOLD 42
@@ -426,7 +428,7 @@ MEM.R 0x1000 2 --json
 /term.eol.rx
 /term.hex
 /proto.hex
-/term.json
+/term.json_fmt
 /term.output
 /term.send_bare_enter
 /term.control_keys

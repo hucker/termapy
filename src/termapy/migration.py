@@ -88,7 +88,7 @@ DEPRECATED_CFG: dict[str, str] = {
         "goes to the diagnostic log, and the error names the file"
     ),
     # v37 -> v38: one enum split in two
-    "json_style": "replaced in v38 by json_display.highlight and json_display.indent",
+    "json_style": "replaced in v38 by json_fmt.highlight and json_fmt.indent",
 }
 
 # Migration functions: {from_version: callable(cfg) -> cfg}
@@ -806,7 +806,7 @@ MIGRATIONS[36] = _migrate_v36_to_v37
 
 
 def _migrate_v37_to_v38(cfg: dict) -> dict:
-    """Replace ``json_style`` with the ``json_display`` section: ``highlight`` and ``indent``.
+    """Replace ``json_style`` with the ``json_fmt`` section: ``highlight`` and ``indent``.
 
     ``indent`` keeps the indent and drops the highlighting; ``color`` keeps
     both.  ``compact`` was the default every config was written with, so it
@@ -814,7 +814,7 @@ def _migrate_v37_to_v38(cfg: dict) -> dict:
     one line per JSON value, whatever the section says.
     """
     style = cfg.pop("json_style", "compact")
-    json_cfg = cfg.setdefault("json_display", {})
+    json_cfg = cfg.setdefault("json_fmt", {})
     json_cfg.setdefault("highlight", style != "indent")
     json_cfg.setdefault("indent", 2)
     return cfg

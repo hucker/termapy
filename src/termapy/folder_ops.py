@@ -63,7 +63,7 @@ from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.command import PICKERS
 from termapy.plugins.params import ParamSpec
 from termapy.plugins.views import Column
-from termapy.scripting import format_age, format_size, select_lines
+from termapy.scripting import filename_timestamp, format_age, format_size, select_lines
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -217,6 +217,31 @@ def _folder_path(ctx: PluginContext, folder: str) -> Path:
     answered "No config loaded." before a handler asks.
     """
     return Path(ctx.config_path).parent / folder
+
+
+def stamped_path(folder: Path, base: str, ext: str, *, stamp: str | None = None) -> Path:
+    """A new file's path in ``folder``, ``<base>_<stamp><ext>``, never one that exists.
+
+    The stamp is ``filename_timestamp``'s, to the second, so a second save
+    in the same second (two lines of a paste or a script) gets ``_2``, then
+    ``_3``, rather than replacing the first file without a word.
+
+    Args:
+        folder: The folder the file goes in.
+        base: The name before the stamp (``screenshot``).
+        ext: The extension, with its dot (``.svg``).
+        stamp: The stamp to use; the current time's when omitted.
+
+    Returns:
+        A path in ``folder`` that does not exist yet.
+    """
+    stamp = stamp or filename_timestamp()
+    path = folder / f"{base}_{stamp}{ext}"
+    number = 2
+    while path.exists():
+        path = folder / f"{base}_{stamp}_{number}{ext}"
+        number += 1
+    return path
 
 
 def write_destination(ctx: PluginContext, given: str, default: str) -> Path:

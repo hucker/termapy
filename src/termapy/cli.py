@@ -468,10 +468,8 @@ class CLITerminal(TerminalHost):
         Display only, as in the TUI; a pipe gets every line as received.
         """
         color_on = self.repl.ctx.ns("flags").get("color", True)
-        indent = cfg_value(self.cfg, "json_display.indent") if self.repl.screen_json else 0
-        highlight = (
-            self.repl.screen_json and color_on and cfg_value(self.cfg, "json_display.highlight")
-        )
+        indent = cfg_value(self.cfg, "json_fmt.indent") if self.repl.screen_json else 0
+        highlight = self.repl.screen_json and color_on and cfg_value(self.cfg, "json_fmt.highlight")
         for line in lines:
             plain = strip_ansi(line)
             shown_markup = received_json_markup(plain, indent, highlight)

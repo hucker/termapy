@@ -992,7 +992,7 @@ def test_v35_to_v36_keeps_values_already_set():
 def test_v37_to_v38_splits_json_style_into_the_json_section():
     """Migration v37->v38: indent keeps the indent unhighlighted, color keeps both, compact takes the new defaults."""
     actual = {
-        style: migrate_config({"config_version": 37, "json_style": style})["json_display"]
+        style: migrate_config({"config_version": 37, "json_style": style})["json_fmt"]
         for style in ("compact", "indent", "color")
     }
     expected = {
@@ -1006,14 +1006,14 @@ def test_v37_to_v38_splits_json_style_into_the_json_section():
 def test_v37_to_v38_removes_json_style_and_keeps_a_json_section():
     """Migration v37->v38 drops json_style, and a json section already in the file wins."""
     # Arrange
-    cfg = {"config_version": 37, "json_style": "color", "json_display": {"indent": 4}}
+    cfg = {"config_version": 37, "json_style": "color", "json_fmt": {"indent": 4}}
 
     # Act
     result = migrate_config(cfg)
 
     # Assert
     assert "json_style" not in result, "the old key is gone"
-    assert result["json_display"] == {"indent": 4, "highlight": True}, "what was there stays"
+    assert result["json_fmt"] == {"indent": 4, "highlight": True}, "what was there stays"
 
 
 def test_migration_steps_recorded_per_version():

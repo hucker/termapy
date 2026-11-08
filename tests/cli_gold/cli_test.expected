@@ -143,7 +143,7 @@ DESCRIPTION
   A value sets the setting outright, and with no argument it only shows it.
 
 TAKEN BY
-  /term.eol, /term.eol.rx, /term.json.indent, /term.output
+  /term.eol, /term.eol.rx, /term.json_fmt.indent, /term.output
 
 SEE ALSO
   /help.idioms
@@ -154,11 +154,13 @@ NAME
 DESCRIPTION
   Any command takes --json, and so does a line for the device. That one call
   answers as one JSON object: cmd, success, error, value, data, output_lines.
+  A .json suffix on a command's name says the same thing.
 
     /port.list --json
+    /port.list.json
     AT+INFO --json
 
-  /term.request on does the same for the whole session, and /term.json sets
+  /term.request on does the same for the whole session, and /term.json_fmt sets
   how the JSON prints. The flag is taken off the line wherever it appears, so a
   command's text cannot carry it. Typed as /help --json it means help as JSON,
   which is why this page is /help json.
@@ -230,7 +232,7 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SEE ALSO
-  /term.color, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.info, /term.json, /term.line_endings, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.traffic, /term.usb_db, /term.verbose, /term
+  /term.color, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.info, /term.json_fmt, /term.line_endings, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.traffic, /term.usb_db, /term
 demo> /cfg.auto custom_buttons_side Right
   custom_buttons_side = 'right'  (session)
 demo> /cfg custom_buttons_side
@@ -298,7 +300,7 @@ demo> /cfg.dump
       "request_mode": false,
       "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
       "strip_device_echo": false,
-      "json_display": {
+      "json_fmt": {
           "highlight": true,
           "indent": 2
       },
@@ -826,19 +828,19 @@ demo> /mem.read sCfg
 demo> MEM.M 0x1000 F0 05 --json
 {"cmd": "MEM.M 0x1000 F0 05"}
   {"cmd": "MEM.M 0x1000 F0 05", "success": true, "error": "", "value": "00001000: 2C\r\nOK", "data": null, "output_lines": [], "elapsed_s": 0}
-demo> /term.json
+demo> /term.json_fmt
   highlight: on
   indent   : 2
-demo> /term.json.highlight
+demo> /term.json_fmt.highlight
   on
-demo> /term.json.indent 4
-  json_display.indent = 4  (session)
+demo> /term.json_fmt.indent 4
+  json_fmt.indent = 4  (session)
   4
 demo> MEM.INFO
 {"max_block": 64, "address_bits": 32, "endian": "le", "modify": true, "regions": [{"name": "ram", "start": "0x00000000", "size": 16384, "w": true}, {"name": "sfr", "start": "0xBF806000", "size": 32, "w": true}]}
 OK
-demo> /term.json indent 2
-  json_display.indent = 2  (session)
+demo> /term.json_fmt indent 2
+  json_fmt.indent = 2  (session)
   2
 demo> /print === section: help ===
   === section: help ===
@@ -921,9 +923,9 @@ DESCRIPTION
   The value is read as the key's current type (int, float, bool,
   string). Bool accepts:
     on/off/true/false/yes/no/1/0/y/n/t/f
-  A key with a fixed set of values (parity, json_display.indent,
+  A key with a fixed set of values (parity, json_fmt.indent,
   custom_buttons_side, ...) takes one of them in any case.
-  A key inside a section is named by its path (json_display.indent) or,
+  A key inside a section is named by its path (json_fmt.indent) or,
   when no other section has one, its own name (baud_rate).
   A change lasts for this session; to keep it, set it in the
   config editor.
@@ -1780,6 +1782,8 @@ demo> /print === section: json mode ===
   === section: json mode ===
 demo> /term.line_no --json
   {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires: tui_mode (not available in this environment)", "value": "", "data": null, "output_lines": [], "elapsed_s": 0}
+demo> /term.line_no.json
+  {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires: tui_mode (not available in this environment)", "value": "", "data": null, "output_lines": [], "elapsed_s": 0}
 demo> /term.request on
   request_mode = True  (session)
   on
@@ -1821,7 +1825,7 @@ demo> /term.hex
   off
 demo> /proto.hex
   Hex display mode disabled.
-demo> /term.json
+demo> /term.json_fmt
   highlight: on
   indent   : 2
 demo> /term.output

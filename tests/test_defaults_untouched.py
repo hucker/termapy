@@ -34,11 +34,11 @@ from termapy.defaults import DEFAULT_CFG
 
 
 def test_a_rig_changes_a_default():
-    DEFAULT_CFG["json_display"]["indent"] = 4
+    DEFAULT_CFG["json_fmt"]["indent"] = 4
 
 
 def test_the_next_test_reads_the_default():
-    assert DEFAULT_CFG["json_display"]["indent"] == 2
+    assert DEFAULT_CFG["json_fmt"]["indent"] == 2
 """
 
 
@@ -66,4 +66,4 @@ def test_a_test_that_changes_the_defaults_fails(tmp_path):
         f"the change errors that test, the next passes:\n{out[-2000:]}"
     )
     assert "ERROR at teardown of test_a_rig_changes_a_default" in out, "the culprit is named"
-    assert "changed DEFAULT_CFG (json_display)" in out, "the message names the section"
+    assert "changed DEFAULT_CFG (json_fmt)" in out, "the message names the section"

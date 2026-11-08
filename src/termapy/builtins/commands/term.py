@@ -195,28 +195,6 @@ def _handler_output(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=level)
 
 
-def _handler_verbose_legacy(ctx: PluginContext, args: str) -> CmdResult:
-    """Legacy /term.verbose forwarder: translate on/off and dispatch."""
-    warned = ctx.ns("legacy_warned")
-    if "term.verbose" not in warned:
-        warned["term.verbose"] = True
-        p = ctx.prefix
-        ctx.io.output(
-            f"  Note: {p}term.verbose is legacy; use {p}term.output (verbose|normal).",
-            "yellow",
-        )
-    body = args.strip()
-    if not body:
-        target = "term.output"
-    else:
-        try:
-            verbose = parse_bool(body, what="value")
-        except ValueError as e:
-            return CmdResult.fail(msg=str(e))
-        target = "term.output verbose" if verbose else "term.output normal"
-    return ctx.internal.dispatch(target)
-
-
 def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
     """Query, set or toggle the hex view of received bytes."""
     return _bool_setting(ctx, args, "hex")
@@ -324,21 +302,21 @@ def _handler_eol_rx(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=arg)
 
 
-def _handler_json(ctx: PluginContext, args: str) -> CmdResult:
-    """``/term.json``: how JSON shows on screen, its highlighting and its indent, as a record.
+def _handler_json_fmt(ctx: PluginContext, args: str) -> CmdResult:
+    """``/term.json_fmt``: how JSON shows on screen, its highlighting and its indent, as a record.
 
     The two settings are the subcommands, and the space form reaches them
-    (``/term.json indent 4`` is ``/term.json.indent 4``); a word that names
+    (``/term.json_fmt indent 4`` is ``/term.json_fmt.indent 4``); a word that names
     neither is a usage error.
     """
     words = args.split(None, 1)
     if words:
-        if f"term.json.{words[0]}" not in ctx.internal.plugins:
+        if f"term.json_fmt.{words[0]}" not in ctx.internal.plugins:
             raise UsageError()
-        return ctx.internal.dispatch(f"term.json.{args.strip()}")
+        return ctx.internal.dispatch(f"term.json_fmt.{args.strip()}")
     data = {
-        "highlight": bool(cfg_value(ctx.cfg, "json_display.highlight")),
-        "indent": int(cfg_value(ctx.cfg, "json_display.indent")),
+        "highlight": bool(cfg_value(ctx.cfg, "json_fmt.highlight")),
+        "indent": int(cfg_value(ctx.cfg, "json_fmt.indent")),
     }
     rows = [
         ("highlight", "on" if data["highlight"] else "off"),
@@ -347,12 +325,12 @@ def _handler_json(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.record(data, rows, value=" ".join(f"{key}={text}" for key, text in rows))
 
 
-def _handler_json_highlight(ctx: PluginContext, args: str) -> CmdResult:
-    """Query, set or toggle JSON highlighting on screen (cfg ``json_display.highlight``)."""
-    return _cfg_toggle(ctx, args, "json_display.highlight")
+def _handler_json_fmt_highlight(ctx: PluginContext, args: str) -> CmdResult:
+    """Query, set or toggle JSON highlighting on screen (cfg ``json_fmt.highlight``)."""
+    return _cfg_toggle(ctx, args, "json_fmt.highlight")
 
 
-def _handler_json_indent(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_json_fmt_indent(ctx: PluginContext, args: str) -> CmdResult:
     """Show or set the spaces per level JSON is indented by on screen: 0 (one line), 2 or 4.
 
     An enum setting: bare reports the indent, a value sets it for the
@@ -360,7 +338,7 @@ def _handler_json_indent(ctx: PluginContext, args: str) -> CmdResult:
     refused.
     """
     arg = args.strip().lower()
-    current = cfg_value(ctx.cfg, "json_display.indent")
+    current = cfg_value(ctx.cfg, "json_fmt.indent")
     if not arg:
         ctx.io.result(str(current))
         return CmdResult.ok(value=str(current))
@@ -371,7 +349,7 @@ def _handler_json_indent(ctx: PluginContext, args: str) -> CmdResult:
         if new not in JSON_INDENTS:
             choices = "/".join(str(indent) for indent in JSON_INDENTS)
             return CmdResult.fail(msg=f"Invalid JSON indent: {arg} (use {choices}/cycle)")
-    ctx.internal.apply_cfg("json_display.indent", new)
+    ctx.internal.apply_cfg("json_fmt.indent", new)
     ctx.io.result(str(new))
     return CmdResult.ok(value=str(new))
 
@@ -831,13 +809,6 @@ COMMAND = Command(
             cfg={"output_level": "the value a load starts from"},
             state=True,
         ),
-        "verbose": Command(
-            args="{on|off}",
-            help="Legacy alias for {prefix}term.output (verbose|normal).",
-            handler=_handler_verbose_legacy,
-            hidden=True,
-            needs=CapabilitySet.INTERACTIVE,  # legacy alias
-        ),
         "timestamps": Command(
             args="{on|off|toggle}",
             help="Toggle [HH:MM:SS.mmm] timestamp prefix on each line.",
@@ -894,7 +865,7 @@ COMMAND = Command(
                 "\n"
                 "In a normal-mode session the per-call form of the same\n"
                 "thing is ``<cmd> --json``.  On screen an envelope is laid\n"
-                "out as {prefix}term.json says; a pipe gets one per line.\n"
+                "out as {prefix}term.json_fmt says; a pipe gets one per line.\n"
                 "\n"
                 "Input is symmetric: a JSON object with a string ``cmd``\n"
                 "field is unwrapped, so callers can send either plain\n"
@@ -911,7 +882,7 @@ COMMAND = Command(
             cfg={"request_mode": "set for the session; bare shows it"},
             state=True,
         ),
-        "json": Command(
+        "json_fmt": Command(
             help="Show how JSON shows on screen: its highlighting and its indent.",
             intro=(
                 "How JSON shows on screen, termapy's answers and each JSON line a device"
@@ -928,25 +899,25 @@ COMMAND = Command(
                 "and captures keep it as it arrived.  MCP gets JSON as\n"
                 "data, so neither setting touches it."
             ),
-            handler=_handler_json,
+            handler=_handler_json_fmt,
             cfg={
-                "json_display.highlight": "shown; set by {prefix}term.json.highlight",
-                "json_display.indent": "shown; set by {prefix}term.json.indent",
+                "json_fmt.highlight": "shown; set by {prefix}term.json_fmt.highlight",
+                "json_fmt.indent": "shown; set by {prefix}term.json_fmt.indent",
             },
             state=True,
             sub_commands={
                 "highlight": Command(
                     args="{on|off|toggle}",
                     help="Show or set JSON highlighting on screen (needs color on).",
-                    handler=_handler_json_highlight,
-                    cfg={"json_display.highlight": "set for the session; bare shows it"},
+                    handler=_handler_json_fmt_highlight,
+                    cfg={"json_fmt.highlight": "set for the session; bare shows it"},
                     state=True,
                 ),
                 "indent": Command(
                     args="{0|2|4|cycle}",
                     help="Show or set the JSON indent on screen: 0 (one line), 2 or 4 spaces.",
-                    handler=_handler_json_indent,
-                    cfg={"json_display.indent": "set for the session; bare shows it"},
+                    handler=_handler_json_fmt_indent,
+                    cfg={"json_fmt.indent": "set for the session; bare shows it"},
                     state=True,
                 ),
             },

@@ -259,7 +259,7 @@ The most common ones:
 | `/term.traffic {on\|off\|toggle}`     | Show live TX/RX byte counts in the bottom bar (TUI only)                      |
 | `/term.hex {on\|off\|toggle}`         | Toggle hex display of incoming bytes                                          |
 | `/term.encoding {name}`              | Show or set byte-decoding encoding (utf-8, latin-1, ...)                      |
-| `/term.json {compact\|indent\|color\|cycle}` | How JSON answers print: one line, indented, or indented and colored |
+| `/term.json_fmt {compact\|indent\|color\|cycle}` | How JSON answers print: one line, indented, or indented and colored |
 | `/term.send_bare_enter {on\|off\|toggle}` | Send line ending on empty Enter                                          |
 | `/edit <file>`                       | Edit a project file (`run/`, `proto/` or `plugin/`)                           |
 | `/edit.cfg`                          | Edit the current config file                                                  |
@@ -606,7 +606,7 @@ Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in th
     "request_mode": false,
     "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
     "strip_device_echo": false,
-    "json_display": {
+    "json_fmt": {
         "highlight": true,
         "indent": 2
     },

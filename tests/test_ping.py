@@ -1,4 +1,4 @@
-"""/ping and /ping.quiet on the CLI DEMO rig: the value is the mean reply time, the data every round trip.
+"""/ping on the CLI DEMO rig: the value is the mean reply time, the data every round trip, the level what prints.
 
 Until 2026-11-06 a timed-out ping still put its elapsed time in the
 summary, so one ping that timed out answered ``250ms`` (the timeout itself)
@@ -46,14 +46,44 @@ def test_a_timeout_is_counted_never_averaged(cli):
     assert actual == (2, [None, None], None), "a timeout is counted, never averaged"
 
 
-def test_quiet_answers_the_same_record(cli, capsys):
-    """/ping.quiet answers the same data and value shape, without printing the device's reply."""
+def test_a_plain_ping_prints_each_time_not_the_reply(cli, capsys):
+    """At normal level each round trip prints its time; the reply's text is detail, left to verbose."""
     # Arrange
     capsys.readouterr()
 
     # Act
-    result = cli.repl.dispatch_full("/ping.quiet cmd=AT")
+    cli.repl.dispatch_full("/ping cmd=AT")
+    out = capsys.readouterr().out
 
     # Assert
-    assert result.data["replies"] == 1, "the quiet form still measures the reply"
-    assert "OK" not in capsys.readouterr().out, "the device's reply text is not echoed"
+    assert "AT -- " in out, "the round trip's time"
+    assert "OK" not in out, "the device's reply text waits for .verbose"
+
+
+def test_verbose_adds_the_reply_text(cli, capsys):
+    """/ping.verbose prints each reply's text under its time."""
+    # Arrange
+    capsys.readouterr()
+
+    # Act
+    cli.repl.dispatch_full("/ping.verbose cmd=AT")
+    out = capsys.readouterr().out
+
+    # Assert
+    assert "AT -- " in out, "the round trip's time"
+    assert "OK" in out, "the device's reply under it"
+
+
+def test_quiet_prints_only_the_summary(cli, capsys):
+    """/ping.quiet is the level: the summary alone, and the same record."""
+    # Arrange
+    capsys.readouterr()
+
+    # Act
+    result = cli.repl.dispatch_full("/ping.quiet count=2 cmd=AT")
+    out = capsys.readouterr().out
+
+    # Assert
+    assert "AT -- " not in out, "no round trip lines at quiet"
+    assert "2 pings: avg=" in out, "the summary is the result"
+    assert result.data["replies"] == 2, "every round trip is still measured"

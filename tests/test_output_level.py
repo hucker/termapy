@@ -379,6 +379,84 @@ class TestLevelFlagDispatch:
         assert "Conflicting" in actual, "error message names the conflict"
 
 
+def _envelopes(writes: list[tuple[str, str | None]]) -> list[dict]:
+    """The JSON envelopes among the written lines, each without its timing."""
+    found = []
+    for text, _ in writes:
+        if text.lstrip().startswith("{"):
+            envelope = json.loads(text)
+            envelope.pop("elapsed_s", None)
+            found.append(envelope)
+    return found
+
+
+class TestJsonSuffixDispatch:
+    """`/cmd.json` is `/cmd --json`, as `/cmd.quiet` is `/cmd --quiet`."""
+
+    def test_the_suffix_answers_as_the_flag_does(self, eng_with_test_command):
+        """probe.json prints the same one envelope probe --json prints, and nothing beside it."""
+        # Arrange
+        eng, writes = eng_with_test_command
+        eng.dispatch("probe --json")
+        expected = _envelopes(writes)
+        flag_lines = len(writes)
+        writes.clear()
+
+        # Act
+        eng.dispatch("probe.json")
+
+        # Assert
+        assert _envelopes(writes) == expected, "the same envelope, cmd named without the suffix"
+        assert len(writes) == flag_lines == 1, "only the envelope prints"
+
+    @pytest.mark.parametrize("name", ["probe.json.quiet", "probe.quiet.json"])
+    def test_a_level_suffix_combines_in_either_order(self, eng_with_test_command, name):
+        """A level and .json on one name, in either order, mean --json --quiet."""
+        # Arrange
+        eng, writes = eng_with_test_command
+        eng.dispatch("probe --json --quiet")
+        expected = _envelopes(writes)
+        writes.clear()
+
+        # Act
+        eng.dispatch(name)
+
+        # Assert
+        assert _envelopes(writes) == expected
+
+    def test_a_command_named_with_json_keeps_its_name(self, eng_with_test_command):
+        """A registered probe.json runs as itself: the suffix is read only when no command claims the name."""
+        # Arrange
+        eng, writes = eng_with_test_command
+
+        def _real(ctx: PluginContext, args: str) -> CmdResult:
+            """The command that owns the name probe.json."""
+            return CmdResult.ok(value="REAL")
+
+        eng._plugins["probe.json"] = PluginInfo(
+            name="probe.json", args="", help="test", handler=_real, flags={}
+        )
+
+        # Act
+        result = eng.dispatch("probe.json")
+
+        # Assert
+        assert result.value == "REAL", "the command of that name ran"
+        assert _envelopes(writes) == [], "and answered as itself, not as JSON"
+
+    def test_an_unknown_name_is_not_stripped(self, eng_with_test_command):
+        """nosuch.json is an unknown command, named as typed, not nosuch asked for as JSON."""
+        # Arrange
+        eng, _ = eng_with_test_command
+
+        # Act
+        result = eng.dispatch("nosuch.json")
+
+        # Assert
+        assert result.success is False
+        assert "nosuch.json" in (result.error or ""), "the error names what was typed"
+
+
 # ── Builtin handlers respect output levels end-to-end ─────────────────────────
 
 

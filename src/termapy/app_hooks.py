@@ -27,11 +27,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.folder_ops import stamped_path
 from termapy.folders import ensure_folder
-from termapy.legacy import make_forwarder
 from termapy.plugins import CapabilitySet, CmdResult, UsageError
 from termapy.scripting import (
-    filename_timestamp,
     parse_count_arg,
     select_lines,
 )
@@ -64,50 +63,24 @@ def _bind(app: SerialTerminal, hook: Callable) -> Callable:
 def _hook_ss_svg(app: SerialTerminal, ctx: PluginContext, args: str) -> CmdResult:
     """Save a timestamped SVG screenshot of the terminal.
 
-    Writes to ``<ss_dir>/<name>_<YYYYmmdd_HHMMSS>.svg`` and prints a
-    green status line with the resolved path.  Bumps the SS button
-    counter so the title-bar tooltip reflects the new file.
+    Writes to ``<ss_dir>/<name>_<YYYYmmdd_HHMMSS>.svg`` and answers with
+    the resolved path on the result channel, so ``.silent`` saves without
+    a word.  Bumps the SS button counter so the title-bar tooltip
+    reflects the new file.
 
     Args:
         app: The SerialTerminal instance.
-        ctx: PluginContext (unused; the hook signature requires it).
+        ctx: PluginContext the answer is written through.
         args: Optional name stem; defaults to ``"screenshot"``.
 
     Returns:
         ``CmdResult.ok()`` -- the save itself is best-effort.
     """
     base = args.strip() or "screenshot"
-    ts = filename_timestamp()
-    path = str((ensure_folder(app.repl.ss_dir) / f"{base}_{ts}.svg").resolve())
+    path = str(stamped_path(ensure_folder(app.repl.ss_dir), base, ".svg").resolve())
     app._on_main(app.save_screenshot, path)
     app.last_screenshot = path
-    app._status(f"SVG screenshot saved: {path}", "green")
-    app._on_main(app._sync_ss_button)
-    return CmdResult.ok(value=path)
-
-
-def _hook_ss_svg_quiet(app: SerialTerminal, ctx: PluginContext, args: str) -> CmdResult:
-    """Save an SVG screenshot without a status message (scripting friendly).
-
-    Used by ``/ss.svg.silent`` for scripts that want a screenshot
-    without cluttering the output stream.  Args is the file stem
-    (no timestamp suffix unlike ``ss.svg``); ``.svg`` is appended if
-    not already present.
-
-    Args:
-        app: The SerialTerminal instance.
-        ctx: PluginContext (unused).
-        args: File stem; defaults to ``"screenshot"``.
-
-    Returns:
-        ``CmdResult.ok()``.
-    """
-    name = args.strip() or "screenshot"
-    if not name.endswith(".svg"):
-        name += ".svg"
-    path = str((ensure_folder(app.repl.ss_dir) / name).resolve())
-    app._on_main(app.save_screenshot, path)
-    app.last_screenshot = path
+    ctx.io.result(f"SVG screenshot saved: {path}", "green")
     app._on_main(app._sync_ss_button)
     return CmdResult.ok(value=path)
 
@@ -118,13 +91,13 @@ def _hook_ss_txt(app: SerialTerminal, ctx: PluginContext, args: str) -> CmdResul
     Renders ``app._get_screen_text()`` (the visible scrollback as
     text) to ``<ss_dir>/<name>_<YYYYmmdd_HHMMSS>.txt``.  An optional
     integer selects a slice: ``N>0`` saves the last N lines (most
-    recent), ``N<0`` the first N; omit it for the whole buffer.  Print
-    a green status line with the resolved path and the line count, and
-    bump the SS button counter.
+    recent), ``N<0`` the first N; omit it for the whole buffer.  Answer
+    with the resolved path and the line count on the result channel
+    (``.silent`` says nothing), and bump the SS button counter.
 
     Args:
         app: The SerialTerminal instance.
-        ctx: PluginContext (unused).
+        ctx: PluginContext the answer is written through.
         args: Optional name stem and/or line count; name defaults to
             ``"screenshot"``.
 
@@ -135,14 +108,13 @@ def _hook_ss_txt(app: SerialTerminal, ctx: PluginContext, args: str) -> CmdResul
         base, n = parse_count_arg(args, "screenshot")
     except ValueError as e:
         raise UsageError(str(e)) from None
-    ts = filename_timestamp()
-    path = str((ensure_folder(app.repl.ss_dir) / f"{base}_{ts}.txt").resolve())
+    path = str(stamped_path(ensure_folder(app.repl.ss_dir), base, ".txt").resolve())
     raw = str(app._on_main(app._get_screen_text) or "")
     text = "\n".join(select_lines(raw.splitlines(), n))
     Path(path).write_text(text, encoding="utf-8")
     app.last_screenshot = path
     saved = len(text.splitlines()) if text else 0
-    app._status(f"Text screenshot saved ({saved} lines): {path}", "green")
+    ctx.io.result(f"Text screenshot saved ({saved} lines): {path}", "green")
     app._on_main(app._sync_ss_button)
     return CmdResult.ok(value=path)
 
@@ -181,24 +153,6 @@ def register_tui_hooks(app: SerialTerminal) -> None:
         _bind(app, _hook_ss_svg),
         source="app",
         needs=CapabilitySet.SCREEN_CAPTURE,
-        intro="Save what is on screen as an SVG image in this config's ss/ folder, with or without a status message.",
-    )
-    app.repl.register_hook(
-        "ss.svg.silent",
-        "{name}",
-        "Save SVG screenshot silently (no status message).",
-        _bind(app, _hook_ss_svg_quiet),
-        source="app",
-        needs=CapabilitySet.SCREEN_CAPTURE,
-    )
-    app.repl.register_hook(
-        "ss.svg.quiet",
-        "{name}",
-        "Legacy alias for {prefix}ss.svg.silent.",
-        make_forwarder("ss.svg.quiet", "ss.svg.silent"),
-        source="app",
-        needs=CapabilitySet.SCREEN_CAPTURE,
-        hidden=True,
     )
     app.repl.register_hook(
         "ss.txt",

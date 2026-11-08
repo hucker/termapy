@@ -222,7 +222,7 @@ def engine_with_term(tmp_path):
     # lambda default.
     eng.ctx.internal.dispatch = lambda line: eng.dispatch(line, report=False)
     # Real CLI/TUI hosts advertise interactive + gui_apps; legacy aliases
-    # under test (/verbose, /term.verbose) declare needs.interactive=True.
+    # under test (/verbose) declare needs.interactive=True.
     # Mirror the host capability set so the dispatcher allows them through.
     eng.ctx.capabilities = CapabilitySet(interactive=True, gui_apps=True)
     flags = eng.ctx.ns("flags")
@@ -275,19 +275,6 @@ class TestVerboseRuntimeForward:
         # Assert -- the warning fires once per session, not per call.
         assert first_count == 1, "first /verbose call warns"
         assert second_count == 0, "second /verbose call stays silent"
-
-    def test_term_verbose_on_sets_level(self, engine_with_term):
-        """The /term.verbose alias reaches the same level change as /verbose."""
-        # Arrange
-        eng, _ = engine_with_term
-
-        # Act
-        eng.dispatch("term.verbose on")
-
-        # Assert
-        actual = eng.ctx.ns("flags")["output_level"]
-        expected = "verbose"
-        assert actual == expected, "term.verbose on -> verbose level"
 
 
 class TestSimpleForwarderRuntime:

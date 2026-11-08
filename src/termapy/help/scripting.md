@@ -196,7 +196,8 @@ commands as result envelopes.  The device/termapy demarcation is deliberately
 invisible; the session is either in JSON mode or in prose mode.
 
 For a single call in a prose-mode session, every command also accepts
-`--json`, which renders that one result as an envelope:
+`--json`, or a `.json` suffix on its name (`/port.list.json`, as `.quiet` is
+for `--quiet`), which renders that one result as an envelope:
 
 ```text
 /port.list --json
@@ -244,11 +245,11 @@ data, `ctx.status()` is progress chatter. Each gates on the active level.
 Handlers that produce scriptable data must call `CmdResult.ok(value=...)`
 so silent mode is useful.
 
-> **Migrating older scripts.** Scripts that used `/verbose on/off`,
-> `/term.verbose on/off`, or `*.quiet` as a "set silently" idiom keep
-> working via hidden forwarders. Run `/run.legacy <file>` to preview
-> the canonical replacements, or `/run.legacy --fix <file>` to rewrite
-> in place. A [name pattern](commands.md#name-patterns) processes every
+> **Migrating older scripts.** A script that uses `/verbose on/off` keeps
+> working through a hidden forwarder. Run `/run.legacy <file>` to preview
+> the canonical replacements for it and for `/term.verbose on/off` and the
+> old `*.quiet` "set silently" idiom, or `/run.legacy --fix <file>` to
+> rewrite in place. A [name pattern](commands.md#name-patterns) processes every
 > script it matches: `/run.legacy *` is all of `run/`.
 
 ## Example script

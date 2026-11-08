@@ -159,9 +159,9 @@ _ROW_SPLIT = re.compile(r"(?<!\\)\|")  # split on unescaped pipes
 _REF_SKIP = {"config_version"}
 
 
-# Sections whose keys are set one at a time (/cfg baud_rate, /term.json.indent)
+# Sections whose keys are set one at a time (/cfg baud_rate, /term.json_fmt.indent)
 # get a row per key; any other section is one row.
-_REF_EXPANDED = {"serial", "json_display"}
+_REF_EXPANDED = {"serial", "json_fmt"}
 
 
 def _flat_default_map() -> dict:

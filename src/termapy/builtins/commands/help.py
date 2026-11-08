@@ -1024,7 +1024,7 @@ def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) ->
         _render_idiom_page(ctx, idiom)
         return CmdResult.ok(value=idiom.name)
 
-    # 5. A hidden command: /help verbose is the idiom, and /help term.verbose
+    # 5. A hidden command: /help verbose is the idiom, and /help port.close
     #    still answers.
     if plugin is not None:
         _render_man_page(ctx, name, plugin, dev_mode=dev_mode)

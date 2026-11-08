@@ -2490,6 +2490,33 @@ class TestBatchedOutputIsEquivalent:
         _run(scenario)
 
 
+class TestScreenshots:
+    """/ss.svg saves a new file every time, and its .silent form says nothing."""
+
+    def test_two_screenshots_in_one_second_are_two_files(self, app_factory):
+        """/ss.svg x then /ss.svg.silent x, back to back, leave two files: the second does not replace the first."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                folder = Path(app.repl.ss_dir)
+
+                # Act
+                first = app._dispatch_single("/ss.svg twice")
+                second = app._dispatch_single("/ss.svg.silent twice")
+                await pilot.pause()
+
+                # Assert
+                assert first.success and second.success, (first.error, second.error)
+                actual = sorted(path.name for path in folder.glob("twice_*.svg"))
+                assert len(actual) == 2, f"one file per screenshot: {actual}"
+                assert first.value != second.value, "each command answers with its own file"
+
+        _run(scenario)
+
+
 class TestPortBanners:
     """A quiet command's connection banner stays off the pane and in the session log."""
 
@@ -2548,15 +2575,15 @@ class TestReceivedJson:
         _run(scenario)
 
     def test_indent_zero_without_highlight_shows_the_line_as_it_arrived(self, app_factory):
-        """With json_display.indent 0 and json_display.highlight off the JSON line shows on one line as received."""
+        """With json_fmt.indent 0 and json_fmt.highlight off the JSON line shows on one line as received."""
 
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
                 await pilot.pause()
                 # Arrange
-                app.repl.store_cfg("json_display.indent", 0)
-                app.repl.store_cfg("json_display.highlight", False)
+                app.repl.store_cfg("json_fmt.indent", 0)
+                app.repl.store_cfg("json_fmt.highlight", False)
 
                 # Act
                 app._write_batch([self.LINE])

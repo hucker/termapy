@@ -149,6 +149,12 @@ class TestMcpGate:
         result = _run(host, "/zap.silent")
         assert result["data"]["needs_confirmation"] is True, "resolved like dispatch resolves it"
 
+    @pytest.mark.parametrize("name", ["/zap.json", "/zap.json.silent"])
+    def test_json_suffix_does_not_dodge_the_gate(self, host, name):
+        """A .json suffix, alone or with a level, resolves to the gated command too."""
+        result = _run(host, name)
+        assert result["data"]["needs_confirmation"] is True, "resolved like dispatch resolves it"
+
     def test_mem_write_is_destructive(self, host):
         """/mem.write is gated before dispatch, so the refusal arrives even with no port."""
         # Act -- the real command that motivated the tier; no port needed,

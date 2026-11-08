@@ -171,8 +171,8 @@ class TestALookup:
     def test_a_hidden_command_still_answers(self, cli, capsys):
         """With nothing else claiming the name, a hidden command's page is still there, and its dev page."""
         # Act
-        page = _page(cli, capsys, "/help term.verbose")
-        dev = _page(cli, capsys, "/help.dev term.verbose")
+        page = _page(cli, capsys, "/help port.close")
+        dev = _page(cli, capsys, "/help.dev port.close")
 
         # Assert
         assert "Legacy alias" in page
@@ -305,7 +305,7 @@ class TestTheLinks:
 
                 # Act
                 app.action_click_link(link_id)
-                await until(pilot, lambda: "/term.json" in app._get_screen_text())
+                await until(pilot, lambda: "/term.json_fmt" in app._get_screen_text())
                 return tooltip, app._get_screen_text()
 
         # Assert

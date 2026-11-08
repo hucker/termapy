@@ -51,7 +51,7 @@ All other paths relative to `src/termapy/`.
 - **A config key is one row of `defaults.CFG_KEYS`** (registry `cfg-schema-one-table`, decision 2026-11-02): its default, kind, bounds and help. `DEFAULT_CFG`, `CFG_HELP`, `CFG_CHOICES` and `MANAGED_CFG_KEYS` are views, never edited. Whether a value is OK is `config.check_cfg_value`, one answer for a load, the config editor and `/cfg`; a new rule is a kind, in `CFG_CHECKS`, never a check at a call site.
 - A new key must also be added to `builtins/demo/demo.cfg`
 - New config keys must be documented in: `help/config.md` field reference, the example configs `scripts/update_doc_configs.py` keeps, and the demo.cfg template
-- **`CFG_KEYS`'s order is the layout of every config file** (registry `cfg-written-in-order`, decision 2026-10-30): a new key goes in its group there, never at the end. Every `.cfg` is written by `config.write_config_file`, in that order; related keys are grouped by order, not nested (`serial` and `json_display` aside).
+- **`CFG_KEYS`'s order is the layout of every config file** (registry `cfg-written-in-order`, decision 2026-10-30): a new key goes in its group there, never at the end. Every `.cfg` is written by `config.write_config_file`, in that order; related keys are grouped by order, not nested (`serial` and `json_fmt` aside).
 
 ## Rules
 

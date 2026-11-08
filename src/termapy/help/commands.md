@@ -42,7 +42,8 @@ a silent off: `Invalid echo: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)`.
 A setting with several values takes `cycle` the same way: it moves to the next
 value, in the order the synopsis lists them, and wraps at the end.  Any command
 takes `--json` for a JSON answer to that one call, and `--silent`, `--quiet`,
-`--normal` or `--verbose` for how much that call prints.  `/help.idioms` lists
+`--normal` or `--verbose` for how much that call prints; each also works as a
+suffix on the name (`/port.list.json`, `/port.list.quiet`).  `/help.idioms` lists
 these words, and `/help cycle` opens a page on one, with the commands that take it.
 
 A command that opens a file of a known type takes the name with or without
@@ -259,7 +260,9 @@ sends to the device) waits in the input line for Enter.
 | `/term.eol.rx {auto\|cr\|lf\|crlf\|cycle}` | Show or set how received output is split into lines (receive newline) |
 | `/term.hex {on\|off\|toggle}`     | Toggle hex display of incoming bytes                                        |
 | `/term.info`              | Snapshot every `/term.*` toggle, and the bytes sent and received            |
-| `/term.json {compact\|indent\|color\|cycle}` | How JSON answers print: one line, indented, or indented and colored |
+| `/term.json_fmt`          | Show how JSON prints on screen: its highlighting and its indent             |
+| `/term.json_fmt.highlight {on\|off\|toggle}` | Highlight JSON on screen (shows only when color is on)       |
+| `/term.json_fmt.indent {0\|2\|4\|cycle}` | Spaces per level for JSON on screen; 0 is one line               |
 | `/term.eol.markers {on\|off\|toggle}` | Toggle visible `\r` `\n` markers in serial output                       |
 | `/term.line_no {on\|off\|toggle}` | Toggle line numbers in serial output (TUI only)                             |
 | `/term.log <text>`        | Append a line to the session log without echoing to screen                  |

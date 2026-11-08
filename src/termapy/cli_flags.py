@@ -830,6 +830,58 @@ def run_new(
     return path
 
 
+def run_quick(
+    target: str,
+    settings: list[str],
+    *,
+    usage_error: Callable[[str], NoReturn],
+    source: PortSource | None = None,
+) -> Path:
+    """Open ``termapy PORT [SETTING ...]``: the port's quick config, made or updated; return its path.
+
+    ``main()`` calls this for a positional that names no config, so a
+    config always wins the name.  The positional is a port when connecting
+    would find it now (``port_control.port_present``: a device name, a USB
+    serial number, a reserved port, a URL) or when a quick session opened
+    it before, so an unplugged adapter's config still opens.  A device name
+    is kept as the system spells it (``com3`` is ``COM3``), anything else
+    as typed.  The config is ``config.quick_config``'s; like ``--board``,
+    this does not exit on success, and its status line goes to stderr.
+    Anything else exits 1, naming the configs and ports it most likely
+    meant.
+
+    Args:
+        target: The positional, as typed.
+        settings: The words after it.
+        usage_error: Reports a bad setting and exits 2 (``parser.error``).
+        source: A substitute port list, as ``resolve_port`` takes it.
+
+    Returns:
+        The quick config's ``.cfg`` path.
+    """
+    from termapy import port_control
+    from termapy.config import config_names, quick_config, quick_config_path
+    from termapy.matching import closest, did_you_mean
+
+    present = port_control.present_ports(source=source)
+    port = next((name for name in present if port_control.same_port(name, target)), target)
+    if not port_control.port_present(port, source=source) and not quick_config_path(port).is_file():
+        suggestions = closest(target, config_names() + present)
+        print(
+            f"termapy: Unknown config or port: {target}{did_you_mean(suggestions)}", file=sys.stderr
+        )
+        sys.exit(1)
+    try:
+        path, verb = quick_config(port, " ".join(settings))
+    except ValueError as e:
+        usage_error(str(e))
+    except (RuntimeError, OSError) as e:
+        print(f"termapy: {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"termapy: {verb} {path}", file=sys.stderr)
+    return path
+
+
 def run_board(name: str, *, usage_error: Callable[[str], NoReturn]) -> Path:
     """Find or create the starter config ``--board BOARD`` names; return its path.
 

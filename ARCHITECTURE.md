@@ -1083,6 +1083,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_protocol.py                    | Tests for termapy.protocol - hex utilities, framing, matching, script parsing                                                                      |
 | test_protocol_word_fields.py        | Word-relative bit fields: `NAME:B.<bits>` binds to a register word, not to packet bytes                                                            |
 | test_python_versions.py             | The supported-Python list must agree everywhere it is written down                                                                                 |
+| test_quick_open.py                  | Quick open: `termapy PORT [SETTING ...]` opens the port's own config, made at first use and kept                                                   |
 | test_repl_cfg.py                    | Tests for the /cfg and /cfg.auto REPL commands                                                                                                     |
 | test_repl_coverage.py               | repl.py corners the engine tests miss -- covering suggest_command, edit_distance, ScriptCtx, directive dispatch paths, and script special commands |
 | test_request_response.py            | Tests for `termapy.request_response.request_response`                                                                                              |

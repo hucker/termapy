@@ -119,7 +119,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "config",
         nargs="?",
         default=None,
-        help="Path to config file (auto-detects single .cfg in termapy_cfg/)",
+        metavar="CONFIG|PORT",
+        help="A config by name or path (auto-detects a single .cfg in termapy_cfg/), "
+        "else a port: a device name (COM3, /dev/ttyUSB0), a USB serial number or "
+        "a URL, opened with its own quick config in your user folder",
+    )
+    parser.add_argument(
+        "settings",
+        nargs="*",
+        metavar="SETTING",
+        help="After a port, /port.connect's settings: baud, frame (8N1), "
+        "cr|lf|crlf, echo|noecho; saved with the port's quick config",
     )
     parser.add_argument(
         "--cfg-dir",
@@ -403,10 +413,37 @@ def _no_terminal_to_confirm(question: str) -> bool:
     return False
 
 
+def _resolve_port_positional(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    """Turn a positional that names a port into its quick config's path (``cli_flags.run_quick``).
+
+    A ``.cfg``, ``.run`` or ``.pro`` name, or one ``resolve_config`` finds,
+    is left as it is; a ``--demo`` launch ignores the positional, as it
+    always has, and ``--mcp`` finds the config it names by its own rule, in
+    the project's folder (``config_resolve.find_mcp_root``), and never opens
+    a port for one.  Settings are refused after anything but a port.
+    """
+    from termapy.folders import FOLDER_EXTS, PROTO, RUN
+
+    target = args.config
+    file_types = (".cfg", FOLDER_EXTS[RUN], FOLDER_EXTS[PROTO])
+    if target and not (args.demo or args.mcp) and Path(target).suffix.lower() not in file_types:
+        from termapy.config_resolve import resolve_config
+
+        if resolve_config(target) is None:
+            from termapy.cli_flags import run_quick
+
+            args.config = str(run_quick(target, args.settings, usage_error=parser.error))
+            return
+    if args.settings:
+        parser.error(f"settings follow a port, not a config: {' '.join(args.settings)}")
+
+
 def main() -> None:
     """Argparse + dispatch.  Print-and-exit flags run Textual-free."""
     parser = _build_parser()
-    args = parser.parse_args()
+    # Intermixed: a flag may sit between the positionals too
+    # (`termapy COM3 9600 --quiet 8N1`), which plain parse_args refuses.
+    args = parser.parse_intermixed_args()
 
     # The environment booleans are read once, at import (env_flags); a
     # value outside the vocabulary is refused here, by name, before any
@@ -475,6 +512,11 @@ def main() -> None:
         from termapy.cli_flags import run_board
 
         args.config = str(run_board(args.board, usage_error=parser.error))
+
+    # A positional that names no config names a port: `termapy COM3 9600 8N1`
+    # opens that port's quick config, made at first use and kept.  A config
+    # wins the name, as an ssh_config alias does; settings follow a port only.
+    _resolve_port_positional(args, parser)
 
     # Normalize positional arg by extension - infer intent.  This
     # matters for --run and --proto; done here so both TUI and CLI

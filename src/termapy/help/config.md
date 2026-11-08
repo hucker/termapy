@@ -17,6 +17,11 @@ The OS default location is `%APPDATA%\termapy` on Windows,
 `~/Library/Application Support/termapy` on macOS, and
 `~/.config/termapy` on Linux (respects `XDG_CONFIG_HOME`).
 
+A port's own config (`termapy COM3`, see
+[Quick open](getting-started.md#quick-open-just-a-port)) skips priority 3:
+it lives in the OS default unless `--cfg-dir` or `TERMAPY_CFG_DIR` names a
+folder, so opening a port inside a project adds nothing to it.
+
 ## Creating a new config
 
 When you create a new config (first run, or **Cfg → New**), termapy shows

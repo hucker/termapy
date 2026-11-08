@@ -364,26 +364,53 @@ def new_config(
         ValueError: ``baud`` is off the standard list without ``custom_baud``,
             or under 300 with it.
     """
+    cfg = default_cfg()
+    cfg["title"] = name
+    apply_open_settings(
+        cfg, port=port, baud=baud, custom_baud=custom_baud, mode=mode, eol=eol, echo=echo
+    )
+    cfg["serial"]["custom_baud"] = custom_baud
+    cfg["auto_connect"] = auto_connect
+    return cfg
+
+
+def apply_open_settings(
+    cfg: dict,
+    *,
+    port: str = "",
+    baud: int | None = None,
+    custom_baud: bool = False,
+    mode: tuple[str, int, float] | None = None,
+    eol: str | None = None,
+    echo: bool | None = None,
+) -> None:
+    """Lay ``/port.connect``'s settings over ``cfg``; one left ``None`` (or ``port`` ``""``) is kept.
+
+    A new config (``new_config``) and a quick session's next open
+    (``quick_config``) both write the settings here.  A baud rate given
+    sets ``custom_baud`` with it, so a standard rate after a custom one
+    clears it.
+
+    Raises:
+        ValueError: ``baud`` is off the standard list without ``custom_baud``,
+            or under 300 with it.
+    """
     if baud is not None:
         reason = check_baud(baud, custom=custom_baud, remedy="ask for it as custom")
         if reason:
             raise ValueError(f"Invalid baud rate: {baud} ({reason})")
-    cfg = default_cfg()
-    cfg["title"] = name
     serial_cfg = cfg["serial"]
     if port:
         serial_cfg["port"] = port
-    serial_cfg["custom_baud"] = custom_baud
     if baud is not None:
         serial_cfg["baud_rate"] = baud
+        serial_cfg["custom_baud"] = custom_baud
     if mode is not None:
         serial_cfg["parity"], serial_cfg["byte_size"], serial_cfg["stop_bits"] = mode
     if eol is not None:
         cfg["eol"] = eol
     if echo is not None:
         cfg["echo"] = echo
-    cfg["auto_connect"] = auto_connect
-    return cfg
 
 
 def new_config_from_args(name: str, settings: str) -> dict:
@@ -428,6 +455,90 @@ def new_config_from_args(name: str, settings: str) -> dict:
         echo=echo,
         auto_connect=True,
     )
+
+
+QUICK_PREFIX = "quick-"
+
+
+def quick_cfg_root() -> Path:
+    """Where a quick session's config lives: the OS folder, unless a config directory was named.
+
+    ``--cfg-dir`` and ``TERMAPY_CFG_DIR`` win as in ``cfg_dir``; a
+    ``./termapy_cfg`` does not, so typing a port inside a project never adds
+    a config to it (registry ``quick-open-outside-project``).  A read:
+    nothing is created here.
+    """
+    if CFG_DIR is not None or os.environ.get("TERMAPY_CFG_DIR"):
+        return cfg_dir()
+    return _os_default_cfg_dir()
+
+
+def quick_config_path(port: str) -> Path:
+    """The ``.cfg`` a quick session on ``port`` uses: ``quick-`` and the port, file-name safe.
+
+    Every run of characters a file name may not hold becomes one dash:
+    ``COM3`` is ``quick-COM3``, ``socket://localhost:7000`` is
+    ``quick-socket-localhost-7000`` and ``/dev/ttyUSB0`` is
+    ``quick-dev-ttyUSB0``.
+    """
+    name = QUICK_PREFIX + re.sub(r"[^A-Za-z0-9._]+", "-", port).strip("-.")
+    return quick_cfg_root() / name / f"{name}.cfg"
+
+
+def quick_config(port: str, settings: str) -> tuple[Path, str]:
+    """The config ``termapy PORT [SETTING ...]`` opens, and what became of it: ``Created``, ``Updated`` or ``Using``.
+
+    One config per port (``quick_config_path``), so sessions on two ports
+    share nothing.  The first open creates it through ``new_config`` and
+    ``create_config``, connecting when it loads.  A later open with
+    settings lays them over it and saves it, so they are what the port
+    opens with next time; one without settings leaves it as it is.  The
+    settings are ``/port.connect``'s, read by its reader.
+
+    Args:
+        port: The port as the config should name it.
+        settings: The words after the port.
+
+    Returns:
+        The ``.cfg`` path and the verb for the status line.
+
+    Raises:
+        ValueError: A word is not one of ``/port.connect``'s settings, or the
+            baud rate is refused.
+        RuntimeError, OSError: As ``create_config`` raises them.
+    """
+    from termapy.port_control import parse_open_args
+
+    named, baud, mode, eol, echo, custom, error = parse_open_args(settings)
+    if error:
+        raise ValueError(error)
+    if named is not None:
+        raise ValueError(
+            f"Unknown setting: {named} (the settings are baud, frame, cr|lf|crlf, "
+            f"echo|noecho and custom=true)"
+        )
+    path = quick_config_path(port)
+    if not path.is_file():
+        cfg = new_config(
+            path.stem,
+            port=port,
+            baud=baud,
+            custom_baud=custom,
+            mode=mode,
+            eol=eol,
+            echo=echo,
+            auto_connect=True,
+        )
+        return create_config(path, cfg), "Created"
+    if not settings.split():
+        return path, "Using"
+    # The file as written, not load_config's view: that one has its
+    # $(env.X) values expanded, which saving would bake into the file.
+    cfg = json.loads(path.read_text(encoding="utf-8-sig"))
+    cfg.setdefault("serial", {})
+    apply_open_settings(cfg, baud=baud, custom_baud=custom, mode=mode, eol=eol, echo=echo)
+    write_config_file(path, cfg)
+    return path, "Updated"
 
 
 class ConfigExistsError(ValueError):

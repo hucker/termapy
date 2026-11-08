@@ -294,6 +294,7 @@ existed is not listed: end that one from Task Manager or `kill`, once.
 | `--demo`          | Set up (if needed) and start the demo device config.          |
 | `--board BOARD`   | Start a dev board's starter config, creating it on first use from the attached board (see [Dev boards](boards.md)). |
 | `--new NAME PORT [SETTING ...]` | Create config NAME for PORT and start it connected (see [Quick setup](getting-started.md#quick-setup)). |
+| `PORT [SETTING ...]` | Not a flag: a port where the config goes opens the port with its own config, kept in your user folder (see [Quick open](getting-started.md#quick-open-just-a-port)). |
 | `--vt100`         | Start in VT100 passthrough mode (see [VT100 mode](vt100.md)). |
 | `--no-color`      | Plain output without ANSI color (implied by `-e`).            |
 | `--cfg-dir PATH`  | Override the default config directory for this run.           |

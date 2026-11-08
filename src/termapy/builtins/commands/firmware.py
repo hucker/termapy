@@ -27,7 +27,7 @@ from termapy.firmware import (
 from termapy.folder_ops import write_destination
 from termapy.folders import FIRMWARE
 from termapy.help_dynamic import compose
-from termapy.plugins import CapabilitySet, CmdResult, Column, Command
+from termapy.plugins import CapabilitySet, CmdResult, Column, Command, TextLine
 from termapy.plugins.params import ParamSpec
 from termapy.scripting import format_size
 
@@ -105,9 +105,7 @@ def _target_or_fail(ctx: PluginContext) -> Target | CmdResult:
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """``/firmware``: what ships, one row per target."""
-    records = [_record(target) for target in TARGETS]
-    names = "\n".join(f"{record['name']} {record['language']}" for record in records)
-    return CmdResult.table("firmware", "target", _COLUMNS, records, value=names)
+    return CmdResult.table("firmware", "target", _COLUMNS, [_record(target) for target in TARGETS])
 
 
 def _handler_copy(ctx: PluginContext, args: str) -> CmdResult:
@@ -140,7 +138,7 @@ def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
-    """``/firmware.dump <name> {file}``: print one shipped file; its text is the value."""
+    """``/firmware.dump <name> {file}``: one shipped file as a page; its text is the value, its facts the data."""
     target = _target_or_fail(ctx)
     if isinstance(target, CmdResult):
         return target
@@ -153,16 +151,15 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
         text = source_text(target, name)
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
-    if not ctx.wants_data:
-        for line in text.splitlines():
-            ctx.io.output(line)
     facts = {
         "name": target.name,
         "language": target.language,
         "file": name,
         "bytes": len(text.encode("utf-8")),
     }
-    return CmdResult.ok(value=text, data=facts)
+    # The file is the answer: a record page dispatch prints at quiet and up,
+    # and never beside the data (registry record-one-format).
+    return CmdResult.record(facts, [TextLine(line) for line in text.splitlines()], value=text)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

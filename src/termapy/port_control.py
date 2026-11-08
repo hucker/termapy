@@ -448,10 +448,11 @@ def list_port_records(*, source: PortSource | None = None) -> list[dict]:
 
     The structured twin of :func:`list_ports`: same gather (fast, enriched
     -- no port is opened), but each port becomes the fixed-schema dict of
-    ``port_format.facts_to_json_record`` instead of a table row.  Serves
-    ``/port.list`` under ``ctx.wants_data`` and any other caller that wants
-    machine-readable port facts; ``--ports --json`` uses the same record
-    builder, so shell and agent consumers see identical shapes.
+    ``port_format.facts_to_json_record`` instead of a table row.  The
+    records ``/port.list`` answers with (its table is
+    ``port_format.PORT_TABLE_COLUMNS`` over them) and any other caller that
+    wants machine-readable port facts; ``--ports --json`` uses the same
+    record builder, so shell and agent consumers see identical shapes.
 
     Args:
         source: Substitute port list instead of enumerating.  See

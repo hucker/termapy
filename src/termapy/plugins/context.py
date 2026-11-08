@@ -216,11 +216,12 @@ class PluginContext:
     # True when the consumer of this dispatch wants machine-readable
     # structure (``CmdResult.data``) rather than rendered prose: the MCP
     # host sets it for every call; the universal ``--json`` flag sets it
-    # for one dispatch (any frontend).  Handlers producing LARGE
-    # listings should branch on it and build either the prose or the
-    # ``data`` records -- not both -- so neither audience pays for the
-    # other's rendering.  Handlers that ignore it keep working: their
-    # prose reaches structured consumers via ``output_lines``.
+    # for one dispatch (any frontend).  Read by dispatch alone (registry
+    # plugins-never-read-wants-data): a handler returns a view
+    # (``CmdResult.table`` / ``.record``) and dispatch prints it for a
+    # person or hands ``data`` on, so neither audience pays for the
+    # other's rendering.  A handler's plain ``ctx.io`` lines reach a
+    # structured consumer via ``output_lines``, as progress should.
     wants_data: bool = False
 
     # ── Internal storage (not part of the plugin-author API) ─────────

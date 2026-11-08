@@ -124,6 +124,11 @@ def _texts(output) -> list[str]:
     return [text for text, _ in output]
 
 
+def _part_names(result) -> list[str]:
+    """The part names a library listing answers with: its records' ``device`` keys, in table order."""
+    return [record["device"] for record in result.data]
+
+
 # ── Auto-load ───────────────────────────────────────────────────────────────
 
 
@@ -1558,25 +1563,34 @@ class TestSymRoot:
 
 
 class TestSymSearch:
-    def test_prose_branch(self, sym_env):
+    def test_the_matches_are_a_table(self, sym_env):
+        """list-one-format: one row per match in address order, every fact of a symbol line a column, the value the count."""
         # Arrange
         engine, config_path, output = sym_env
         _load(engine, config_path)
+        output.clear()
 
         # Act
         result = engine.dispatch("sym.search g*")
+        texts = _texts(output)
 
         # Assert
-        assert result.value == "gTemp", "first match's name"
-        assert result.data is None, "prose branch builds no records"
-        lines = [text for text in _texts(output) if text.startswith("  0x0000100")]
-        assert lines == [
-            "  0x00001000  gTemp  [bss 2 bytes sensor.c]",
-            "  0x00001002  gPressure  [bss 4 bytes sensor.c]",
-            "  0x00001008  gFlags  [data 4 bytes main.c]",
-        ], "one line per match, address order"
+        assert result.value == 3, "the match count"
+        assert [rec["name"] for rec in result.data] == ["gTemp", "gPressure", "gFlags"], (
+            "records in address order, whoever asked"
+        )
+        assert texts[0] == "Symbols matching g* - 3 symbols", "the table's title"
+        assert texts[1].split() == ["ADDRESS", "NAME", "SECTION", "SIZE", "FILE"], (
+            "the line's facts, a column each; NOTE hides when no match has one"
+        )
+        assert [line.split()[:5] for line in texts[3:]] == [
+            ["0x00001000", "gTemp", "bss", "2", "sensor.c"],
+            ["0x00001002", "gPressure", "bss", "4", "sensor.c"],
+            ["0x00001008", "gFlags", "data", "4", "main.c"],
+        ], "one row per match"
 
-    def test_data_branch(self, sym_env):
+    def test_a_data_caller_gets_the_same_records(self, sym_env):
+        """A caller that wants data gets the records alone; dispatch prints no table for it."""
         # Arrange
         engine, config_path, output = sym_env
         _load(engine, config_path)
@@ -1590,27 +1604,37 @@ class TestSymSearch:
             engine.ctx.wants_data = False
 
         # Assert
-        assert result.value == "gTemp", "value is unchanged by the data branch"
-        assert result.data is not None and [rec["name"] for rec in result.data] == [
-            "gTemp",
-            "gPressure",
-            "gFlags",
-        ], "records in address order"
-        assert len(output) == before, "the data branch prints nothing"
+        assert [rec["name"] for rec in result.data] == ["gTemp", "gPressure", "gFlags"]
+        assert len(output) == before, "nothing printed for a data caller"
 
-    def test_no_match(self, sym_env):
+    def test_no_match_is_the_empty_table(self, sym_env):
+        """No match succeeds with no records, a count of none and the table's own empty line."""
         # Arrange
         engine, config_path, output = sym_env
         _load(engine, config_path)
+        output.clear()
 
         # Act
         result = engine.dispatch("sym.search zzz")
 
         # Assert
         assert result.success, result.error
-        assert result.value == "", "empty value = nothing matched"
-        assert result.data == [], "empty record list, not None"
-        assert ("No symbols matching 'zzz'", "yellow") in output
+        assert (result.value, result.data) == (0, []), "none matched"
+        assert _texts(output) == ["Symbols matching zzz - empty"]
+
+    def test_the_note_is_the_one_phrasing_of_what_a_symbol_stands_for(self):
+        """symbol_note feeds the NOTE column and a symbol line's tail alike: alias, pointer target, value, or nothing."""
+        from termapy.symbols.format import symbol_note
+
+        base = {"alias_of": "", "value": None, "pointee": ""}
+        assert symbol_note({**base, "alias_of": "PORTC_DIR"}) == "= PORTC_DIR", (
+            "an alias names its register"
+        )
+        assert symbol_note({**base, "value": 4}) == "= 4", "a constant shows its value"
+        assert symbol_note({**base, "value": 0x50000000, "pointee": "u32"}) == "-> 0x50000000", (
+            "a pointer shows where it points"
+        )
+        assert symbol_note(base) == "", "a plain symbol has no note"
 
     def test_no_table(self, sym_env):
         # Arrange
@@ -1728,7 +1752,8 @@ class TestValueContract:
             "sym.load",
         ],
     )
-    def test_every_command_returns_a_str_value(self, sym_env, line):
+    def test_every_command_returns_a_scalar_value(self, sym_env, line):
+        """value-typed: every /sym command answers a scalar, text or a count, that $(X) <- spells for a variable."""
         # Arrange
         engine, config_path, _ = sym_env
         _load(engine, config_path)
@@ -1738,7 +1763,7 @@ class TestValueContract:
 
         # Assert
         assert result.success, result.error
-        assert isinstance(result.value, str), f"{line}: value must be a str for $(X) <- capture"
+        assert isinstance(result.value, (str, int)), f"{line}: value must be a scalar"
 
 
 # ── /dev.list ───────────────────────────────────────────────────────────────
@@ -1759,7 +1784,7 @@ class TestDevList:
 
         # Assert
         assert result.success, result.error
-        assert result.value == "", "nothing loaded, nothing named"
+        assert result.value == 0, "nothing loaded, none counted"
         assert _texts(output) == ["devices - empty"], "the table's own empty answer"
 
     def test_lists_a_loaded_device_with_its_layer(self, sym_env):
@@ -1773,7 +1798,8 @@ class TestDevList:
 
         # Assert
         assert result.success, result.error
-        assert result.value == "part", "the value is the device names, for capture"
+        assert [record["device"] for record in result.data] == ["part"], "the device is a record"
+        assert result.value == 1, "the value is the count, for capture"
 
     def test_a_relocatable_part_shows_its_placement(self, sym_env):
         """Placement is what distinguishes two copies of one chip."""
@@ -1898,14 +1924,15 @@ class TestDevRegs:
         return engine, output
 
     def test_lists_every_register_in_file_order(self, sym_env):
-        """The value is the register names, for capture; the title names the device."""
+        """The records are the registers in file order and the value their count; the title names the device."""
         # Arrange
         engine, output = self._engine(sym_env)
         # Act
         result = engine.dispatch("dev.regs hazard")
         # Assert
         assert result.success, result.error
-        assert result.value.splitlines() == ["CTRL", "DATA", "INTFLAG", "UART_DATA"]
+        assert [r["name"] for r in result.data] == ["CTRL", "DATA", "INTFLAG", "UART_DATA"]
+        assert result.value == 4, "the value counts the registers"
         assert _texts(output)[0] == "hazard - 4 registers", "the shared table's title line"
 
     def test_flags_show_the_hazards(self, sym_env):
@@ -1943,9 +1970,11 @@ class TestDevRegs:
         by_glob = engine.dispatch("dev.regs hazard *DATA")
         nothing = engine.dispatch("dev.regs hazard zzz*")
         # Assert
-        assert by_peripheral.value == "UART_DATA", "the peripheral picked its block"
-        assert by_glob.value.splitlines() == ["DATA", "UART_DATA"], "an anchored glob"
-        assert nothing.success and nothing.value == "", "no match is an empty answer"
+        assert [r["name"] for r in by_peripheral.data] == ["UART_DATA"], (
+            "the peripheral picked its block"
+        )
+        assert [r["name"] for r in by_glob.data] == ["DATA", "UART_DATA"], "an anchored glob"
+        assert nothing.success and nothing.value == 0, "no match is an empty answer"
 
     def test_data_carries_the_safety_facts_and_fields(self, sym_env):
         """list-one-format: the records hold the safety trio, reset and fields for an agent."""
@@ -2011,7 +2040,7 @@ class TestDevLib:
 
         # Assert
         assert result.success, result.error
-        assert result.value == "", "nothing available, nothing named"
+        assert result.value == 0, "nothing available, none counted"
 
     def test_lists_parts_with_their_category(self, sym_env, tmp_path):
         # Arrange
@@ -2023,7 +2052,8 @@ class TestDevLib:
         result = engine.dispatch("dev.lib")
 
         # Assert
-        assert result.value == "somepart", "the value is the part names"
+        assert _part_names(result) == ["somepart"], "the part is a record"
+        assert result.value == 1, "the value is the count"
         assert "microchip/mcu" in "\n".join(_texts(output)), "category is shown"
 
     def test_listing_does_not_load_anything(self, sym_env, tmp_path):
@@ -2037,7 +2067,7 @@ class TestDevLib:
         engine.dispatch("dev.lib")
 
         # Assert
-        assert engine.dispatch("dev.list").value == "", "nothing became installed"
+        assert engine.dispatch("dev.list").value == 0, "nothing became installed"
         assert engine.dispatch("sym R").success is False, "its registers do not resolve"
 
     def test_a_substring_filters_by_name_or_category(self, sym_env, tmp_path):
@@ -2051,8 +2081,8 @@ class TestDevLib:
         by_category = engine.dispatch("dev.lib lattice")
 
         # Assert
-        assert by_name.value == "alpha", "matched on the part name"
-        assert by_category.value == "beta", "matched on the vendor folder"
+        assert _part_names(by_name) == ["alpha"], "matched on the part name"
+        assert _part_names(by_category) == ["beta"], "matched on the vendor folder"
 
     def test_a_glob_filters(self, sym_env, tmp_path):
         # Arrange
@@ -2065,7 +2095,7 @@ class TestDevLib:
         result = engine.dispatch("dev.lib pic32cm*")
 
         # Assert
-        assert result.value.splitlines() == ["pic32cm1216", "pic32cm2532"], (
+        assert _part_names(result) == ["pic32cm1216", "pic32cm2532"], (
             "the wildcard matched both families and excluded the rest"
         )
 
@@ -2081,7 +2111,7 @@ class TestDevLib:
 
         # Assert
         assert result.success, result.error
-        assert result.value == "", "no part matched"
+        assert result.value == 0, "no part matched"
         assert _texts(output) == ["library 'zzz*' - empty"], "the title names the filter"
 
     def test_a_loaded_part_is_marked(self, sym_env, config_dev_part, tmp_path):
@@ -2340,8 +2370,8 @@ class TestImportWritesToLibrary:
 
         # Assert
         assert result.success, result.error
-        assert engine.dispatch("dev.list").value == "", "nothing was added here"
-        assert engine.dispatch("dev.lib").value == "atsample1", "but it is available"
+        assert engine.dispatch("dev.list").value == 0, "nothing was added here"
+        assert _part_names(engine.dispatch("dev.lib")) == ["atsample1"], "but it is available"
 
 
 # -- "not found" says where it looked ----------------------------------------
@@ -2423,7 +2453,7 @@ class TestLibraryLayersCommands:
         result = engine.dispatch("dev.lib")
 
         # Assert
-        assert result.value.splitlines() == ["localpart", "sharedpart"], "both offered"
+        assert _part_names(result) == ["localpart", "sharedpart"], "both offered"
         text = "\n".join(_texts(output))
         assert "global" in text and "rig" in text, "each part says which library holds it"
 

@@ -115,9 +115,7 @@ def _board_or_fail(ctx: PluginContext) -> Board | CmdResult:
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """``/board``: the boards termapy ships starters for, and which is plugged in."""
-    records = [_record(board) for board in BOARDS]
-    names = "\n".join(record["name"] for record in records)
-    return CmdResult.table("boards", "board", _COLUMNS, records, value=names)
+    return CmdResult.table("boards", "board", _COLUMNS, [_record(board) for board in BOARDS])
 
 
 def _handler_new(ctx: PluginContext, args: str) -> CmdResult:

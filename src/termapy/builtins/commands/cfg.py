@@ -196,8 +196,8 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """List the configs newest first: the Cfg picker's rows, ``*`` on the loaded one.
 
-    ``value`` is the config names (what ``/cfg.load`` takes); each data
-    record is the file's ``file_record`` plus ``file``, ``active`` and
+    Each data record is the file's ``file_record`` plus ``name`` (what
+    ``/cfg.load`` takes), ``file``, ``active`` and
     ``config.config_summary``'s port, baud and title.
 
     Args:
@@ -227,8 +227,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         Column("BAUD", lambda record: str(record["baud_rate"] or ""), right=True),
         Column("TITLE", lambda record: record["title"]),
     )
-    names = "\n".join(path.stem for path in paths)
-    return CmdResult.table(f"{root.name}/", "config", columns, records, value=names)
+    return CmdResult.table(f"{root.name}/", "config", columns, records)
 
 
 # ── /cfg.loaded handler ───────────────────────────────────────────────────

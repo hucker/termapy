@@ -201,7 +201,7 @@ class TestTheList:
         # Assert
         names = [record["name"] for record in result.data]
         assert names == [idiom.name for idiom in IDIOMS]
-        assert result.value == "\n".join(names), "a script reads the names"
+        assert result.value == len(IDIOMS), "a script counts them; the names are the records"
 
     def test_a_row_opens_its_page(self, cli):
         """links-are-data: each row's name runs its page, since reading help changes nothing."""

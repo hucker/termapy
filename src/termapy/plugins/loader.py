@@ -427,8 +427,7 @@ def _make_interior_handler(full_name: str, children: list[str], intro: str = "")
             ),
             Column("DESCRIPTION", lambda record: record["help"]),
         )
-        names = "\n".join(record["command"] for record in records)
-        return CmdResult.table(prefix + full_name, "subcommand", columns, records, value=names)
+        return CmdResult.table(prefix + full_name, "subcommand", columns, records)
 
     # The /help.dev text of each command built here (registry handler-docstring).
     _handler.__doc__ = f"Bare {full_name} lists its subcommands; with arguments, the first token names the subcommand to run."

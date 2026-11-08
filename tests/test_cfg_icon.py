@@ -536,10 +536,10 @@ class TestList:
 
         # Assert -- exactly the one termapy launcher; firefox excluded.
         assert result.success, "list succeeded"
-        lines = result.value.splitlines()
-        assert len(lines) == 1, f"only termapy-* matches, got {lines!r}"
-        assert "termapy-demo.desktop" in lines[0], "list contains the created launcher"
-        assert "firefox" not in result.value.lower(), "non-termapy .desktop filtered out"
+        names = [record["name"] for record in result.data]
+        assert result.value == len(names) == 1, f"only termapy-* matches, got {names!r}"
+        assert "termapy-demo.desktop" in names[0], "list contains the created launcher"
+        assert "firefox" not in str(result.data).lower(), "non-termapy .desktop filtered out"
 
     def test_macos_lists_bundles_by_bundle_id(self, cfg_env, monkeypatch):
         """Bundles match by termapy's bundle id, so a foreign .app is not listed."""
@@ -562,10 +562,10 @@ class TestList:
 
         # Assert
         assert result.success, "list succeeded"
-        lines = result.value.splitlines()
-        assert len(lines) == 1, f"only the termapy bundle matches, got {lines!r}"
-        assert "Demo Device.app" in lines[0], "list contains the termapy bundle"
-        assert "Other.app" not in result.value, "non-termapy bundle filtered out"
+        names = [record["name"] for record in result.data]
+        assert result.value == len(names) == 1, f"only the termapy bundle matches, got {names!r}"
+        assert "Demo Device.app" in names[0], "list contains the termapy bundle"
+        assert "Other.app" not in str(result.data), "non-termapy bundle filtered out"
 
     def test_windows_filters_by_args_containing_termapy(
         self,
@@ -608,13 +608,13 @@ class TestList:
 
         # Assert
         assert result.success, "list succeeded"
-        lines = result.value.splitlines()
-        assert len(lines) == 1, f"only the termapy .lnk matches, got {lines!r}"
-        assert "Demo_Device.lnk" in lines[0], "list contains the termapy launcher"
-        assert "notepad" not in result.value.lower(), "non-termapy .lnk filtered out"
+        names = [record["name"] for record in result.data]
+        assert result.value == len(names) == 1, f"only the termapy .lnk matches, got {names!r}"
+        assert "Demo_Device.lnk" in names[0], "list contains the termapy launcher"
+        assert "notepad" not in str(result.data).lower(), "non-termapy .lnk filtered out"
 
     def test_empty_when_none_found(self, cfg_env, monkeypatch):
-        """No launchers is a success: an empty value, no records, and a visible empty table naming where it looked."""
+        """No launchers is a success: a count of none, no records, and a visible empty table naming where it looked."""
         # Arrange -- linux but no .desktop files created.
         monkeypatch.setattr(_cfg_icon, "_PLATFORM", "linux")
         eng, _, _, output = cfg_env
@@ -624,7 +624,7 @@ class TestList:
 
         # Assert
         assert result.success, "list returns ok even when empty"
-        assert (result.value, result.data) == ("", []), "empty value and no records"
+        assert (result.value, result.data) == (0, []), "a count of none and no records"
         joined = "".join(str(t) for t in output)
         assert "termapy launchers in ~/.local/share/applications/ - empty" in joined, (
             "user-visible empty table says where it looked"

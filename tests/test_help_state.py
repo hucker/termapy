@@ -187,7 +187,7 @@ class TestThePage:
         # Arrange
         records = [{"name": f"row{i}"} for i in range(25)]
         columns = (Column("NAME", lambda record: record["name"]),)
-        _tag(cli, _answering(CmdResult.table("things", "thing", columns, records, value="")))
+        _tag(cli, _answering(CmdResult.table("things", "thing", columns, records)))
 
         # Act
         page = _page(cli, capsys, "/help thing")
@@ -201,17 +201,18 @@ class TestThePage:
 
     @pytest.mark.parametrize(
         "result",
-        [
-            CmdResult.ok(value=""),
-            CmdResult.ok(value=None),
-            CmdResult.table("things", "thing", (Column("N", str),), [], value=""),
-        ],
-        ids=["empty", "none", "no-rows"],
+        [CmdResult.ok(value=""), CmdResult.ok(value=None)],
+        ids=["empty", "none"],
     )
     def test_nothing_to_report_says_so(self, cli, capsys, result):
         """An empty answer reads (none), so the section never stands empty."""
         _tag(cli, _answering(result))
         assert _state_lines(_page(cli, capsys, "/help thing")) == ["  (none)"]
+
+    def test_an_empty_table_is_its_own_empty_line(self, cli, capsys):
+        """table-value-is-count: an empty list's value is 0, so the section shows the table's own empty line, never that."""
+        _tag(cli, _answering(CmdResult.table("things", "thing", (Column("N", str),), [])))
+        assert _state_lines(_page(cli, capsys, "/help thing")) == ["  things - empty"]
 
     def test_the_gates_answer_is_the_state(self, cli, capsys):
         """A closed port's signal line shows the gate's own words: not connected is the state."""
@@ -301,7 +302,7 @@ class TestTheRead:
     def test_a_table_keeps_its_view(self, cli):
         """Dispatch strips a view on its way out; a read keeps it, because the page renders it."""
         columns = (Column("NAME", lambda record: record["name"]),)
-        answer = CmdResult.table("things", "thing", columns, [{"name": "a"}], value="a")
+        answer = CmdResult.table("things", "thing", columns, [{"name": "a"}])
         _tag(cli, _answering(answer))
         assert cli.repl.read_state("thing").view is not None, "the page needs the rows"
 

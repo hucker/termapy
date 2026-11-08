@@ -6,11 +6,12 @@ from termapy.repl import ReplEngine
 
 
 def _names(line: str) -> list[str]:
-    """The algorithm names ``line`` answers with, through the real dispatch."""
+    """The algorithm names ``line`` answers with (its records), through the real dispatch."""
     engine = ReplEngine({}, "", lambda text, color=None: None)
     result = engine.dispatch(line)
     assert result.success, result.error
-    return result.value.splitlines() if result.value else []
+    assert result.value == len(result.data), "the value counts the records"
+    return [record["name"] for record in result.data]
 
 
 def test_plain_text_is_contained():

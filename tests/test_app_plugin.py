@@ -195,7 +195,8 @@ class TestAppList:
         assert [column.title for column in result.view.columns] == ["NAME", "SIZE", "UPDATED"], (
             "no FOLDER column when there is one folder"
         )
-        assert result.value == "state.json", "the value is the names, as in every list"
+        assert result.value == len(result.data) == 1, "the value is the row count, as in every list"
+        assert result.data[0]["name"] == "state.json", "the names are in the records"
         actual_folders = [record["folder"] for record in result.data]
         assert actual_folders == [str(same)], (
             "the JSON says where the file is on every platform, not only where the column shows"

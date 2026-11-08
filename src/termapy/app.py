@@ -565,6 +565,10 @@ class SerialTerminal(TerminalHost, App):
         # newest _LINK_LIMIT kept, so a long session's table stays bounded.
         self._links: OrderedDict[int, Link] = OrderedDict()
         self._next_link_id = 0
+        # The output pane's row width, held here for the dispatch workers
+        # (LinkLog.Width on every resize): a table is fitted to it (registry
+        # table-fits-the-frontend).  None until the first layout.
+        self._output_width: int | None = None
         self._suggester = CommandSuggester(complete_file=self.repl.complete_file_arg)
         self._cached_commands: list[str] = []
         self._popup_mode: str = "commands"
@@ -1220,6 +1224,7 @@ class SerialTerminal(TerminalHost, App):
         ctx.io._write = self._status
         ctx.io._write_markup = lambda markup: self._write_output_markup(markup, log=True)
         ctx.io._write_segments = self._write_link_segments
+        ctx.io.width = lambda: self._output_width
         ctx.io.log = self._log_line
         ctx.serial.wait_for_data = self._wait_for_data
         ctx.io.status_bar = self._set_status_bar
@@ -3532,6 +3537,10 @@ class SerialTerminal(TerminalHost, App):
             inp.value = value
             inp.action_end()
             event.prevent_default()
+
+    def on_link_log_width(self, message: LinkLog.Width) -> None:
+        """Hold the output pane's row width for the dispatch workers (registry table-fits-the-frontend)."""
+        self._output_width = message.columns
 
     def on_selectable_rich_log_selection_dismissed(
         self, message: SelectableRichLog.SelectionDismissed

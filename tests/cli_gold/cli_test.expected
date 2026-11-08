@@ -60,7 +60,7 @@ demo> /var BAUD
 demo> /var.clear
   Cleared 3 variable(s).
 demo> /var DEVICE
-    $(DEVICE) - not defined
+  Error: Unknown variable: $(DEVICE)
 demo> /print $(CFG.FIRMWAR_DIR)
   Unknown variable: $(CFG.FIRMWAR_DIR) -- did you mean CFG.FIRMWARE_DIR?
   $(CFG.FIRMWAR_DIR)
@@ -644,8 +644,11 @@ demo> /sym CONSOLE
 demo> /sym CONSOLE_MODE
     0xBF806000  CONSOLE_MODE  [sfr 4 bytes demo_uart]  = U1_MODE
 demo> /sym.search CONSOLE_*
-    0xBF806000  CONSOLE_MODE  [sfr 4 bytes demo_uart]  = U1_MODE
-    0xBF806010  CONSOLE_STA  [sfr 4 bytes demo_uart]  = U1_STA
+  Symbols matching CONSOLE_* - 2 symbols
+  ADDRESS     NAME          SECTION  SIZE  FILE       NOTE
+  -- -- -- -- -- --
+  0xBF806000  CONSOLE_MODE  sfr         4  demo_uart  = U1_MODE
+  0xBF806010  CONSOLE_STA   sfr         4  demo_uart  = U1_STA
 demo> /mem.read CONSOLE_MODE.ON
   CONSOLE_MODE.ON = 1
 demo> /sym tick
@@ -657,15 +660,21 @@ demo> /sym U1MODE.ON
 demo> /sym nosuch
   Error: Unknown symbol: nosuch
 demo> /sym.search g*
-    0x00001000  gTemp  [bss 2 bytes sensor.c]
-    0x00001002  gPressure  [bss 4 bytes sensor.c]
-    0x00001008  gFlags  [data 4 bytes main.c]
+  Symbols matching g* - 3 symbols
+  ADDRESS     NAME       SECTION  SIZE  FILE
+  -- -- -- -- --
+  0x00001000  gTemp      bss         2  sensor.c
+  0x00001002  gPressure  bss         4  sensor.c
+  0x00001008  gFlags     data        4  main.c
 demo> /sym.search mon
-    0x00002200  MonGpio  [code 776 bytes mon.c]
+  Symbols matching mon - 1 symbol
+  ADDRESS     NAME     SECTION  SIZE  FILE
+  -- -- -- -- --
+  0x00002200  MonGpio  code      776  mon.c
 demo> /sym.search ^Mon
-  No symbols matching '^Mon'
+  Symbols matching ^Mon - empty
 demo> /sym.search zzz
-  No symbols matching 'zzz'
+  Symbols matching zzz - empty
 demo> /sym.import nosuch.map
   Error: Build file not found: nosuch.map (a relative path is measured from the demo config folder)
 demo> /dev.import nosuch.svd
@@ -1795,7 +1804,7 @@ demo> /print hello enveloped
 demo> /var.set GOLD 42
   {"cmd": "/var.set GOLD 42", "success": true, "error": "", "value": "42", "data": null, "output_lines": ["  $(GOLD) = 42"], "elapsed_s": 0}
 demo> /var GOLD
-  {"cmd": "/var GOLD", "success": true, "error": "", "value": "42", "data": null, "output_lines": [], "elapsed_s": 0}
+  {"cmd": "/var GOLD", "success": true, "error": "", "value": "42", "data": {"name": "GOLD", "kind": "user", "value": "42"}, "output_lines": [], "elapsed_s": 0}
 {"cmd": "AT"}
   {"cmd": "AT", "success": true, "error": "", "value": "OK", "data": null, "output_lines": [], "elapsed_s": 0}
 {"cmd": "AT+PROD-ID"}
@@ -2194,7 +2203,7 @@ demo> /cfg.load demo
 Connected: DEMO
   Loaded config: demo
   normal
-    $(GOLD_LOAD_VAR) - not defined
+  Error: Unknown variable: $(GOLD_LOAD_VAR)
   Environment snapshot - empty
   1
   === section: rename and delete need a person ===

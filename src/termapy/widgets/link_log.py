@@ -17,6 +17,7 @@ from typing import Any
 from rich.style import Style
 from rich.text import Span, Text
 from textual import events
+from textual.message import Message
 
 from termapy.widgets.selectable_log import SelectableRichLog
 
@@ -65,10 +66,35 @@ class LinkLog(SelectableRichLog):
         **kwargs: Passed to ``RichLog``.
     """
 
+    class Width(Message):
+        """The pane's row width changed: how many columns a table may take.
+
+        Posted on every resize, so the app can hold the width for the
+        dispatch workers, which must not read a widget (registry
+        ``commands-off-main``).  ``Resize`` itself does not bubble.
+
+        Attributes:
+            columns: The usable width in cells, the scrollbar's gutter
+                reserved.
+        """
+
+        def __init__(self, columns: int) -> None:
+            super().__init__()
+            self.columns = columns
+
     def __init__(self, *, describe: Callable[[int], Text] | None = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._describe = describe
         self._shown: Text | None = None
+
+    def on_resize(self, event: events.Resize) -> None:
+        """Tell the app the width a table row may take now, after RichLog's own resize work."""
+        super().on_resize(event)
+        # content_size includes the vertical scrollbar's gutter; reserve it
+        # whether or not the scrollbar shows (as the port picker does).
+        width = self.content_size.width - self.styles.scrollbar_size_vertical
+        if width > 0:
+            self.post_message(self.Width(width))
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
         """Show what the link under the pointer does, or nothing off a link."""

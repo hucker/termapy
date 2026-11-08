@@ -900,8 +900,11 @@ def _build_server(host: MCPHost) -> Any:
                 parameter.
 
         Returns:
-            JSON-able dict with ``cmd``, ``success``, ``error``, ``value``,
-            ``elapsed_s``, ``output_lines``, ``captured_artifacts``.
+            JSON-able dict with ``cmd``, ``success``, ``error``, ``value``
+            (one scalar in its own type: a count is a number, a switch a
+            boolean), ``data`` (the structured answer, or null),
+            ``elapsed_s``, ``output_lines``, ``captured_artifacts`` and
+            ``async_events``.
         """
         return await host.run_command_async(command, output, timeout_s, confirm=confirm)
 

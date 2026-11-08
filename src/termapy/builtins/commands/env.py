@@ -114,7 +114,6 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         "variable",
         _ENV_COLUMNS,
         records,
-        value="\n".join(f"{name}={env[name]}" for name in names),
         data={name: env[name] for name in names},
     )
 

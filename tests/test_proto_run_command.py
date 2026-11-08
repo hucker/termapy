@@ -92,26 +92,38 @@ class TestResultsDocument:
         cli.repl.dispatch_full(f"/proto.run {script}")
         assert not (tmp_path / "test").exists(), "no results folder without the key"
 
-    def test_json_flag_returns_the_document_silently(self, cli, tmp_path, capsys):
-        """/proto.run --json returns the results document as data and prints no per-test prose."""
+    def test_json_flag_returns_the_document(self, cli, tmp_path, capsys):
+        """/proto.run --json returns the results document as data; the run's narration is progress, kept by the level."""
         # Arrange
         script = _pro(tmp_path, "at.pro", _AT_OK)
         capsys.readouterr()
 
         # Act
         result = cli.repl.dispatch_full(f"/proto.run {script} --json")
+        envelope = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
 
         # Assert
         assert result.success is True, result.error
         assert result.data["summary"]["passed"] == 1, "the structured twin of the PASS line"
         assert result.data["tests"][0]["actual_text"] == "OK\\r\\n"
-        assert "[PROTO]" not in capsys.readouterr().out, "a data run is silent"
+        assert any("[PROTO]" in line for line in envelope["output_lines"]), (
+            "at normal the narration is in the envelope's output_lines, nowhere else"
+        )
 
-    def test_prose_run_returns_no_data(self, cli, tmp_path):
-        """A plain /proto.run keeps data=None: the prose is the output and the path the value."""
+    def test_quiet_json_is_the_document_alone(self, cli, tmp_path, capsys):
+        """/proto.run --json --quiet, MCP's default level: the document and no narration."""
+        script = _pro(tmp_path, "at.pro", _AT_OK)
+        capsys.readouterr()
+        cli.repl.dispatch_full(f"/proto.run {script} --json --quiet")
+        envelope = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+        assert envelope["output_lines"] == [], "quiet drops the progress lines"
+        assert envelope["data"]["summary"]["passed"] == 1
+
+    def test_prose_run_carries_the_document_too(self, cli, tmp_path):
+        """A plain /proto.run has the same data as a --json one: the path is the value, the document rides as data."""
         script = _pro(tmp_path, "at.pro", _AT_OK)
         result = cli.repl.dispatch_full(f"/proto.run {script}")
-        assert result.data is None, "no doubled payload"
+        assert result.data["summary"]["passed"] == 1, "the structured twin always rides"
         assert result.value == str(script), "the path, as a scriptable string"
 
 

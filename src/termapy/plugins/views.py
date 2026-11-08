@@ -124,6 +124,11 @@ class Column:
         style: The Rich style a cell is drawn in, for its record
             (``/help.group``'s level column: green, yellow, red).  None:
             the row's color.  Plain consumers see the text alone.
+        drop: How expendable the column is when the table is wider than the
+            frontend (registry ``table-fits-the-frontend``): 0 is never
+            dropped; of the rest the highest goes first.
+        hide_empty: Leave the column out when every record's cell is
+            ``""`` (a serial number no port has).
     """
 
     title: str
@@ -132,11 +137,15 @@ class Column:
     run: Callable[[Record], str] | None = None
     prefill: Callable[[Record], str] | None = None
     style: Callable[[Record], str] | None = None
+    drop: int = 0
+    hide_empty: bool = False
 
     def __post_init__(self) -> None:
-        """Refuse a column that would both run and prefill: a click does one thing."""
+        """Refuse a column that would both run and prefill, or a negative drop rank."""
         if self.run is not None and self.prefill is not None:
             raise ValueError(f"Column {self.title}: run= and prefill= are exclusive")
+        if self.drop < 0:
+            raise ValueError(f"Column {self.title}: drop= is 0 or more")
 
     def link(self, record: Record) -> Link | None:
         """What clicking this column's cell does for ``record``, or None."""
@@ -173,7 +182,7 @@ class TableView:
     records: tuple[Record, ...]
     total: int | None = None
 
-    def lines(self) -> list[tuple[str, str]]:
+    def lines(self, width: int | None = None) -> list[tuple[str, str]]:
         """The table as ``(text, color)`` lines; ``""`` is the plain color.
 
         Lines carry no indent of their own (the frontend indents termapy's
@@ -184,25 +193,33 @@ class TableView:
         """
         return [
             ("".join(piece.text for piece in pieces), color)
-            for pieces, color in self.segment_lines()
+            for pieces, color in self.segment_lines(width)
         ]
 
-    def segment_lines(self) -> list[tuple[list[Piece], str]]:
+    def segment_lines(self, width: int | None = None) -> list[tuple[list[Piece], str]]:
         """The table as lines of pieces, each with what clicking it does.
 
         The one layout: :meth:`lines` joins these, so the plain table and
         the clickable one cannot disagree.  A cell's link covers its text,
         never the padding beside it; an empty cell has none.
+
+        Args:
+            width: How many columns a row may take, the frontend's
+                (``IOHandle.width``); None is unbounded.  A ``hide_empty``
+                column whose cells are all blank goes first; then, while a
+                row is still too wide, the column with the highest ``drop``
+                goes, the rightmost of equals; a ``drop`` of 0 never goes
+                (registry ``table-fits-the-frontend``).
         """
         if not self.records:
             return [([Piece(f"{self.title} - empty")], "")]
-        cells = [[column.cell(record) for column in self.columns] for record in self.records]
+        columns, cells = self._fitted(width)
         widths = [
             max(len(column.title), *(len(row[index]) for row in cells))
-            for index, column in enumerate(self.columns)
+            for index, column in enumerate(columns)
         ]
         header = "  ".join(
-            f"{column.title:<{width}}" for column, width in zip(self.columns, widths)
+            f"{column.title:<{width}}" for column, width in zip(columns, widths)
         ).rstrip()
         count = len(self.records) if self.total is None else self.total
         lines: list[tuple[list[Piece], str]] = [
@@ -212,7 +229,7 @@ class TableView:
         ]
         for record, row in zip(self.records, cells):
             pieces: list[Piece] = []
-            for index, (column, cell, width) in enumerate(zip(self.columns, row, widths)):
+            for index, (column, cell, width) in enumerate(zip(columns, row, widths)):
                 if index:
                     pieces.append(Piece("  "))
                 pad = Piece(" " * (width - len(cell)))
@@ -221,6 +238,31 @@ class TableView:
                 pieces.extend((pad, piece) if column.right else (piece, pad))
             lines.append((_rstripped(pieces), ""))
         return lines
+
+    def _fitted(self, width: int | None) -> tuple[list[Column], list[list[str]]]:
+        """The columns that show at ``width`` and their cells, one row per record."""
+        kept = [
+            (column, [column.cell(record) for record in self.records]) for column in self.columns
+        ]
+        kept = [
+            (column, values)
+            for column, values in kept
+            if not (column.hide_empty and not any(values))
+        ]
+
+        def row_width() -> int:
+            return sum(
+                max(len(column.title), *(len(value) for value in values)) for column, values in kept
+            ) + 2 * (len(kept) - 1)
+
+        while width is not None and row_width() > width:
+            expendable = [index for index, (column, _) in enumerate(kept) if column.drop > 0]
+            if not expendable:
+                break
+            del kept[max(expendable, key=lambda index: (kept[index][0].drop, index))]
+        columns = [column for column, _ in kept]
+        cells = [[values[row] for _, values in kept] for row in range(len(self.records))]
+        return columns, cells
 
 
 def _rstripped(pieces: list[Piece]) -> list[Piece]:

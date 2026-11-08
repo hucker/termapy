@@ -105,6 +105,16 @@ def test_a_json_reply_stays_one_line_in_a_pipe(cli, capsys):
     assert any(line.startswith('{"max_block": 64, "address_bits"') for line in lines), lines
 
 
+def test_a_data_caller_gets_json_as_one_line(cli):
+    """json_layout answers (0, False) for a caller that wants data, screen or not: no handler asks who is reading."""
+    cli.repl.screen_json = True
+    cli.repl.ctx.wants_data = True
+    try:
+        assert cli.repl.json_layout() == (0, False)
+    finally:
+        cli.repl.ctx.wants_data = False
+
+
 def test_a_json_answer_keeps_the_reply_as_it_came(cli, capsys):
     """/ping.verbose.json on a screen: output_lines hold the device's JSON reply as one line, not laid out."""
     # Arrange -- a terminal, where the reply alone would be laid out

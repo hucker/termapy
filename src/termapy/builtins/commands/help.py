@@ -45,6 +45,7 @@ from termapy.plugins.command import SYNOPSIS_OPTIONAL_STYLE, SYNOPSIS_REQUIRED_S
 from termapy.plugins.params import render_parameters_block
 from termapy.plugins.views import Column, Link, Piece, RecordView, TableView, pieces_markup
 from termapy.run_docstring import extract_docstring
+from termapy.scripting import value_text
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -806,15 +807,15 @@ def _render_current_state(ctx: PluginContext, name: str) -> None:
     if not result.success:
         for line in result.error.splitlines():
             ctx.io.output_markup(f"  [{_SEP}]{escape_markup(line)}[/]")
-    elif isinstance(view, TableView) and view.records:
+    elif isinstance(view, TableView):
+        # An empty table is its own "<title> - empty" line.
         _write_table(ctx, view, name, _HELP_STATE_ROWS)
     elif isinstance(view, RecordView) and view.items:
         for line in replace(view, items=view.items[:_HELP_STATE_ROWS]).lines():
             ctx.io.output_markup(line)
         _write_more_link(ctx, len(view.items) - _HELP_STATE_ROWS, name)
     else:
-        value = "" if result.value is None else str(result.value)
-        lines = value.splitlines() or ["(none)"]
+        lines = value_text(result.value).splitlines() or ["(none)"]
         for line in lines[:_HELP_STATE_ROWS]:
             cut = f"{line[:_HELP_STATE_WIDTH]}..." if len(line) > _HELP_STATE_WIDTH else line
             line_markup = green(cut)
@@ -1410,7 +1411,7 @@ def _groups_table(ctx: PluginContext, present: list[str]) -> CmdResult:
         Column("NAMES", lambda record: _truncate(", ".join(record["commands"]), _FOLD_NAMES_W)),
         Column("NOTE", lambda record: record["note"]),
     )
-    return CmdResult.table("groups", "group", columns, records, value="\n".join(present))
+    return CmdResult.table("groups", "group", columns, records)
 
 
 def _members_table(ctx: PluginContext, groups: list[str], wanted: str) -> CmdResult:
@@ -1446,8 +1447,7 @@ def _members_table(ctx: PluginContext, groups: list[str], wanted: str) -> CmdRes
         members = _group_members(ctx, groups[0])
         note = _group_note([plugin for _, plugin in members], ctx)
         title = f"{groups[0]} ({note})" if note else groups[0]
-    value = "\n".join(record["command"] for record in records)
-    return CmdResult.table(title, "command", columns, records, value=value)
+    return CmdResult.table(title, "command", columns, records)
 
 
 def _handler_idioms(ctx: PluginContext, args: str) -> CmdResult:
@@ -1473,8 +1473,7 @@ def _handler_idioms(ctx: PluginContext, args: str) -> CmdResult:
         ),
         Column("MEANING", lambda record: record["summary"]),
     )
-    value = "\n".join(idiom.name for idiom in IDIOMS)
-    return CmdResult.table("idioms", "idiom", columns, records, value=value)
+    return CmdResult.table("idioms", "idiom", columns, records)
 
 
 # Built from the table, so /search finds an idiom by any word on its row.

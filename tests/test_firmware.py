@@ -264,8 +264,13 @@ class TestCommands:
         assert inside.success, "the config's own firmware/ is inside the sandbox"
 
     def test_firmware_dump_prints_one_file(self, env: Env):
-        """/firmware.dump <name> <file> prints the file and makes its text the value, with the facts as data."""
+        """/firmware.dump <name> <file> is a record page: the file's lines print, its text is the value, the facts the data."""
+        from termapy.markup import markup_to_plain
+
         expected = source_text(find_target("mem"), "termapy_mem.h")
+        # A record page prints through the markup channel, which a bare engine drops.
+        page: list[str] = []
+        env.engine.ctx.io._write_markup = page.append
 
         result = env.engine.dispatch("firmware.dump mem termapy_mem.h")
 
@@ -273,7 +278,17 @@ class TestCommands:
         assert result.value == expected, "the file's text is the scriptable value"
         assert result.data["file"] == "termapy_mem.h"
         assert result.data["bytes"] == len(expected.encode("utf-8")), "bytes is the UTF-8 size"
-        assert env.output[-1] == expected.splitlines()[-1], "every line reached the terminal"
+        shown = [markup_to_plain(line)[2:] for line in page]
+        assert shown == expected.splitlines(), "every line reached the terminal, as written"
+
+    def test_firmware_dump_shows_at_quiet(self, env: Env):
+        """view-is-the-answer: the file is the answer, so .quiet prints it too."""
+        page: list[str] = []
+        env.engine.ctx.io._write_markup = page.append
+
+        env.engine.dispatch("firmware.dump.quiet mem termapy_mem.h")
+
+        assert page, "the page printed at quiet"
 
     def test_firmware_dump_needs_a_file_name_for_a_pair(self, env: Env):
         """A module shipping two files will not guess which one to print."""

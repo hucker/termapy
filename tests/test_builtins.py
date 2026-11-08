@@ -368,9 +368,10 @@ class TestRunDocstring:
         assert "10  B" in listed[1] and "1 hr ago" in listed[1], (
             "each line carries the file's size and age"
         )
-        assert result.value.splitlines()[0] == "z_newer.run", (
-            "the scriptable value follows the same newest-first order"
+        assert result.data[0]["name"] == "z_newer.run", (
+            "the records follow the same newest-first order"
         )
+        assert result.value == len(result.data), "the value is the row count"
 
     def test_run_rename_keeps_extension_and_never_overwrites(self, repl_env, tmp_path):
         """A bare name gains .run; clobbering, leaving run/ and a missing file are refused."""
@@ -853,8 +854,8 @@ class TestVarHandlerValues:
         # Assert
         assert result.value == "hello", "lookup returns the variable value"
 
-    def test_var_lookup_returns_empty_when_undefined(self, repl_env):
-        """An undefined name still succeeds, with '' as the value instead of None."""
+    def test_var_lookup_of_an_undefined_name_fails(self, repl_env):
+        """A name nothing defines is a failure naming it, so a script reading a variable it never set stops."""
         # Arrange
         engine, _, _, _ = repl_env
 
@@ -862,9 +863,7 @@ class TestVarHandlerValues:
         result = engine.dispatch("var NEVER_SET_VAR")
 
         # Assert
-        assert result.value == "", (
-            "undefined var still returns ok with empty value so scripting doesn't hit None"
-        )
+        assert (result.success, result.error) == (False, "Unknown variable: $(NEVER_SET_VAR)")
 
     def test_var_list_all_returns_joined_lines(self, repl_env):
         """Bare /var returns every NAME=value pair, one per line, as the value."""
@@ -881,9 +880,8 @@ class TestVarHandlerValues:
         result = engine.dispatch("var")
 
         # Assert
-        lines = result.value.split("\n")
-        assert "A=1" in lines, "first variable in scripting value"
-        assert "B=2" in lines, "second variable in scripting value"
+        assert result.data["user"] == {"A": "1", "B": "2"}, "the user variables, in the snapshot"
+        assert result.value >= 2, "the value counts the rows, these two among them"
 
     def test_var_set_returns_new_value(self, repl_env):
         """/var.set returns the value just assigned, like other setter commands."""
@@ -3296,14 +3294,14 @@ class TestCfgHandlerValues:
         result = engine.dispatch("cfg.list")
 
         # Assert
-        assert result.value == "", "empty config dir returns empty string, not None"
+        assert result.value == 0, "an empty config dir counts none"
 
     def test_cfg_list_populated_returns_joined_names(
         self,
         tmp_path,
         monkeypatch,
     ):
-        """Each config appears by name, the word /cfg.load takes, one per line in the value."""
+        """Each config appears by name, the word /cfg.load takes, as a record; the value counts them."""
         # Arrange
         from termapy.builtins.commands import cfg as cfg_mod
 
@@ -3324,8 +3322,9 @@ class TestCfgHandlerValues:
         result = engine.dispatch("cfg.list")
 
         # Assert
-        lines = result.value.split("\n")
-        assert sorted(lines) == ["alpha", "beta"], "both configs, by name, in the scripting value"
+        names = sorted(record["name"] for record in result.data)
+        assert names == ["alpha", "beta"], "both configs, by name, in the records"
+        assert result.value == 2, "the value is the count"
 
 
 # -- /repeat ----------------------------------------------------------------
@@ -3581,8 +3580,8 @@ class TestPortChipList:
         # Spot-check one well-known chip makes it into the dump.
         assert any("FT232R" in text for text in texts), "FTDI FT232R present"
         # Return value is the bare count for script capture, the records' length.
-        assert result.value == str(len(result.data)), "the value is the count, a scalar"
-        assert int(result.value) > 20, f"expected many chip rows, got {result.value}"
+        assert result.value == len(result.data), "the value is the count, an int"
+        assert result.value > 20, f"expected many chip rows, got {result.value}"
 
     def test_filter_narrows_output(self, repl_env):
         """A vendor filter keeps only matching rows, and the value is the match count."""
@@ -3623,7 +3622,7 @@ class TestPortChipList:
 
         # Assert
         assert result.success, "no-match still returns ok"
-        assert result.value == "0", f"0 on no matches, got: {result.value!r}"
+        assert result.value == 0, f"0 on no matches, got: {result.value!r}"
         assert any("USB-serial chips - empty" in text for text, _ in output), (
             "the empty table says so, like every list"
         )
@@ -3676,22 +3675,17 @@ class TestPortHandlerValues:
         # Assert
         assert result.value == "COM4", "disconnect returns the port name in effect before the call"
 
-    def test_port_list_returns_joined_output(self, repl_env):
-        """/port.list always yields a string value, whatever ports this machine has."""
+    def test_port_list_counts_the_ports(self, repl_env):
+        """table-value-is-count: /port.list's value is the port count, one per record, whatever this machine has."""
         # Arrange
         engine, _, _, _ = repl_env
 
         # Act
         result = engine.dispatch("port.list")
 
-        # Assert -- value is the same text the user sees (header /
-        # rows / footer), joined with newlines.  Specific content
-        # depends on the test machine's USB devices, but the value
-        # must be a non-None string so scripting doesn't crash.
-        assert result.value is not None, (
-            "scripting value must not be None -- this is the bug fix/cmdresult-value-gaps targets"
-        )
-        assert isinstance(result.value, str), "value is a string"
+        # Assert
+        assert result.success, result.error
+        assert result.value == len(result.data), "the count of the records, an int"
 
 
 # -- /log.dump ------------------------------------------------------------

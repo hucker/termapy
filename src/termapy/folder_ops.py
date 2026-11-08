@@ -288,9 +288,9 @@ def file_table(
 ) -> CmdResult:
     """A file list answer (``CmdResult.table``): NAME, SIZE, UPDATED, then ``extra``.
 
-    ``value`` is the newline-joined names (the scriptable scalar); ``data``
-    is one ``file_record`` per file, and dispatch prints the table from
-    them unless the caller wants the data.
+    ``data`` is one ``file_record`` per file, the value their count, and
+    dispatch prints the table from the records unless the caller wants
+    the data.
 
     Args:
         title: The folder (``run/``).
@@ -310,8 +310,7 @@ def file_table(
         records.append(record)
     name = FILE_COLUMNS[0] if run is None else replace(FILE_COLUMNS[0], run=run)
     columns = (name, *FILE_COLUMNS[1:], *(column for column, _, _ in extra))
-    names = "\n".join(file.name for file in files)
-    return CmdResult.table(title, noun, columns, records, value=names)
+    return CmdResult.table(title, noun, columns, records)
 
 
 def dump_text_slice(ctx: PluginContext, path: Path, args: str) -> CmdResult:

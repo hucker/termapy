@@ -321,6 +321,75 @@ def test_plugins_do_not_use_engine_io_primitives():
     )
 
 
+# ── A plugin never asks who is reading ───────────────────────────────────────
+#
+# ``ctx.wants_data`` says a caller wants records, not prose (``--json``,
+# ``/term.request``, MCP).  Only dispatch reads it: a handler returns a view
+# (``CmdResult.table`` / ``.record``) and dispatch prints it for a person or
+# hands the data on.  A handler that branched on it printed its own prose
+# and kept its own data shape, and seven of them never became views; the
+# last was found when ``/port.list`` printed nothing at ``--quiet``.
+
+
+def _wants_data_reads(tree: ast.AST) -> list[int]:
+    """The line of every read of a ``wants_data`` attribute in ``tree``, the ``getattr`` back door included."""
+    lines: list[int] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and node.attr == "wants_data":
+            lines.append(node.lineno)
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "getattr"
+            and len(node.args) >= 2
+            and isinstance(node.args[1], ast.Constant)
+            and node.args[1].value == "wants_data"
+        ):
+            lines.append(node.lineno)
+    return lines
+
+
+def test_plugins_never_read_wants_data():
+    """plugins-never-read-wants-data: no module under builtins/ reads ctx.wants_data; a handler returns a view and dispatch chooses."""
+    # Arrange / Act
+    violations = [
+        f"{path.relative_to(SRC.parent)}:{line}"
+        for path in _plugin_python_files()
+        for line in _wants_data_reads(ast.parse(path.read_text(encoding="utf-8")))
+    ]
+
+    # Assert
+    assert violations == [], (
+        "a plugin never asks who is reading:\n  "
+        + "\n  ".join(violations)
+        + "\n\nReturn a view (CmdResult.table for a list, CmdResult.record for a"
+        "\npage) and let dispatch print it for a person or hand the data on."
+    )
+
+
+def test_wants_data_guard_fires_on_a_probe():
+    """The guard flags a direct read, a read through an alias and the getattr back door, and passes a comment and other attributes."""
+    # Arrange
+    probe = (
+        "# ctx.wants_data in a comment is fine\n"
+        "def _handler(ctx, args):\n"
+        "    if ctx.wants_data:\n"
+        "        return 1\n"
+        "    c = ctx\n"
+        "    flag = c.wants_data\n"
+        '    other = getattr(ctx, "wants_data")\n'
+        "    ctx.io.output(args)\n"
+    )
+
+    # Act
+    found = _wants_data_reads(ast.parse(probe))
+
+    # Assert
+    assert found == [3, 6, 7], (
+        "the three reads, by line; the comment and ctx.io.output are not reads"
+    )
+
+
 # ── UI-layer confinement ─────────────────────────────────────────────────────
 
 # Textual may only be imported by the UI layer.  Everything else -- the REPL

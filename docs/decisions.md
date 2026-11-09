@@ -1363,3 +1363,20 @@ what is installed and the gate names the all-extras environment. The editor's ot
 markdownlint and cSpell, stay review: no CLI here, no Python port that matches the extensions, and
 a skip is not a pass. **Where:** `tests/test_hygiene.py`, `docs/rules.md`,
 `.github/workflows/tests.yml`.
+
+## 2026-11-09 — A config listing shows the device, not the spec
+
+Chuck: "the config selector showing the port name as the serial number. Port means something
+like COM2 or /dev/tty_xyz not random text." The rule was already in the registry (`port-display`,
+from his report of 2026-10-26), and the fix then reached the title bar, its tooltips and the
+connect banners, which the row named; the Cfg picker and `/cfg.list` share `config_summary`,
+whose port is the file's spelling, and nothing named them, so review passed them for two weeks.
+Now a listing resolves every row against one enumeration, `port_control.listing_devices`: a
+serial number shows the device it names, the active config shows the port this session has open
+whatever its file says, and a spec nothing attached answers, or one two devices share, shows as
+written, since an unplugged board has no device to name. One snapshot, not one per row, because a
+picker with a dozen configs would otherwise enumerate a dozen times. `/cfg.list`'s JSON record
+keeps `port` as the file's spelling and adds `device`, so an agent sees both. The row stays an
+assumption: which displays show a port is not a shape an `ast` walk can find, so each new one is
+review, and the three listings now have instance tests. **Where:** `port_control.py`,
+`dialogs/config_picker.py`, `app.py`, `builtins/commands/cfg.py`, `docs/rules.md`.

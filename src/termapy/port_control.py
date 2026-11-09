@@ -1872,6 +1872,54 @@ def port_display(
     return device, gather_chip_facts(device, fast=True, enrich=True, source=source)
 
 
+def listing_devices(
+    specs: Mapping[str, str],
+    *,
+    active: str | None = None,
+    open_device: str = "",
+    source: PortSource | None = None,
+) -> dict[str, str]:
+    """The device each config's port spec names, for a listing's PORT column; opens no port.
+
+    What the Cfg picker and ``/cfg.list`` show as a config's port (registry
+    ``port-display``): the device the spec resolves to against the ports
+    attached now, as ``port_display`` shows one config's, but enumerated
+    once for the whole list rather than once per row.  The active config
+    shows the device this session has open, when it has one, whatever its
+    file says (``/port COM9`` changes the session, not the file).  A spec
+    that names nothing attached, or two devices (an ambiguous serial
+    number), shows as written: an unplugged board has no device to name.
+
+    Args:
+        specs: Each config's key (its path as a string) to its port value
+            as written in the file.
+        active: The active config's key, or None when none is loaded.
+        open_device: The device this session has open, ``""`` when none
+            (``SerialEngine.open_device``).
+        source: A substitute port list, as ``resolve_port`` takes it.
+
+    Returns:
+        Each config's key to the device to show.
+    """
+    facts = _gather_all_chip_facts("", fast=True, source=source)
+
+    def snapshot() -> list[ChipFacts]:
+        return facts
+
+    devices: dict[str, str] = {}
+    for key, spec in specs.items():
+        if key == active and open_device:
+            devices[key] = open_device
+        elif not spec:
+            devices[key] = ""
+        else:
+            try:
+                devices[key] = resolve_port(spec, source=snapshot)
+            except AmbiguousSerialNumberError:
+                devices[key] = spec
+    return devices
+
+
 def _chip_rows(facts: ChipFacts) -> list[tuple[str, str] | tuple[str, str, str]]:
     """The chip fields as record-page rows, each color-coded where it carries advice.
 

@@ -103,7 +103,7 @@ Four tiers, in order of increasing caution:
 
 | Tier          | Meaning                                          | Examples                           |
 | ------------- | ------------------------------------------------ | ---------------------------------- |
-| `readonly`    | Pure observation; no state change                | `bat`, `temp_c`, `version`, `info` |
+| `readonly`    | Pure observation; no state change                | `temp`, `tick`, `version`, `info`  |
 | `safe`        | Default; no enduring effect                      | `help`, `clr`                      |
 | `mutable`     | Changes device state but reversible              | `set_led on`, `baud 9600`          |
 | `destructive` | Irreversible / data-loss / requires confirmation | `reset`, `factory_clear`, `erase`  |

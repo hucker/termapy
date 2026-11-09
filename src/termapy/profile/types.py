@@ -3,7 +3,7 @@
 A v2 device profile may declare a top-level ``types`` block — a map of
 named user-defined types that ``typed_args[i].type`` can reference.
 This lets profile authors express device-specific argument vocabularies
-(e.g. mag3 accepts ``on/off/true/false/yes/no/1/0/high/low`` for a bool;
+(e.g. PICBoard accepts ``on/off/true/false/yes/no/1/0/high/low`` for a bool;
 a strict AT modem accepts only ``0/1``) without forking the schema.
 
 Six ``kind`` values are recognized in the first cut:

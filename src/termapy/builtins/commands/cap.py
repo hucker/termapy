@@ -747,7 +747,7 @@ _CAP_POLL_PROSE = (
     "response as a row.  With `file=`, also writes to CSV or JSONL.\n"
     "\n"
     "cmd= is newline-separated for multiple columns:\n"
-    "  {prefix}cap.poll cmd=AT+BAT\\nAT+TEMP\n"
+    "  {prefix}cap.poll cmd=AT+TEMP\\nAT+RAMP\n"
     "\n"
     "Without regex=, the first sample must be numeric or the command\n"
     "aborts.  With regex=, non-matching responses become empty values."

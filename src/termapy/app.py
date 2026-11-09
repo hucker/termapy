@@ -2154,6 +2154,7 @@ class SerialTerminal(TerminalHost, App):
             read_only=read_only,
             gui_apps=self.repl.ctx.capabilities.gui_apps,
             web=self.is_web,
+            open_device=self.engine.open_device if self.engine.is_connected else "",
         )
 
     def _btn_cfg(self) -> None:

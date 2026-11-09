@@ -556,7 +556,9 @@ Ids: 179: 164 registry rows (guarantees 128, assumptions 36), 15 spec sections i
 ### `port-display` (assumption, requirement)
 
 - `test_app_pilot_targets.py`: `TestConfigPicked.test_tooltips_show_the_device_as_port_and_the_number_as_serial`
-- `test_port_control.py`: `TestPortPresent.test_display_shows_the_device_and_its_serial_number`
+- `test_builtins.py`: `TestCfgHandlerValues.test_cfg_list_shows_the_device_a_serial_number_names`
+- `test_dialogs.py`: `TestConfigPickerDetails.test_the_port_cell_is_the_device_not_the_serial_number`
+- `test_port_control.py`: `TestPortPresent.test_a_listing_resolves_every_row_against_one_snapshot`, `TestPortPresent.test_a_listing_shows_the_open_device_on_the_active_config`, `TestPortPresent.test_display_shows_the_device_and_its_serial_number`
 - `test_title_tooltip.py`: `TestPortIdentityPairs.test_the_device_is_the_port_and_its_number_the_serial`
 
 ### `port-lost-tears-down` (guarantee, contract)
@@ -579,7 +581,7 @@ Ids: 179: 164 registry rows (guarantees 128, assumptions 36), 15 spec sections i
 
 - `test_app_pilot_targets.py`: `TestConfigPicked.test_load_by_serial_number_connects_without_asking_for_a_port`
 - `test_dialogs_config_editor.py`: `TestValueValidation.test_a_serial_number_port_that_resolves_is_green`
-- `test_port_control.py`: `TestPortPresent` (8 functions)
+- `test_port_control.py`: `TestPortPresent` (10 functions)
 
 ### `prefix-never-hardcoded` (guarantee, structure)
 

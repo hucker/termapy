@@ -884,3 +884,32 @@ class TestConfigPickerDetails:
 
         # Assert -- a row, not a crash
         assert details == {broken: ""}
+
+    @pytest.mark.rule("port-display")
+    def test_the_port_cell_is_the_device_not_the_serial_number(self, tmp_path):
+        """A port named by serial number shows as the device it resolves to; the active row shows the open device."""
+        from termapy.port_control import _build_demo_fleet
+
+        # Arrange -- one config by serial number, one active and open, one unplugged
+        by_serial = self._write_cfg(tmp_path, "bench", "A1B2C3D4", "Bench board")
+        live = self._write_cfg(tmp_path, "live", "0001", "Live rig")
+        unplugged = self._write_cfg(tmp_path, "gone", "NOPE", "")
+
+        # Act
+        details, _ = _config_details(
+            [by_serial, live, unplugged],
+            active=live,
+            open_device="COM9",
+            port_source=_build_demo_fleet,
+        )
+
+        # Assert
+        assert details[by_serial].split() == ["COM3", "115200", "Bench", "board"], (
+            "the serial number shows as the device it names"
+        )
+        assert details[live].split() == ["COM9", "115200", "Live", "rig"], (
+            "the active row shows the port this session has open"
+        )
+        assert details[unplugged].split() == ["NOPE", "115200"], (
+            "a spec nothing attached answers shows as written"
+        )

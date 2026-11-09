@@ -977,6 +977,7 @@ from termapy.port_control import (  # noqa: E402
     chip_field,
     chip_info,
     gather_chip_facts,
+    listing_devices,
     parse_location_paths,
     port_display,
     port_present,
@@ -1406,6 +1407,43 @@ class TestPortPresent:
 
         actual = resolve_port(reserved_serial("DEMO"), source=fleet)
         assert actual == "COM9", "real hardware is matched before the simulators"
+
+    @pytest.mark.rule("port-display")
+    def test_a_listing_resolves_every_row_against_one_snapshot(self):
+        """A config list reads the ports once: a serial number shows its device, the rest as written."""
+        # Arrange -- a fleet that counts how often it is read
+        reads: list[int] = []
+
+        def fleet():
+            reads.append(1)
+            return _build_demo_fleet()
+
+        specs = {"a": "A1B2C3D4", "b": "COM4", "c": "NOPE", "d": ""}
+
+        # Act
+        actual = listing_devices(specs, source=fleet)
+
+        # Assert
+        expected = {"a": "COM3", "b": "COM4", "c": "NOPE", "d": ""}
+        assert actual == expected, (
+            "the serial number shows its device; a name and a miss as written"
+        )
+        assert len(reads) == 1, "one enumeration for the whole list, not one per row"
+
+    @pytest.mark.rule("port-display")
+    def test_a_listing_shows_the_open_device_on_the_active_config(self):
+        """The active config's cell is the open device whatever its file says; a shared number shows as written."""
+        # Act
+        actual = listing_devices(
+            {"live": "A1B2C3D4|COM4", "shared": "0001"},
+            active="live",
+            open_device="COM9",
+            source=_shared_serial_fleet,
+        )
+
+        # Assert
+        assert actual["live"] == "COM9", "the open device wins over the spec"
+        assert actual["shared"] == "0001", "an ambiguous serial number shows as written"
 
 
 class TestPortSourceLayers:

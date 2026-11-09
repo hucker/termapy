@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy import diag_log, load_report
+from termapy import diag_log, load_report, port_control
 from termapy.builtins.commands._cfg_icon import (
     _FLAGS as _ICON_FLAGS,
     _LONG_HELP as _ICON_LONG_HELP,
@@ -198,8 +198,12 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """List the configs newest first: the Cfg picker's rows, ``*`` on the loaded one.
 
     Each data record is the file's ``file_record`` plus ``name`` (what
-    ``/cfg.load`` takes), ``file``, ``active`` and
-    ``config.config_summary``'s port, baud and title.
+    ``/cfg.load`` takes), ``file``, ``active``, ``config.config_summary``'s
+    port, baud and title, and ``device``: the device the port names, which
+    the PORT column shows (registry ``port-display``). ``port`` stays the
+    file's spelling, a serial number or a fallback chain included, so an
+    agent sees both; the devices are resolved once for the whole list,
+    the active config showing the port this session has open.
 
     Args:
         ctx: Plugin context for output.
@@ -207,13 +211,21 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """
     root = cfg_dir()
     paths = [path for path in list_entries(root, CONFIG_GLOB) if is_config_file(path)]
+    summaries = {path: config_summary(path) for path in paths}
+    ser = ctx.internal.port()
+    devices = port_control.listing_devices(
+        {str(path): summary["port"] for path, summary in summaries.items()},
+        active=ctx.config_path or None,
+        open_device=str(getattr(ser, "port", "") or "") if ser is not None else "",
+    )
     records = [
         {
             **file_record(path),
             "name": path.stem,
             "file": f"{path.parent.name}/{path.name}",
             "active": str(path) == ctx.config_path,
-            **config_summary(path),
+            **summaries[path],
+            "device": devices[str(path)],
         }
         for path in paths
     ]
@@ -224,7 +236,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
             run=lambda record: f"cfg.load {record['name']}",
         ),
         *FILE_COLUMNS[1:],
-        Column("PORT", lambda record: record["port"]),
+        Column("PORT", lambda record: record["device"]),
         Column("BAUD", lambda record: str(record["baud_rate"] or ""), right=True),
         Column("TITLE", lambda record: record["title"]),
     )

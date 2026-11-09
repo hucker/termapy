@@ -3332,6 +3332,38 @@ class TestCfgHandlerValues:
         assert names == ["alpha", "beta"], "both configs, by name, in the records"
         assert result.value == 2, "the value is the count"
 
+    @pytest.mark.rule("port-display")
+    def test_cfg_list_shows_the_device_a_serial_number_names(self, tmp_path, monkeypatch):
+        """The PORT column is the device a serial number resolves to; the record keeps the spec and adds the device."""
+        # Arrange -- one config named by serial number, the demo fleet attached
+        cfgs = tmp_path / "cfgs"
+        (cfgs / "bench").mkdir(parents=True)
+        (cfgs / "bench" / "bench.cfg").write_text(json.dumps({"serial": {"port": "A1B2C3D4"}}))
+        monkeypatch.setenv("TERMAPY_CFG_DIR", str(cfgs))
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+        cfg = {"port": "COM4", "baud_rate": 115200, "echo": False, "eol": "\r"}
+        config_path = tmp_path / "test.cfg"
+        config_path.write_text(json.dumps(cfg))
+        output: list[tuple[str, str | None]] = []
+        engine = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
+
+        # Act
+        result = engine.dispatch("cfg.list")
+        table = [text for text, _ in output]
+        output.clear()
+        engine.dispatch("cfg.list --json")
+        envelope = json.loads(next(text for text, _ in output if text.lstrip().startswith("{")))
+
+        # Assert
+        (record,) = result.data
+        assert record["port"] == "A1B2C3D4", "the record keeps the file's spelling as port"
+        assert record["device"] == "COM3", "and carries the device it resolves to"
+        assert any("COM3" in line and "A1B2C3D4" not in line for line in table), (
+            "the PORT column shows the device, never the serial number"
+        )
+        assert envelope["data"][0]["device"] == "COM3", "the JSON answer carries the device"
+        assert envelope["data"][0]["port"] == "A1B2C3D4", "and the spec, so an agent sees both"
+
 
 # -- /repeat ----------------------------------------------------------------
 

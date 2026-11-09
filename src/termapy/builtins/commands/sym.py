@@ -275,7 +275,7 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     if duplicates:
         ctx.io.output(f"  duplicate names need name@file: {', '.join(duplicates[:8])}")
     data = table_record(table, file=str(dest)) | {"format": spec.format}
-    return CmdResult.ok(value=str(len(table)), data=data)
+    return CmdResult.ok(value=len(table), data=data)
 
 
 def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
@@ -314,7 +314,7 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Parse error: {e}")
     install_build(ctx, table)
     ctx.io.result(f"Loaded {len(table)} symbols ({path.name})", "green")
-    return CmdResult.ok(value=str(len(table)), data=table_record(table, file=str(path)))
+    return CmdResult.ok(value=len(table), data=table_record(table, file=str(path)))
 
 
 def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
@@ -337,7 +337,7 @@ def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
             f"Unloaded build symbols ({n}); {len(remaining)} device registers remain.",
             "green",
         )
-    return CmdResult.ok(value=str(n))
+    return CmdResult.ok(value=n)
 
 
 def _handler_search(ctx: PluginContext, args: str) -> CmdResult:
@@ -383,7 +383,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.record(
         {"loaded": True, **table_record(table, file=file)},
         info_rows(table, file=file),
-        value=str(len(table)),
+        value=len(table),
     )
 
 

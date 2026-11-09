@@ -189,7 +189,7 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         "relative": relative,
         "reference": ref_path,
     }
-    return CmdResult.ok(value=str(len(device)), data=data)
+    return CmdResult.ok(value=len(device), data=data)
 
 
 def _already_defined(library: Path, name: str, dest: Path) -> str | None:
@@ -318,7 +318,7 @@ def _handler_use(ctx: PluginContext, args: str) -> CmdResult:
         "green",
     )
     return CmdResult.ok(
-        value=str(len(loaded)),
+        value=len(loaded),
         data=device_records([loaded])[0] | {"reference": str(written)},
     )
 

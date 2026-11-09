@@ -236,7 +236,7 @@ class TestCfgLoadIdentity:
         # Assert
         assert set_result.success, f"set failed: {set_result.error}"
         actual = query.value
-        expected = "5000"
+        expected = 5000
         assert actual == expected, "session set is visible through the ctx.cfg read path"
 
 

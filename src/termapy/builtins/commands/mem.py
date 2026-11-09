@@ -712,7 +712,7 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
         )
         ctx.io.result(f"{raw_target} = {field_value}{locator}")
         return CmdResult.ok(
-            value=str(field_value),
+            value=field_value,
             data={
                 "target": raw_target,
                 "addr": word_addr,
@@ -797,7 +797,7 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
         byte = data[0]
         ctx.io.result(f"{raw_target} = {render_char(byte)}")
         return CmdResult.ok(
-            value=str(byte),
+            value=byte,
             data={
                 "target": raw_target,
                 "addr": parsed.addr,
@@ -812,7 +812,7 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
     twin = _hex_twin(scalar, len(data)) if _verbose(ctx) else ""
     ctx.io.result(f"{raw_target} = {shown}  ({twin})" if twin else f"{raw_target} = {shown}")
     return CmdResult.ok(
-        value=shown,
+        value=scalar,
         data={
             "target": raw_target,
             "addr": parsed.addr,
@@ -914,7 +914,7 @@ def _handler_write(ctx: PluginContext, args: str) -> CmdResult:
         record = _modify_record(memory, word_addr, target, old, new)
         record["value"] = value
         record["target"] = raw_target
-        return CmdResult.ok(value=str(value), data=record)
+        return CmdResult.ok(value=value, data=record)
 
     type_name = _scalar_type(parsed)
     if type_name:
@@ -961,7 +961,7 @@ def _handler_write(ctx: PluginContext, args: str) -> CmdResult:
             ctx.io.result(f"Wrote {count} bytes at {_where(parsed, bits)}  ({was})")
         else:
             ctx.io.result(f"Wrote {count} bytes at {_where(parsed, bits)}")
-        return CmdResult.ok(value=str(count), data=record)
+        return CmdResult.ok(value=count, data=record)
     # Shown as the type decodes what was stored -- the actual, so -1 into
     # a u16 reads back 65535 here exactly as /mem.read will show it.
     value = decode_scalar(data, type_name, info.endian)

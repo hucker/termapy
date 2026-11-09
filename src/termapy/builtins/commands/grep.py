@@ -61,7 +61,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.output(f"  grep: '{pattern}' - {total} match(es)")
     for lineno, line in shown:
         ctx.io.output(f"  grep: {lineno:>5} | {line}")
-    return CmdResult.ok(value=str(total))
+    return CmdResult.ok(value=total)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

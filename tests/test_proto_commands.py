@@ -131,18 +131,18 @@ class TestHex:
         flags = cli.repl.ctx.ns("flags")
         capsys.readouterr()
         result = cli.repl.dispatch_full("/proto.hex")
-        assert result.value == "off"
+        assert result.value is False
         assert flags["hex"] is False, "a bare setting command never flips"
         assert "Hex display mode disabled." in capsys.readouterr().out
 
     def test_toggle_on_and_off_drive_the_shared_hex_flag(self, cli):
         """toggle flips, a vocabulary token sets, and the flag /term.hex shares follows each one."""
         flags = cli.repl.ctx.ns("flags")
-        assert cli.repl.dispatch_full("/proto.hex toggle").value == "on"
+        assert cli.repl.dispatch_full("/proto.hex toggle").value is True
         assert flags["hex"] is True, "toggle flipped the shared flag"
-        assert cli.repl.dispatch_full("/proto.hex off").value == "off"
+        assert cli.repl.dispatch_full("/proto.hex off").value is False
         assert flags["hex"] is False, "off set it"
-        assert cli.repl.dispatch_full("/proto.hex yes").value == "on", "any vocabulary token sets"
+        assert cli.repl.dispatch_full("/proto.hex yes").value is True, "any vocabulary token sets"
 
     def test_an_unrecognized_token_is_refused_with_the_vocabulary(self, cli):
         """A token outside the boolean vocabulary fails naming the twelve tokens and toggle, and nothing flips."""

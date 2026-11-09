@@ -335,7 +335,7 @@ class CmdResult:
     scriptable data (a config value, a port property, a CRC, a ping time,
     a toggle state) should pass ``value=`` so scripts can capture it:
 
-        return CmdResult.ok(value=str(baud_rate))
+        return CmdResult.ok(value=baud_rate)
 
     Handlers that only perform side effects (clear screen, edit file,
     start capture, send break) don't need a value.  When in doubt: if a

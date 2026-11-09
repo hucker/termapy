@@ -341,7 +341,7 @@ def dump_text_slice(ctx: PluginContext, path: Path, args: str) -> CmdResult:
     lines = select_lines(lines, n)
     for line in lines:
         ctx.io.output(line)
-    return CmdResult.ok(value=str(len(lines)))
+    return CmdResult.ok(value=len(lines))
 
 
 def _make_list_handler(
@@ -532,7 +532,7 @@ def _make_delete_handler(
         finally:
             ctx.internal.folder_changed(folder)
         ctx.io.output(f"  Deleted {shown} from {folder}/.")
-        return CmdResult.ok(value=str(len(files)))
+        return CmdResult.ok(value=len(files))
 
     # The /help.dev text of each command built here (registry handler-docstring).
     handler.__doc__ = f"Delete one named file from the config's {folder}/ folder" + (

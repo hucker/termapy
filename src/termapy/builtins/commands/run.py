@@ -320,7 +320,7 @@ def _replay(ctx: PluginContext, lines: list[str]) -> CmdResult:
         if stop is not None:
             stop.clear()
         ctx.io.result(f"Replay stopped after {ran} of {len(lines)} commands.")
-    return CmdResult.ok(value=str(ran))
+    return CmdResult.ok(value=ran)
 
 
 def on_config_load(ctx: PluginContext) -> None:

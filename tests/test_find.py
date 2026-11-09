@@ -369,7 +369,7 @@ class TestMaxCount:
 
         # Assert -- bare invocation reports the current value.
         assert result.success, "bare /find.max_count is informational"
-        assert result.value == str(_find._DEFAULT_MAX_COUNT), (
+        assert result.value == _find._DEFAULT_MAX_COUNT, (
             f"value reports current cap; got {result.value!r}"
         )
 

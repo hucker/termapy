@@ -845,8 +845,8 @@ def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
         flags["hex"] = action
     state = "enabled" if flags["hex"] else "disabled"
     ctx.io.output(f"Hex display mode {state}.", "bright_green")
-    # Mirror the echo/verbose convention: return the new state.
-    return CmdResult.ok(value="on" if flags["hex"] else "off")
+    # Mirror the echo convention: the new state, a bool (registry value-typed).
+    return CmdResult.ok(value=bool(flags["hex"]))
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:

@@ -31,9 +31,10 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not accepted:
         ctx.io.result("Canceled.", "yellow")
         ctx.internal.script_stop()
-    # Return the user's choice so scripts can capture it via
-    # ``$(OK) <- /confirm Continue?`` even if they don't stop on cancel.
-    return CmdResult.ok(value="yes" if accepted else "no")
+    # The user's choice, a bool (registry value-typed), so a script can
+    # capture it via ``$(OK) <- /confirm Continue?`` (as on/off) even if it
+    # does not stop on cancel.
+    return CmdResult.ok(value=accepted)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

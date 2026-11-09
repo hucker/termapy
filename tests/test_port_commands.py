@@ -62,7 +62,7 @@ class TestSignals:
         port = _demo_port(cli)
         for signal in ("cts", "dsr", "ri", "cd"):
             result = cli.repl.dispatch_full(f"/port.{signal}")
-            expected = str(int(getattr(port, signal)))
+            expected = int(getattr(port, signal))
             assert result.value == expected, f"{signal} mirrors the port"
 
     def test_a_value_is_refused_as_read_only(self, cli, capsys):
@@ -96,7 +96,7 @@ class TestHardwareLines:
         port = _demo_port(cli)
         port.dtr = True
         result = cli.repl.dispatch_full("/port.dtr")
-        assert result.value == "1"
+        assert result.value == 1
 
     def test_a_value_sets_the_line(self, cli, capsys):
         """/port.dtr off drives the line low and reports the new level; a set has no scriptable value."""
@@ -152,7 +152,7 @@ class TestHardwareLines:
         assert f"CURRENT STATE\n  {expected}\n" in actual, (
             f"help and /port.{command} agree:\n{actual}"
         )
-        assert expected in ("0", "1"), "the command answers 0 or 1"
+        assert expected in (0, 1), "the command answers 0 or 1"
 
 
 # ── frame properties ────────────────────────────────────────────────────────
@@ -162,7 +162,7 @@ class TestProperties:
     def test_bare_reads_the_live_value(self, cli):
         """/port.baud_rate with no argument returns the open port's baud rate."""
         result = cli.repl.dispatch_full("/port.baud_rate")
-        assert result.value == "115200"
+        assert result.value == 115200
 
     def test_a_value_sets_the_port_and_the_session_cfg(self, cli, capsys):
         """/port.baud_rate 9600 changes the open port and the session cfg together."""
@@ -222,7 +222,7 @@ class TestProperties:
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.baud_rate")
         assert "115200 (disconnected)" in capsys.readouterr().out
-        assert result.value == "115200", "scripts get the number, not the annotation"
+        assert result.value == 115200, "scripts get the number, not the annotation"
 
 
 # ── /port.mode ──────────────────────────────────────────────────────────────

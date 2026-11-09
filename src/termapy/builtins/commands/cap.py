@@ -581,7 +581,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.output(f"Poll complete: {path} ({samples_written} samples)", "green")
         return CmdResult.ok(value=path)
     ctx.io.output(f"Poll complete ({samples_written} samples)", "green")
-    return CmdResult.ok(value=str(samples_written))
+    return CmdResult.ok(value=samples_written)
 
 
 # ── /cap.stop handler ────────────────────────────────────────────────────────

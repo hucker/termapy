@@ -274,7 +274,7 @@ class TestSymImport:
 
         # Assert
         assert result.success, result.error
-        assert result.value == str(XC32_COUNT), "value is the count"
+        assert result.value == XC32_COUNT, "value is the count"
         doc = json.loads(sidecar.read_text(encoding="utf-8"))
         assert doc["symbols_version"] == 1, "the sidecar is a version-1 file"
         assert doc["source"] == str(XC32_MAP), "source is the resolved map path"
@@ -327,7 +327,7 @@ class TestSymImport:
 
         # Assert
         assert result.success, result.error
-        assert result.value == str(XC32_COUNT), "explicit format= works"
+        assert result.value == XC32_COUNT, "explicit format= works"
 
     def test_unknown_format_rejected(self, sym_env):
         """An unknown ``format=`` names the token typed, not the map file.
@@ -382,7 +382,7 @@ class TestSymImport:
 
         # Assert
         assert result.success, result.error
-        assert result.value == str(XC32_COUNT), "an in-folder name is found beside the cfg"
+        assert result.value == XC32_COUNT, "an in-folder name is found beside the cfg"
         assert result.data is not None, "table record"
         assert result.data["source"] == str(config_path.parent / "mem.map"), (
             "provenance records the anchored path"
@@ -400,9 +400,7 @@ class TestSymImport:
 
         # Assert
         assert result.success, result.error
-        assert result.value == str(XC32_COUNT), (
-            "the whole path binds; the keyword after it still parses"
-        )
+        assert result.value == XC32_COUNT, "the whole path binds; the keyword after it still parses"
 
     def test_missing_map(self, sym_env):
         # Arrange
@@ -443,7 +441,7 @@ class TestSymImport:
         result = engine.dispatch(f"sym.import {small}")
 
         # Assert
-        assert result.value == "1", "the new table replaces the old wholesale"
+        assert result.value == 1, "the new table replaces the old wholesale"
         doc = json.loads(sidecar.read_text(encoding="utf-8"))
         assert len(doc["symbols"]) == 1, "the file is overwritten"
         assert doc["source"] == str(small), "provenance follows the new import"
@@ -770,7 +768,7 @@ class TestDevices:
         result = engine.dispatch("sym.unload")
 
         # Assert
-        assert result.value == str(DEMO_COUNT), "the value is the build count removed"
+        assert result.value == DEMO_COUNT, "the value is the build count removed"
         table = get_table(engine.ctx)
         assert table is not None and len(table) == 2, "the registers remain"
         assert any("2 device registers remain" in text for text in _texts(output)), (
@@ -897,7 +895,7 @@ class TestDevImport:
 
         # Assert
         assert result.success, result.error
-        assert result.value == str(SVD_COUNT), "the register count is the value"
+        assert result.value == SVD_COUNT, "the register count is the value"
         dest = config_path.parent / "dev" / "atsample1.device.json"
         assert dest.is_file(), "written as dev/<device>.device.json"
         assert engine.dispatch("sym PORT_GROUP1_DIR").value == "0x40003080", (
@@ -1056,7 +1054,7 @@ class TestBareImport:
 
         # Assert
         assert result.success, result.error
-        assert result.value == str(XC32_COUNT), "the same map was converted again"
+        assert result.value == XC32_COUNT, "the same map was converted again"
         assert result.data["source"] == str(map_copy), "against the recorded source"
 
     def test_bare_reuses_the_recorded_converter(self, sym_env, tmp_path):
@@ -1271,7 +1269,7 @@ class TestSymLoadUnload:
 
         # Assert
         assert result.success, result.error
-        assert result.value == str(DEMO_COUNT), "value is the count"
+        assert result.value == DEMO_COUNT, "value is the count"
         assert (f"Loaded {DEMO_COUNT} symbols (rig{SYMBOLS_SUFFIX})", "green") in output
         assert result.data is not None and result.data["count"] == DEMO_COUNT, "table record"
 
@@ -1313,7 +1311,7 @@ class TestSymLoadUnload:
 
         # Assert
         assert result.success, result.error
-        assert result.value == str(DEMO_COUNT), "an ad-hoc file loads"
+        assert result.value == DEMO_COUNT, "an ad-hoc file loads"
         table = get_table(engine.ctx)
         assert table is not None, "installed"
         assert table.path == DEMO_SYMBOLS, "path recorded"
@@ -1336,9 +1334,7 @@ class TestSymLoadUnload:
 
         # Assert
         assert result.success, result.error
-        assert result.value == str(DEMO_COUNT), (
-            "a bare name resolves into sym/, not against the CWD"
-        )
+        assert result.value == DEMO_COUNT, "a bare name resolves into sym/, not against the CWD"
 
     def test_load_takes_a_bare_stem_in_sym(self, sym_env):
         """file-name-default-ext: /sym.load rig finds sym/rig.symbols.json; the suffix is optional."""
@@ -1351,7 +1347,7 @@ class TestSymLoadUnload:
 
         # Assert
         assert result.success, result.error
-        assert result.value == str(DEMO_COUNT), "the stem named sym/rig.symbols.json"
+        assert result.value == DEMO_COUNT, "the stem named sym/rig.symbols.json"
 
     def test_bad_json(self, sym_env, tmp_path):
         # Arrange
@@ -1387,7 +1383,7 @@ class TestSymLoadUnload:
         second = engine.dispatch("sym.unload")
 
         # Assert
-        assert first.value == str(DEMO_COUNT), "value is the count that was unloaded"
+        assert first.value == DEMO_COUNT, "value is the count that was unloaded"
         assert (f"Unloaded symbols ({DEMO_COUNT}).", "green") in output
         assert get_table(engine.ctx) is None, "namespace cleared"
         assert second.success, second.error
@@ -1675,7 +1671,7 @@ class TestSymInfo:
         result = engine.dispatch("sym.info")
 
         # Assert
-        assert result.value == str(DEMO_COUNT)
+        assert result.value == DEMO_COUNT
         assert result.data is not None and result.data["sections"] == table.stats()
         assert result.data["loaded"] is True, "the loaded record says so, as the empty one says not"
         rows = [text for text, color in output if color == "markup"]
@@ -1736,7 +1732,7 @@ class TestSandbox:
         assert "outside the config sandbox" in imported.error, "/sym.import <abs> refused"
         assert "outside the config sandbox" in loaded.error, "/sym.load <abs> refused"
         assert bare.success, bare.error
-        assert bare.value == str(DEMO_COUNT), "the sidecar is always in-sandbox"
+        assert bare.value == DEMO_COUNT, "the sidecar is always in-sandbox"
 
 
 class TestValueContract:

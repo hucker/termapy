@@ -2783,7 +2783,7 @@ class TestLineNumbers:
                 await pilot.pause()
 
                 # Assert
-                assert result.value == "on", result.error
+                assert result.value is True, result.error
                 assert info.data["line_no"] is True, "/term.info reads the flag the setter wrote"
                 assert "| numbered line" in app._get_screen_text(), "the pane numbers the line"
 
@@ -2810,10 +2810,10 @@ class TestTrafficCounts:
                 refused = app.repl.dispatch("term.traffic 2")
 
                 # Assert
-                assert bare.value == "off", "a load starts with the counts hidden"
-                assert on.value == "on", on.error
+                assert bare.value is False, "a load starts with the counts hidden"
+                assert on.value is True, on.error
                 assert info.data["traffic"] is True, "/term.info reads the flag the setter wrote"
-                assert (flipped.value, flipped_back.value) == ("off", "on"), (
+                assert (flipped.value, flipped_back.value) == (False, True), (
                     "toggle flips each time"
                 )
                 assert refused.success is False, "an unknown token never flips the setting"
@@ -2855,9 +2855,9 @@ class TestTrafficCounts:
                 app._disconnect()
 
                 # Assert
-                assert on.value == "on", on.error
+                assert on.value is True, on.error
                 assert tx > 0 and rx > 0, "the command went out and the reply came back"
-                assert off.value == "off", off.error
+                assert off.value is False, off.error
 
         _run(scenario)
 
@@ -2885,7 +2885,7 @@ class TestTrafficCounts:
 
                 # Assert
                 assert loaded.success, loaded.error
-                assert state.value == "off", (
+                assert state.value is False, (
                     "the load started the new config with the counts hidden"
                 )
 
@@ -3047,7 +3047,7 @@ class TestDelayHook:
 
                 # Assert
                 assert result.success, result.error
-                assert result.value == "1.0", "value is the seconds waited"
+                assert result.value == 1.0, "value is the seconds waited, a number"
                 assert "Delay 1s done." in app._get_screen_text()
 
         _run(scenario)

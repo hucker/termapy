@@ -229,7 +229,7 @@ class TestSetting:
     def test_a_managed_key_can_still_be_read(self, cli):
         """Refusing the write leaves the query: bare /cfg config_version answers."""
         result = cli.repl.dispatch("cfg config_version")
-        assert result.value == str(cli.repl.cfg["config_version"])
+        assert result.value == cli.repl.cfg["config_version"]
 
     def test_a_numeric_choice_takes_a_fraction_whatever_the_key_holds(self, cli):
         """/cfg stop_bits 1.5 used to fail: the type came from the 1 the key held, so 1.5 was not an int."""
@@ -277,7 +277,7 @@ class TestSetting:
 
         # Assert
         assert "echo = off  (session)" in capsys.readouterr().out, "the change line"
-        assert query.value == "off", "the query answers the same spelling"
+        assert query.value is False, "the query answers the same spelling"
 
 
 class TestValueText:

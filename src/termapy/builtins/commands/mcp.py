@@ -194,7 +194,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         f"(Use {ctx.prefix}help --mcp for the human-readable command list, "
         f"{ctx.prefix}mcp.catalog for raw JSON.)"
     )
-    return CmdResult.record(data, rows, value=str(cmd_count), notes=((hint, "dim"),))
+    return CmdResult.record(data, rows, value=cmd_count, notes=((hint, "dim"),))
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

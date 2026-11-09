@@ -73,7 +73,7 @@ class TestGeneratedFile:
         result = _delete("cap")(ctx, "a.txt")
 
         # Assert
-        assert result.value == "1", result.error
+        assert result.value == 1, result.error
         assert _names(data_dir) == [".gitignore", "b.txt"], "only the named file is gone"
         assert questions == [], "one generated file is not asked about"
 
@@ -130,7 +130,7 @@ class TestPattern:
         result = _delete("cap")(ctx, "adc_*")
 
         # Assert
-        assert result.value == "2", "both matches deleted, case ignored"
+        assert result.value == 2, "both matches deleted, case ignored"
         assert questions == ["Delete 2 files from cap/ (adc_*)? This cannot be undone."]
         assert _names(data_dir) == [".gitignore", "notes.txt"], "what the pattern missed stays"
 
@@ -144,7 +144,7 @@ class TestPattern:
         result = _delete("cap")(ctx, "*")
 
         # Assert
-        assert result.value == "2", "both files deleted"
+        assert result.value == 2, "both files deleted"
         assert _names(data_dir) == [".gitignore"], "the dotfile is left"
 
     def test_a_no_deletes_nothing(self, tmp_path):
@@ -170,7 +170,7 @@ class TestPattern:
         result = _delete("cap")(ctx, "*")
 
         # Assert
-        assert result.value == "2", "both files deleted"
+        assert result.value == 2, "both files deleted"
         assert questions == [], "there was no one to ask"
 
     def test_matching_nothing_fails_the_second_time_as_the_first(self, tmp_path):
@@ -200,7 +200,7 @@ class TestAuthored:
         result = _delete("run")(ctx, "foo")
 
         # Assert
-        assert result.value == "1", result.error
+        assert result.value == 1, result.error
         assert questions == ["Delete foo.run from run/? This cannot be undone."]
         assert _names(data_dir) == [".gitignore", "bar.run"], "only foo.run is gone"
 

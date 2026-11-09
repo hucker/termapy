@@ -40,7 +40,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.fail(msg="Script stopped.")
         return CmdResult.fail(msg=f"Delay {label} canceled.")
     ctx.io.output(f"Delay {label} done.")
-    return CmdResult.ok(value=str(seconds))
+    return CmdResult.ok(value=seconds)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

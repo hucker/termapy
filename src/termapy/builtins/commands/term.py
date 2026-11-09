@@ -30,6 +30,7 @@ from termapy.scripting import (
     next_in_cycle,
     parse_bool,
     parse_bool_setting,
+    value_text,
 )
 
 if TYPE_CHECKING:
@@ -58,8 +59,10 @@ def _bool_setting(ctx: PluginContext, args: str, flag_name: str) -> CmdResult:
         flags[flag_name] = not flags.get(flag_name, False)
     else:
         flags[flag_name] = action
-    state = "on" if flags.get(flag_name) else "off"
-    ctx.io.result(state)
+    # A switch is a bool (registry value-typed); the line a person reads
+    # spells it on/off, as every setting command does.
+    state = bool(flags.get(flag_name))
+    ctx.io.result(value_text(state))
     return CmdResult.ok(value=state)
 
 
@@ -233,9 +236,8 @@ def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
         new = action
     if new != current:
         ctx.internal.apply_cfg(key, new)
-    state = "on" if new else "off"
-    ctx.io.result(state)
-    return CmdResult.ok(value=state)
+    ctx.io.result(value_text(new))
+    return CmdResult.ok(value=new)
 
 
 def _handler_eol_markers(ctx: PluginContext, args: str) -> CmdResult:
@@ -342,7 +344,7 @@ def _handler_json_fmt_indent(ctx: PluginContext, args: str) -> CmdResult:
     current = cfg_value(ctx.cfg, "json_fmt.indent")
     if not arg:
         ctx.io.result(str(current))
-        return CmdResult.ok(value=str(current))
+        return CmdResult.ok(value=current)
     if arg == "cycle":
         new = next_in_cycle(current, list(JSON_INDENTS))
     else:
@@ -352,7 +354,7 @@ def _handler_json_fmt_indent(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.fail(msg=f"Invalid JSON indent: {arg} (use {choices}/cycle)")
     ctx.internal.apply_cfg("json_fmt.indent", new)
     ctx.io.result(str(new))
-    return CmdResult.ok(value=str(new))
+    return CmdResult.ok(value=new)
 
 
 def _handler_timestamps(ctx: PluginContext, args: str) -> CmdResult:
@@ -424,8 +426,7 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
         return _cfg_toggle(ctx, state_token, "request_mode")
     # No state arg: still report state if err was changed, else query.
     if err_token is not None:
-        current = bool(cfg_value(ctx.cfg, "request_mode"))
-        return CmdResult.ok(value="on" if current else "off")
+        return CmdResult.ok(value=bool(cfg_value(ctx.cfg, "request_mode")))
     return _cfg_toggle(ctx, args, "request_mode")
 
 
@@ -497,7 +498,7 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
             "dim",
         ),
     )
-    return CmdResult.record(data, rows, value=str(data["full_table"] or 0), notes=notes)
+    return CmdResult.record(data, rows, value=data["full_table"] or 0, notes=notes)
 
 
 # ── /term.log: write to the session log without echoing to screen ──────────

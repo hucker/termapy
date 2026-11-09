@@ -192,7 +192,7 @@ class TestWrite:
 
         # Assert
         assert written.success, written.error
-        assert written.value == "4", "byte count is the value"
+        assert written.value == 4, "byte count is the value"
         assert read.value == "07000000", "the device kept the bytes"
 
     def test_audit_line_in_the_session_log(self, cli):
@@ -237,7 +237,7 @@ class TestWrite:
         read = cli.repl.dispatch("mem.dump 0x1010 70")
 
         # Assert
-        assert written.value == "70", "all bytes counted"
+        assert written.value == 70, "all bytes counted"
         assert read.value == payload, "all bytes landed in order"
 
     @pytest.mark.parametrize(
@@ -302,7 +302,7 @@ class TestValueWrites:
         cli.repl.dispatch("mem.write gFlags 0100")
 
         # Assert
-        assert cli.repl.dispatch("mem.read gFlags").value == "100", "decimal, leading zero or not"
+        assert cli.repl.dispatch("mem.read gFlags").value == 100, "decimal, leading zero or not"
 
     def test_hex_bytes_are_not_a_value(self, cli):
         """The bytes spelling is refused on a named scalar rather than read as some number."""
@@ -328,7 +328,7 @@ class TestValueWrites:
         cli.repl.dispatch("mem.write gPressure 2.5")
 
         # Assert
-        assert cli.repl.dispatch("mem.read gPressure").value == "2.5"
+        assert cli.repl.dispatch("mem.read gPressure").value == 2.5
 
     @pytest.mark.parametrize(
         "line, message",
@@ -396,7 +396,7 @@ class TestValueWrites:
             cli.repl.dispatch("mem.read U1MODE.ON").value,
             cli.repl.dispatch("mem.read U1MODE.BRGH").value,
         )
-        assert actual == ("1", "0"), "the number is the register word, in the device's order"
+        assert actual == (1, 0), "the number is the register word, in the device's order"
 
 
 class TestNamedBounds:
@@ -409,7 +409,7 @@ class TestNamedBounds:
 
         # Assert
         assert result.success, result.error
-        assert result.value == "3", "the seeded counter"
+        assert result.value == 3, "the seeded counter"
         assert "sCount = 3  (0x0003)" in capsys.readouterr().out, "two bytes, so four hex digits"
 
     def test_a_type_wider_than_the_symbol_is_refused(self, cli):
@@ -429,7 +429,7 @@ class TestNamedBounds:
         result = cli.repl.dispatch("mem.read gFlags u8")
 
         # Assert
-        assert result.value == "5", "the low byte of the seeded u32"
+        assert result.value == 5, "the low byte of the seeded u32"
 
     def test_an_offset_inside_the_symbol_is_bounded(self, cli):
         """gTemp+1 has one byte left, so a u16 there is refused."""
@@ -523,13 +523,13 @@ class TestRead:
         """A symbol's own type decodes it with no type token, and the data names the type."""
         result = cli.repl.dispatch("mem.read gTemp")
         assert result.success, result.error
-        assert result.value == "27", "gTemp's u16 type decodes the seed"
+        assert result.value == 27, "gTemp's u16 type decodes the seed"
         assert result.data["type"] == "u16"
 
     def test_explicit_type_overrides(self, cli):
         """A type token overrides the symbol's type -- u8 reads just gTemp's first byte."""
         result = cli.repl.dispatch("mem.read gTemp u8")
-        assert result.value == "27", "first byte as u8"
+        assert result.value == 27, "first byte as u8"
 
     def test_hex_twin_is_the_decoded_value_not_the_raw_bytes(self, cli, capsys):
         """On LE, the 0x twin is the decoded scalar (0x001B), not the wire bytes (0x1B00)."""
@@ -557,7 +557,7 @@ class TestRead:
         result = cli.repl.dispatch("mem.read.verbose gFlags i32")
 
         # Assert
-        assert result.value == "-2", "the decoded signed value"
+        assert result.value == -2, "the decoded signed value"
         assert "gFlags = -2  (0xFFFFFFFE)" in capsys.readouterr().out, (
             "a negative value renders as two's complement at the symbol's width"
         )
@@ -565,7 +565,7 @@ class TestRead:
     def test_char_token(self, cli, capsys):
         """The char type renders the byte as a quoted character while the value stays numeric."""
         result = cli.repl.dispatch("mem.read sBanner char")
-        assert result.value == "66", "the value is the byte"
+        assert result.value == 66, "the value is the byte"
         assert "sBanner = 'B' (0x42)" in capsys.readouterr().out, "rendered as a character"
 
     def test_register_shows_all_fields(self, cli, capsys):
@@ -585,22 +585,22 @@ class TestRead:
     def test_named_field(self, cli):
         """A .FIELD read returns that field's value and carries the whole word in the data."""
         result = cli.repl.dispatch("mem.read U1MODE.ON")
-        assert result.value == "1", "bit 15 of the LE word is set"
+        assert result.value == 1, "bit 15 of the LE word is set"
         assert result.data["word"] == 0x8008, "the whole word rides along"
 
     def test_numeric_bit_and_slice(self, cli):
         """A .N bit number and a .lo-hi slice extract just as a named field does."""
-        assert cli.repl.dispatch("mem.read U1MODE.15").value == "1", "same bit by number"
-        assert cli.repl.dispatch("mem.read gFlags.0-2").value == "5", "the low three bits of 5"
+        assert cli.repl.dispatch("mem.read U1MODE.15").value == 1, "same bit by number"
+        assert cli.repl.dispatch("mem.read gFlags.0-2").value == 5, "the low three bits of 5"
 
     def test_bare_address_bit(self, cli):
         """A .bit suffix works on a raw address too, not only on a named register."""
-        assert cli.repl.dispatch("mem.read 0xBF806000.3").value == "1", "BRGH by raw address"
+        assert cli.repl.dispatch("mem.read 0xBF806000.3").value == 1, "BRGH by raw address"
 
     def test_float_symbol(self, cli):
         """An f32 symbol decodes to its float value, not to an integer of its bytes."""
         result = cli.repl.dispatch("mem.read gPressure")
-        assert result.value == "1013.25", "the seeded f32"
+        assert result.value == 1013.25, "the seeded f32"
 
     def test_bare_address_needs_a_type(self, cli):
         """A raw address has no type to decode by, so a read without one is refused."""
@@ -633,10 +633,10 @@ class TestBitWrites:
 
         # Assert
         assert result.success, result.error
-        assert result.value == "0", "the field value written"
+        assert result.value == 0, "the field value written"
         assert result.data["atomic"] is True, "the demo advertises MEM.M"
         assert result.data["before_word"] == 0x8008 and result.data["after_word"] == 0x0008
-        assert cli.repl.dispatch("mem.read U1MODE.ON").value == "0", "read-back"
+        assert cli.repl.dispatch("mem.read U1MODE.ON").value == 0, "read-back"
 
     def test_the_word_change_clause_is_verbose(self, cli, capsys):
         """mem-output-levels: a bit write shows its value at any level, the word change only at .verbose."""
@@ -670,8 +670,8 @@ class TestBitWrites:
         """Writing a multi-bit slice sets only those bits and leaves the neighbors alone."""
         result = cli.repl.dispatch("mem.write gFlags.4-6 5")
         assert result.success, result.error
-        assert cli.repl.dispatch("mem.read gFlags.4-6").value == "5", "three bits landed"
-        assert cli.repl.dispatch("mem.read gFlags.0-2").value == "5", "neighbors untouched"
+        assert cli.repl.dispatch("mem.read gFlags.4-6").value == 5, "three bits landed"
+        assert cli.repl.dispatch("mem.read gFlags.0-2").value == 5, "neighbors untouched"
 
     def test_value_too_big(self, cli):
         """A value wider than the field is refused rather than silently truncated."""
@@ -1390,7 +1390,7 @@ class TestPeripheralReadGates:
 
         # Assert
         assert result.success, result.error
-        assert result.value == "32776", "U1MODE's seeded 0x8008, read by its device name"
+        assert result.value == 32776, "U1MODE's seeded 0x8008, read by its device name"
 
     def test_dump_across_registers_is_refused(self, sfr_cli):
         """A dump sweeping peripheral space is refused, counting and naming the registers."""
@@ -1815,7 +1815,7 @@ class TestReadOnlyRegisters:
 
         # Assert
         assert result.success, result.error
-        assert result.value == "272", "U1STA's seeded 0x0110"
+        assert result.value == 272, "U1STA's seeded 0x0110"
 
     def test_a_narrow_mode_alias_bounds_the_read(self, sfr_cli):
         """The 16-bit view of a register refuses a u32 read, as a 2-byte variable would."""

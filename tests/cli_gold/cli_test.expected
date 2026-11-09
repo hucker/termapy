@@ -1815,7 +1815,7 @@ demo> /mem
   {"cmd": "/mem", "success": true, "error": "", "value": "termapy", "data": {"available": true, "dialect": "termapy", "max_block": 64, "address_bits": 32, "endian": "le", "atomic_modify": true, "sources": {"dialect": "default", "max_block": "device", "address_bits": "device", "endian": "device", "modify": "device"}, "device_info": {"max_block": 64, "address_bits": 32, "endian": "le", "modify": true, "regions": [{"name": "ram", "start": "0x00000000", "size": 16384, "w": true}, {"name": "sfr", "start": "0xBF806000", "size": 32, "w": true}]}, "device_error": null, "problem": null, "template": null}, "output_lines": [], "elapsed_s": 0}
 demo> /term.request off
   request_mode = off  (session)
-  {"cmd": "/term.request off", "success": true, "error": "", "value": "off", "data": null, "output_lines": ["off"], "elapsed_s": 0}
+  {"cmd": "/term.request off", "success": true, "error": "", "value": false, "data": null, "output_lines": ["off"], "elapsed_s": 0}
 demo> MEM.R 0x1000 2 --json
 {"cmd": "MEM.R 0x1000 2"}
   {"cmd": "MEM.R 0x1000 2", "success": true, "error": "", "value": "00001000: 25 01\r\nOK", "data": null, "output_lines": [], "elapsed_s": 0}

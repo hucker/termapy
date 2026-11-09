@@ -58,6 +58,7 @@
     "cksum",
     "clearid",
     "CLRDTR",
+    "cmdresult",
     "CLRRTS",
     "CMSIS",
     "codegen",

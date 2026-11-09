@@ -206,14 +206,14 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             f"across {total_files_with_hits}/{len(paths)} file(s).",
             "green" if fix_mode else "yellow",
         )
-        return CmdResult.ok(value=str(total_hits))
+        return CmdResult.ok(value=total_hits)
 
     # Single-file mode.
     path = _resolve_script(ctx, name)
     if path is None:
         return CmdResult.fail(msg=f"Script not found: {name}")
     hits = _scan_one_file(ctx, path, prefix, fix_mode)
-    return CmdResult.ok(value=str(hits))
+    return CmdResult.ok(value=hits)
 
 
 def _run_long_help(ctx: PluginContext) -> str:

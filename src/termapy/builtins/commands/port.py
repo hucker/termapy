@@ -47,7 +47,7 @@ def _apply(ctx: PluginContext, result: port_control.Result) -> None:
         ctx.serial.apply_port_effects(effects)
 
 
-def _answer(ctx: PluginContext, result: port_control.Result, value: str) -> CmdResult:
+def _answer(ctx: PluginContext, result: port_control.Result, value: object) -> CmdResult:
     """A setter's answer: its refusal as the failure, else its lines and ``value``.
 
     A refusal (``port_control.problem``) applies nothing and prints nothing
@@ -423,11 +423,19 @@ def _joined_value(result: port_control.Result) -> str:
     return "\n".join(text for text, color in msgs if color not in ("red", "yellow"))
 
 
+def _level(result: port_control.Result) -> int | str:
+    """A modem line's level as a number, ``0`` or ``1`` (the vocabulary ``$(PORT.CTS)`` uses), else the line as read."""
+    text = _read_value(result)
+    return int(text) if text in ("0", "1") else text
+
+
 def _make_prop_handler(key: str) -> Callable[[PluginContext, str], CmdResult]:
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         result = port_control.get_set_prop(ctx.internal.port(), ctx.cfg, key, args)
-        # Only return value on read (no args); set returns prose not useful as value
-        return _answer(ctx, result, _read_value(result) if not args.strip() else "")
+        # A bare query answers the setting in its own type, the config's
+        # (registry value-typed); a set returns prose not useful as a value.
+        value = cfg_value(ctx.cfg, f"serial.{key}") if not args.strip() else ""
+        return _answer(ctx, result, value)
 
     # The /help.dev text of each command built here (registry handler-docstring).
     _handler.__doc__ = f"Query (bare) or set the port's {key}, on the open port and in the config."
@@ -453,13 +461,13 @@ def _handler_baud_rate(ctx: PluginContext, args: str) -> CmdResult:
     shown = (
         rate + (" (custom)" if data["custom"] else "") + ("" if connected else " (disconnected)")
     )
-    return CmdResult.record(data, [TextLine(shown)], value=rate)
+    return CmdResult.record(data, [TextLine(shown)], value=data["baud"])
 
 
 def _make_hw_handler(line: str) -> Callable[[PluginContext, str], CmdResult]:
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         result = port_control.get_set_hw_line(ctx.internal.port(), line, args)
-        return _answer(ctx, result, _read_value(result) if not args.strip() else "")
+        return _answer(ctx, result, _level(result) if not args.strip() else "")
 
     # The /help.dev text of each command built here (registry handler-docstring).
     _handler.__doc__ = f"Query (bare) or set the {line.upper()} output line of the open port."
@@ -470,7 +478,7 @@ def _make_signal_handler(signal: str) -> Callable[[PluginContext, str], CmdResul
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         # Signals are always read-only; extract value from the single msg
         result = port_control.read_signal(ctx.internal.port(), signal, args)
-        return _answer(ctx, result, _read_value(result))
+        return _answer(ctx, result, _level(result))
 
     # The /help.dev text of each command built here (registry handler-docstring).
     _handler.__doc__ = f"Read the {signal.upper()} input line of the open port."

@@ -360,7 +360,7 @@ class TestTermUsbDbHandler:
 
         # Assert
         actual = result.value
-        expected = str(len(USB_VENDORS_FULL))
+        expected = len(USB_VENDORS_FULL)
         assert actual == expected, (
             f"value should be the full-table count ({expected}); got {actual!r}"
         )

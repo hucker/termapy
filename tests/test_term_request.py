@@ -103,7 +103,7 @@ class TestTermRequestToggle:
         # Assert
         assert result.success, "/term.request toggle succeeds"
         assert cfg.get("request_mode") is True, "request_mode flipped to on"
-        assert result.value == "on", "result.value reports new state"
+        assert result.value is True, "result.value reports new state"
 
     def test_toggle_explicit_off_when_on(self, repl_env):
         """An explicit off disables an enabled request_mode and reports off as the value."""
@@ -116,7 +116,7 @@ class TestTermRequestToggle:
 
         # Assert
         assert cfg.get("request_mode") is False, "explicit off applied"
-        assert result.value == "off", "value reports off"
+        assert result.value is False, "value reports off"
 
     def test_toggle_explicit_on(self, repl_env):
         """An explicit on enables request_mode from its default and reports on as the value."""
@@ -128,7 +128,7 @@ class TestTermRequestToggle:
 
         # Assert
         assert cfg.get("request_mode") is True, "explicit on applied"
-        assert result.value == "on", "value reports on"
+        assert result.value is True, "value reports on"
 
     def test_any_parse_bool_token_sets(self, repl_env):
         """Any parse_bool token sets the mode: yes means on, not an Unknown token error."""
@@ -1185,9 +1185,9 @@ class TestJsonLayout:
         second = engine.dispatch("term.json_fmt.indent cycle")
 
         # Assert
-        assert set_result.value == "4", "a value sets it"
-        assert bare.value == "4", "bare reports it, changing nothing"
-        assert (first.value, second.value) == ("0", "2"), "cycle wraps 4 -> 0 -> 2"
+        assert set_result.value == 4, "a value sets it"
+        assert bare.value == 4, "bare reports it, changing nothing"
+        assert (first.value, second.value) == (0, 2), "cycle wraps 4 -> 0 -> 2"
         assert cfg["json_fmt"]["indent"] == 2, "the session cfg follows, inside its section"
 
     def test_term_json_indent_refuses_another_number(self, repl_env):
@@ -1206,13 +1206,13 @@ class TestJsonLayout:
             engine.dispatch("term.json_fmt.highlight").value,
             engine.dispatch("term.json_fmt.highlight toggle").value,
         ]
-        assert actual == ["off", "off", "on"]
+        assert actual == [False, False, True]
         assert cfg["json_fmt"]["highlight"] is True, "the session cfg follows"
 
     def test_bare_term_json_reports_both(self, repl_env):
         """Bare /term.json_fmt answers both settings as data; the space form reaches a setting, any other word is a usage error."""
         engine, _, _, _, _ = repl_env
-        assert engine.dispatch("term.json_fmt indent 4").value == "4", "the space form sets it"
+        assert engine.dispatch("term.json_fmt indent 4").value == 4, "the space form sets it"
         bare = engine.dispatch("term.json_fmt")
         assert bare.data == {"highlight": True, "indent": 4}
         assert engine.dispatch("term.json_fmt pretty").error.startswith("Usage:")

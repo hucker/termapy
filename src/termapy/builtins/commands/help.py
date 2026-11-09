@@ -1204,7 +1204,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     # The landscape view's natural scriptable summary is the total
     # command count -- scripts can compare it across cfgs to detect
     # plugin drift, e.g., ``$(N) <- /help.quiet`` then arithmetic.
-    return CmdResult.ok(value=str(len(all_plugins)))
+    return CmdResult.ok(value=len(all_plugins))
 
 
 # ── /help.target, /help.run, /help.plugin, /help.dev ─────────────────────────
@@ -1339,7 +1339,7 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
             total += 1
 
     ctx.io.result(f"{total} commands.")
-    return CmdResult.ok(value=str(total))
+    return CmdResult.ok(value=total)
 
 
 def _handler_dev(ctx: PluginContext, args: str) -> CmdResult:

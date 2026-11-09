@@ -20,7 +20,7 @@ def test_one_ping_answers_its_reply_time(cli):
 
     # Assert
     assert result.success is True, result.error
-    assert result.value.endswith("ms"), f"the value is a time: {result.value!r}"
+    assert isinstance(result.value, float), f"the value is a time in ms, a number: {result.value!r}"
     actual = (result.data["count"], result.data["replies"], result.data["timeouts"])
     assert actual == (1, 1, 0), "one ping, one reply"
 
@@ -34,7 +34,7 @@ def test_several_pings_carry_every_round_trip(cli):
     data = result.data
     assert len(data["times_ms"]) == 3, "one entry per round trip"
     assert data["min_ms"] <= data["avg_ms"] <= data["max_ms"], "the stats bracket the mean"
-    assert result.value == f"{data['avg_ms']:.0f}ms", "the value is the mean, as one token"
+    assert result.value == round(data["avg_ms"], 1), "the value is the mean, in ms"
 
 
 def test_a_timeout_is_counted_never_averaged(cli):

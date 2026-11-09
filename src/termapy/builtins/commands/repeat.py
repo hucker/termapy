@@ -89,9 +89,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.result(f"Repeat stopped after {ran}/{count} iterations.")
         # Return how many iterations actually ran so scripts can detect
         # cancellation (ran < count) vs full completion.
-        return CmdResult.ok(value=str(ran))
+        return CmdResult.ok(value=ran)
 
-    return CmdResult.ok(value=str(ran))
+    return CmdResult.ok(value=ran)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

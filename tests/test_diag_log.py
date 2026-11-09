@@ -271,6 +271,7 @@ def cli(tmp_path) -> CLITerminal:
 
 
 @pytest.mark.rule("broad-catch-logged")
+@pytest.mark.rule("no-crash-to-trace")
 def test_a_raising_command_names_its_exception_and_logs_its_traceback(cli, caplog):
     """Dispatch answers a handler's exception with its type and the log file, and records the traceback."""
 

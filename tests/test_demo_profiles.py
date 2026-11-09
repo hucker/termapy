@@ -93,6 +93,7 @@ class TestDemoNdjsonProfileShape:
         assert ta[0]["name"] == "celsius", "celsius"
         assert ta[0]["type"] == "float", "float type"
 
+    @pytest.mark.rule("destructive-declared")
     def test_safety_classifications(self):
         """Only calibrate and reset are destructive, so only they hit the MCP confirm gate."""
         # Arrange

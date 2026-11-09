@@ -25,6 +25,7 @@ sys.path.insert(0, str(_SCRIPTS_DIR))
 
 
 class TestConfigReferenceSync:
+    @pytest.mark.rule("demo-cfg-mirrors-defaults")
     def test_reference_table_in_sync(self):
         """The generated Field/Default columns must match DEFAULT_CFG."""
         # Arrange / Act -- check mode writes nothing; returns drifted files.

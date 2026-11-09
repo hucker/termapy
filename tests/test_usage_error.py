@@ -16,6 +16,8 @@ from termapy.plugins import Command, UsageError, format_usage
 from termapy.plugins.params import ParamSpec
 from termapy.repl import ReplEngine
 
+pytestmark = pytest.mark.rule("usage-from-declaration")
+
 
 @pytest.fixture
 def engine(tmp_path):
@@ -88,6 +90,7 @@ class TestFormatUsage:
         # Assert
         assert "count" in actual, "synopsis synthesized from ParamSpec list"
 
+    @pytest.mark.rule("prefix-never-hardcoded")
     def test_custom_prefix_rendered(self):
         """The prefix comes from the caller, so > renders where / would otherwise appear."""
         # Arrange
@@ -151,6 +154,7 @@ class TestDispatchRendersUsage:
         # Assert
         assert result.error == "Usage: /utest.sub <n>", "dotted name renders in full"
 
+    @pytest.mark.rule("prefix-never-hardcoded")
     def test_custom_prefix_in_usage_line(self, engine):
         """A cmd_prefix changed after registration is honored live, never a hardcoded /."""
         # Arrange -- engine prefix derives LIVE from the backing cfg dict
@@ -179,6 +183,7 @@ class TestDispatchRendersUsage:
             "migrated builtin renders its declaration"
         )
 
+    @pytest.mark.rule("prefix-never-hardcoded")
     def test_params_error_honors_prefix(self, engine):
         """Param coercion errors share the renderer, so /repeat errors follow the cfg prefix."""
         # Arrange -- /repeat is a params command; parse errors are rendered

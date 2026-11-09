@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.slow
+pytestmark = [pytest.mark.slow, pytest.mark.rule("value-scriptable")]
 
 FIXTURE = Path(__file__).parent / "fixtures" / "value_capture.run"
 

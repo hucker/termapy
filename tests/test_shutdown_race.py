@@ -11,9 +11,12 @@ widen or narrow what's caught.
 
 from __future__ import annotations
 
+import pytest
 from textual.css.query import NoMatches
 
 from termapy.app import SHUTDOWN_RACE
+
+pytestmark = pytest.mark.rule("call-from-thread-wrapped")
 
 
 class TestShutdownRaceMembership:

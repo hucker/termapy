@@ -101,6 +101,7 @@ class TestDeclarationValidation:
         cmd = Command("h", name="c", raw_args=True, params=[ParamSpec("a", default="")])
         assert cmd.raw_args is True, "raw_args + params coexist"
 
+    @pytest.mark.rule("param-decl-dataclass")
     def test_valid_declaration_builds(self):
         """A params command leaves args empty, to be synthesized at registration."""
         # Arrange / Act -- should not raise
@@ -162,6 +163,7 @@ class TestCoercion:
         actual = coerce_value(ParamSpec("t", "duration"), "0")
         assert actual == (True, 0.0), "bare 0 duration -> 0.0"
 
+    @pytest.mark.rule("param-type-enum")
     def test_enum_alias_returns_canonical(self):
         """An enum alias in any case binds the canonical value, not the alias typed."""
         spec = ParamSpec(
@@ -170,6 +172,7 @@ class TestCoercion:
         actual = coerce_value(spec, "A")
         assert actual == (True, "append"), "alias 'A' -> canonical 'append', case-insensitive"
 
+    @pytest.mark.rule("param-type-enum")
     def test_enum_miss(self):
         """An enum miss lists only the canonical values, not the aliases."""
         spec = ParamSpec("m", "enum", values=(EnumValue("new"), EnumValue("append")))
@@ -188,6 +191,8 @@ class TestCoercion:
 # -- param-parse-grammar / param-fail-message -----------------------------------
 
 
+@pytest.mark.rule("param-parse-grammar")
+@pytest.mark.rule("param-fail-message")
 class TestParseParams:
     """param-parse-grammar + param-fail-message: end-to-end string -> bound."""
 
@@ -279,6 +284,7 @@ class TestSynopsisAndBlock:
         expected = "{count=<N>} {timeout=<dur>} cmd=<command>"
         assert actual == expected, "optionals braced, rest last, required bare"
 
+    @pytest.mark.rule("param-type-enum")
     def test_enum_synopsis_lists_canonicals(self):
         """An enum's synopsis hint lists its canonical values joined by |."""
         params = [
@@ -470,6 +476,7 @@ class TestDispatchNesting:
 # -- Variadic positionals -------------------------------------------------------
 
 
+@pytest.mark.rule("param-parse-grammar")
 class TestVariadic:
     """A variadic positional binds every remaining token as a list.
 
@@ -634,6 +641,7 @@ class TestVariadic:
         assert "repeatable" in lines[0], "the PARAMETERS block flags repetition"
 
 
+@pytest.mark.rule("param-decl-validation")
 class TestVariadicDeclarationValidation:
     """A malformed variadic declaration fails at load, not at first dispatch."""
 
@@ -672,6 +680,7 @@ class TestVariadicDeclarationValidation:
 # -- $(*NAME) dereference -------------------------------------------------------
 
 
+@pytest.mark.rule("param-deref")
 class TestResolveDeref:
     """``$(*NAME)`` resolves per token, so its arity is exactly 1.
 
@@ -811,6 +820,8 @@ class TestResolveDeref:
 # ── bool: the parse_bool vocabulary as a first-class type ───────────────────
 
 
+@pytest.mark.rule("param-types")
+@pytest.mark.rule("bool-one-vocabulary")
 class TestBoolType:
     """``bool`` params accept every scripting.parse_bool token, so keyword
     toggles match the setting commands' vocabulary instead of a bare enum."""

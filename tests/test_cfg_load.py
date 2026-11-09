@@ -180,6 +180,7 @@ class TestCfgLoadFromZeroConfig:
         )
         assert "continued" in result.stdout, "REPL continues after /cfg.load failure"
 
+    @pytest.mark.rule("usage-from-declaration")
     def test_load_without_name_errors(self, tmp_path):
         """A bare /cfg.load shows usage instead of loading anything; the script continues."""
         # Arrange

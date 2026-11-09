@@ -69,6 +69,7 @@ def _fake_ctx(
     return ctx, cfg_dir_
 
 
+@pytest.mark.rule("markup-escape")
 class TestMarkup:
     """Trivial string-shape helpers."""
 
@@ -142,6 +143,7 @@ class TestFolderHelpers:
         # Assert
         assert actual is None, "no state, no dir"
 
+    @pytest.mark.rule("folder-globs-from-table")
     def test_file_count_uses_folder_pattern(self, tmp_path):
         """Only files matching the folder's FOLDER_PATTERNS glob count; strays are ignored."""
         # Arrange - create 3 .run files + 1 non-matching file
@@ -227,6 +229,7 @@ class TestPortHelpers:
         # Assert
         assert actual == 9600, "reads live pyserial attribute"
 
+    @pytest.mark.rule("state-messages-one-owner")
     def test_port_status_not_connected_when_closed(self, tmp_path):
         """A disconnected session reports the gate's closed-port answer in the shared green style."""
         # Arrange
@@ -297,6 +300,7 @@ class TestCfgHelpers:
         # Assert
         assert actual == "", "empty path -> empty name"
 
+    @pytest.mark.rule("config-files-one-reader")
     def test_cfg_count_only_counts_dirs_with_matching_cfg(self, tmp_path):
         """A sibling folder without its own <name>.cfg is not counted as a config."""
         # Arrange - one valid config + one stray directory without cfg

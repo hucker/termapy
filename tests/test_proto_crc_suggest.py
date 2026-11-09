@@ -13,6 +13,8 @@ suffix correctly.
 
 from __future__ import annotations
 
+import pytest
+
 from termapy.builtins.commands.proto import (
     _crc_codegen,
     _did_you_mean,
@@ -21,6 +23,8 @@ from termapy.builtins.commands.proto import (
     _handler_crc_verify,
 )
 from termapy.plugins import IOHandle, PluginContext
+
+pytestmark = pytest.mark.rule("did-you-mean-one")
 
 
 def _build_stub_ctx():

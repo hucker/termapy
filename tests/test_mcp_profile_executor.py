@@ -318,6 +318,7 @@ class TestTextFormat:
         assert result["value"] == "all good", "degraded to raw text"
 
 
+@pytest.mark.rule("destructive-declared")
 class TestUnknownSafetyTier:
     def test_unknown_tier_refuses_without_confirm(self, host):
         """An unrecognized safety tier gates like destructive and sends nothing."""
@@ -526,6 +527,7 @@ class TestErrorDetection:
 # ── Destructive-command confirmation gate ───────────────────────────────────
 
 
+@pytest.mark.rule("destructive-declared")
 class TestDestructiveGate:
     """Profile entries with ``safety: destructive`` need an explicit
     ``confirm=True`` on the MCP tool call.  Safe/readonly are unaffected."""
@@ -749,6 +751,7 @@ class TestFallThrough:
         assert result["success"] is True, "/help still works"
         assert host._sent == [], "slash commands don't hit the wire"
 
+    @pytest.mark.rule("tx-text-one-path")
     def test_unmapped_bare_line_falls_through(self, host):
         """A bare line the profile doesn't map still goes to the device via /term.send."""
         # Arrange — profile loaded but RANDOM not in it.  Bare line

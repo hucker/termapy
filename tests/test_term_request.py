@@ -130,6 +130,7 @@ class TestTermRequestToggle:
         assert cfg.get("request_mode") is True, "explicit on applied"
         assert result.value is True, "value reports on"
 
+    @pytest.mark.rule("bool-one-vocabulary")
     def test_any_parse_bool_token_sets(self, repl_env):
         """Any parse_bool token sets the mode: yes means on, not an Unknown token error."""
         # Arrange -- the one-vocabulary rule: yes/1/true are all "on"
@@ -220,6 +221,7 @@ class TestExecRequestMode:
         assert rendered["value"] == "5.5", "display envelope: response text"
         assert isinstance(rendered["elapsed_s"], float), "display: elapsed_s"
 
+    @pytest.mark.rule("data-structured-twin")
     def test_json_native_response_lands_in_data(self, repl_env):
         """A JSON reply is parsed into data while value keeps the raw wire text."""
         # Arrange -- the device answers with a JSON object (json-to-json)
@@ -277,6 +279,7 @@ class TestExecRequestMode:
         # Assert
         assert "AT+VER" in result.value, "echo kept when strip is off"
 
+    @pytest.mark.rule("color-off-is-all-color")
     def test_ansi_stripped_from_value_when_color_off(self, repl_env):
         """With color off, the MCP default, SGR escapes are removed from the reply value."""
         # Arrange -- MCP defaults color off; device wraps its reply in SGR.
@@ -699,6 +702,7 @@ class TestTermRequestCommand:
         assert cfg["request_mode"] is False, "err= alone does not flip request_mode"
         assert ctx.ns("flags")["request_err_pattern_override"] == "^FOO"
 
+    @pytest.mark.rule("setting-bare-queries")
     def test_unknown_token_fails(self, repl_env):
         """An unrecognized argument errors with Unknown token instead of flipping the mode."""
         # Arrange
@@ -718,6 +722,7 @@ class TestTermRequestCommand:
 
 
 class TestDispatchFullRequestMode:
+    @pytest.mark.rule("tx-text-one-path")
     def test_request_mode_off_falls_through_to_term_send(self, repl_env):
         """With request_mode off, a bare line is a /term.send write with no envelope."""
         # Arrange -- request_mode is False; bare line goes through /term.send
@@ -1093,6 +1098,7 @@ class TestBareLineJsonFlag:
         )
         assert rendered["value"] == "00001000: 1B 00\r\nOK", "and carries the reply"
 
+    @pytest.mark.rule("tx-text-one-path")
     def test_without_the_flag_the_bare_line_is_a_plain_send(self, repl_env):
         """Without --json the line is fire-and-forget: written once, never read, no value."""
         # Arrange
@@ -1173,6 +1179,7 @@ class TestJsonLayout:
         echo = markup_output[0]
         assert echo == '{"cmd": "get_voltage"}', "the one-key echo is not spread over three lines"
 
+    @pytest.mark.rule("setting-bare-queries")
     def test_term_json_indent_sets_queries_and_cycles(self, repl_env):
         """/term.json_fmt.indent: a value sets it, bare reports it, cycle advances and wraps, twice in a row."""
         # Arrange
@@ -1190,6 +1197,7 @@ class TestJsonLayout:
         assert (first.value, second.value) == (0, 2), "cycle wraps 4 -> 0 -> 2"
         assert cfg["json_fmt"]["indent"] == 2, "the session cfg follows, inside its section"
 
+    @pytest.mark.rule("setting-bare-queries")
     def test_term_json_indent_refuses_another_number(self, repl_env):
         """Anything but 0, 2, 4 or cycle is an error naming the choices, never a silent change."""
         engine, _, cfg, _, _ = repl_env
@@ -1198,6 +1206,7 @@ class TestJsonLayout:
         assert result.error == "Invalid JSON indent: 3 (use 0/2/4/cycle)"
         assert cfg_value(cfg, "json_fmt.indent") == before, "nothing changed"
 
+    @pytest.mark.rule("setting-bare-queries")
     def test_term_json_highlight_is_a_boolean_setting(self, repl_env):
         """/term.json_fmt.highlight: off sets, bare reports, toggle flips back on."""
         engine, _, cfg, _, _ = repl_env
@@ -1209,6 +1218,7 @@ class TestJsonLayout:
         assert actual == [False, False, True]
         assert cfg["json_fmt"]["highlight"] is True, "the session cfg follows"
 
+    @pytest.mark.rule("setting-bare-queries")
     def test_bare_term_json_reports_both(self, repl_env):
         """Bare /term.json_fmt answers both settings as data; the space form reaches a setting, any other word is a usage error."""
         engine, _, _, _, _ = repl_env
@@ -1217,6 +1227,7 @@ class TestJsonLayout:
         assert bare.data == {"highlight": True, "indent": 4}
         assert engine.dispatch("term.json_fmt pretty").error.startswith("Usage:")
 
+    @pytest.mark.rule("cfg-schema-one-table")
     def test_a_bad_indent_in_a_cfg_warns_at_load(self):
         """A hand-edited json_fmt.indent outside the choices is flagged by validate_config."""
         from termapy.config import validate_config

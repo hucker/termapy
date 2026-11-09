@@ -1,5 +1,10 @@
 # Traceability
 
+**Status: experimental.** Traceability is new (2026-11-08): the marker, the id
+sources and the matrix may change shape as requirement documents join, and what
+is traced today is the rule registry and one spec, not requirements. The matrix
+is an entry point, never a coverage claim.
+
 How a test says what it pins, and where that is going. The first half is what
 runs today; the second is the plan, and says so.
 

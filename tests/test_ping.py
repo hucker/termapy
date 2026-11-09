@@ -12,6 +12,10 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
+pytestmark = [pytest.mark.rule("value-typed"), pytest.mark.rule("data-structured-twin")]
+
 
 def test_one_ping_answers_its_reply_time(cli):
     """One answered ping: the value is its time in ms, the data one reply and no timeout."""
@@ -105,6 +109,7 @@ def test_a_json_reply_stays_one_line_in_a_pipe(cli, capsys):
     assert any(line.startswith('{"max_block": 64, "address_bits"') for line in lines), lines
 
 
+@pytest.mark.rule("plugins-never-read-wants-data")
 def test_a_data_caller_gets_json_as_one_line(cli):
     """json_layout answers (0, False) for a caller that wants data, screen or not: no handler asks who is reading."""
     cli.repl.screen_json = True

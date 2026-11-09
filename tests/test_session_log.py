@@ -5,9 +5,13 @@ from __future__ import annotations
 import json
 import re
 
+import pytest
+
 from termapy.config import mcp_log_path, prepare_cfg_folder
 from termapy.defaults import default_cfg
 from termapy.session_log import SESSION_END, SESSION_START, SessionLog, entry_text
+
+pytestmark = pytest.mark.rule("session-log-one-owner")
 
 _STAMPED = re.compile(r"^\[\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{3}\] ")
 

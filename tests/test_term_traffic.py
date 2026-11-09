@@ -101,6 +101,7 @@ class TestEngineCounts:
         # Assert
         assert _await_counts(loop_cli, expected) == expected
 
+    @pytest.mark.rule("data-structured-twin")
     def test_term_info_reports_the_counts(self, loop_cli):
         """/term.info answers the counts as integers in its data and as exact numbers on its page."""
         # Arrange

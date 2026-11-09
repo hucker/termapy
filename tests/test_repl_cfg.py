@@ -63,12 +63,14 @@ class TestCfgShowAll:
 
 
 class TestCfgShowKey:
+    @pytest.mark.rule("setting-bare-queries")
     def test_show_existing_key(self, repl_env):
         """/cfg with a known key and no value is a query that prints the current value."""
         engine, _, _, output = repl_env
         engine.dispatch("cfg baud_rate")
         assert any("115200" in t for t, _ in output), "value displayed"
 
+    @pytest.mark.rule("value-typed")
     def test_query_data_keeps_the_json_type(self, repl_env):
         """A query's data is the value with its JSON type; the value stays the scalar text."""
         # Arrange
@@ -84,6 +86,7 @@ class TestCfgShowKey:
             "a boolean is data as a boolean, shown as off"
         )
 
+    @pytest.mark.rule("value-typed")
     def test_container_key_is_json_never_repr(self, repl_env):
         """A dict or list key answers compact JSON, shown and as the value; its data is the structure."""
         # Arrange -- a container key, as serial and custom_buttons are in a real config
@@ -99,6 +102,7 @@ class TestCfgShowKey:
         assert result.data == [{"enabled": True, "name": "Go"}], "the structure itself is the data"
         assert any(text == expected for text, _ in output), "shown as JSON too"
 
+    @pytest.mark.rule("value-typed")
     def test_set_answers_the_new_value_as_data(self, repl_env):
         """A set's data is the value it applied, with its JSON type."""
         # Arrange
@@ -131,6 +135,7 @@ class TestCfgChange:
         engine.dispatch("cfg baud_rate notanumber")
         assert any("Type error" in t for t, _ in output), "type error shown"
 
+    @pytest.mark.rule("bool-one-vocabulary")
     def test_bad_bool_rejected(self, repl_env):
         """A bool key given a token outside the bool vocabulary is refused with a Type error."""
         engine, _, _, output = repl_env
@@ -182,6 +187,7 @@ class TestCfgChange:
         assert cfg["baud_rate"] == 9600, "in-memory config updated"
         assert any("session" in t for t, _ in output), "session-only confirmation"
 
+    @pytest.mark.rule("cfg-schema-one-table")
     def test_a_choice_in_another_case_is_stored_as_the_config_spells_it(self, repl_env):
         """/cfg reads a fixed-value key's value in any case and stores the file's spelling."""
         engine, cfg, _, _ = repl_env
@@ -220,6 +226,7 @@ class TestCfgAuto:
         engine.dispatch("cfg.auto stop_bits 2.0")
         assert cfg["stop_bits"] == 2.0, "float coerced and applied"
 
+    @pytest.mark.rule("cfg-schema-one-table")
     def test_auto_matches_a_choice_in_any_case(self, repl_env):
         """A fixed-value key takes its value in any case and stores the file's spelling."""
         # Arrange
@@ -233,6 +240,7 @@ class TestCfgAuto:
         actual = (cfg["custom_buttons_side"], cfg["parity"])
         assert actual == ("right", "E"), "each stored as the file spells it"
 
+    @pytest.mark.rule("cfg-schema-one-table")
     def test_auto_refuses_a_value_outside_the_choices(self, repl_env):
         """A fixed-value key refuses any other value, naming the choices, and keeps its own."""
         # Arrange

@@ -201,6 +201,7 @@ class TestRefusal:
 
 
 class TestFilenameHandling:
+    @pytest.mark.rule("file-name-default-ext")
     def test_auto_appends_run_suffix(self, env):
         """A bare name gets .run appended so the file shows up as a runnable script."""
         # Arrange

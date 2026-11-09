@@ -435,6 +435,7 @@ class TestResolve:
 # ── Merge ───────────────────────────────────────────────────────────────────
 
 
+@pytest.mark.rule("device-files-not-build")
 class TestMerge:
     def test_registers_join_the_build_symbols(self):
         # Arrange

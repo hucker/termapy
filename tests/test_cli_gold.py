@@ -221,6 +221,8 @@ def _assert_gold(script_name: str, expected_name: str, tmp_path: Path) -> None:
 
 
 class TestCliGold:
+    @pytest.mark.rule("param-gold-tests")
+    @pytest.mark.rule("no-crash-to-trace")
     def test_cli_basic(self, tmp_path):
         """Run cli_test.run and compare to cli_test.expected."""
         _assert_gold("cli_test.run", "cli_test.expected", tmp_path)

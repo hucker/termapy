@@ -254,6 +254,7 @@ class TestUiCallback:
         assert "ERROR: rx timeout" in payload["snippet"], "snippet is the matching line text"
 
 
+@pytest.mark.rule("plugins-import-published-only")
 class TestFindMatchesHelper:
     """The shared helper that powers both /grep and /find."""
 
@@ -361,6 +362,7 @@ class TestMaxCount:
         assert result.success, "find now under the new cap"
         assert _search(eng) is not None and len(_search(eng).matches) == 150
 
+    @pytest.mark.rule("setting-bare-queries")
     def test_max_count_bare_shows_current(self, env):
         """Bare /find.max_count queries the cap and changes nothing."""
         # Arrange / Act

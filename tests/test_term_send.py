@@ -22,6 +22,8 @@ from termapy.plugins import PluginContext
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.repl import ReplEngine
 
+pytestmark = pytest.mark.rule("tx-text-one-path")
+
 # ── Shared fixture (slimmed-down dispatch_env from test_engine.py) ──────────
 
 
@@ -122,6 +124,7 @@ class TestTermSendHappyPath:
 
 
 class TestTermSendErrors:
+    @pytest.mark.rule("usage-from-declaration")
     def test_no_args_returns_usage(self, env):
         """Bare /term.send is a usage error and writes nothing, not an empty line."""
         # Arrange
@@ -133,6 +136,7 @@ class TestTermSendErrors:
         assert "Usage" in result.error, "error names the usage"
         assert writes == [], "no bytes written"
 
+    @pytest.mark.rule("state-messages-one-owner")
     def test_disconnected_returns_not_connected(self, env, tmp_path):
         """With no port open, the send fails with the standard Not connected. message."""
         # Arrange — rebuild ctx with is_connected returning False
@@ -168,6 +172,7 @@ class TestTermSendErrors:
         )
         assert writes == [], "nothing sent when not connected"
 
+    @pytest.mark.rule("tx-only-what-went-out")
     def test_serial_write_raises_returns_send_error(self, env):
         """An OSError from the write becomes a Send error result, not an exception."""
         # Arrange

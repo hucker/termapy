@@ -5583,3 +5583,115 @@ def test_silent_broad_catch_allowlist_has_no_stale_entries():
 
     # Assert
     assert stale == [], f"take these off ALLOWED_SILENT_BROAD_CATCH: {stale}"
+
+
+# ── Only the outermost operation clears the script-stop event ────────────────
+#
+# The shared stop event belongs to the script: a plugin that ``clear()``s it
+# erases a stop the user just requested.  The engine clears it as an outermost
+# script starts, and three operations at the prompt may, each the outermost
+# cancellable operation when it runs and each clearing only outside a script;
+# every other clear is a bug.
+
+STOP_EVENT_NAMES = ("script_stop_event", "_script_stop")
+
+STOP_CLEAR_ALLOWED: dict[tuple[str, str], str] = {
+    (
+        "repl.py",
+        "ReplEngine.start_script",
+    ): "the engine owns the event and clears it as an outermost script starts",
+    (
+        "app.py",
+        "SerialTerminal._paste_on_thread",
+    ): "a paste at the prompt is the outermost cancellable operation; cleared only outside a script",
+    (
+        "plugins/waiting.py",
+        "wait",
+    ): "the shared wait behind /delay, /repeat, /proto.run and /port.connect timeout=; cleared only outside a script",
+    (
+        "builtins/commands/run.py",
+        "_replay",
+    ): "/run.last at the prompt; the gate keeps it out of scripts and the handler out of a replay",
+}
+
+
+def _stop_clear_sites(tree: ast.Module) -> list[tuple[str, int]]:
+    """``(qualname, line)`` of every ``clear()`` on the script-stop event, direct or through a local name bound from it."""
+    bound: dict[str, set[str]] = {}
+    for qualname, node in _scoped_nodes(tree):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        if isinstance(node.value, ast.Attribute) and node.value.attr in STOP_EVENT_NAMES:
+            for target in targets:
+                if isinstance(target, ast.Name):
+                    bound.setdefault(qualname, set()).add(target.id)
+    sites: list[tuple[str, int]] = []
+    for qualname, node in _scoped_nodes(tree):
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "clear"
+        ):
+            continue
+        receiver = node.func.value
+        if isinstance(receiver, ast.Attribute) and receiver.attr in STOP_EVENT_NAMES:
+            sites.append((qualname, node.lineno))
+        elif isinstance(receiver, ast.Name) and receiver.id in bound.get(qualname, set()):
+            sites.append((qualname, node.lineno))
+    return sites
+
+
+@pytest.mark.rule("plugin-never-clears-stop")
+def test_only_the_outermost_operation_clears_the_stop_event():
+    """Nothing clears the shared script-stop event but the engine starting a script and the named operations at the prompt."""
+    # Arrange / Act
+    violations, _ = _unallowed(_stop_clear_sites, STOP_CLEAR_ALLOWED)
+
+    # Assert
+    assert violations == [], (
+        "a plugin never clears the script-stop event; it belongs to the script:\n  "
+        + "\n  ".join(violations)
+        + "\n\nWait on it (is_set) and let the operation that owns it clear it, or, for"
+        "\nan outermost operation at the prompt, allowlist the site with its reason."
+    )
+
+
+@pytest.mark.rule("plugin-never-clears-stop")
+def test_stop_clear_guard_fires_on_a_probe():
+    """The finder sees a direct clear, one through a local name bound from the event and the engine's own name, and passes another event's clear."""
+    # Arrange
+    probe = (
+        "def _handler(ctx, args):\n"
+        "    ctx.internal.script_stop_event.clear()\n"
+        "    stop = ctx.internal.script_stop_event\n"
+        "    if stop is not None:\n"
+        "        stop.clear()\n"
+        "    other = threading.Event()\n"
+        "    other.clear()\n"
+        "class Engine:\n"
+        "    def start(self):\n"
+        "        self._script_stop.clear()\n"
+    )
+
+    # Act
+    found = _stop_clear_sites(ast.parse(probe))
+
+    # Assert
+    assert found == [("_handler", 2), ("_handler", 5), ("Engine.start", 10)], (
+        "the direct, the aliased and the engine's own clear are found; the other event's is not"
+    )
+
+
+@pytest.mark.rule("plugin-never-clears-stop")
+def test_stop_clear_allowlist_has_no_stale_entries():
+    """Every allowlisted site still clears the event, so the list cannot rot."""
+    # Arrange / Act
+    _, used = _unallowed(_stop_clear_sites, STOP_CLEAR_ALLOWED)
+
+    # Assert
+    stale = sorted(set(STOP_CLEAR_ALLOWED) - used)
+    assert stale == [], f"take these off STOP_CLEAR_ALLOWED: {stale}"

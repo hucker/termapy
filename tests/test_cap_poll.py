@@ -78,6 +78,7 @@ class TestTerminalPoll:
 
 
 class TestFiles:
+    @pytest.mark.rule("writes-in-cfg-folder")
     def test_csv_file_gets_a_header_and_the_rows(self, cli, tmp_path):
         """file= writes a CSV under cap/ with the header row and one row per tick; the path is the value."""
         # Act
@@ -163,6 +164,7 @@ class TestValidation:
 
 
 class TestStop:
+    @pytest.mark.rule("plugin-never-clears-stop")
     def test_a_stop_already_requested_ends_the_poll_before_the_first_tick(self, cli):
         """The poll honors the script-stop event and never clears it: set beforehand, it samples nothing."""
         cli.repl._script_stop.set()

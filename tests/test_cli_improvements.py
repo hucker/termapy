@@ -29,6 +29,7 @@ pytestmark = pytest.mark.slow  # subprocess-spawning CLI flag tests
 # ── Import guard: cli_flags must not pull in Textual / Rich / etc. ────────────
 
 
+@pytest.mark.rule("flag-paths-light")
 class TestCliFlagsImportDiscipline:
     """The CLI flag dispatch path must stay heavy-import-free.
 
@@ -160,6 +161,7 @@ class TestChipRows:
         assert "[cyan]" not in out and "[/]" not in out, f"no markup on stdout:\n{out}"
 
 
+@pytest.mark.rule("data-structured-twin")
 class TestPortsJsonShape:
     def _run_ports_json(self, facts_list):
         buf = io.StringIO()
@@ -313,12 +315,14 @@ class TestMultiAxisFilters:
             cli_flags.run_ports(_ports_args(json=True, **flags), source=lambda: fleet)
         return json.loads(buf.getvalue())
 
+    @pytest.mark.rule("number-vocabularies")
     def test_vid_filter_hex(self, fleet):
         """A bare-hex --vid selects only the port whose vendor ID matches."""
         actual = self._run(fleet, vid="0403")
         assert len(actual) == 1, "single match"
         assert actual[0]["device"] == "COM3", "FTDI matched"
 
+    @pytest.mark.rule("number-vocabularies")
     def test_vid_filter_with_0x_prefix(self, fleet):
         """A 0x-prefixed --vid value is accepted and matches like the bare hex form."""
         actual = self._run(fleet, vid="0x10C4")
@@ -377,6 +381,7 @@ class TestMultiAxisFilters:
 # ── Driver column behavior in port_format ─────────────────────────────────────
 
 
+@pytest.mark.rule("table-fits-the-frontend")
 class TestDriverColumn:
     def test_driver_visible_when_any_row_has_one(self):
         """One row with a driver is enough to keep the driver column for the whole table."""
@@ -777,6 +782,7 @@ class TestVendorLookup:
 # ── Interface column behavior in port_format ──────────────────────────────────
 
 
+@pytest.mark.rule("table-fits-the-frontend")
 class TestProductColumn:
     """PRODUCT is what the device calls itself, beside the driver's DESCRIPTION and termapy's CHIP."""
 
@@ -836,6 +842,7 @@ class TestProductColumn:
         assert rows[0][1]["product"] == "?", "a port without one shows the unknown marker"
 
 
+@pytest.mark.rule("table-fits-the-frontend")
 class TestInterfaceColumn:
     """The interface splits out of the location so LOCATION holds one
     kind of value on every row -- the physical path -- and a device that

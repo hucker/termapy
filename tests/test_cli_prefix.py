@@ -28,7 +28,7 @@ import pytest
 
 from termapy.defaults import DEFAULT_CFG
 
-pytestmark = pytest.mark.slow  # subprocess-spawning CLI prefix-substitution tests
+pytestmark = [pytest.mark.slow, pytest.mark.rule("prefix-never-hardcoded")]
 
 
 def _run_cli(

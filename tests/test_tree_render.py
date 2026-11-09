@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from termapy.tree_render import FileTree, file_meta
 
 # ── Connector + shape ────────────────────────────────────────────────────────
@@ -112,6 +114,7 @@ class TestMixed:
 
 
 class TestColor:
+    @pytest.mark.rule("color-off-is-all-color")
     def test_color_off_emits_plain_ascii(self):
         """color=False emits no Rich markup, so plain output can't show stray tags."""
         # Arrange

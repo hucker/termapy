@@ -48,6 +48,7 @@ def table() -> SymbolTable:
 # ── parse_number ────────────────────────────────────────────────────────────
 
 
+@pytest.mark.rule("number-vocabularies")
 class TestParseNumber:
     @pytest.mark.parametrize(
         ("text", "expected"),
@@ -275,6 +276,7 @@ class TestParseAddressSymbols:
         with pytest.raises(ValueError, match=r"^Unknown symbol: nosuch$"):
             parse_address("nosuch", table)
 
+    @pytest.mark.rule("number-vocabularies")
     def test_bare_hex_is_a_name(self, table):
         """CAFE is looked up as a name, not read as 0xCAFE as the old plugin did."""
         # Act / Assert -- the deliberate inversion of the old hex guess; the

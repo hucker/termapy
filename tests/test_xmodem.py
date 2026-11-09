@@ -16,6 +16,7 @@ from termapy.vendor.xmodem import XMODEM
 # -- QueueByteReader tests -------------------------------------------------
 
 
+@pytest.mark.rule("xfer-no-port-contention")
 class TestQueueByteReader:
     def test_getc_single_byte(self) -> None:
         """getc(1) returns exactly 1 byte from a queued chunk."""

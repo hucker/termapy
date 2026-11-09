@@ -146,6 +146,7 @@ class TestCliResolvedFromBanner:
             f"no resolved-from line when spec matches actual device. stdout: {result.stdout!r}"
         )
 
+    @pytest.mark.rule("port-display")
     def test_connected_line_shows_actual_device_not_spec(self, tmp_path):
         """The Connected: line names the device actually opened, never the raw pipe spec."""
         # Arrange -- spec is a pipe chain that resolves to DEMO.  The
@@ -173,6 +174,7 @@ class TestCliResolvedFromBanner:
             f"Connected line must not contain the raw spec; got {line!r}"
         )
 
+    @pytest.mark.rule("port-display")
     def test_port_info_shows_resolved_from_annotation(self, tmp_path):
         """/port.info shows (resolved from SPEC); the bracketed form was eaten by Rich."""
         # Arrange -- regression for a Rich-markup-eats-brackets bug.
@@ -201,6 +203,7 @@ class TestPortCommandStatusMessage:
     the same event.
     """
 
+    @pytest.mark.rule("port-display")
     def test_port_command_status_uses_resolved_device(self, tmp_path):
         """Reconnecting with /port FAKE_SN|DEMO reports DEMO, so both status lines agree."""
         # Arrange -- /port <something>|DEMO forces the fallback chain

@@ -1364,6 +1364,22 @@ markdownlint and cSpell, stay review: no CLI here, no Python port that matches t
 a skip is not a pass. **Where:** `tests/test_hygiene.py`, `docs/rules.md`,
 `.github/workflows/tests.yml`.
 
+Later the same day, a pass over the tests no marker reached (Chuck: "There are a bunch of no
+tagged tests. Is that just an oversight, are there issues?"). Most bare tests pin a feature, not a
+rule, and stay bare. But the conversion had tagged only a test whose header carried an id or whose
+row named it, so a test that pinned a rule without either was missed: 42 files gained markers by
+judgment, the nine param spec sections' tests in `test_params.py` among them, and six review-only
+rows turned out to have tests already (`usage-from-declaration`, `call-from-thread-wrapped`,
+`no-crash-to-trace`, `xfer-no-port-contention`, `device-files-not-build`,
+`demo-cfg-mirrors-defaults`), each tagged and each still an assumption, since the tests pin part of
+the statement. One row became a guarantee: `plugin-never-clears-stop` gained an `ast` guard over
+every `clear()` of the script-stop event, direct or through a local name, with the four sites that
+may (the engine starting a script, the paste, `plugins.waiting.wait`, `/run.last`) allowlisted with
+why. Found on the way and left open: `test_port_noninvasive.py` pins a rule the registry has no row
+for (resolution and enumeration never open a port), and the lint test `param-help-noduplicate`
+promises was never written. **Where:** `tests/test_architecture.py`, `docs/rules.md`, the tagged
+test files.
+
 ## 2026-11-09 — A config listing shows the device, not the spec
 
 Chuck: "the config selector showing the port name as the serial number. Port means something

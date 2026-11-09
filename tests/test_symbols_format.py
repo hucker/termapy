@@ -6,6 +6,8 @@ the new spelling (``main+0x10``, no space; file inside the brackets).
 
 from __future__ import annotations
 
+import pytest
+
 from termapy.symbols import (
     Address,
     Region,
@@ -101,6 +103,7 @@ class TestFormatSymbol:
         assert actual.startswith("0x001F  "), "address width follows address_bits"
 
 
+@pytest.mark.rule("data-structured-twin")
 class TestSymbolRecord:
     def test_fixed_keys(self):
         """The data record always carries every key, with int and hex address both."""
@@ -130,6 +133,7 @@ class TestSymbolRecord:
         )
 
 
+@pytest.mark.rule("data-structured-twin")
 class TestLookupRecord:
     def test_hit(self):
         """A hit record carries the query, address, symbolic form and nested symbol."""
@@ -160,6 +164,7 @@ class TestLookupRecord:
         assert miss["symbol"] is None and miss["symbolic"] == "", "null symbol, empty symbolic"
 
 
+@pytest.mark.rule("data-structured-twin")
 class TestTableRecord:
     def test_agrees_with_info_rows(self):
         """The data record and the prose rows report the same count, span and sources."""

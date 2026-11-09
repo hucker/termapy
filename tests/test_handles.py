@@ -74,6 +74,7 @@ class TestHandlesAreAttached:
         assert isinstance(ctx.internal, InternalHandle), "ctx.internal is an InternalHandle"
 
 
+@pytest.mark.rule("prefix-never-hardcoded")
 class TestPrefixProperty:
     """ctx.prefix derives the REPL prefix live from cfg."""
 
@@ -167,6 +168,7 @@ class TestIOHandle:
 class TestSerialHandle:
     """SerialHandle delegates to wired callables and provides ctx managers."""
 
+    @pytest.mark.rule("tx-text-one-path")
     def test_send_writes_the_line_with_the_contexts_ending(self):
         """ctx.serial.send writes the text, the context's line ending added and encoded, through write."""
         written: list[bytes] = []

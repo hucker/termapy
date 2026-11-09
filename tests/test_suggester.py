@@ -67,6 +67,7 @@ def test_no_match_returns_none():
     assert _suggest(s, "zzz") is None, "no candidate -> None"
 
 
+@pytest.mark.rule("file-arg-declared")
 def test_declared_file_argument_suggests_the_file(file_suggester):
     """A typed partial after /run suggests the matching run/ file, in its on-disk case."""
     # Textual hands get_suggestion the casefolded value; accepting the
@@ -85,6 +86,7 @@ def test_bare_file_argument_keeps_the_signature(file_suggester):
     )
 
 
+@pytest.mark.rule("file-arg-declared")
 def test_undeclared_command_uses_the_static_list(file_suggester):
     """A command with no files= declaration falls through to the ordinary list."""
     file_suggester.update(commands=["/print hello"], history=[])

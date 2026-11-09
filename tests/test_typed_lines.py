@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from termapy.typed_lines import TypedLine, TypedLines
+
+pytestmark = pytest.mark.rule("typed-lines-one-feed")
 
 
 def test_lines_come_back_in_the_order_typed():

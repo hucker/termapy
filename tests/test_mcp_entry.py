@@ -58,6 +58,7 @@ class TestArgparse:
 
 
 class TestLazyImport:
+    @pytest.mark.rule("flag-paths-light")
     def test_entry_import_does_not_pull_mcp_sdk(self):
         """Importing termapy.entry must not import the heavy mcp package.
 
@@ -87,6 +88,7 @@ class TestLazyImport:
 
 @pytest.mark.slow  # subprocess-spawning + MCP server startup (~1-2s each)
 class TestMcpDispatch:
+    @pytest.mark.rule("no-crash-to-trace")
     def test_mcp_dispatch_with_sdk_exits_cleanly_on_eof(self, tmp_path):
         """--mcp with the SDK installed runs the stdio server.
 
@@ -143,6 +145,7 @@ class TestMcpDispatch:
             "install hint mentions the extra: pip install termapy[mcp]"
         )
 
+    @pytest.mark.rule("no-crash-to-trace")
     def test_mcp_verbose_emits_host_built_notice_to_stderr(self, tmp_path):
         """--mcp --mcp-verbose prints a startup notice to stderr.
 

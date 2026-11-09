@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import contextmanager
 
+import pytest
 from textual.app import App
 from textual.widgets import Button, Input, OptionList
 
@@ -176,6 +177,7 @@ class TestCustomBaud:
 
         _run(scenario)
 
+    @pytest.mark.rule("baud-standard-unless-custom")
     def test_custom_entry_is_validated(self, tmp_path):
         """An empty, non-numeric, or sub-300 custom rate keeps the dialog open; a valid one comes back flagged custom."""
 

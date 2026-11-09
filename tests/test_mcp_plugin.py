@@ -111,6 +111,7 @@ class TestMcpCatalog:
         assert "/term.send" in names, "/term.send in catalog"
         assert "/expect" in names, "/expect in catalog"
 
+    @pytest.mark.rule("param-mcp-catalog")
     def test_params_say_how_each_argument_binds(self, env):
         """A params entry marks positionals and the rest argument, so an agent does not write file=x for a positional."""
         # Arrange / Act
@@ -263,6 +264,7 @@ class TestMcpInfo:
 # ── The MCP server's session log, from another frontend ────────────────────
 
 
+@pytest.mark.rule("session-log-one-owner")
 class TestMcpLogFromAnotherFrontend:
     """The MCP server's <cfg>.mcp.log is one of the config's session logs: the CLI lists and prints it by name."""
 
@@ -297,6 +299,7 @@ class TestMcpLogFromAnotherFrontend:
         # Assert
         assert [record["name"] for record in result.data] == ["dev.mcp.log"]
 
+    @pytest.mark.rule("file-name-default-ext")
     def test_log_dump_prints_it_by_name(self, tmp_path, capsys):
         """/log.dump dev.mcp 1 prints the MCP log's last line, the name taking its extension or not."""
         # Arrange

@@ -38,6 +38,7 @@ from termapy.migration import (
 )
 
 
+@pytest.mark.rule("bool-one-vocabulary")
 class TestGateReader:
     """Every env boolean goes through parse_bool: absence is the declared default, garbage is a startup error."""
 
@@ -94,6 +95,8 @@ class TestGateReader:
         assert errors == ["Invalid TERMAPY_GUI: ture (use on/off/true/false/yes/no/1/0/y/n/t/f)"]
 
 
+@pytest.mark.rule("bool-one-vocabulary")
+@pytest.mark.rule("no-crash-to-trace")
 class TestStartupRefusal:
     """termapy refuses to start on an environment boolean it cannot read, naming the variable, with no traceback."""
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from rich.console import Console
 
 from termapy.help_tooltip import build_help_tooltip
@@ -57,6 +58,7 @@ def test_no_status_line_when_never_checked(tmp_path, monkeypatch):
     assert "Update available" not in out, "silent when never checked"
 
 
+@pytest.mark.rule("credits-single-source")
 def test_credits_crcglot_alongside_reveng(tmp_path, monkeypatch):
     """crcglot and frist are credited without dropping reveng, crcglot's algorithm source."""
     _seed_state(tmp_path, monkeypatch, latest_seen="1.0.0")

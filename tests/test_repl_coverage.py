@@ -212,8 +212,9 @@ class TestDispatchSuggestion:
 
 
 class TestDispatchNoneResult:
+    @pytest.mark.rule("handler-returns-cmdresult")
     def test_none_result_fails(self, engine):
-        """handler-returns-cmdresult: a handler returning None fails the dispatch (it was an empty success until 2026-11-06)."""
+        """A handler returning None fails the dispatch (it was an empty success until 2026-11-06)."""
         # Arrange
         eng, output = engine
         eng.register_hook("noop", "", "Returns None.", lambda ctx, args: None, source="test")

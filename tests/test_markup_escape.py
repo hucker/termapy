@@ -1,4 +1,4 @@
-"""markup-escape: text reaches the terminal as typed, through every markup path.
+"""Text reaches the terminal as typed, through every markup path.
 
 Rich drops a ``[word]`` it does not know without complaint, so these tests
 render real output through Rich, as the output pane and the CLI console do,
@@ -30,6 +30,8 @@ from termapy.plugins import (
 )
 from termapy.repl import ReplEngine
 from termapy.variables import set_context_var
+
+pytestmark = pytest.mark.rule("markup-escape")
 
 # Each bites a different way: a lowercase tag, a TOML table header, a stray
 # close tag, a Windows path whose trailing backslash would escape the close
@@ -92,9 +94,10 @@ def tag_var():
     return "MARKUP_TAG"
 
 
+@pytest.mark.rule("markup-escape")
 @pytest.mark.parametrize("value", TRICKY)
 def test_escaped_text_renders_as_itself(value):
-    """markup-escape: escape_markup(x) renders exactly str(x), before a close tag and at the end of a line."""
+    """escape_markup(x) renders exactly str(x), before a close tag and at the end of a line."""
     # Act
     tagged = Text.from_markup(f"[green]{escape_markup(value)}[/]").plain
     line_end = Text.from_markup(f"[green]x[/] {escape_markup(value)}").plain
@@ -278,8 +281,9 @@ def _page_text(plugin, ctx: PluginContext) -> list[str]:
     return [line.strip() for line in lines if line.strip()]
 
 
+@pytest.mark.rule("markup-escape")
 def test_every_help_page_shows_its_own_text(session):
-    """markup-escape: /help <cmd> shows every line of every command's help, so no bracketed word is lost.
+    """/help <cmd> shows every line of every command's help, so no bracketed word is lost.
 
     Until 2026-10-13 the page passed help text to Rich as markup: /proto
     said "[] sections" and /port.connect lost its whole Syntax line.

@@ -210,8 +210,9 @@ class TestEnvCommands:
         expected = "connect COM99"
         assert actual == expected, "set var is expanded by transform"
 
+    @pytest.mark.rule("name-one-matcher")
     def test_plain_text_lists_every_name_containing_it(self):
-        """name-one-matcher: /env list_test lists each name containing it, case ignored."""
+        """/env list_test lists each name containing it, case ignored."""
         # Arrange
         ctx, _output = self._ctx()
         _ENV["LIST_TEST"] = "abc"
@@ -242,9 +243,10 @@ class TestEnvCommands:
         assert not any("UNRELATED" in name for name in result.data), "non-match excluded"
         assert result.value == 2, "the value counts the matches; $(env.NAME) reads one"
 
+    @pytest.mark.rule("name-one-matcher")
     @pytest.mark.parametrize("pattern", ["ZZ_NO_EXIST_*", "ZZ_NO_EXIST_PLAIN"])
     def test_a_filter_matching_nothing_is_an_empty_answer(self, pattern):
-        """name-one-matcher: a glob or plain text that matches nothing succeeds with no rows."""
+        """A glob or plain text that matches nothing succeeds with no rows."""
         # Arrange
         ctx, _output = self._ctx()
 

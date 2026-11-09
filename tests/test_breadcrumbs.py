@@ -176,8 +176,9 @@ class TestReadRunning:
         assert actual == [], "a process that is gone is not running"
         assert (state_dir / "running" / f"{child.pid}.json").exists(), "a read never writes"
 
+    @pytest.mark.rule("kill-verifies-identity")
     def test_a_reused_pid_is_not_the_same_process(self, state_dir):
-        """kill-verifies-identity: a live PID with another start token is another program, never listed."""
+        """A live PID with another start token is another program, never listed."""
         # Arrange -- this process's PID with a token from some earlier process
         self._plant(state_dir, _crumb(token="not-this-process"))
 
@@ -263,8 +264,9 @@ class TestSelect:
 class TestStop:
     """Stopping ends the named process, and only that process."""
 
+    @pytest.mark.rule("kill-verifies-identity")
     def test_a_reused_pid_is_never_signalled(self, state_dir):
-        """kill-verifies-identity: a breadcrumb whose PID now belongs to another process signals nothing.
+        """A breadcrumb whose PID now belongs to another process signals nothing.
 
         The PID here is this test's own, so a signal would end the test run.
         """

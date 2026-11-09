@@ -229,6 +229,7 @@ class TestTermColor:
         assert result.success, "command succeeds"
         assert cli.repl.ctx.ns("flags")["color"] is False, "color disabled"
 
+    @pytest.mark.rule("color-off-is-all-color")
     def test_the_console_follows_the_flag(self, cli):
         """The CLI console goes plain when color is off and colored when on, at the next print."""
         # Arrange -- the fixture starts under --no-color
@@ -296,8 +297,9 @@ class TestTermColor:
 class TestTermHex:
     """/term.hex reaches the CLI's display; it used to be honored by the TUI alone."""
 
+    @pytest.mark.rule("hex-view-wire-bytes")
     def test_the_cli_prints_a_reply_as_its_bytes(self, cli, capsys):
-        """hex-view-wire-bytes: with /term.hex on, the CLI prints the DEMO reply as its wire bytes while expect still sees the line."""
+        """With /term.hex on, the CLI prints the DEMO reply as its wire bytes while expect still sees the line."""
         # Arrange
         cli._connect()
         cli.repl.dispatch("term.hex on")
@@ -320,6 +322,7 @@ class TestTermHex:
 
 
 class TestRaw:
+    @pytest.mark.rule("state-answered-by-gate")
     @pytest.mark.parametrize(
         "route",
         [
@@ -328,7 +331,7 @@ class TestRaw:
         ],
     )
     def test_raw_not_connected(self, cli, route):
-        """state-answered-by-gate: /raw with no open port is the gate's answer by either route, typed text included."""
+        """/raw with no open port is the gate's answer by either route, typed text included."""
         # Arrange -- fixture is disconnected by default.
         # Act
         result = route(cli)
@@ -378,9 +381,10 @@ class TestRaw:
 
 
 class TestHookRun:
+    @pytest.mark.rule("bare-declared")
     @pytest.mark.parametrize("command", ["run", "proto", "cfg"])
     def test_bare_picker_command_lists_without_a_picker(self, cli, command, tmp_path, monkeypatch):
-        """bare-declared: with no picker in the CLI, bare /run, /proto and /cfg run their .list, the picker's contents."""
+        """With no picker in the CLI, bare /run, /proto and /cfg run their .list, the picker's contents."""
         # Arrange -- a script, a protocol file, and a config root of our own:
         # /cfg.list reads the config root, which must not be the checkout's.
         parent = Path(cli.config_path).parent
@@ -472,8 +476,9 @@ class TestEditCfgCallableInCli:
             "opens the live config file, not a stale path"
         )
 
+    @pytest.mark.rule("file-name-default-ext")
     def test_edit_needs_the_extension(self, cli):
-        """file-name-default-ext: /edit foo bails even when run/foo.run exists; its folders are mixed, so it needs foo.run."""
+        """/edit foo bails even when run/foo.run exists; its folders are mixed, so it needs foo.run."""
         # Arrange
         from termapy.plugins import CapabilitySet
 
@@ -560,8 +565,9 @@ class TestRunProfile:
         assert "step,dt_ms" in actual, "header line printed"
         assert "0,1.5" in actual, "data line printed"
 
+    @pytest.mark.rule("file-name-default-ext")
     def test_dump_takes_a_name_without_its_extension(self, cli):
-        """file-name-default-ext: /run.profile.dump boot finds prof/boot.csv."""
+        """/run.profile.dump boot finds prof/boot.csv."""
         # Arrange
         prof_dir = cli.repl.prof_dir
         prof_dir.mkdir(exist_ok=True)
@@ -995,6 +1001,7 @@ class TestReceivedJson:
 class TestFileCompletion:
     """The CLI's Tab completer reads ``Command.files``, not a table of its own."""
 
+    @pytest.mark.rule("file-arg-declared")
     def test_proto_run_completes_from_proto(self, cli):
         """/proto.run Tab-completes .pro names, so the completer is not wired to run/ alone."""
         from prompt_toolkit.completion import CompleteEvent
@@ -1016,6 +1023,7 @@ class TestFileCompletion:
         expected = [("alpha.pro", -1)]
         assert actual == expected, "only the matching .pro, replacing the typed partial"
 
+    @pytest.mark.rule("file-arg-declared")
     def test_profile_hooks_keep_their_declarations(self, cli):
         """/run.profile and /run.profile.dump declare the folders their file argument completes from."""
         profile = cli.repl.plugin_for("run.profile")
@@ -1100,9 +1108,11 @@ class TestEditTwins:
         assert opened == expected, "both spellings open the current config"
 
 
+@pytest.mark.rule("bare-declared")
 class TestBareForms:
-    """bare-declared: a bare command's behavior is declared, and /help states it in one wording."""
+    """A bare command's behavior is declared, and /help states it in one wording."""
 
+    @pytest.mark.rule("bare-declared")
     @pytest.mark.parametrize(
         ("command", "line"),
         [
@@ -1122,7 +1132,7 @@ class TestBareForms:
         ],
     )
     def test_help_states_the_bare_form(self, cli, capsys, command, line):
-        """bare-declared: /help prints a declared bare form as a SYNOPSIS line, the same way for every command."""
+        """/help prints a declared bare form as a SYNOPSIS line, the same way for every command."""
         cli.repl.dispatch(f"help {command}")
         assert line in capsys.readouterr().out, f"/help {command} states what bare /{command} does"
 
@@ -1677,9 +1687,10 @@ class TestPortsFlag:
             f"only COM4 row emitted, got: {data_lines}"
         )
 
+    @pytest.mark.rule("port-name-one-compare")
     @pytest.mark.skipif(os.name != "nt", reason="Windows port-name rules")
     def test_ports_filter_matches_the_name_as_windows_opens_it(self, capsys):
-        """port-name-one-compare: --ports=com4 lists COM4, the port Windows would open for that name."""
+        """--ports=com4 lists COM4, the port Windows would open for that name."""
         import argparse
 
         from termapy import cli_flags
@@ -1906,6 +1917,7 @@ class TestCliFreeOfTextual:
     CLI one-shot would suddenly take 300+ms and load 40MB of Textual.
     """
 
+    @pytest.mark.rule("ui-layer-textual")
     def test_entry_import_does_not_load_textual(self):
         """The entry point, the root of every CLI one-shot, stays Textual-free."""
         # Arrange -- subprocess isolates the import graph.
@@ -2030,8 +2042,9 @@ def _loaded_after(*argv: str, cwd: Path) -> set[str]:
     return set(json.loads(marker[-1][len("LOADED=") :]))
 
 
+@pytest.mark.rule("flag-paths-light")
 class TestPathsStayLight:
-    """flag-paths-light: each path loads only what it shows.
+    """Each path loads only what it shows.
 
     The print-and-exit flags load no UI framework (``cli_flags``' contract)
     and neither ``importlib.metadata`` (only ``--version`` needs it) nor
@@ -2072,8 +2085,9 @@ class TestPathsStayLight:
         # Assert
         assert actual == {"importlib.metadata"}
 
+    @pytest.mark.rule("flag-paths-light")
     def test_protocol_loads_no_code_generator(self):
-        """flag-paths-light: importing termapy.protocol loads no crcglot language module; codegen loads only its own."""
+        """Importing termapy.protocol loads no crcglot language module; codegen loads only its own."""
         # Arrange -- a subprocess isolates the import graph
         import subprocess
         import sys as _sys
@@ -2555,8 +2569,9 @@ class TestCfgNewCommand:
         assert (data["serial"]["port"], data["serial"]["baud_rate"]) == ("COM9", 9600)
         assert data["auto_connect"] is True, "a named port connects on load"
 
+    @pytest.mark.rule("config-created-once")
     def test_cfg_new_yes_replaces_the_cfg_and_keeps_the_scripts(self, tmp_path):
-        """config-created-once: a y to the question replaces mydev.cfg; the run script stays."""
+        """A y to the question replaces mydev.cfg; the run script stays."""
         # Arrange
         cfg_path, script = self._existing(tmp_path)
 
@@ -2569,8 +2584,9 @@ class TestCfgNewCommand:
         assert json.loads(cfg_path.read_text(encoding="utf-8"))["title"] == "mydev"
         assert script.is_file(), "the run script is kept"
 
+    @pytest.mark.rule("config-created-once")
     def test_cfg_new_no_changes_nothing_and_fails(self, tmp_path):
-        """config-created-once: an n leaves the config as it was and the command fails."""
+        """An n leaves the config as it was and the command fails."""
         # Arrange
         cfg_path, _ = self._existing(tmp_path)
 
@@ -2607,8 +2623,9 @@ class TestCfgDeleteAndRename:
         (cfg_path.parent / "run" / "x.run").write_text("/print hi\n", encoding="utf-8")
         return cfg_path
 
+    @pytest.mark.rule("config-deleted-once")
     def test_cfg_delete_yes_removes_the_whole_folder(self, tmp_path):
-        """config-deleted-once: a y deletes other/ with its run script, and says how much went."""
+        """A y deletes other/ with its run script, and says how much went."""
         # Arrange
         cfg_path = self._other(tmp_path)
 
@@ -2621,8 +2638,9 @@ class TestCfgDeleteAndRename:
         assert "Deleted config other (2 files)." in result.stdout
         assert not cfg_path.parent.exists(), "the folder is gone"
 
+    @pytest.mark.rule("config-deleted-once")
     def test_cfg_delete_no_keeps_the_config(self, tmp_path):
-        """config-deleted-once: an n keeps everything and the command fails."""
+        """An n keeps everything and the command fails."""
         # Arrange
         cfg_path = self._other(tmp_path)
 
@@ -2634,8 +2652,9 @@ class TestCfgDeleteAndRename:
         assert "Config not deleted: other" in result.stdout
         assert cfg_path.is_file(), "the config is kept"
 
+    @pytest.mark.rule("config-deleted-once")
     def test_cfg_delete_refuses_the_active_config(self, tmp_path):
-        """config-deleted-once: the session's own config is refused without asking."""
+        """The session's own config is refused without asking."""
         # Act
         result = self._run(tmp_path, "/cfg.delete demo", answer="y\n")
 
@@ -2682,8 +2701,9 @@ class TestCfgDeleteAndRename:
         assert "Cannot rename the active config: demo" in result.stdout
 
 
+@pytest.mark.rule("table-fits-the-frontend")
 class TestOutputWidth:
-    """table-fits-the-frontend: the CLI tells dispatch how wide a table row may be."""
+    """The CLI tells dispatch how wide a table row may be."""
 
     def test_a_named_width_less_the_gutter(self):
         """--term-width 60 leaves 58 columns for a row: the console's width less the two-space indent."""

@@ -259,6 +259,7 @@ class TestSymbol:
 
 
 class TestSectionAccess:
+    @pytest.mark.rule("section-default-access")
     @pytest.mark.parametrize(
         ("section", "expected"),
         [
@@ -272,7 +273,7 @@ class TestSectionAccess:
         ],
     )
     def test_unstated_access_is_the_sections(self, section, expected):
-        """section-default-access: code and constants are read-only, everything else read-write."""
+        """Code and constants are read-only, everything else read-write."""
         # Act
         actual = Symbol("x", 0x1000, 4, section).access
 
@@ -287,8 +288,9 @@ class TestSectionAccess:
         # Assert
         assert actual == "rw", "an explicit access overrides the section default"
 
+    @pytest.mark.rule("section-default-access")
     def test_file_stores_access_only_where_it_differs(self):
-        """section-default-access: the file shape omits an access that matches the section's."""
+        """The file shape omits an access that matches the section's."""
         # Arrange
         const = Symbol("k", 0x3000, 4, "rodata")
         patched = Symbol("p", 0x3004, 4, "rodata", access="rw")
@@ -300,6 +302,7 @@ class TestSectionAccess:
         # Assert
         assert actual == [None, "rw", None], "only the override is written"
 
+    @pytest.mark.rule("section-default-access")
     def test_round_trip_keeps_an_override(self):
         """A rodata symbol stated rw survives save and load; an unstated one reloads ro."""
         # Arrange
@@ -565,16 +568,18 @@ class TestSymbolTableSearch:
         assert any(symbol.name == "MonGpio" for symbol in matches), "glob Mon* finds MonGpio"
         assert not any(symbol.name == "main" for symbol in matches), "glob Mon* is anchored"
 
+    @pytest.mark.rule("name-one-matcher")
     def test_a_regex_is_plain_text(self, table):
-        """name-one-matcher: search reads no regex, so ^Mon is text no name contains (Mon* is the glob)."""
+        """Search reads no regex, so ^Mon is text no name contains (Mon* is the glob)."""
         # Act
         matches = table.search("^Mon")
 
         # Assert
         assert matches == [], "^ is an ordinary character in a name pattern"
 
+    @pytest.mark.rule("name-one-matcher")
     def test_a_bracket_is_a_glob_class(self, table):
-        """name-one-matcher: [gm]* is a glob class, anchored, case ignored."""
+        """[gm]* is a glob class, anchored, case ignored."""
         # Act
         names = {symbol.name for symbol in table.search("[gm]*")}
 

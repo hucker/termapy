@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from types import MappingProxyType
 
+import pytest
+
 from termapy.title_bar import update_port
 
 
@@ -52,8 +54,9 @@ def test_update_port_handles_readonly_cfg():
     assert path == "proj/proj.cfg", "config_path preserved"
 
 
+@pytest.mark.rule("config-load-deterministic")
 def test_update_port_is_not_a_config_load():
-    """config-load-deterministic: a port change keeps the session and the link; the config did not change."""
+    """A port change keeps the session and the link; the config did not change."""
     # Arrange
     app = _FakeApp({"serial": {"port": "COM4"}, "title": "Proj"})
 

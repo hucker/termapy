@@ -24,6 +24,8 @@ from termapy.plugins import (
 )
 from termapy.repl import ReplEngine
 
+pytestmark = pytest.mark.rule("plugin-load-order")
+
 # A minimal COMMAND plugin whose handler returns a recognizable value.
 _COMMAND_PLUGIN = """
 from termapy.plugins import CmdResult, Command
@@ -406,8 +408,9 @@ class TestGateAndReporting:
         assert expected in output, "a file with nothing to register is reported"
 
 
+@pytest.mark.rule("load-report-one-table")
 class TestLoadReport:
-    """load-report-one-table: the plugin rows, the printed table and /cfg.loaded."""
+    """The plugin rows, the printed table and /cfg.loaded."""
 
     def test_row_names_what_the_file_registered(self, rig):
         """A plugin row lists each kind its file registered, and counts them."""
@@ -546,8 +549,9 @@ class TestLoadReport:
         assert result.value == len(engine.load_report.records), "the value is the row count"
         assert output == startup, "the command prints exactly the startup table"
 
+    @pytest.mark.rule("prestart-before-start")
     def test_folder_prestart_hook_is_skipped_with_a_warning(self, rig):
-        """prestart-before-start: a folder plugin loads after pre-start, so its on_app_prestart is refused aloud."""
+        """A folder plugin loads after pre-start, so its on_app_prestart is refused aloud."""
         # Arrange
         root, config_path = rig
         source = _command_plugin("early") + "\n\ndef on_app_prestart(ctx):\n    pass\n"

@@ -231,7 +231,16 @@ def cli(tmp_path):
 
 
 def pytest_addoption(parser) -> None:
-    """Add ``--run-hw-loopback`` (see ``tests/test_hw_loopback.py``)."""
+    """Add ``--run-hw-loopback`` (see ``tests/test_hw_loopback.py``) and ``--rule``."""
+    parser.addoption(
+        "--rule",
+        default=None,
+        metavar="ID",
+        help=(
+            "Run only the tests marked @pytest.mark.rule(ID): a docs/rules.md row or a "
+            "spec section id (tests/traceability.py SOURCES; docs/traceability.md)."
+        ),
+    )
     parser.addoption(
         "--run-hw-loopback",
         action="store_true",
@@ -290,8 +299,55 @@ def pytest_configure(config) -> None:
         )
 
 
+def _check_rule_markers(items) -> None:
+    """Refuse the session when a ``rule`` marker names nothing (registry ``rules-registry``).
+
+    The id must be one an id source holds (``tests/traceability.py``), so a
+    typo or a retired rule fails the run before a test runs instead of
+    tagging tests with a name nobody owns.  Imported here, not at the top:
+    ``test_defaults_untouched.py`` loads this file by path from a scratch
+    folder, where ``tests/`` is not on the path, to bind one fixture.
+    """
+    import pytest
+    from traceability import MARKER, known_ids, marker_problems
+
+    problems = marker_problems(
+        (
+            (item.nodeid, tuple(marker.args))
+            for item in items
+            for marker in item.iter_markers(MARKER)
+        ),
+        known_ids(),
+    )
+    if problems:
+        raise pytest.UsageError(
+            "rule markers that name nothing (docs/traceability.md):\n  " + "\n  ".join(problems)
+        )
+
+
+def _select_rule(config, items) -> None:
+    """Under ``--rule ID``, keep only the tests whose ``rule`` markers name ``ID``."""
+    import pytest
+    from traceability import MARKER, known_ids
+
+    wanted = config.getoption("--rule")
+    if wanted is None:
+        return
+    if wanted not in known_ids():
+        raise pytest.UsageError(f"--rule {wanted}: no id source holds it (docs/traceability.md)")
+    selected = [
+        item
+        for item in items
+        if any(marker.args[:1] == (wanted,) for marker in item.iter_markers(MARKER))
+    ]
+    deselected = [item for item in items if item not in selected]
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
+    items[:] = selected
+
+
 def pytest_collection_modifyitems(config, items) -> None:
-    """Deselect hardware tests unless ``--run-hw-loopback`` was passed.
+    """Deselect hardware tests unless ``--run-hw-loopback`` was passed; check and select by rule.
 
     An opt-in FLAG rather than a marker filter, because pytest's ``-m`` is a
     single expression: a ``-m 'not hardware'`` default in ``addopts`` is
@@ -308,6 +364,8 @@ def pytest_collection_modifyitems(config, items) -> None:
     """
     import pytest
 
+    _check_rule_markers(items)
+    _select_rule(config, items)
     if config.getoption("--run-hw-loopback") or config.getoption("--require-hw-loopback"):
         return
     skip = pytest.mark.skip(

@@ -151,8 +151,9 @@ class TestCfgHelpCoverage:
     # editor showing it literally is right.
     MARKUP_EXAMPLE_KEYS = frozenset({"echo_fmt"})
 
+    @pytest.mark.rule("markup-escape")
     def test_help_text_holds_no_markup(self):
-        """markup-escape: CFG_HELP is plain prose the editor escapes, so a markup tag in it shows as literal text."""
+        """CFG_HELP is plain prose the editor escapes, so a markup tag in it shows as literal text."""
         # Arrange / Act -- a closing tag is the sign of markup; a bare [x] may be prose
         bad = [
             (key, part)
@@ -237,8 +238,9 @@ class TestCfgKeyPaths:
         with pytest.raises(KeyError):
             cfg_value({}, "serial.nope")
 
+    @pytest.mark.rule("cfg-read-one-reader")
     def test_a_container_default_comes_back_as_a_copy(self):
-        """cfg-read-one-reader: a missing list or dict key yields a copy of the table's default, so a caller cannot mutate the table."""
+        """A missing list or dict key yields a copy of the table's default, so a caller cannot mutate the table."""
         # Act
         buttons = cfg_value({}, "custom_buttons")
         buttons.append({"enabled": False, "name": "X", "command": "", "tooltip": ""})

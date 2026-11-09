@@ -164,8 +164,9 @@ def _existing_config(root: Path, name: str) -> tuple[Path, Path]:
     return cfg_path, script
 
 
+@pytest.mark.rule("config-created-once")
 def test_quick_setup_existing_name_asks_before_overwriting(_quick_setup_env):
-    """config-created-once: the wizard on an existing name asks the overwrite question and writes nothing yet."""
+    """The wizard on an existing name asks the overwrite question and writes nothing yet."""
     # Arrange
     cfg_path, _ = _existing_config(_quick_setup_env, "demo")
     app = _AskingStubApp()
@@ -182,8 +183,9 @@ def test_quick_setup_existing_name_asks_before_overwriting(_quick_setup_env):
     assert not app.config_results, "no config is loaded before the answer"
 
 
+@pytest.mark.rule("config-created-once")
 def test_quick_setup_overwrite_yes_replaces_cfg_and_keeps_scripts(_quick_setup_env):
-    """config-created-once: yes replaces only the .cfg; the folder's other files stay."""
+    """Yes replaces only the .cfg; the folder's other files stay."""
     # Arrange
     cfg_path, script = _existing_config(_quick_setup_env, "demo")
     app = _AskingStubApp()
@@ -200,8 +202,9 @@ def test_quick_setup_overwrite_yes_replaces_cfg_and_keeps_scripts(_quick_setup_e
     assert app.config_results, "the new config is loaded"
 
 
+@pytest.mark.rule("config-created-once")
 def test_quick_setup_overwrite_no_changes_nothing(_quick_setup_env):
-    """config-created-once: no leaves the existing config as it was and loads nothing."""
+    """No leaves the existing config as it was and loads nothing."""
     # Arrange
     cfg_path, _ = _existing_config(_quick_setup_env, "demo")
     app = _AskingStubApp()

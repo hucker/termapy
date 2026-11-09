@@ -118,8 +118,9 @@ class TestAppExplore:
 
 
 class TestAppList:
+    @pytest.mark.rule("reads-never-write")
     def test_list_creates_no_folder(self, pin_app_dirs, ctx):
-        """reads-never-write: /app.list on a fresh machine lists nothing and creates no app folder."""
+        """/app.list on a fresh machine lists nothing and creates no app folder."""
         # Arrange
         state_dir, config_dir = pin_app_dirs
 

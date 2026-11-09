@@ -11,6 +11,8 @@ from __future__ import annotations
 import os
 import time
 
+import pytest
+
 from termapy.folder_ops import (
     build_folder_subcommands,
     file_columns,
@@ -110,8 +112,9 @@ class TestFileRecord:
 
 
 class TestFolderSubcommandNeeds:
+    @pytest.mark.rule("state-answered-by-gate")
     def test_every_folder_subcommand_needs_a_config(self):
-        """state-answered-by-gate: every generated folder subcommand declares config_loaded, so the gate answers for all."""
+        """Every generated folder subcommand declares config_loaded, so the gate answers for all."""
         # Arrange / Act
         undeclared = [
             f"{spec.name}.{sub}"

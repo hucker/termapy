@@ -20,6 +20,8 @@ from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
 from termapy.plugins import CmdResult
 
+pytestmark = pytest.mark.rule("ctrl-c-copies-first")
+
 
 def _demo_cfg(tmp_path, name: str, **overrides) -> tuple[dict, str]:
     """A DEMO-port config on disk, not auto-connecting; returns it and its path."""

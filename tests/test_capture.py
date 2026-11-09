@@ -428,6 +428,7 @@ class TestHexCapture:
         # Assert
         assert path.read_bytes() == b"\x01\x02\x03\x04", "the unterminated 03 04 is still a line"
 
+    @pytest.mark.rule("hex-capture-refuses-non-hex")
     def test_a_non_hex_line_aborts_the_capture(self, tmp_path):
         """A line that is not hex stops the capture with the line named; dropping it silently misframed every record after it."""
         # Arrange

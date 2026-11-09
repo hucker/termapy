@@ -1316,3 +1316,50 @@ through `value_text`, except that `$(T) <- /ping` is now `123.4` without the `ms
 flags the two idioms that spelled a value at the source. **Where:** `tests/test_architecture.py`;
 the ~90 tests that pinned the spelled form now pin the type; the gold's `/term.request off`
 envelope.
+
+## 2026-11-08 — A test names the rule it pins with a marker
+
+A review of `docs/rules.md` for obsolete rows found the link between a rule and its tests kept
+twice by hand: the row's `enforced by` column, and about 500 docstring headers leading with an
+id (`"""bare-declared: ..."""`), which nothing outside `test_architecture.py` compared with the
+table. Chuck: "Ideally each test would be tagged with which rule is being tested (if any), a
+decorator on the test function would work", as an entry point to traceability, "NOT a claim of
+100% anything"; long term, "requirements that are tagged and tested so you can figure out what
+everything is".
+
+Now the id lives on a pytest marker, `@pytest.mark.rule("<id>")`, one per rule, `pytestmark` for
+a module, and the header is prose. The ids a marker may name come from a table of sources,
+`tests/traceability.py` `SOURCES`: the registry's rows and the `param-...` section ids of
+`docs/param-spec-implementation.md`, whose six ids had been cited in headers with no registry
+row; a requirements file is one more source when it exists. Collection refuses a marker that
+names nothing (`conftest.py`), `--rule <id>` runs one rule's tests, `--strict-markers` is on, and
+the registry guard now also checks that every test a row names carries the row's marker. The
+headers were converted by script, the registry's named tests marked from the table, three names
+that live in two files resolved by hand. `docs/traceability.md` holds the process and the plan:
+user, architectural, performance and security requirements as Markdown files with ids, traced
+into tests by the same marker. **Where:** `tests/traceability.py`, `tests/conftest.py`,
+`tests/test_architecture.py`, `tests/test_traceability.py`, every test file with a header that
+carried an id, `pyproject.toml`.
+
+The same day, the second step: `docs/traceability-matrix.md` is generated from the markers by
+`scripts/sync_traceability.py` (registry `traceability-matrix-generated`): a table of the ids no
+test pins, then one section per id source with every test that pins each id by file, the row's
+guard and probe marked; `tests/test_traceability.py` fails when it is stale. Chuck named it for
+traceability rather than rules, since specs and requirement documents will join the registry
+there. The registry's `enforced by` column
+names only a guarantee's guard and probe, or `review`: the instance lists, which had grown to
+sixteen names on a row, left the table for the matrix, 37 rows trimmed by script. The marker
+index moved out of `test_architecture.py` into `tests/traceability.py`, so the guard, the script
+and the tests read the markers with one walker. **Where:** `scripts/sync_traceability.py`,
+`docs/traceability-matrix.md`, `docs/rules.md`, `tests/traceability.py`.
+
+And the three tool gates became tests, so the registry can take credit for them (Chuck: "it would
+be good for us to take credit for ruff/ty being clean"): `tests/test_hygiene.py` runs `ruff
+check`, `ruff format --check --no-cache` and `ty check` over the whole project and fails on any
+finding, under three rows of a new category, `hygiene` (registry `ruff-clean`, `ruff-formatted`,
+`ty-clean`; Chuck's word for it). Until then only the hook and `release_prep` ran them, both on one Windows machine; CI
+ran neither. CI now syncs `--all-extras` instead of `--extra mcp`, because ty's count depends on
+what is installed and the gate names the all-extras environment. The editor's other checks,
+markdownlint and cSpell, stay review: no CLI here, no Python port that matches the extensions, and
+a skip is not a pass. **Where:** `tests/test_hygiene.py`, `docs/rules.md`,
+`.github/workflows/tests.yml`.

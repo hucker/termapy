@@ -21,6 +21,16 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from traceability import (
+    RULE_ID,
+    TEST_REF,
+    MarkIndex,
+    index_module,
+    index_tests,
+    known_ids,
+    marker_problems,
+    registry_rows,
+)
 
 import termapy
 from termapy.defaults import cfg_key_path, cfg_key_paths, cfg_value
@@ -82,8 +92,9 @@ def _builtins_imports(path: Path) -> list[tuple[int, str, str]]:
     return found
 
 
+@pytest.mark.rule("core-imports-published-only")
 def test_core_does_not_import_from_plugins():
-    """core-imports-published-only: Core may use a plugin's published surface, never its internals.
+    """Core may use a plugin's published surface, never its internals.
 
     The plugin system is built on core-below-plugins.  When infrastructure is
     misfiled under ``builtins/``, core has to import upward to reach it, and
@@ -205,8 +216,10 @@ def _unpublished_imports(path: Path, root: Path) -> list[tuple[int, str]]:
     return found
 
 
+@pytest.mark.rule("infra-not-under-builtins")
+@pytest.mark.rule("plugins-import-published-only")
 def test_plugins_import_published_only():
-    """plugins-import-published-only: A plugin imports published names only, and from builtins/ only a helper module.
+    """A plugin imports published names only, and from builtins/ only a helper module.
 
     Two commands talk through ``ctx.internal.dispatch``, not an import, so
     the load-order override reaches every command; a helper two plugins
@@ -279,8 +292,9 @@ def _plugin_python_files() -> list[Path]:
     return sorted(BUILTINS_DIR.rglob("*.py"))
 
 
+@pytest.mark.rule("io-semantic-channels")
 def test_plugins_do_not_use_engine_io_primitives():
-    """io-semantic-channels: Handlers must reach the terminal through the semantic channels.
+    """Handlers must reach the terminal through the semantic channels.
 
     Matches on the ATTRIBUTE, not on the text ``ctx.io._write``, which is what
     the equivalent CI grep keys on.  That matters twice over: a comment or
@@ -349,8 +363,9 @@ def _wants_data_reads(tree: ast.AST) -> list[int]:
     return lines
 
 
+@pytest.mark.rule("plugins-never-read-wants-data")
 def test_plugins_never_read_wants_data():
-    """plugins-never-read-wants-data: no module under builtins/ reads ctx.wants_data; a handler returns a view and dispatch chooses."""
+    """No module under builtins/ reads ctx.wants_data; a handler returns a view and dispatch chooses."""
     # Arrange / Act
     violations = [
         f"{path.relative_to(SRC.parent)}:{line}"
@@ -444,8 +459,9 @@ def _is_cmdresult_call(func: ast.expr) -> bool:
     )
 
 
+@pytest.mark.rule("value-typed")
 def test_a_value_is_not_spelled_at_the_source():
-    """value-typed: no CmdResult value is a str(len(...)) count or an "on" if x else "off" switch; the REPL spells a value at its boundary."""
+    """No CmdResult value is a str(len(...)) count or an "on" if x else "off" switch; the REPL spells a value at its boundary."""
     # Arrange / Act
     violations = [
         f"{path.relative_to(SRC.parent)}:{line}"
@@ -527,8 +543,9 @@ def _is_ui_layer(rel: Path) -> bool:
     return len(rel.parts) == 1 and rel.name in UI_LAYER_MODULES
 
 
+@pytest.mark.rule("ui-layer-textual")
 def test_textual_stays_in_the_ui_layer():
-    """ui-layer-textual: Only the UI layer may import Textual.
+    """Only the UI layer may import Textual.
 
     CLAUDE.md names this layer, and the list was maintained by hand.  Pinning
     it here makes it self-verifying: a new Textual import fails until the
@@ -573,8 +590,9 @@ def test_ui_layer_list_has_no_stale_entries():
     )
 
 
+@pytest.mark.rule("engine-transport-agnostic")
 def test_engine_modules_have_no_serial_dependency():
-    """engine-transport-agnostic: plugins/, scripting.py, symbols/ and memory.py stay transport-agnostic.
+    """plugins/, scripting.py, symbols/ and memory.py stay transport-agnostic.
 
     ``plugins/`` defines the command/context API, ``scripting.py`` is pure
     functions, ``symbols/`` is library-shaped like ``protocol/`` (a symbol
@@ -685,8 +703,9 @@ def _bool_token_violations(tree: ast.AST, rel: str) -> list[str]:
     return found
 
 
+@pytest.mark.rule("bool-one-vocabulary")
 def test_booleans_go_through_parse_bool():
-    """bool-one-vocabulary: every text-to-boolean read under src/termapy goes through parse_bool; no module outside the allowlist compares a token to the vocabulary.
+    """Every text-to-boolean read under src/termapy goes through parse_bool; no module outside the allowlist compares a token to the vocabulary.
 
     One vocabulary, one reader (see CLAUDE.md): ``parse_bool`` directly,
     or through ``parse_bool_setting`` and the ``bool`` param type.  A
@@ -803,8 +822,9 @@ def _raw_mkdir_files() -> dict[str, list[str]]:
     return found
 
 
+@pytest.mark.rule("folders-ensure-only")
 def test_data_folders_are_created_only_by_ensure_folder():
-    """folders-ensure-only: No code outside the allowlist creates a folder with a raw ``mkdir``.
+    """No code outside the allowlist creates a folder with a raw ``mkdir``.
 
     A data folder exists while something is in it (see ``folders``): every
     writer calls ``ensure_folder`` at the write, ``prune_empty_folders``
@@ -860,8 +880,9 @@ def _json_dump_calls(tree: ast.AST, rel: str) -> list[str]:
     ]
 
 
+@pytest.mark.rule("cfg-written-in-order")
 def test_config_files_are_written_by_one_writer():
-    """cfg-written-in-order: Only ``config.write_config_file`` calls ``json.dump``, outside the allowlist.
+    """Only ``config.write_config_file`` calls ``json.dump``, outside the allowlist.
 
     It lays a config out in ``DEFAULT_CFG``'s order (``ordered_cfg``), so a
     file reads group by group whichever path wrote it: load's migration
@@ -909,8 +930,9 @@ def _typed_outside(values: frozenset[str], exempt: set[str]) -> list[str]:
     return found
 
 
+@pytest.mark.rule("folder-globs-from-table")
 def test_folder_globs_are_read_from_the_table():
-    """folder-globs-from-table: A data folder's glob comes from FOLDER_PATTERNS, never typed.
+    """A data folder's glob comes from FOLDER_PATTERNS, never typed.
 
     ``folders.FOLDERS`` says once that run/ holds ``.run`` files.  A
     ``"*.run"`` typed at a reader is a second copy that drifts when the
@@ -933,6 +955,7 @@ def test_folder_globs_are_read_from_the_table():
     )
 
 
+@pytest.mark.rule("folder-globs-from-table")
 def test_typed_glob_guard_fires_on_a_probe():
     """The guard flags a typed folder glob and passes a read from the table."""
     # Arrange
@@ -945,8 +968,9 @@ def test_typed_glob_guard_fires_on_a_probe():
     assert len(found) == 1, "the typed glob is flagged; the table read is not"
 
 
+@pytest.mark.rule("folder-exts-from-table")
 def test_termapy_extensions_are_read_from_the_table():
-    """folder-exts-from-table: termapy's own file types, .run and .pro, come from FOLDER_EXTS.
+    """termapy's own file types, .run and .pro, come from FOLDER_EXTS.
 
     Checking a suffix (``ext == ".run"``), adding one
     (``new_file_name(name, FOLDER_EXTS[RUN])``) or probing for one
@@ -971,6 +995,7 @@ def test_termapy_extensions_are_read_from_the_table():
     )
 
 
+@pytest.mark.rule("folder-exts-from-table")
 def test_typed_ext_guard_fires_on_a_probe():
     """The guard flags a typed .run or .pro and passes a read from the table and prose."""
     # Arrange
@@ -1037,8 +1062,9 @@ def _fnmatch_imports(tree: ast.AST, rel: str) -> list[str]:
     ]
 
 
+@pytest.mark.rule("name-one-matcher")
 def test_name_patterns_are_read_only_by_the_matcher():
-    """name-one-matcher: only termapy/matching.py imports fnmatch."""
+    """Only termapy/matching.py imports fnmatch."""
     # Arrange / Act
     violations = [
         line
@@ -1091,8 +1117,9 @@ def _is_relative_to_calls(tree: ast.AST, rel: str) -> list[str]:
     ]
 
 
+@pytest.mark.rule("path-inside-one-check")
 def test_containment_is_asked_only_of_folders():
-    """path-inside-one-check: only termapy/folders.py calls is_relative_to."""
+    """Only termapy/folders.py calls is_relative_to."""
     # Arrange / Act
     violations = [
         line
@@ -1110,6 +1137,7 @@ def test_containment_is_asked_only_of_folders():
     )
 
 
+@pytest.mark.rule("path-inside-one-check")
 def test_containment_guard_fires_on_a_probe():
     """The guard flags a hand-written containment check and passes a call to the owner."""
     # Arrange
@@ -1201,8 +1229,9 @@ def _encoded_write_files() -> dict[str, list[str]]:
     return found
 
 
+@pytest.mark.rule("tx-text-one-path")
 def test_text_lines_go_out_through_send():
-    """tx-text-one-path: outside the allowlist no code encodes text and writes the bytes; a line goes through ctx.serial.send."""
+    """Outside the allowlist no code encodes text and writes the bytes; a line goes through ctx.serial.send."""
     # Arrange / Act
     violations = [
         line
@@ -1220,6 +1249,7 @@ def test_text_lines_go_out_through_send():
     )
 
 
+@pytest.mark.rule("tx-text-one-path")
 def test_tx_guard_fires_on_a_probe():
     """The guard flags an encoded write, direct or through a name, and passes a bytes write."""
     # Arrange
@@ -1240,6 +1270,7 @@ def test_tx_guard_fires_on_a_probe():
     assert len(found) == 2, f"the direct and the named encoded writes, not the bytes one: {found}"
 
 
+@pytest.mark.rule("tx-text-one-path")
 def test_encoded_write_allowlist_has_no_stale_entries():
     """Every ENCODED_WRITE_ALLOWED file still writes encoded text, so the list only describes reality."""
     # Arrange / Act
@@ -1302,8 +1333,9 @@ def _suggestion_copies(tree: ast.AST, rel: str, *, phrase_allowed: bool = False)
     return found
 
 
+@pytest.mark.rule("did-you-mean-one")
 def test_suggestions_have_one_owner():
-    """did-you-mean-one: only matching.py computes or phrases a did-you-mean suggestion."""
+    """Only matching.py computes or phrases a did-you-mean suggestion."""
     # Arrange / Act
     violations = [
         line
@@ -1324,8 +1356,9 @@ def test_suggestions_have_one_owner():
     )
 
 
+@pytest.mark.rule("did-you-mean-one")
 def test_suggestion_guard_fires_on_a_probe():
-    """did-you-mean-one: the guard flags difflib, an edit distance and the phrase, never a docstring."""
+    """The guard flags difflib, an edit distance and the phrase, never a docstring."""
     # Arrange
     probe = (
         '"""A docstring may say did you mean."""\n'
@@ -1341,8 +1374,9 @@ def test_suggestion_guard_fires_on_a_probe():
     assert len(found) == 3, "the import, the function and the phrase; not the docstring"
 
 
+@pytest.mark.rule("did-you-mean-one")
 def test_the_suggestion_allowlist_is_not_stale():
-    """did-you-mean-one: each file allowed the phrase still uses it, so the list only shrinks."""
+    """Each file allowed the phrase still uses it, so the list only shrinks."""
     stale = [
         rel
         for rel in sorted(SUGGESTION_PHRASE_ALLOWED)
@@ -1393,8 +1427,9 @@ def _shows_problems(tables: dict[str, dict[str, Any]]) -> tuple[list[str], list[
     return undeclared, disagreeing
 
 
+@pytest.mark.rule("shows-declared")
 def test_commands_that_only_show_declare_it(tmp_path):
-    """shows-declared: every listing or viewer command declares shows=True, or SHOWS_EXEMPT says why."""
+    """Every listing or viewer command declares shows=True, or SHOWS_EXEMPT says why."""
     # Arrange / Act
     undeclared, disagreeing = _shows_problems(_frontend_plugins(tmp_path))
 
@@ -1407,8 +1442,9 @@ def test_commands_that_only_show_declare_it(tmp_path):
     assert disagreeing == [], f"frontends disagree on shows= for: {disagreeing}"
 
 
+@pytest.mark.rule("shows-declared")
 def test_shows_guard_fires_on_a_probe():
-    """shows-declared: the guard flags an undeclared listing and a frontend split, and passes an exempt name."""
+    """The guard flags an undeclared listing and a frontend split, and passes an exempt name."""
     from types import SimpleNamespace
 
     def info(shows: bool) -> SimpleNamespace:
@@ -1423,8 +1459,9 @@ def test_shows_guard_fires_on_a_probe():
     assert disagreeing == ["x.info"], "the frontends split on x.info"
 
 
+@pytest.mark.rule("shows-declared")
 def test_shows_exemptions_are_not_stale(tmp_path):
-    """shows-declared: each exempt name is one the guard would flag (registered, safe, undeclared), so the list only shrinks."""
+    """Each exempt name is one the guard would flag (registered, safe, undeclared), so the list only shrinks."""
     tables = _frontend_plugins(tmp_path)
     stale = sorted(
         name
@@ -1460,8 +1497,9 @@ def _calls_the_check(tree: ast.Module, qualname: str) -> bool:
     )
 
 
+@pytest.mark.rule("cfg-schema-one-table")
 def test_every_surface_checks_through_the_one_validator():
-    """cfg-schema-one-table: a load, the config editor and /cfg all ask config.check_cfg_value."""
+    """A load, the config editor and /cfg all ask config.check_cfg_value."""
     # Arrange
     trees = {rel.replace("\\", "/"): tree for rel, tree in _source_modules()}
 
@@ -1476,8 +1514,9 @@ def test_every_surface_checks_through_the_one_validator():
     assert missing == [], f"these stopped asking the one validator: {missing}"
 
 
+@pytest.mark.rule("cfg-schema-one-table")
 def test_one_validator_guard_fires_on_a_probe():
-    """cfg-schema-one-table: the guard passes a function that calls the check and flags one that does its own."""
+    """The guard passes a function that calls the check and flags one that does its own."""
     good = ast.parse("def surface(cfg):\n    return check_cfg_value('k', 1, cfg)\n")
     bad = ast.parse("def surface(cfg):\n    return cfg['k'] > 0\n")
     assert _calls_the_check(good, "surface"), "it asks the validator"
@@ -1507,8 +1546,9 @@ def _intro_problems(tables: dict[str, dict[str, Any]]) -> tuple[list[str], list[
     return sorted(missing), sorted(unfit)
 
 
+@pytest.mark.rule("family-has-intro")
 def test_every_family_says_what_it_is_for(tmp_path):
-    """family-has-intro: every command with subcommands, at any level, declares a short intro."""
+    """Every command with subcommands, at any level, declares a short intro."""
     # Arrange / Act
     missing, unfit = _intro_problems(_frontend_plugins(tmp_path))
 
@@ -1517,8 +1557,9 @@ def test_every_family_says_what_it_is_for(tmp_path):
     assert unfit == [], f"an intro is one line of at most {INTRO_MAX_CHARS} characters: {unfit}"
 
 
+@pytest.mark.rule("family-has-intro")
 def test_family_intro_guard_fires_on_a_probe():
-    """family-has-intro: the guard flags a silent command with subcommands at any level and an overlong intro, and passes a leaf."""
+    """The guard flags a silent command with subcommands at any level and an overlong intro, and passes a leaf."""
     from types import SimpleNamespace
 
     def info(children=(), intro="") -> SimpleNamespace:
@@ -1614,8 +1655,9 @@ def _connected_demo(tmp_path: Path) -> Any:
     return cli
 
 
+@pytest.mark.rule("state-read-immutable")
 def test_reading_a_commands_state_changes_nothing(tmp_path, capsys):
-    """state-read-immutable: every tagged command reads twice with the session, the files and the wire unchanged, printing nothing."""
+    """Every tagged command reads twice with the session, the files and the wire unchanged, printing nothing."""
     # Arrange
     cli = _connected_demo(tmp_path)
     names = sorted(name for name, info in cli.repl._plugins.items() if info.state)
@@ -1634,8 +1676,9 @@ def test_reading_a_commands_state_changes_nothing(tmp_path, capsys):
     )
 
 
+@pytest.mark.rule("state-read-immutable")
 def test_state_read_guard_fires_on_a_probe(tmp_path, capsys):
-    """state-read-immutable: a bare form that sets a flag, writes a file, sends bytes, prints or answers nothing is named."""
+    """A bare form that sets a flag, writes a file, sends bytes, prints or answers nothing is named."""
     # Arrange
     from termapy.plugins import CmdResult
 
@@ -1740,8 +1783,9 @@ def _state_declaration_problems(
     return undeclared, disagreeing
 
 
+@pytest.mark.rule("state-declared")
 def test_commands_that_report_state_declare_it(tmp_path):
-    """state-declared: every setting and .info page declares state=True, or STATE_EXEMPT says why /help must not run it."""
+    """Every setting and .info page declares state=True, or STATE_EXEMPT says why /help must not run it."""
     # Arrange / Act
     undeclared, disagreeing = _state_declaration_problems(_frontend_plugins(tmp_path))
 
@@ -1754,8 +1798,9 @@ def test_commands_that_report_state_declare_it(tmp_path):
     assert disagreeing == [], f"frontends disagree on state= for: {disagreeing}"
 
 
+@pytest.mark.rule("state-declared")
 def test_state_declaration_guard_fires_on_a_probe():
-    """state-declared: the guard flags an undeclared setting, .info page and cfg phrase, a frontend split, and passes an exempt name."""
+    """The guard flags an undeclared setting, .info page and cfg phrase, a frontend split, and passes an exempt name."""
     from types import SimpleNamespace
 
     def info(state: bool, args: str = "", cfg: dict[str, str] | None = None) -> SimpleNamespace:
@@ -1780,8 +1825,9 @@ def test_state_declaration_guard_fires_on_a_probe():
     assert disagreeing == ["b.flag"], "the frontends split on b.flag"
 
 
+@pytest.mark.rule("state-declared")
 def test_state_exemptions_are_not_stale(tmp_path):
-    """state-declared: each exempt name is one the guard would flag (registered, state-shaped, undeclared), so the list only shrinks."""
+    """Each exempt name is one the guard would flag (registered, state-shaped, undeclared), so the list only shrinks."""
     tables = _frontend_plugins(tmp_path)
     stale = sorted(
         name
@@ -1840,8 +1886,9 @@ def _device_name_compares(tree: ast.AST, rel: str) -> list[str]:
     return found
 
 
+@pytest.mark.rule("port-name-one-compare")
 def test_port_names_are_compared_only_by_same_port():
-    """port-name-one-compare: no port module compares two device names with == or !=."""
+    """No port module compares two device names with == or !=."""
     # Arrange / Act
     violations = [
         line
@@ -1858,8 +1905,9 @@ def test_port_names_are_compared_only_by_same_port():
     )
 
 
+@pytest.mark.rule("port-name-one-compare")
 def test_port_name_compare_guard_fires_on_a_probe():
-    """port-name-one-compare: the guard flags == and != between device names and passes same_port and literals."""
+    """The guard flags == and != between device names and passes same_port and literals."""
     # Arrange
     probe = (
         "if fact.device == candidate: pass\n"
@@ -1922,8 +1970,9 @@ def _symbols_ns_files() -> dict[str, list[str]]:
     return found
 
 
+@pytest.mark.rule("symbols-one-owner")
 def test_symbols_namespace_is_touched_only_by_its_session_module():
-    """symbols-one-owner: No code outside ``symbols/session.py`` calls ``ctx.ns("symbols")``."""
+    """No code outside ``symbols/session.py`` calls ``ctx.ns("symbols")``."""
     # Arrange / Act
     violations = [
         line
@@ -1995,8 +2044,9 @@ def _app_start_calls(tree: ast.AST, rel: str) -> list[str]:
     ]
 
 
+@pytest.mark.rule("prestart-before-start")
 def test_app_start_is_announced_only_by_the_host():
-    """prestart-before-start: only TerminalHost fires the app-start events, so pre-start always comes first."""
+    """Only TerminalHost fires the app-start events, so pre-start always comes first."""
     # Arrange / Act
     violations = [
         line
@@ -2014,6 +2064,7 @@ def test_app_start_is_announced_only_by_the_host():
     )
 
 
+@pytest.mark.rule("prestart-before-start")
 def test_app_start_guard_fires_on_a_probe():
     """The guard flags both app-start events, aliased receiver or not, and no other event."""
     # Arrange
@@ -2090,8 +2141,9 @@ def _headerless_files() -> dict[str, list[str]]:
     return found
 
 
+@pytest.mark.rule("test-headers")
 def test_every_test_has_a_header():
-    """test-headers: Every test outside the shrinking allowlist says what it pins in a docstring.
+    """Every test outside the shrinking allowlist says what it pins in a docstring.
 
     The name says what a test does; the header says why it matters, which
     is what a reader has lost when they come back to it later.  See the
@@ -2162,71 +2214,45 @@ def test_headerless_allowlist_has_no_stale_entries():
 #
 # docs/rules.md is the one list of the rules this file and the rest of the
 # suite enforce, each row a stable id, a kind (guarantee = a named test, or
-# assumption = review only) and the test.  The guard below keeps the table and
-# the guards in this file agreeing both ways, so a renamed test cannot leave a
-# row pointing at nothing and a new guard cannot ship unlisted.
+# assumption = review only) and the test.  A test says which rule it pins with
+# ``@pytest.mark.rule("<id>")`` (docs/traceability.md); tests/traceability.py
+# reads the markers from the source and scripts/sync_traceability.py renders
+# them into docs/traceability-matrix.md.  The guards below keep the table and the
+# tests agreeing both ways: a row's tests exist and carry the row's marker, a
+# guard in this file carries a registered id, and every marker names an id one
+# of the sources holds -- so a renamed test cannot leave a row pointing at
+# nothing, a new guard cannot ship unlisted, and a tag cannot name a rule
+# nobody wrote down.
 
 REGISTRY = SRC.parent.parent / "docs" / "rules.md"
 
-_RULE_ID = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$")
-_TEST_REF = re.compile(r"\btest_\w+(?:\.py)?")
 # A guard's companions prove it fires or keep its allowlist honest; they carry
 # no id of their own, so the reverse check skips them by name.
-_COMPANION_MARKERS = ("fires_on_a_probe", "has_no_stale_entries", "still_touches_it")
+_COMPANION_NAME_PARTS = ("fires_on_a_probe", "has_no_stale_entries", "still_touches_it")
 
 
-def _registry_rows(text: str) -> list[dict[str, str]]:
-    """The registry table's data rows, each a dict keyed by the header cells."""
-    rows: list[dict[str, str]] = []
-    header: list[str] | None = None
-    for line in text.splitlines():
-        if not line.startswith("|"):
-            continue
-        cells = [cell.strip().strip("`") for cell in line.strip().strip("|").split("|")]
-        if header is None:
-            header = [cell.lower() for cell in cells]
-            continue
-        if all(set(cell) <= set("-: ") for cell in cells):
-            continue  # the separator row
-        rows.append(dict(zip(header, cells, strict=False)))
-    return rows
-
-
-def _collected_tests() -> tuple[set[str], set[str]]:
-    """``(function names, file names)`` of every test under tests/."""
-    names: set[str] = set()
-    files: set[str] = set()
-    for path in TESTS.rglob("test_*.py"):
-        files.add(path.name)
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        names.update(qualname.rsplit(".", 1)[-1] for qualname, _ in _test_functions(tree.body))
-    return names, files
-
-
-def _guard_headers(tree: ast.Module) -> list[tuple[str, str]]:
-    """``(name, first docstring line)`` of every guard in a module, companions excluded."""
-    found: list[tuple[str, str]] = []
-    for qualname, func in _test_functions(tree.body):
-        name = qualname.rsplit(".", 1)[-1]
-        if any(marker in name for marker in _COMPANION_MARKERS):
-            continue
-        doc = ast.get_docstring(func) or ""
-        found.append((name, doc.splitlines()[0] if doc else ""))
-    return found
+def _guard_markers(tree: ast.Module) -> list[tuple[str, set[str]]]:
+    """``(name, rule ids in effect)`` of every guard in a module, companions excluded."""
+    index = MarkIndex()
+    index_module(tree, "guards", index)
+    return [
+        (name, ids)
+        for name, ids in index.functions.items()
+        if not any(part in name for part in _COMPANION_NAME_PARTS)
+    ]
 
 
 def _registry_mismatches(
     rows: list[dict[str, str]],
-    test_names: set[str],
-    test_files: set[str],
-    guards: list[tuple[str, str]],
+    index: MarkIndex,
+    guards: list[tuple[str, set[str]]],
 ) -> list[str]:
-    """Every way the registry and the guards can disagree, as one line each."""
+    """Every way the registry and the tests can disagree, as one line each."""
     problems: list[str] = []
     ids: set[str] = set()
     for row in rows:
         rid = row.get("id", "")
-        if not _RULE_ID.match(rid):
+        if not RULE_ID.match(rid):
             problems.append(f"registry: bad id {rid!r}")
         elif rid in ids:
             problems.append(f"registry: duplicate id {rid}")
@@ -2234,58 +2260,66 @@ def _registry_mismatches(
         kind = row.get("kind", "")
         if kind not in ("guarantee", "assumption"):
             problems.append(f"registry {rid}: kind must be guarantee or assumption, not {kind!r}")
-        refs = _TEST_REF.findall(row.get("enforced by", ""))
+        refs = TEST_REF.findall(row.get("enforced by", ""))
         if kind == "guarantee" and not refs:
             problems.append(f"registry {rid}: a guarantee names the test that enforces it")
         for ref in refs:
-            known = test_files if ref.endswith(".py") else test_names
+            if ref.endswith(".py"):
+                known = index.files
+            elif ref.startswith("Test"):
+                known = index.classes
+            else:
+                known = index.functions
             if ref not in known:
                 problems.append(f"registry {rid}: no such test {ref}")
-    for name, header in guards:
-        prefix, _, _ = header.partition(":")
-        if prefix not in ids:
-            problems.append(
-                f"guard {name}: header must start with a registered id, got {header[:40]!r}"
-            )
+            elif rid not in known[ref]:
+                problems.append(f"registry {rid}: {ref} does not carry @pytest.mark.rule({rid!r})")
+    for name, marked in guards:
+        if not marked & ids:
+            problems.append(f"guard {name}: carries no registered rule marker")
     return problems
 
 
+@pytest.mark.rule("rules-registry")
 def test_rules_registry_matches_the_guards():
-    """rules-registry: docs/rules.md and the guards in this file agree both ways.
+    """docs/rules.md and the tests agree both ways.
 
-    A row's tests exist, so a guarantee cannot name a test that was renamed
-    away; every guard here carries a registered id in its header, so a new
-    guard cannot ship unlisted.  The registry's intro says how to add a row.
+    A row's tests exist and carry the row's marker, so a guarantee cannot name
+    a test that was renamed away or one that does not say it pins the rule;
+    every guard here carries a registered id, so a new guard cannot ship
+    unlisted.  The registry's intro says how to add a row.
     """
     # Arrange / Act
-    rows = _registry_rows(REGISTRY.read_text(encoding="utf-8"))
-    names, files = _collected_tests()
-    guards = _guard_headers(ast.parse(Path(__file__).read_text(encoding="utf-8")))
-    problems = _registry_mismatches(rows, names, files, guards)
+    rows = registry_rows(REGISTRY.read_text(encoding="utf-8"))
+    index = index_tests()
+    guards = _guard_markers(ast.parse(Path(__file__).read_text(encoding="utf-8")))
+    problems = _registry_mismatches(rows, index, guards)
 
     # Assert
-    assert problems == [], "\n  ".join(["registry and guards disagree:", *problems])
+    assert problems == [], "\n  ".join(["registry and tests disagree:", *problems])
 
 
 def test_registry_guard_fires_on_a_probe():
-    """The guard detects a bad id, a bad kind, a missing test, a bare guarantee, and an unregistered guard."""
-    # Arrange -- one good row and one of each defect, plus one listed and
-    # one unlisted guard
+    """The guard detects a bad id, a bad kind, a missing test, a bare guarantee, an unmarked test and an unmarked guard."""
+    # Arrange -- one good row and one of each defect, plus one marked and
+    # one unmarked guard
     rows = [
-        {"id": "good-id", "kind": "guarantee", "enforced by": "test_real"},
-        {"id": "BadId", "kind": "guarantee", "enforced by": "test_real"},
-        {"id": "no-kind", "kind": "rule", "enforced by": "test_real"},
+        {"id": "good-id", "kind": "guarantee", "enforced by": "test_real, TestReal, test_file.py"},
+        {"id": "BadId", "kind": "assumption", "enforced by": "review"},
+        {"id": "no-kind", "kind": "rule", "enforced by": "review"},
         {"id": "gone-test", "kind": "guarantee", "enforced by": "test_renamed_away"},
         {"id": "bare-one", "kind": "guarantee", "enforced by": "review"},
-        {"id": "by-file", "kind": "guarantee", "enforced by": "test_file.py"},
+        {"id": "un-marked", "kind": "assumption", "enforced by": "review; test_real"},
     ]
-    guards = [
-        ("test_listed", "good-id: pins it"),
-        ("test_unlisted", "Pins something nobody wrote down."),
-    ]
+    index = MarkIndex(
+        functions={"test_real": {"good-id"}},
+        classes={"TestReal": {"good-id"}},
+        files={"test_file.py": {"good-id"}},
+    )
+    guards = [("test_marked", {"good-id"}), ("test_unmarked", set())]
 
     # Act
-    problems = _registry_mismatches(rows, {"test_real"}, {"test_file.py"}, guards)
+    problems = _registry_mismatches(rows, index, guards)
 
     # Assert
     assert problems == [
@@ -2293,9 +2327,25 @@ def test_registry_guard_fires_on_a_probe():
         "registry no-kind: kind must be guarantee or assumption, not 'rule'",
         "registry gone-test: no such test test_renamed_away",
         "registry bare-one: a guarantee names the test that enforces it",
-        "guard test_unlisted: header must start with a registered id, "
-        "got 'Pins something nobody wrote down.'",
-    ], "one line per defect, nothing for the good row or the listed guard"
+        "registry un-marked: test_real does not carry @pytest.mark.rule('un-marked')",
+        "guard test_unmarked: carries no registered rule marker",
+    ], "one line per defect, nothing for the good row or the marked guard"
+
+
+@pytest.mark.rule("rules-registry")
+def test_rule_markers_name_known_ids():
+    """Every ``rule`` marker in the suite names one id that an id source holds.
+
+    The same check conftest runs at collection, read from the source here so
+    the suite reports it as a test with each offender named, and so a marker
+    on a test that is deselected or skipped is checked all the same.
+    """
+    # Arrange / Act
+    index = index_tests()
+    problems = index.problems + marker_problems(index.markers, known_ids())
+
+    # Assert
+    assert problems == [], "\n  ".join(["rule markers that name nothing:", *problems])
 
 
 # ── Every command has a test ─────────────────────────────────────────────────
@@ -2366,8 +2416,9 @@ def _untested_groups(groups: list[list[str]], tests_text: str) -> list[list[str]
     return [names for names in groups if not any(_mentioned(name, tests_text) for name in names)]
 
 
+@pytest.mark.rule("command-has-test")
 def test_every_command_is_mentioned_by_a_test():
-    """command-has-test: every registered command is named by a test, except the shrinking known-untested set.
+    """Every registered command is named by a test, except the shrinking known-untested set.
 
     A family generated from one handler counts once.  A new command fails
     this until a test names it; the fix is the test, never a new entry in
@@ -2558,8 +2609,9 @@ def _gold_gaps() -> tuple[list[str], set[str]]:
     return sorted(missing), excused
 
 
+@pytest.mark.rule("command-in-gold")
 def test_every_command_is_in_the_gold_run_or_says_why():
-    """command-in-gold: every command family runs in tests/cli_gold/cli_test.run, or NOT_IN_GOLD says why it cannot."""
+    """Every command family runs in tests/cli_gold/cli_test.run, or NOT_IN_GOLD says why it cannot."""
     # Arrange / Act
     missing, _ = _gold_gaps()
 
@@ -2571,6 +2623,7 @@ def test_every_command_is_in_the_gold_run_or_says_why():
     )
 
 
+@pytest.mark.rule("command-in-gold")
 def test_not_in_gold_has_no_stale_entries():
     """Every NOT_IN_GOLD entry is a real command whose family is still not in the gold run."""
     # Arrange / Act
@@ -2583,6 +2636,7 @@ def test_not_in_gold_has_no_stale_entries():
     )
 
 
+@pytest.mark.rule("command-in-gold")
 def test_gold_parser_fires_on_a_probe():
     """The gold parser takes a line's command and a capture's, maps a level suffix to its command, skips prose."""
     # Arrange
@@ -2684,8 +2738,9 @@ def _sw_loopback_unlabeled(tree: ast.Module) -> list[str]:
     return unlabeled
 
 
+@pytest.mark.rule("sw-loopback-labeled")
 def test_sw_loopback_tests_are_labeled():
-    """sw-loopback-labeled: every test that uses pyserial's loop:// carries the sw_loopback marker.
+    """Every test that uses pyserial's loop:// carries the sw_loopback marker.
 
     This file is skipped: it names the URL to search for.
     """
@@ -2909,8 +2964,9 @@ def _unallowed(
     return violations, used
 
 
+@pytest.mark.rule("hex-one-reader")
 def test_hex_is_parsed_only_by_the_published_readers():
-    """hex-one-reader: user hex is read only by parse_hex / parse_data / parse_pattern / parse_number.
+    """User hex is read only by parse_hex / parse_data / parse_pattern / parse_number.
 
     Anything else that reads hex is named in HEX_PARSE_ALLOWED with the
     reason it is not user input (device text, a file format, a USB id).
@@ -2925,8 +2981,9 @@ def test_hex_is_parsed_only_by_the_published_readers():
     )
 
 
+@pytest.mark.rule("hex-output-uppercase")
 def test_hex_output_is_uppercase():
-    """hex-output-uppercase: every hex termapy prints or returns is uppercase; .hex() is always .hex().upper()."""
+    """Every hex termapy prints or returns is uppercase; .hex() is always .hex().upper()."""
     # Arrange / Act
     violations, _ = _unallowed(_lowercase_hex_sites, HEX_LOWERCASE_ALLOWED)
 
@@ -3021,8 +3078,9 @@ def _misnamed_handlers(tree: ast.Module) -> list[str]:
     )
 
 
+@pytest.mark.rule("handler-naming")
 def test_handlers_follow_one_naming_shape():
-    """handler-naming: every command handler is `_handler` or `_handler_<sub>`, in built-ins, demo and example plugins."""
+    """Every command handler is `_handler` or `_handler_<sub>`, in built-ins, demo and example plugins."""
     # Arrange / Act
     violations = [
         f"{path.relative_to(SRC.parent.parent).as_posix()}: {name}"
@@ -3194,8 +3252,9 @@ def _markup_scan_modules():
                 yield rel, ast.parse(path.read_text(encoding="utf-8"))
 
 
+@pytest.mark.rule("markup-escape")
 def test_text_reaches_markup_escaped():
-    """markup-escape: every value interpolated into Rich markup is escape_markup()'d, `_markup`-named, a style, or a number."""
+    """Every value interpolated into Rich markup is escape_markup()'d, `_markup`-named, a style, or a number."""
     # Arrange / Act
     violations = [
         f"{rel}:{line}: {what}"
@@ -3316,8 +3375,9 @@ def _widget_markup_sites(tree: ast.Module) -> list[tuple[int, str]]:
     return sorted(sites)
 
 
+@pytest.mark.rule("widget-text-literal")
 def test_widget_text_is_never_parsed_as_markup():
-    """widget-text-literal: a Static, Label, Button or notify built from text has markup=False or a Text."""
+    """A Static, Label, Button or notify built from text has markup=False or a Text."""
     # Arrange / Act
     violations = [
         f"{rel.as_posix()}:{line}: {call}"
@@ -3400,8 +3460,9 @@ def _kv_caller_files() -> dict[str, list[str]]:
     return found
 
 
+@pytest.mark.rule("record-one-format")
 def test_status_rows_render_only_in_the_record_view():
-    """record-one-format: Only the record view calls ``format_kv_lines``; a status page returns ``CmdResult.record``."""
+    """Only the record view calls ``format_kv_lines``; a status page returns ``CmdResult.record``."""
     # Arrange / Act
     violations = [
         line
@@ -3580,8 +3641,9 @@ def _printed_failures(tree: ast.Module) -> list[tuple[str, int]]:
     return sites
 
 
+@pytest.mark.rule("failure-reported-once")
 def test_a_failure_carries_its_message():
-    """failure-reported-once: no failure is built with an empty message, so ``error`` always says why."""
+    """No failure is built with an empty message, so ``error`` always says why."""
     # Arrange / Act
     violations, _ = _unallowed(_empty_failures, {})
 
@@ -3592,8 +3654,9 @@ def test_a_failure_carries_its_message():
     )
 
 
+@pytest.mark.rule("failure-reported-once")
 def test_a_handler_never_prints_the_failure_it_returns():
-    """failure-reported-once: dispatch's exit prints a failure; nothing prints it beside the return."""
+    """dispatch's exit prints a failure; nothing prints it beside the return."""
     # Arrange / Act
     violations, _ = _unallowed(_printed_failures, FAILURE_PRINTERS)
 
@@ -3673,8 +3736,9 @@ def _shaped_values(tree: ast.Module) -> list[tuple[str, int]]:
     return sites
 
 
+@pytest.mark.rule("value-is-scalar")
 def test_a_value_is_a_scalar():
-    """value-is-scalar: no CmdResult carries a dict or list as value; the structure is data."""
+    """No CmdResult carries a dict or list as value; the structure is data."""
     # Arrange / Act
     violations, _ = _unallowed(_shaped_values, {})
 
@@ -3785,8 +3849,9 @@ def _state_answers(tree: ast.Module) -> list[tuple[str, int]]:
     ]
 
 
+@pytest.mark.rule("state-answered-by-gate")
 def test_a_missing_config_or_port_is_answered_by_the_gate():
-    """state-answered-by-gate: no handler answers "No config loaded." or "Not connected."; its command declares the need."""
+    """No handler answers "No config loaded." or "Not connected."; its command declares the need."""
     # Arrange / Act -- the examples too: they are what a plugin author copies
     violations, _ = _unallowed(_state_answers, STATE_CHECKED_IN_A_BRANCH)
     examples = SRC.parent.parent / "examples" / "plugins"
@@ -3868,8 +3933,9 @@ def _state_answer_copies(tree: ast.Module) -> list[tuple[str, int]]:
     ]
 
 
+@pytest.mark.rule("state-messages-one-owner")
 def test_the_state_answers_are_spelled_only_on_their_fields():
-    """state-messages-one-owner: "No config loaded." and "Not connected." are spelled only on their capability fields."""
+    """ "No config loaded." and "Not connected." are spelled only on their capability fields."""
     # Arrange / Act
     violations = [
         f"{rel}:{line} in {qualname}"
@@ -3942,8 +4008,9 @@ def _session_log_derivations(tree: ast.Module) -> list[tuple[str, int]]:
     return sites
 
 
+@pytest.mark.rule("session-log-one-owner")
 def test_the_session_log_is_resolved_in_one_place():
-    """session-log-one-owner: only config.py derives the session log from the cfg; everything else asks the frontend."""
+    """Only config.py derives the session log from the cfg; everything else asks the frontend."""
     # Arrange / Act
     violations = [
         f"{rel}:{line} in {qualname}"
@@ -4085,8 +4152,9 @@ def _names_on_suffix_words(frontend_plugins: dict[str, dict[str, object]]) -> li
     )
 
 
+@pytest.mark.rule("suffix-words-reserved")
 def test_no_command_name_ends_in_a_suffix_word(frontend_plugins):
-    """suffix-words-reserved: no command in any frontend ends its name in .json or a level word, so the suffix means one thing on every command."""
+    """No command in any frontend ends its name in .json or a level word, so the suffix means one thing on every command."""
     # Arrange / Act
     taken = _names_on_suffix_words(frontend_plugins)
 
@@ -4115,8 +4183,9 @@ def _docstring_of(handler) -> str:
     return (getattr(handler, "__doc__", None) or "").strip()
 
 
+@pytest.mark.rule("handler-docstring")
 def test_every_registered_handler_has_a_docstring(frontend_plugins):
-    """handler-docstring: every command's handler carries a docstring in every frontend, so /help.dev and developer search have text for it."""
+    """Every command's handler carries a docstring in every frontend, so /help.dev and developer search have text for it."""
     # Arrange / Act
     undocumented = sorted(
         f"{frontend}:{name}"
@@ -4131,8 +4200,9 @@ def test_every_registered_handler_has_a_docstring(frontend_plugins):
     )
 
 
+@pytest.mark.rule("handler-docstring")
 def test_every_example_plugin_handler_has_a_docstring():
-    """handler-docstring: the example plugins, which no frontend registers, document every handler a plugin author copies."""
+    """The example plugins, which no frontend registers, document every handler a plugin author copies."""
     import ast
 
     # Arrange / Act
@@ -4150,8 +4220,9 @@ def test_every_example_plugin_handler_has_a_docstring():
     )
 
 
+@pytest.mark.rule("handler-docstring")
 def test_handler_docstring_guard_flags_a_bare_handler():
-    """handler-docstring: the guard's predicate rejects a lambda and an undocumented def, and accepts a documented one."""
+    """The guard's predicate rejects a lambda and an undocumented def, and accepts a documented one."""
 
     def documented(ctx, args):
         """Does a thing."""
@@ -4184,8 +4255,9 @@ def _declares_cmdresult(handler) -> bool:
     return annotation == "CmdResult" or getattr(annotation, "__name__", "") == "CmdResult"
 
 
+@pytest.mark.rule("handler-returns-cmdresult")
 def test_every_registered_handler_declares_cmdresult(frontend_plugins):
-    """handler-returns-cmdresult: every command's handler declares -> CmdResult in every frontend, so ty checks each return path."""
+    """Every command's handler declares -> CmdResult in every frontend, so ty checks each return path."""
     # Arrange / Act
     undeclared = sorted(
         f"{frontend}:{name}"
@@ -4200,8 +4272,9 @@ def test_every_registered_handler_declares_cmdresult(frontend_plugins):
     )
 
 
+@pytest.mark.rule("handler-returns-cmdresult")
 def test_every_example_plugin_handler_declares_cmdresult():
-    """handler-returns-cmdresult: the example plugins, which no frontend registers, declare -> CmdResult on every handler."""
+    """The example plugins, which no frontend registers, declare -> CmdResult on every handler."""
     import ast
 
     # Arrange / Act
@@ -4217,8 +4290,9 @@ def test_every_example_plugin_handler_declares_cmdresult():
     assert undeclared == [], f"an example handler is copied by plugin authors: {undeclared}"
 
 
+@pytest.mark.rule("handler-returns-cmdresult")
 def test_handler_return_guard_fires_on_a_probe():
-    """handler-returns-cmdresult: the predicate rejects no annotation and -> None, and accepts -> CmdResult."""
+    """The predicate rejects no annotation and -> None, and accepts -> CmdResult."""
     from termapy.plugins import CmdResult
 
     def bare(ctx, args):
@@ -4235,8 +4309,9 @@ def test_handler_return_guard_fires_on_a_probe():
     assert actual == [False, False, True], "only -> CmdResult passes"
 
 
+@pytest.mark.rule("one-handler-per-command")
 def test_each_command_has_one_handler_in_every_frontend(frontend_tables):
-    """one-handler-per-command: no name runs different handlers in two frontends, outside the allowlist."""
+    """No name runs different handlers in two frontends, outside the allowlist."""
     # Arrange / Act
     divergent = {
         name: frontends
@@ -4320,8 +4395,9 @@ def _claimed_but_unregistered(
     return {name: sorted(frontends) for name, frontends in sorted(claimed.items())}
 
 
+@pytest.mark.rule("available-matches-registration")
 def test_help_available_names_only_frontends_that_register_the_command(frontend_plugins):
-    """available-matches-registration: every frontend /help AVAILABLE says yes for registers the command."""
+    """Every frontend /help AVAILABLE says yes for registers the command."""
     from termapy.plugins.capabilities import ENVIRONMENTS
 
     # Arrange / Act
@@ -4377,8 +4453,9 @@ def test_known_unregistered_where_available_has_no_stale_entries(frontend_plugin
     )
 
 
+@pytest.mark.rule("one-handler-per-command")
 def test_the_legacy_table_is_the_same_in_every_frontend(frontend_tables):
-    """one-handler-per-command: /run.legacy reads one rename table; no frontend adds to it by registering.
+    """/run.legacy reads one rename table; no frontend adds to it by registering.
 
     Until 2026-10-16 ``make_forwarder`` recorded a rename when a frontend
     registered it, so the table differed by frontend (review 2026-10-15,
@@ -4480,8 +4557,9 @@ def _text_files() -> list[Path]:
     return sorted(files)
 
 
+@pytest.mark.rule("no-mojibake")
 def test_text_files_are_never_utf8_read_as_cp1252():
-    """no-mojibake: every text file is UTF-8 and holds no UTF-8 character read back as cp1252."""
+    """Every text file is UTF-8 and holds no UTF-8 character read back as cp1252."""
     # Arrange
     repo = SRC.parent.parent
     violations: list[str] = []
@@ -4631,8 +4709,9 @@ def _prefix_spellings(tree: ast.AST, rel: str, tokens: frozenset[str]) -> list[s
     return found
 
 
+@pytest.mark.rule("prefix-never-hardcoded")
 def test_dispatch_lines_use_the_live_prefix():
-    """prefix-never-hardcoded: a line handed to dispatch is built from the config's prefix, never typed as /cmd.
+    """A line handed to dispatch is built from the config's prefix, never typed as /cmd.
 
     With ``cmd_prefix: "!"`` a typed ``"/find.prev"`` is not a command but
     device text, so every button, menu action and palette entry that
@@ -4657,8 +4736,9 @@ def test_dispatch_lines_use_the_live_prefix():
     )
 
 
+@pytest.mark.rule("prefix-never-hardcoded")
 def test_command_spellings_use_the_prefix_placeholder():
-    """prefix-never-hardcoded: help and message text writes {prefix}cmd, which every renderer fills in; docs alone show /.
+    """Help and message text writes {prefix}cmd, which every renderer fills in; docs alone show /.
 
     ``interpolate_help`` substitutes the placeholder in ``help`` and
     ``long_help``, the MCP catalog and the config editor; a message built in
@@ -4750,8 +4830,9 @@ def test_prefix_allowlist_has_no_stale_entries():
 # landscape never reaches for where a command came from.
 
 
+@pytest.mark.rule("help-group-declared")
 def test_every_visible_root_declares_a_group(frontend_plugins):
-    """help-group-declared: every root a user can see declares a group, not the default."""
+    """Every root a user can see declares a group, not the default."""
     # Arrange
     from termapy.plugins import GROUP_DEFAULT
 
@@ -4774,8 +4855,9 @@ def test_every_visible_root_declares_a_group(frontend_plugins):
     )
 
 
+@pytest.mark.rule("help-group-declared")
 def test_subcommands_inherit_their_roots_group(frontend_plugins):
-    """help-group-declared: a family shares one group -- a subcommand cannot leave its root's."""
+    """A family shares one group -- a subcommand cannot leave its root's."""
     # Arrange / Act
     strays = []
     for frontend, plugins in frontend_plugins.items():
@@ -4794,8 +4876,9 @@ def test_subcommands_inherit_their_roots_group(frontend_plugins):
     assert strays == [], "a subcommand left its root's group:\n  " + "\n  ".join(strays)
 
 
+@pytest.mark.rule("help-group-declared")
 def test_the_landscape_never_groups_by_source(frontend_plugins):
-    """help-group-declared: /help's landscape reads group, never source -- origin is not privilege."""
+    """/help's landscape reads group, never source -- origin is not privilege."""
     # Arrange
     import inspect
     import textwrap
@@ -4817,8 +4900,9 @@ def test_the_landscape_never_groups_by_source(frontend_plugins):
     )
 
 
+@pytest.mark.rule("help-group-declared")
 def test_a_user_plugin_joins_the_terminal_group(tmp_path):
-    """help-group-declared: a loaded plugin declaring terminal is in it, as any built-in is."""
+    """A loaded plugin declaring terminal is in it, as any built-in is."""
     # Arrange -- a user plugin that claims the unfolded group
     folder = tmp_path / "plugin"
     folder.mkdir()
@@ -4853,8 +4937,9 @@ def test_a_user_plugin_joins_the_terminal_group(tmp_path):
     )
 
 
+@pytest.mark.rule("help-group-declared")
 def test_group_guard_fires_on_a_probe(frontend_plugins):
-    """help-group-declared: the declaration guard reddens for a root left at the default."""
+    """The declaration guard reddens for a root left at the default."""
     # Arrange -- a root carrying the default group, as an undeclared command would
     from dataclasses import replace
 
@@ -4883,8 +4968,9 @@ def test_group_guard_fires_on_a_probe(frontend_plugins):
 # ours to maintain rather than Textual's.
 
 
+@pytest.mark.rule("compact-input-variant")
 def test_a_one_row_input_asks_for_the_compact_variant():
-    """compact-input-variant: no CSS hand-rolls what Input(compact=True) already is.
+    """No CSS hand-rolls what Input(compact=True) already is.
 
     The fix for a red result is ``compact=True`` on the Input and the
     width-only CSS rule, never a new hand-rolled rule: a one-row field
@@ -5076,8 +5162,9 @@ def _undeclared_cfg_reads() -> list[str]:
     return violations
 
 
+@pytest.mark.rule("cfg-declared")
 def test_plugin_cfg_reads_are_declared():
-    """cfg-declared: every config key a plugin module reads or sets is one a command in it declares, with how.
+    """Every config key a plugin module reads or sets is one a command in it declares, with how.
 
     The fix for a red result is ``cfg={"<key>": "<how this command uses
     it>"}`` on the command that reads it, never a read that hides the key
@@ -5093,6 +5180,7 @@ def test_plugin_cfg_reads_are_declared():
     )
 
 
+@pytest.mark.rule("cfg-declared")
 def test_cfg_read_guard_fires_on_a_probe():
     """The read finder sees every shape, skips navigation and a variable key, and the declaration finder resolves a leaf."""
     # Arrange -- line 3 on: each read shape once, then navigation, then a variable key
@@ -5181,8 +5269,9 @@ def _unallowed_cfg_gets() -> tuple[list[str], set[tuple[str, str]]]:
     return violations, used
 
 
+@pytest.mark.rule("cfg-read-one-reader")
 def test_core_reads_cfg_values_through_cfg_value():
-    """cfg-read-one-reader: a config value with a default is read through defaults.cfg_value, never cfg.get("k", literal).
+    """A config value with a default is read through defaults.cfg_value, never cfg.get("k", literal).
 
     The fix for a red result is ``cfg_value(cfg, "key")`` (a nested key as
     its path, ``"serial.port"``), which falls back to the table's default;
@@ -5198,6 +5287,7 @@ def test_core_reads_cfg_values_through_cfg_value():
     )
 
 
+@pytest.mark.rule("cfg-read-one-reader")
 def test_cfg_value_guard_fires_on_a_probe():
     """The finder flags a literal get on a config receiver, chained through serial too, and passes a subscript, navigation, cfg_value and another dict."""
     # Arrange
@@ -5223,6 +5313,7 @@ def reads(ctx, cfg, other, get_cfg):
     )
 
 
+@pytest.mark.rule("cfg-read-one-reader")
 def test_cfg_get_allowlist_has_no_stale_entries():
     """Every allowlisted function still reads a config value by literal get, so the allowlist only shrinks."""
     # Arrange / Act
@@ -5310,8 +5401,9 @@ def _host_modules():
             yield rel, tree
 
 
+@pytest.mark.rule("config-load-deterministic")
 def test_module_state_is_in_ns_or_says_why():
-    """config-load-deterministic: state a function keeps goes in ctx.ns(), or the allowlist says why not.
+    """State a function keeps goes in ctx.ns(), or the allowlist says why not.
 
     The fresh-start comparison in ``test_config_load_state`` only sees state its
     scenario happens to touch; this catches the next global when it is written.
@@ -5330,6 +5422,7 @@ def test_module_state_is_in_ns_or_says_why():
     assert violations == [], "module state that belongs in ctx.ns(): " + ", ".join(violations)
 
 
+@pytest.mark.rule("config-load-deterministic")
 @pytest.mark.parametrize(
     ("body", "expected"),
     [
@@ -5344,7 +5437,7 @@ def test_module_state_is_in_ns_or_says_why():
     ],
 )
 def test_module_state_finder_sees_what_a_function_writes(body, expected):
-    """config-load-deterministic: the walk finds each kind of write, and not a read, a local or an import-time table."""
+    """The walk finds each kind of write, and not a read, a local or an import-time table."""
     # Act
     actual = _module_state_writes(ast.parse(body))
 
@@ -5352,8 +5445,9 @@ def test_module_state_finder_sees_what_a_function_writes(body, expected):
     assert actual == expected
 
 
+@pytest.mark.rule("config-load-deterministic")
 def test_module_state_allowlist_has_no_stale_entries():
-    """config-load-deterministic: an entry names a module that still writes module-level state."""
+    """An entry names a module that still writes module-level state."""
     # Arrange
     needing = {rel for rel, tree in _host_modules() if _module_state_writes(tree)}
 
@@ -5420,8 +5514,9 @@ def _termapy_code_files() -> list[Path]:
     ]
 
 
+@pytest.mark.rule("broad-catch-logged")
 def test_every_broad_catch_records_its_exception():
-    """broad-catch-logged: a broad ``except`` records the exception in the diagnostic log, or re-raises.
+    """A broad ``except`` records the exception in the diagnostic log, or re-raises.
 
     What the user sees of a failure is one line; the traceback goes to
     ``diag_log`` (``exception`` or ``warning``), so a catch that stops
@@ -5448,6 +5543,7 @@ def test_every_broad_catch_records_its_exception():
     )
 
 
+@pytest.mark.rule("broad-catch-logged")
 @pytest.mark.parametrize(
     ("body", "expected"),
     [
@@ -5464,7 +5560,7 @@ def test_every_broad_catch_records_its_exception():
     ],
 )
 def test_broad_catch_finder_sees_each_shape(body, expected):
-    """broad-catch-logged: bare, named and tuple catches are broad; a diag_log call or a raise clears one."""
+    """bare, named and tuple catches are broad; a diag_log call or a raise clears one."""
     # Act
     actual = _silent_broad_catches(ast.parse(body))
 
@@ -5472,8 +5568,9 @@ def test_broad_catch_finder_sees_each_shape(body, expected):
     assert actual == expected
 
 
+@pytest.mark.rule("broad-catch-logged")
 def test_silent_broad_catch_allowlist_has_no_stale_entries():
-    """broad-catch-logged: an allowlisted file still has a broad catch that records nothing."""
+    """An allowlisted file still has a broad catch that records nothing."""
     # Arrange
     needing = {
         path.relative_to(SRC).as_posix()

@@ -219,6 +219,7 @@ class TestReadLoop:
         assert not t.is_alive(), "thread exited within 2s"
         assert engine.is_connected is False, "the reader's finally disowned the port"
 
+    @pytest.mark.rule("reader-failure-reported")
     def test_read_loop_calls_on_error(self):
         """A port read that raises is reported through on_error with its message."""
         # Arrange - port that raises on read
@@ -254,8 +255,9 @@ class TestReadLoop:
         assert len(errors) >= 1, "error callback fired"
         assert "read failed" in errors[0], "error message should contain 'read failed'"
 
+    @pytest.mark.rule("reader-failure-reported")
     def test_a_raising_callback_is_reported_as_a_disconnect(self):
-        """reader-failure-reported: a callback that raises ends the reader through on_error then on_disconnect, never silently."""
+        """A callback that raises ends the reader through on_error then on_disconnect, never silently."""
         # Arrange -- FakeSerial has the AT reply waiting; on_lines blows up on it
         engine, _, _ = _make_engine()
         engine.connect()
@@ -288,8 +290,9 @@ class TestReadLoop:
         )
         assert getattr(port, "is_open", True) is False, "the reader closed its port on the way out"
 
+    @pytest.mark.rule("hex-view-wire-bytes")
     def test_hex_view_calls_on_hex_not_on_lines(self):
-        """hex-view-wire-bytes: with hex_view on, the reply arrives as rows plus its decoded lines, and on_lines stays silent."""
+        """With hex_view on, the reply arrives as rows plus its decoded lines, and on_lines stays silent."""
         # Arrange -- FakeSerial has b"OK\r\n" waiting for the reader
         engine, _, _ = _make_engine()
         engine.connect()
@@ -368,8 +371,9 @@ class _NumberedPort:
         self.is_open = False
 
 
+@pytest.mark.rule("rx-queue-bounded")
 class TestRxQueueBounded:
-    """rx-queue-bounded: with nobody reading, the raw queue holds the newest chunks only."""
+    """With nobody reading, the raw queue holds the newest chunks only."""
 
     def test_a_long_run_with_no_consumer_keeps_only_the_newest_chunks(self):
         """Past the cap the reader drops the oldest chunk; the queue never grows beyond it."""
@@ -420,11 +424,13 @@ class _CountingOpen:
         return FakeSerial()
 
 
+@pytest.mark.rule("reconnect-opens-once")
 class TestReconnect:
-    """reconnect-opens-once: a reconnect run opens the port once, through connect's own path."""
+    """A reconnect run opens the port once, through connect's own path."""
 
+    @pytest.mark.rule("reconnect-opens-once")
     def test_each_run_opens_the_port_once_and_hands_it_back(self):
-        """reconnect-opens-once: a run opens once and returns the port the engine holds, run after run."""
+        """A run opens once and returns the port the engine holds, run after run."""
         # Arrange
         opener = _CountingOpen()
         engine, _, _ = _make_engine(open_fn=opener)
@@ -446,8 +452,9 @@ class TestReconnect:
         assert engine.is_connected is True, "the engine stays connected for the caller to finish"
         engine.disconnect()
 
+    @pytest.mark.rule("reconnect-opens-once")
     def test_an_ambiguous_serial_number_is_retried_not_raised(self):
-        """reconnect-opens-once: an open error connect() classifies, an ambiguous serial number included, is retried, never raised."""
+        """An open error connect() classifies, an ambiguous serial number included, is retried, never raised."""
         # Arrange
         from termapy.port_control import AmbiguousSerialNumberError
 
@@ -464,8 +471,9 @@ class TestReconnect:
         assert opener.calls == 2, "the failed attempt was retried once, then the port opened"
         engine.disconnect()
 
+    @pytest.mark.rule("reconnect-opens-once")
     def test_a_run_that_finds_the_port_open_opens_nothing(self):
-        """reconnect-opens-once: when another connect opened the port first, the run returns None and opens nothing."""
+        """When another connect opened the port first, the run returns None and opens nothing."""
         # Arrange
         opener = _CountingOpen()
         engine, _, _ = _make_engine(open_fn=opener)
@@ -813,8 +821,9 @@ class TestReconnectLoop:
         assert started is True, "reconnect loop attempted within 2s"
         assert not t.is_alive(), "thread should have exited"
 
+    @pytest.mark.rule("reconnect-survives-connect-attempts")
     def test_a_connect_attempt_does_not_end_a_reconnect_loop(self):
-        """reconnect-survives-connect-attempts: stop_reader and a failed connect leave a running reconnect loop retrying."""
+        """stop_reader and a failed connect leave a running reconnect loop retrying."""
         # Arrange -- a port that never opens, and a loop retrying it
         engine = SerialEngine(
             cfg={"serial": {"port": "BAD"}},

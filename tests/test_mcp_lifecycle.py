@@ -371,8 +371,9 @@ class TestAutoLoadProfileOnConnect:
             "MCPHost auto-loads profiles on connect"
         )
 
+    @pytest.mark.rule("load-report-one-table")
     def test_auto_loaded_profile_is_a_report_row(self, cfg_dir):
-        """load-report-one-table: the profile loaded on connect is a /cfg.loaded row until disconnect."""
+        """The profile loaded on connect is a /cfg.loaded row until disconnect."""
         # Arrange
         self._write_profile(cfg_dir / "test.profile.json")
         cfg = default_cfg()

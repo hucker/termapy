@@ -176,6 +176,7 @@ class TestWire:
         assert reply == "ERR range\r\n", "the platform's own refusal is still ERR range"
         assert lock == "locks=1 depth=0\n", "a refused read must not leave the lock held"
 
+    @pytest.mark.rule("mem-wire-cases-shared")
     @pytest.mark.parametrize(
         ("command", "reason"),
         [

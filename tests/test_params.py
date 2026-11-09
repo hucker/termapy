@@ -1,8 +1,7 @@
 """Tests for declarative command parameters (plugins/params.py + dispatch).
 
-Spec IDs (from docs/param-spec-implementation.md) are cited in each class/test
-docstring.  There is no ``@pytest.mark.spec`` marker convention in this repo
-(the plan's first draft assumed one), so traceability lives in the names.
+Each class carries the spec section it pins as a ``rule`` marker; the ids are
+docs/param-spec-implementation.md's, an id source in tests/traceability.py.
 """
 
 from __future__ import annotations
@@ -26,8 +25,9 @@ from termapy.repl import ReplEngine
 # -- param-decl-validation ------------------------------------------------------
 
 
+@pytest.mark.rule("param-decl-validation")
 class TestDeclarationValidation:
-    """param-decl-validation: a broken declaration fails loudly at load."""
+    """A broken declaration fails loudly at load."""
 
     def test_duplicate_names(self):
         """Two params with the same name fail at declaration, naming the duplicate."""
@@ -59,8 +59,9 @@ class TestDeclarationValidation:
         with pytest.raises(ValueError, match="enum parameter 'm' has no values"):
             validate_param_specs([ParamSpec("m", "enum")], "cmd")
 
+    @pytest.mark.rule("bool-one-vocabulary")
     def test_optional_bool_must_declare_a_default(self):
-        """bool-one-vocabulary: an optional bool param says what absence means at declaration, or fails at load."""
+        """An optional bool param says what absence means at declaration, or fails at load."""
         with pytest.raises(ValueError, match=r"optional bool parameter 'x' must declare a default"):
             validate_param_specs([ParamSpec("x", "bool")], "cmd")
         validate_param_specs([ParamSpec("x", "bool", default=False)], "cmd")
@@ -113,8 +114,9 @@ class TestDeclarationValidation:
 # -- param-types ----------------------------------------------------------------
 
 
+@pytest.mark.rule("param-types")
 class TestCoercion:
-    """param-types: each type's str -> value coercion and its error text."""
+    """Each type's str -> value coercion and its error text."""
 
     def test_int_ok(self):
         """A decimal string coerces to an int."""
@@ -262,8 +264,9 @@ class TestParseParams:
 # -- param-help-synth -----------------------------------------------------------
 
 
+@pytest.mark.rule("param-help-synth")
 class TestSynopsisAndBlock:
-    """param-help-synth: synopsis + PARAMETERS block synthesis."""
+    """Synopsis + PARAMETERS block synthesis."""
 
     def test_synopsis_matches_convention(self):
         """Optional params are braced, required ones bare, and the rest param comes last."""
@@ -322,8 +325,9 @@ def _engine() -> ReplEngine:
     return eng
 
 
+@pytest.mark.rule("param-decl-optin")
 class TestDispatchOptOut:
-    """param-decl-optin: a params-free command is dispatched untouched."""
+    """A params-free command is dispatched untouched."""
 
     def test_args_pass_through_unchanged(self):
         """A command without params gets its raw args string untouched by the parser."""
@@ -345,8 +349,9 @@ class TestDispatchOptOut:
         assert seen["args"] == "hello world", "handler received the raw args verbatim"
 
 
+@pytest.mark.rule("param-ctx-access")
 class TestDispatchArgAccess:
-    """param-ctx-access: handler reads coerced values via ctx.arg()."""
+    """Handler reads coerced values via ctx.arg()."""
 
     def test_coerced_values_reach_handler(self):
         """The handler reads typed values through ctx.arg, not raw strings."""
@@ -411,8 +416,9 @@ class TestDispatchArgAccess:
         assert "Usage: /p" in result.error, "synthesized usage appended"
 
 
+@pytest.mark.rule("param-ctx-nesting")
 class TestDispatchNesting:
-    """param-ctx-nesting: a nested ctx.dispatch() must not strand outer params."""
+    """A nested ctx.dispatch() must not strand outer params."""
 
     def test_outer_params_survive_nested_dispatch(self):
         """Bound params are restored after a nested ctx.dispatch, not cleared."""
@@ -846,8 +852,9 @@ class TestBoolType:
         assert synthesize_synopsis([spec]) == "{addr=on|off}", "reads like the enum it replaces"
 
 
+@pytest.mark.rule("prefix-never-hardcoded")
 def test_parameter_help_fills_in_the_live_prefix(tmp_path, capsys):
-    """prefix-never-hardcoded: /help and the MCP catalog show a parameter's {prefix} as the live prefix."""
+    """/help and the MCP catalog show a parameter's {prefix} as the live prefix."""
     # Arrange: every built-in, under a prefix that is not the default
     from termapy.cli import CLITerminal
     from termapy.defaults import DEFAULT_CFG
@@ -874,8 +881,9 @@ def test_parameter_help_fills_in_the_live_prefix(tmp_path, capsys):
     assert "{prefix}" not in catalog, "nor does any catalog entry"
 
 
+@pytest.mark.rule("did-you-mean-one")
 class TestMisspelledKeywords:
-    """did-you-mean-one: a word=value token near a declared keyword is a typo, never a value."""
+    """A word=value token near a declared keyword is a typo, never a value."""
 
     _PARAMS = [
         ParamSpec("file", "str", positional=True, required=True, rest=True),

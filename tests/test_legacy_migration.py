@@ -327,8 +327,9 @@ class TestSimpleForwarderRuntime:
         assert first_count == 1, "first /echo call warns"
         assert second_count == 0, "second /echo call stays silent"
 
+    @pytest.mark.rule("failure-reported-once")
     def test_a_failed_forward_keeps_its_error_and_prints_once(self, engine_with_term):
-        """failure-reported-once: /echo maybe fails with /term.echo's error, printed once.
+        """/echo maybe fails with /term.echo's error, printed once.
 
         The forwarder used to blank the error to dodge a double print, so a
         script or agent saw the failure without its reason.
@@ -367,8 +368,9 @@ def _legacy_run(tmp_path, args: str, names: tuple[str, ...]):
 
 
 class TestRunLegacyPattern:
+    @pytest.mark.rule("name-one-matcher")
     def test_a_pattern_scans_only_the_scripts_it_matches(self, tmp_path):
-        """name-one-matcher: /run.legacy a_* scans a_one and a_two, never b."""
+        """/run.legacy a_* scans a_one and a_two, never b."""
         # Act
         result, texts = _legacy_run(tmp_path, "a_*", ("a_one.run", "a_two.run", "b.run"))
 
@@ -377,7 +379,8 @@ class TestRunLegacyPattern:
         scanned = sorted(text.split(":")[0].strip() for text in texts if ".run:" in text)
         assert scanned == ["a_one.run", "a_two.run"], "the pattern picked the scripts"
 
+    @pytest.mark.rule("name-one-matcher")
     def test_a_pattern_matching_nothing_fails(self, tmp_path):
-        """name-one-matcher: a pattern that picks no script fails, as a missing name does."""
+        """A pattern that picks no script fails, as a missing name does."""
         result, _ = _legacy_run(tmp_path, "zz*", ("a_one.run",))
         assert result.error == "No scripts in run/ match: zz*"

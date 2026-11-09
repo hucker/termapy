@@ -1284,9 +1284,10 @@ class TestSymLoadUnload:
         expected = f"Symbols not found: {config_path.parent / 'sym' / ('rig' + SYMBOLS_SUFFIX)}"
         assert result.error == expected
 
+    @pytest.mark.rule("state-answered-by-gate")
     @pytest.mark.parametrize("line", ["sym.load", f"sym.load {DEMO_SYMBOLS}"])
     def test_without_a_config_both_forms_are_the_gates_answer(self, sym_env, line):
-        """state-answered-by-gate: /sym.load declares config_loaded, so bare and explicit forms both need one.
+        """/sym.load declares config_loaded, so bare and explicit forms both need one.
 
         Until 2026-10-16 an explicit path loaded with no config, and the bare
         form answered "No config loaded." itself, inferred from sidecar_path
@@ -1336,8 +1337,9 @@ class TestSymLoadUnload:
         assert result.success, result.error
         assert result.value == DEMO_COUNT, "a bare name resolves into sym/, not against the CWD"
 
+    @pytest.mark.rule("file-name-default-ext")
     def test_load_takes_a_bare_stem_in_sym(self, sym_env):
-        """file-name-default-ext: /sym.load rig finds sym/rig.symbols.json; the suffix is optional."""
+        """/sym.load rig finds sym/rig.symbols.json; the suffix is optional."""
         # Arrange
         engine, config_path, _ = sym_env
         _install_sidecar(config_path)
@@ -1559,8 +1561,9 @@ class TestSymRoot:
 
 
 class TestSymSearch:
+    @pytest.mark.rule("list-one-format")
     def test_the_matches_are_a_table(self, sym_env):
-        """list-one-format: one row per match in address order, every fact of a symbol line a column, the value the count."""
+        """One row per match in address order, every fact of a symbol line a column, the value the count."""
         # Arrange
         engine, config_path, output = sym_env
         _load(engine, config_path)
@@ -1648,8 +1651,9 @@ class TestSymSearch:
         # Act / Assert
         assert engine.dispatch("sym.search").error == "Usage: /sym.search <pattern>"
 
+    @pytest.mark.rule("state-answered-by-gate")
     def test_no_table_is_the_gates_answer_before_the_arguments(self, sym_env):
-        """state-answered-by-gate: with no table the gate answers, before a bare search's usage error."""
+        """With no table the gate answers, before a bare search's usage error."""
         # Arrange
         engine, _, _ = sym_env
 
@@ -1736,6 +1740,7 @@ class TestSandbox:
 
 
 class TestValueContract:
+    @pytest.mark.rule("value-typed")
     @pytest.mark.parametrize(
         "line",
         [
@@ -1749,7 +1754,7 @@ class TestValueContract:
         ],
     )
     def test_every_command_returns_a_scalar_value(self, sym_env, line):
-        """value-typed: every /sym command answers a scalar, text or a count, that $(X) <- spells for a variable."""
+        """Every /sym command answers a scalar, text or a count, that $(X) <- spells for a variable."""
         # Arrange
         engine, config_path, _ = sym_env
         _load(engine, config_path)
@@ -1768,8 +1773,9 @@ class TestValueContract:
 class TestDevList:
     """What THIS config loaded -- the 'installed' half of the two listings."""
 
+    @pytest.mark.rule("list-one-format")
     def test_no_devices_says_so(self, sym_env):
-        """list-one-format: no devices is the shared empty table, not a hand-written line."""
+        """No devices is the shared empty table, not a hand-written line."""
         # Arrange
         engine, _, output = sym_env
         engine.fire_lifecycle("on_app_start")
@@ -1957,8 +1963,9 @@ class TestDevRegs:
         flagged = [piece for piece in pieces if piece.text == "read_effect"]
         assert flagged and flagged[0].style == "yellow", "the FLAGS cell carries its style"
 
+    @pytest.mark.rule("name-one-matcher")
     def test_a_pattern_matches_register_or_peripheral(self, sym_env):
-        """name-one-matcher: plain text contains, over the name and the peripheral."""
+        """Plain text contains, over the name and the peripheral."""
         # Arrange
         engine, _ = self._engine(sym_env)
         # Act
@@ -1972,8 +1979,9 @@ class TestDevRegs:
         assert [r["name"] for r in by_glob.data] == ["DATA", "UART_DATA"], "an anchored glob"
         assert nothing.success and nothing.value == 0, "no match is an empty answer"
 
+    @pytest.mark.rule("list-one-format")
     def test_data_carries_the_safety_facts_and_fields(self, sym_env):
-        """list-one-format: the records hold the safety trio, reset and fields for an agent."""
+        """The records hold the safety trio, reset and fields for an agent."""
         # Arrange
         engine, _ = self._engine(sym_env)
         # Act
@@ -2095,8 +2103,9 @@ class TestDevLib:
             "the wildcard matched both families and excluded the rest"
         )
 
+    @pytest.mark.rule("name-one-matcher")
     def test_a_filter_matching_nothing_is_an_empty_answer(self, sym_env, tmp_path):
-        """name-one-matcher: a pattern no part matches succeeds with no names."""
+        """A pattern no part matches succeeds with no names."""
         # Arrange
         engine, _, output = sym_env
         _install_library(tmp_path, "m", "alpha")
@@ -2699,8 +2708,9 @@ def convert(data):
 
 
 class TestBinaryConverters:
+    @pytest.mark.rule("converter-magic-first")
     def test_a_plugin_with_magic_reads_bytes_and_is_sniffed_by_them(self, sym_env, tmp_path):
-        """converter-magic-first: a plugin's signature selects it and hands it the bytes."""
+        """A plugin's signature selects it and hands it the bytes."""
         # Arrange
         engine, config_path, _ = sym_env
         _install_converter(config_path, _BINARY_CONVERTER)
@@ -2735,8 +2745,9 @@ class TestBinaryConverters:
 class TestBlockAliases:
     """A pointer constant in the build names a device block: the merged view carries the aliases."""
 
+    @pytest.mark.rule("alias-from-pointer-constant")
     def test_a_pointer_constant_names_the_blocks_registers(self, sym_env):
-        """alias-from-pointer-constant: BUS -> the part's base; /sym resolves an alias, /sym.info lists the block."""
+        """BUS -> the part's base; /sym resolves an alias, /sym.info lists the block."""
         # Arrange -- a sidecar holding one pointer constant to _PART's base
         engine, config_path, output = sym_env
         sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"
@@ -2783,8 +2794,9 @@ class TestBlockAliases:
             "and the prose has the same row"
         )
 
+    @pytest.mark.rule("alias-from-pointer-constant")
     def test_a_skipped_alias_is_said_at_load(self, sym_env):
-        """alias-from-pointer-constant: a name the build already owns keeps it, and the load says so."""
+        """A name the build already owns keeps it, and the load says so."""
         # Arrange
         engine, config_path, output = sym_env
         sidecar = config_path.parent / "sym" / f"rig{SYMBOLS_SUFFIX}"

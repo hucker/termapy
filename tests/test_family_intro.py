@@ -17,6 +17,8 @@ from termapy.defaults import DEFAULT_CFG
 from termapy.plugins import Command, resolve_long_help
 from termapy.plugins.command import INTRO_WIDTH, intro_text
 
+pytestmark = pytest.mark.rule("family-has-intro")
+
 
 @pytest.fixture
 def cli(tmp_path) -> CLITerminal:
@@ -49,8 +51,9 @@ def _unused(ctx, args):
 
 
 class TestTheDeclaration:
+    @pytest.mark.rule("family-has-intro")
     def test_a_leaf_cannot_declare_one(self):
-        """family-has-intro: an intro introduces a family, so a command with no subcommands fails at load."""
+        """An intro introduces a family, so a command with no subcommands fails at load."""
         with pytest.raises(ValueError, match="intro= introduces a family"):
             Command(name="x", help="h", handler=_unused, intro="What it is for.")
 
@@ -104,8 +107,9 @@ class TestTheBareList:
         assert "/dev.import" in out, out
         assert "format=" not in out, f"a row carries no argument list:\n{out}"
 
+    @pytest.mark.rule("list-one-format")
     def test_a_name_opens_that_commands_help(self, cli):
-        """list-one-format: the click is declared on the column, so a row's name is a link to its help page."""
+        """The click is declared on the column, so a row's name is a link to its help page."""
         # Arrange
         links = []
         cli.repl.ctx.io._write_segments = lambda pieces, color: links.extend(

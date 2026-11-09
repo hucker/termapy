@@ -127,8 +127,9 @@ class TestCount:
         assert actual == count.data == _RAMP, "the two commands disagree on one exchange"
 
 
+@pytest.mark.rule("writes-in-cfg-folder")
 def test_hexdump_lands_in_cap(cli, tmp_path):
-    """writes-in-cfg-folder: a relative name goes under the config's cap/, never the working folder, and the reply names it."""
+    """A relative name goes under the config's cap/, never the working folder, and the reply names it."""
     # Act
     result = cli.repl.dispatch_full("/traffic.hexdump wire.txt 50ms")
 

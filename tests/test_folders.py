@@ -122,6 +122,7 @@ class TestFolders:
 class TestNewFileName:
     """A new file gets its folder's extension once, appended when the typed name lacks it."""
 
+    @pytest.mark.rule("file-name-default-ext")
     def test_a_bare_name_gets_the_extension_and_a_full_one_keeps_it(self):
         """file-name-default-ext, write side: boot -> boot.run, boot.run stays, never boot.run.run."""
         # Act
@@ -143,8 +144,9 @@ class TestNewFileName:
 class TestDefaultFileName:
     """A typed name may leave off its known extension; the helper probes, never guesses."""
 
+    @pytest.mark.rule("file-name-default-ext")
     def test_default_file_name_adds_the_extension_only_when_that_file_exists(self, tmp_path):
-        """file-name-default-ext: a bare stem finds stem.run, and a stem with no such file stays as typed."""
+        """A bare stem finds stem.run, and a stem with no such file stays as typed."""
         # Arrange
         (tmp_path / "hex_view.run").write_text("")
 
@@ -229,6 +231,7 @@ class TestDefaultFileName:
 
 
 class TestInside:
+    @pytest.mark.rule("path-inside-one-check")
     @pytest.mark.parametrize(
         ("name", "expected"),
         [
@@ -239,16 +242,17 @@ class TestInside:
         ],
     )
     def test_a_name_that_stays_answers_its_path(self, tmp_path, name, expected):
-        """path-inside-one-check: a name below the folder, one that climbs and comes back, and the folder itself."""
+        """A name below the folder, one that climbs and comes back, and the folder itself."""
         # Act
         actual = inside(tmp_path / "box", name)
 
         # Assert
         assert actual == (tmp_path / "box" / expected).resolve(), "resolved, under the folder"
 
+    @pytest.mark.rule("path-inside-one-check")
     @pytest.mark.parametrize("name", ["../x.json", "sub/../../x.json", "..", "/etc/passwd"])
     def test_a_name_that_leaves_answers_none(self, tmp_path, name):
-        """path-inside-one-check: a climb out and an absolute path, which replaces the folder when joined."""
+        """A climb out and an absolute path, which replaces the folder when joined."""
         assert inside(tmp_path / "box", name) is None, f"{name} leaves box/"
 
     def test_an_absolute_path_back_inside_is_inside(self, tmp_path):
@@ -259,6 +263,7 @@ class TestInside:
         # Act / Assert
         assert inside(tmp_path / "box", target) == target.resolve(), "absolute, but in box/"
 
+    @pytest.mark.rule("path-inside-one-check")
     @pytest.mark.skipif(sys.platform != "win32", reason="Windows path forms")
     @pytest.mark.parametrize("form", ["rooted", "other drive"])
     def test_the_windows_forms_that_are_not_absolute_still_leave(self, tmp_path, form):
@@ -271,6 +276,7 @@ class TestInside:
         # Act / Assert
         assert inside(box, name) is None, f"{name} leaves box/"
 
+    @pytest.mark.rule("path-inside-one-check")
     def test_a_link_out_of_the_folder_is_outside(self, tmp_path):
         """A link inside the folder that points out of it is followed, so writing through it is refused."""
         # Arrange

@@ -100,8 +100,9 @@ class TestCatalog:
         # Assert
         assert "/term.send" in names, "/term.send present (Phase 2.5)"
 
+    @pytest.mark.rule("state-answered-by-gate")
     def test_the_catalog_lists_commands_a_config_or_port_unlocks(self, host):
-        """state-answered-by-gate: a command that needs an open port or a config is listed while the port is closed.
+        """A command that needs an open port or a config is listed while the port is closed.
 
         The catalog read the host's static capabilities until 2026-10-16, so
         every command needing a port (/mem.read, /ping) was missing from it.
@@ -381,8 +382,9 @@ class TestCatalog:
 class TestSessionLog:
     """D3: over MCP the session log is <cfg>.mcp.log, the agent's own, never the TUI's."""
 
+    @pytest.mark.rule("session-log-one-owner")
     def test_log_commands_read_the_frontends_own_log(self, host):
-        """session-log-one-owner: /log.dump over MCP prints <cfg>.mcp.log, and $(CFG.LOG_FILE) names it.
+        """/log.dump over MCP prints <cfg>.mcp.log, and $(CFG.LOG_FILE) names it.
 
         Until 2026-10-16 every frontend's /log.dump read the TUI's <cfg>.log,
         so an agent saw another session's log (review 2026-10-15, D3).
@@ -616,9 +618,10 @@ class TestUnifiedEnvelope:
         assert data["user"] == {"PORT": "COM9"}, "set variable visible in data"
         assert data["launch"]["FRONT_END"] == "mcp", "launch namespace resolved into data"
 
+    @pytest.mark.rule("value-typed")
     @pytest.mark.parametrize("value", [0, False, 7, True], ids=["zero", "false", "int", "true"])
     def test_a_typed_value_reaches_the_agent_as_itself(self, host, value):
-        """value-typed: an envelope carries a value in its own type; 0 and False are values, never emptied."""
+        """An envelope carries a value in its own type; 0 and False are values, never emptied."""
         # Arrange
         from termapy.plugins import CmdResult, PluginInfo
 
@@ -747,8 +750,9 @@ class TestOutputBufferLevels:
         levels = {entry["level"] for entry in result["output_lines"]}
         assert "markup" in levels, "/help emits markup"
 
+    @pytest.mark.rule("markup-escape")
     def test_markup_entries_carry_the_text_a_terminal_shows(self, host):
-        """markup-escape: a markup entry is flattened for the agent: no Rich tags, no escapes, a bracketed value intact."""
+        """A markup entry is flattened for the agent: no Rich tags, no escapes, a bracketed value intact."""
         # Arrange / Act -- /var.set echoes its row as markup even under MCP's wants_data
         result = asyncio.run(
             host.run_command_async("/var.set MARKUP_TAG [ok] boot", "verbose", 5.0)
@@ -944,8 +948,9 @@ class TestColorStripping:
         event_lines = [event["line"] for event in host._async_events]
         assert event_lines == ["ERR: bad"], "device ANSI stripped from async_events when color off"
 
+    @pytest.mark.rule("rx-every-line-delivered")
     def test_on_lines_feeds_an_active_text_capture(self, host, tmp_path):
-        """rx-every-line-delivered: lines read while a text capture runs over MCP reach its file, plain."""
+        """Lines read while a text capture runs over MCP reach its file, plain."""
         # Arrange
         cap_path = tmp_path / "mcp_capture.txt"
         started = host.capture.start(path=cap_path, file_mode="w", mode="text", duration=60.0)
@@ -962,8 +967,9 @@ class TestColorStripping:
             "this host fed only the expect watcher, so /cap.text over MCP recorded nothing"
         )
 
+    @pytest.mark.rule("hex-view-wire-bytes")
     def test_on_hex_records_rows_and_feeds_the_lines(self, host):
-        """hex-view-wire-bytes: in the hex view the agent's async events carry the rows; the watcher gets the decoded line."""
+        """In the hex view the agent's async events carry the rows; the watcher gets the decoded line."""
         # Arrange
         host._async_events = []
 
@@ -975,8 +981,9 @@ class TestColorStripping:
         assert event_lines == ["4F 4B 0D 0A"], "MCP ignored /term.hex: the agent saw text"
         assert list(host.repl._recent_lines)[-1] == "OK", "the expect watcher gets the decoded line"
 
+    @pytest.mark.rule("port-lost-tears-down")
     def test_a_lost_port_stops_a_running_capture(self, host, tmp_path):
-        """port-lost-tears-down: when the reader loses the port, an MCP capture stops and frees its claim."""
+        """When the reader loses the port, an MCP capture stops and frees its claim."""
         # Arrange -- a binary capture, which claims the port
         started = host._start_capture(
             path=tmp_path / "lost.bin", file_mode="wb", mode="bin", target_bytes=1000
@@ -1077,8 +1084,9 @@ class TestRunCommandsAvailableInMCP:
         missing = list(plugin.needs.missing_from(host.ctx.capabilities))
         assert missing == [], f"/run is callable from MCP (missing={missing})"
 
+    @pytest.mark.rule("bare-declared")
     def test_run_bare_lists_the_scripts(self, host):
-        """bare-declared: bare /run with no picker in MCP runs /run.list, so an agent gets the scripts, not a usage error."""
+        """Bare /run with no picker in MCP runs /run.list, so an agent gets the scripts, not a usage error."""
         # Act
         bare = host.repl.dispatch("run")
         listed = host.repl.dispatch("run.list")

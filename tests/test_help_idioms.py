@@ -27,6 +27,8 @@ from termapy.plugins.output_levels import LEVEL_FLAGS
 from termapy.profile import profile_command_view
 from termapy.scripting import BOOL_TOKENS_HELP
 
+pytestmark = [pytest.mark.rule("idioms-one-table"), pytest.mark.rule("link-explains-itself")]
+
 IDIOMS_BY_NAME = {idiom.name: idiom for idiom in IDIOMS}
 
 
@@ -73,6 +75,7 @@ def _register(cli: CLITerminal, name: str, args: str = "", hidden: bool = False)
 
 
 class TestThePages:
+    @pytest.mark.rule("idioms-one-table")
     @pytest.mark.parametrize(
         ("word", "expected"),
         [
@@ -92,20 +95,22 @@ class TestThePages:
         ],
     )
     def test_each_word_opens_its_page(self, cli, word, expected):
-        """idioms-one-table: /help <word> answers with the idiom it names, for a script to read too."""
+        """/help <word> answers with the idiom it names, for a script to read too."""
         # Act
         result = cli.repl.dispatch(f"help {word}")
 
         # Assert
         assert (result.success, result.value) == (True, expected)
 
+    @pytest.mark.rule("idioms-one-table")
     def test_every_flag_names_an_idiom_with_its_dashes(self):
-        """idioms-one-table: each flag any command takes is explained by some row."""
+        """Each flag any command takes is explained by some row."""
         actual = {flag: idiom_for(flag) for flag in ANY_COMMAND_FLAGS}
         assert all(actual.values()), f"a flag no idiom explains: {actual}"
 
+    @pytest.mark.rule("idioms-one-table")
     def test_a_page_says_what_its_owner_says(self, cli, capsys):
-        """idioms-one-table: the words on a page are the owner's, so they cannot drift from the reader."""
+        """The words on a page are the owner's, so they cannot drift from the reader."""
         # Act
         boolean = _page(cli, capsys, "/help boolean")
         level = _page(cli, capsys, "/help level")
@@ -125,8 +130,9 @@ class TestThePages:
         assert "{prefix}" not in out, "the prefix is filled in"
         assert "/term.output cycle" in out, "the example shows it in use"
 
+    @pytest.mark.rule("idioms-one-table")
     def test_taken_by_is_the_registry(self, cli, capsys):
-        """idioms-one-table: the list is the commands whose synopsis offers the word, never a claim."""
+        """The list is the commands whose synopsis offers the word, never a claim."""
         # Arrange
         offers = re.compile(r"[{|]cycle[|}]")
         expected = {
@@ -146,8 +152,9 @@ class TestThePages:
 
 
 class TestALookup:
+    @pytest.mark.rule("idioms-one-table")
     def test_a_command_keeps_its_name(self, cli, capsys):
-        """idioms-one-table: a plugin may call a command cycle, and then that is what /help cycle shows."""
+        """A plugin may call a command cycle, and then that is what /help cycle shows."""
         # Arrange
         _register(cli, "cycle")
 
@@ -178,12 +185,13 @@ class TestALookup:
         assert "Legacy alias" in page
         assert "DESCRIPTION (developer)" in dev
 
+    @pytest.mark.rule("did-you-mean-one")
     @pytest.mark.parametrize(
         ("typed", "meant"),
         [("output_levels", "output_level"), ("togle", "toggle"), ("cyclo", "cycle")],
     )
     def test_a_near_miss_suggests_what_it_meant(self, cli, typed, meant):
-        """did-you-mean-one: a key or an idiom is suggested as a command is, not only commands."""
+        """A key or an idiom is suggested as a command is, not only commands."""
         # Act
         result = cli.repl.dispatch(f"help {typed}")
 
@@ -193,8 +201,9 @@ class TestALookup:
 
 
 class TestTheList:
+    @pytest.mark.rule("list-one-format")
     def test_the_records_are_the_table(self, cli):
-        """list-one-format: /help.idioms is one row per idiom, with the same records under --json."""
+        """/help.idioms is one row per idiom, with the same records under --json."""
         # Act
         result = cli.repl.dispatch("help.idioms")
 
@@ -203,8 +212,9 @@ class TestTheList:
         assert names == [idiom.name for idiom in IDIOMS]
         assert result.value == len(IDIOMS), "a script counts them; the names are the records"
 
+    @pytest.mark.rule("links-are-data")
     def test_a_row_opens_its_page(self, cli):
-        """links-are-data: each row's name runs its page, since reading help changes nothing."""
+        """Each row's name runs its page, since reading help changes nothing."""
         # Act
         links = dict(_links(cli, "help.idioms"))
 
@@ -222,9 +232,10 @@ class TestTheList:
 
 
 class TestTheLinks:
+    @pytest.mark.rule("idioms-one-table")
     @pytest.mark.parametrize("word", list(IDIOM_TOKENS))
     def test_a_synopsis_word_links_to_its_page(self, cli, word):
-        """idioms-one-table: on every command offering it, the word is a link running its page.
+        """On every command offering it, the word is a link running its page.
 
         Read from the synopsis with no declaration, so a new command is covered
         the day it is written.
@@ -276,8 +287,9 @@ class TestTheLinks:
             assert IDIOMS_BY_NAME["json"].summary in tip, "the answer, not a pointer to one"
             assert IDIOMS_BY_NAME["level"].summary in tip, "the answer, not a pointer to one"
 
+    @pytest.mark.rule("idioms-one-table")
     def test_the_tooltip_and_the_click(self, tmp_path):
-        """idioms-one-table: in the TUI a word's tooltip says what it means, and the click opens the page."""
+        """In the TUI a word's tooltip says what it means, and the click opens the page."""
         from termapy.app import SerialTerminal
 
         # Arrange
@@ -360,6 +372,7 @@ class TestOnACustomButton:
 
 
 class TestALinkExplainsItself:
+    @pytest.mark.rule("link-explains-itself")
     @pytest.mark.parametrize(
         ("command", "expected"),
         [
@@ -374,7 +387,7 @@ class TestALinkExplainsItself:
         ],
     )
     def test_the_definition_comes_from_what_it_names(self, cli, command, expected):
-        """link-explains-itself: a link to a key, a command or an idiom says what that is, with the prefix filled in."""
+        """A link to a key, a command or an idiom says what that is, with the prefix filled in."""
         # Act
         actual = cli.repl.link_summary(command)
 
@@ -382,8 +395,9 @@ class TestALinkExplainsItself:
         assert actual.startswith(expected), actual
         assert "{prefix}" not in actual
 
+    @pytest.mark.rule("link-explains-itself")
     def test_a_device_command_says_what_its_profile_says(self, cli):
-        """link-explains-itself: a device command's definition is its profile's, as /help reads it."""
+        """A device command's definition is its profile's, as /help reads it."""
         # Arrange
         profile = resources.files("termapy.boards") / "pico" / "profile.json"
         cli.repl.dispatch(f"profile.load {profile}")
@@ -408,9 +422,10 @@ class TestALinkExplainsItself:
         ]
         assert actual == []
 
+    @pytest.mark.rule("link-explains-itself")
     @pytest.mark.parametrize("name", ["output_level", "term.hex", "cycle", "color", "verbose"])
     def test_the_tooltip_and_the_page_open_alike(self, cli, capsys, name):
-        """link-explains-itself: the tooltip is the page's first line, so the two share a lookup order."""
+        """The tooltip is the page's first line, so the two share a lookup order."""
         # Arrange
         expected = cli.repl.help_summary(name).split("\n")[0]
 
@@ -421,6 +436,7 @@ class TestALinkExplainsItself:
         assert expected, "precondition: the name has a definition"
         assert expected in page.splitlines()[1], page.splitlines()[1]
 
+    @pytest.mark.rule("link-explains-itself")
     def test_a_config_key_on_a_page_says_what_it_is(self, tmp_path):
         """The link on /help term.output's CONFIG row hovers with the definition, then what a click does."""
         from termapy.app import SerialTerminal
@@ -472,8 +488,9 @@ class TestAPluginGetsAllOfIt:
         cli._fire_app_start()
         return cli
 
+    @pytest.mark.rule("links-are-data")
     def test_a_tables_column_declares_the_click(self, plugin):
-        """links-are-data: a plugin's Column(run=) makes each row a link that runs at a click."""
+        """A plugin's Column(run=) makes each row a link that runs at a click."""
         # Act
         links = dict(_links(plugin, "sensors"))
 
@@ -490,12 +507,14 @@ class TestAPluginGetsAllOfIt:
         assert links["/sensors"].command == "sensors"
         assert links["eol"].command == "help eol"
 
+    @pytest.mark.rule("link-explains-itself")
     def test_its_help_line_is_the_tooltip(self, plugin):
-        """link-explains-itself: the plugin wrote one help= line and every link to it says that."""
+        """The plugin wrote one help= line and every link to it says that."""
         assert plugin.repl.link_summary("sensors.read temp") == "Read one sensor."
         assert plugin.repl.link_summary("help sensors.read") == "Read one sensor."
 
+    @pytest.mark.rule("list-one-format")
     def test_its_table_is_data_for_a_script(self, plugin):
-        """list-one-format: the same records reach --json, with no link in them."""
+        """The same records reach --json, with no link in them."""
         actual = plugin.repl.dispatch("sensors.list").data
         assert actual == [{"name": "temp", "query": "TEMP?"}, {"name": "volt", "query": "VOLT?"}]

@@ -197,6 +197,7 @@ class TestMcpHostSandboxed:
             "name-based cfg.load (MCP hot-swap) is not sandbox-gated"
         )
 
+    @pytest.mark.rule("writes-in-cfg-folder")
     def test_crc_file_write_lands_in_the_config_folder(self, tmp_path):
         """CRC codegen with file= writes into the config's firmware/ folder, inside the sandbox."""
         # Arrange

@@ -13,6 +13,10 @@ import re
 import tomllib
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.rule("python-support-declared-once")
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _CLASSIFIER = re.compile(r"^Programming Language :: Python :: (3\.\d+)$")

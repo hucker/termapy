@@ -172,19 +172,22 @@ def _folder(host: MCPHost) -> Path:
 
 
 class TestNoShell:
+    @pytest.mark.rule("os-never-under-mcp")
     @pytest.mark.slow
     def test_the_probe_can_see_a_shell(self, shells_that_ran):
-        """os-never-under-mcp: /os does run in the CLI with the flag on, so a clean MCP result means something."""
+        """/os does run in the CLI with the flag on, so a clean MCP result means something."""
         assert "control" in shells_that_ran
 
+    @pytest.mark.rule("os-never-under-mcp")
     @pytest.mark.slow
     @pytest.mark.parametrize("route", [*_OS_ROUTES, "on_connect_cmd", "mcp_on_connect_cmd"])
     def test_no_route_reaches_the_shell(self, shells_that_ran, route):
-        """os-never-under-mcp: with TERMAPY_OS_CMD_ENABLED on and confirm=true, no route to /os runs a shell."""
+        """With TERMAPY_OS_CMD_ENABLED on and confirm=true, no route to /os runs a shell."""
         assert route not in shells_that_ran, f"{route} reached the shell under MCP"
 
+    @pytest.mark.rule("os-never-under-mcp")
     def test_the_mcp_host_is_never_interactive(self, host):
-        """os-never-under-mcp: every gate here rests on this, so granting MCP interactive must be a loud decision."""
+        """Every gate here rests on this, so granting MCP interactive must be a loud decision."""
         assert host.ctx.capabilities.interactive is False, "the running host"
         assert ENVIRONMENTS["MCP"].interactive is False, "the table /help and the catalog read"
 
@@ -216,8 +219,9 @@ def _not_guarded(plugins: dict) -> list[str]:
 
 
 class TestNoRenameOrDelete:
+    @pytest.mark.rule("mcp-no-file-management")
     def test_every_rename_and_delete_needs_a_person(self, host):
-        """mcp-no-file-management: a command whose verb is rename or delete declares interactive, in every family."""
+        """A command whose verb is rename or delete declares interactive, in every family."""
         # Act
         plugins = host.repl._plugins
 
@@ -225,8 +229,9 @@ class TestNoRenameOrDelete:
         assert len(_file_management(plugins)) >= 15, "the walk found the commands it is about"
         assert _not_guarded(plugins) == [], "declare needs=CapabilitySet.MANAGE_FILES on these"
 
+    @pytest.mark.rule("mcp-no-file-management")
     def test_the_file_management_guard_fires_on_a_probe(self):
-        """mcp-no-file-management: the walk really catches a rename or delete with no such need."""
+        """The walk really catches a rename or delete with no such need."""
         # Arrange
         loose = SimpleNamespace(needs=CapabilitySet.CONFIG_LOADED)
         held = SimpleNamespace(needs=CapabilitySet.MANAGE_FILES)
@@ -238,6 +243,7 @@ class TestNoRenameOrDelete:
         # Assert
         assert actual == ["x.delete", "y.rename"], "the loose two, and neither of the others"
 
+    @pytest.mark.rule("mcp-no-file-management")
     @pytest.mark.parametrize(
         ("line", "survivor"),
         [
@@ -254,7 +260,7 @@ class TestNoRenameOrDelete:
     )
     @pytest.mark.parametrize("confirm", [False, True])
     def test_a_file_stays_put(self, host, line, survivor, confirm):
-        """mcp-no-file-management: confirm=true unlocks nothing and no nesting form reaches one."""
+        """confirm=true unlocks nothing and no nesting form reaches one."""
         # Act
         _call(host, line, confirm=confirm)
 
@@ -263,9 +269,10 @@ class TestNoRenameOrDelete:
         assert file.read_text(encoding="utf-8") == _MINE, f"{line} touched {survivor}"
         assert not (file.parent / f"gone{file.suffix}").exists(), "and nothing new took its place"
 
+    @pytest.mark.rule("mcp-no-file-management")
     @pytest.mark.parametrize("line", ["/cfg.delete other", "/cfg.rename other gone"])
     def test_another_config_stays_put(self, host, line):
-        """mcp-no-file-management: a whole config is the worst case, so confirm=true moves nothing there too."""
+        """A whole config is the worst case, so confirm=true moves nothing there too."""
         # Act
         result = _call(host, line, confirm=True)
 
@@ -275,6 +282,7 @@ class TestNoRenameOrDelete:
 
 
 class TestNoCodeWritten:
+    @pytest.mark.rule("mcp-no-code-writes")
     @pytest.mark.parametrize(
         "line",
         [
@@ -292,7 +300,7 @@ class TestNoCodeWritten:
         ],
     )
     def test_a_writer_cannot_land_in_a_code_folder(self, host, line):
-        """mcp-no-code-writes: every route that names a folder is refused, in any spelling of its name."""
+        """Every route that names a folder is refused, in any spelling of its name."""
         # Arrange
         before = {path.name for path in _folder(host).rglob("*")}
 
@@ -304,12 +312,13 @@ class TestNoCodeWritten:
         assert "holds code" in result["error"], result["error"]
         assert {path.name for path in _folder(host).rglob("*")} == before, "and nothing was written"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     @pytest.mark.parametrize("name", ["plugin.", "plugin..", "plugin::$INDEX_ALLOCATION"])
     @pytest.mark.parametrize(
         "line", ["/firmware.copy mem folder={}", "/board.firmware pico folder={}"]
     )
     def test_a_spelling_windows_folds_is_refused_with_the_folder_absent(self, host, line, name):
-        """mcp-no-code-writes: with plugin/ absent no OS normalizes the name first, and Windows would make plugin/ from it."""
+        """With plugin/ absent no OS normalizes the name first, and Windows would make plugin/ from it."""
         # Arrange
         shutil.rmtree(_folder(host) / "plugin")
 
@@ -320,9 +329,10 @@ class TestNoCodeWritten:
         assert "holds code" in result["error"], result["error"]
         assert not (_folder(host) / "plugin").exists(), "and the folder was not created"
 
+    @pytest.mark.rule("spy-log-in-cap")
     @pytest.mark.parametrize("route", ["/port {}", "/cfg.auto port {}"])
     def test_a_spy_log_cannot_leave_cap(self, host, route):
-        """spy-log-in-cap: a spy:// port can reach neither a code folder nor anywhere else, by any route."""
+        """A spy:// port can reach neither a code folder nor anywhere else, by any route."""
         # Arrange
         victim = _folder(host) / "plugin" / "keep.py"
 
@@ -336,8 +346,9 @@ class TestNoCodeWritten:
             # Assert
             assert victim.read_text(encoding="utf-8") == _MINE, f"{name} left the file alone"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_a_saved_profile_cannot_land_in_a_code_folder(self, host):
-        """mcp-no-code-writes: /profile.save measures from the working folder, so the guard reads the real path."""
+        """/profile.save measures from the working folder, so the guard reads the real path."""
         # Arrange
         demo = Path(termapy.__file__).parent / "builtins" / "demo" / "demo_legacy.profile.json"
         shutil.copy(demo, _folder(host) / "x.profile.json")
@@ -351,8 +362,9 @@ class TestNoCodeWritten:
         assert "holds code" in result["error"], result["error"]
         assert not (_folder(host) / "plugin" / "x.py").exists(), "nothing was written"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_the_sandbox_flag_does_not_lift_it(self, host):
-        """mcp-no-code-writes: TERMAPY_MCP_FS_UNCONFINED widens paths, never this, so ../plugin stays refused."""
+        """TERMAPY_MCP_FS_UNCONFINED widens paths, never this, so ../plugin stays refused."""
         # Arrange
         host.ctx.capabilities = replace(host.ctx.capabilities, filesystem_unconfined=True)
         host.ctx.sync_capabilities()
@@ -365,8 +377,9 @@ class TestNoCodeWritten:
         assert "holds code" in result["error"], result["error"]
         assert not (_folder(host) / "plugin" / "x.py").exists(), "nothing was written"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_a_person_still_can(self, tmp_path):
-        """mcp-no-code-writes: the TUI and CLI keep it, because the operator is the caller on their own machine."""
+        """The TUI and CLI keep it, because the operator is the caller on their own machine."""
         # Arrange
         path = tmp_path / "c" / "c.cfg"
         path.parent.mkdir()
@@ -384,8 +397,9 @@ class TestNoCodeWritten:
 
 
 class TestReplacing:
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_a_capture_replaces_inside_the_folder(self, host):
-        """mcp-no-code-writes: the config's folder is the agent's to change, so reusing a name starts it over, twice."""
+        """The config's folder is the agent's to change, so reusing a name starts it over, twice."""
         # Arrange
         assert _call(host, "/port.connect")["success"] is True, "a capture needs a port"
 
@@ -401,8 +415,9 @@ class TestReplacing:
         capture = _folder(host) / "cap" / "keep.txt"
         assert capture.read_text(encoding="utf-8") != _MINE, "the old text is gone"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_a_saved_profile_replaces_inside_the_folder(self, host):
-        """mcp-no-code-writes: an agent can update its config's profile, by the bare save and by a name."""
+        """An agent can update its config's profile, by the bare save and by a name."""
         # Arrange
         demo = Path(termapy.__file__).parent / "builtins" / "demo" / "demo_legacy.profile.json"
         shutil.copy(demo, _folder(host) / "x.profile.json")
@@ -421,6 +436,7 @@ class TestReplacing:
         capture = _folder(host) / "cap" / "keep.txt"
         assert capture.read_text(encoding="utf-8") != _MINE, "the named save landed"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     @pytest.mark.parametrize(
         "line",
         [
@@ -431,7 +447,7 @@ class TestReplacing:
         ],
     )
     def test_a_file_outside_the_folder_is_not_replaced(self, host, tmp_path, line):
-        """mcp-no-code-writes: even with host-wide paths on, the one way to aim outside, a file there is never replaced."""
+        """Even with host-wide paths on, the one way to aim outside, a file there is never replaced."""
         # Arrange
         host.ctx.capabilities = replace(host.ctx.capabilities, filesystem_unconfined=True)
         host.ctx.sync_capabilities()
@@ -449,8 +465,9 @@ class TestReplacing:
         assert "File exists: victim.py" in result["error"], result["error"]
         assert victim.read_text(encoding="utf-8") == _LEGACY_LINE, "the file is untouched"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_another_configs_file_is_outside_too(self, host):
-        """mcp-no-code-writes: a sibling config is not this config's to change, whatever folder it shares."""
+        """A sibling config is not this config's to change, whatever folder it shares."""
         # Arrange
         host.ctx.capabilities = replace(host.ctx.capabilities, filesystem_unconfined=True)
         host.ctx.sync_capabilities()
@@ -465,8 +482,9 @@ class TestReplacing:
         assert "File exists: other.cfg" in result["error"], result["error"]
         assert sibling.read_text(encoding="utf-8") == before, "the sibling's config is untouched"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_a_capture_may_still_append(self, host):
-        """mcp-no-code-writes: an append destroys nothing, so a client can add to its own capture."""
+        """An append destroys nothing, so a client can add to its own capture."""
         # Arrange
         assert _call(host, "/port.connect")["success"] is True, "a capture needs a port"
 
@@ -476,8 +494,9 @@ class TestReplacing:
         # Assert
         assert result["success"] is True, result["error"]
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_generated_code_replaces_inside_the_folder(self, host):
-        """mcp-no-code-writes: a second run of one name writes over the first, in firmware/."""
+        """A second run of one name writes over the first, in firmware/."""
         # Act
         first = _call(host, "/proto.crc.python crc16-xmodem file=gen")
         second = _call(host, "/proto.crc.python crc16-xmodem file=gen")
@@ -525,12 +544,13 @@ class TestProtoRunResults:
         assert _call(host, "/port.connect")["success"] is True, "a script needs a port"
         return host
 
+    @pytest.mark.rule("proto-results-in-folder")
     @pytest.mark.parametrize(
         "name",
         ["../../plugin/x.py", "..\\..\\plugin\\x.py", "C:x.json", "x.json:s", ".."],
     )
     def test_a_script_cannot_choose_the_folder(self, connected, name):
-        """proto-results-in-folder: a json_file holding a folder is refused before the script runs at all."""
+        """A json_file holding a folder is refused before the script runs at all."""
         # Arrange
         _script(_folder(connected) / "proto", name)
 
@@ -543,8 +563,9 @@ class TestProtoRunResults:
         assert not (_folder(connected) / "proto" / "test").exists(), "and nothing was written"
         assert not (_folder(connected) / "plugin" / "x.py").exists(), "least of all there"
 
+    @pytest.mark.rule("proto-results-in-folder")
     def test_a_script_cannot_write_by_absolute_path(self, connected, tmp_path):
-        """proto-results-in-folder: an absolute json_file leaves proto/test/, so the file outside stays as it was."""
+        """An absolute json_file leaves proto/test/, so the file outside stays as it was."""
         # Arrange
         victim = tmp_path / "victim.json"
         victim.write_text(_MINE, encoding="utf-8")
@@ -557,8 +578,9 @@ class TestProtoRunResults:
         assert "Invalid results file name" in result["error"], result["error"]
         assert victim.read_text(encoding="utf-8") == _MINE, "the file outside is untouched"
 
+    @pytest.mark.rule("proto-results-in-folder")
     def test_results_may_go_in_a_subfolder(self, connected):
-        """proto-results-in-folder: a json_file below proto/test/ lands there, for an agent as for a person."""
+        """A json_file below proto/test/ lands there, for an agent as for a person."""
         # Arrange
         _script(_folder(connected) / "proto", "nightly/out.json")
 
@@ -570,8 +592,9 @@ class TestProtoRunResults:
         written = _folder(connected) / "proto" / "test" / "nightly" / "out.json"
         assert written.exists(), "in proto/test/nightly/"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_a_run_replaces_an_earlier_results_file(self, connected):
-        """mcp-no-code-writes: json_file naming an existing file in proto/test/ writes over it."""
+        """json_file naming an existing file in proto/test/ writes over it."""
         # Arrange
         earlier = _folder(connected) / "proto" / "test" / "fixed.json"
         earlier.parent.mkdir(parents=True)
@@ -586,8 +609,9 @@ class TestProtoRunResults:
         document = json.loads(earlier.read_text(encoding="utf-8"))
         assert document["summary"]["passed"] == 1, "the results replaced the old text"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_a_fixed_name_runs_twice(self, connected):
-        """mcp-no-code-writes: an agent can re-run a script with a fixed json_file, and gets the results both times."""
+        """An agent can re-run a script with a fixed json_file, and gets the results both times."""
         # Arrange
         _script(_folder(connected) / "proto", "{proto_name}_out.json")
 
@@ -602,8 +626,9 @@ class TestProtoRunResults:
         written = _folder(connected) / "proto" / "test" / "s_out.json"
         assert json.loads(written.read_text(encoding="utf-8"))["summary"]["passed"] == 1, "on disk"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_results_beside_an_outside_script_are_not_replaced(self, connected, tmp_path):
-        """mcp-no-code-writes: with host-wide paths on, results go beside the script, and a file there stays."""
+        """With host-wide paths on, results go beside the script, and a file there stays."""
         # Arrange
         connected.ctx.capabilities = replace(connected.ctx.capabilities, filesystem_unconfined=True)
         connected.ctx.sync_capabilities()
@@ -619,9 +644,10 @@ class TestProtoRunResults:
         assert "File exists: beside.json" in result["error"], result["error"]
         assert earlier.read_text(encoding="utf-8") == _MINE, "the file outside is untouched"
 
+    @pytest.mark.rule("writes-in-cfg-folder")
     @pytest.mark.parametrize("where", ["outside", "plugin"])
     def test_results_stay_in_the_configs_proto_test(self, connected, tmp_path, where):
-        """writes-in-cfg-folder: wherever the script came from, a confined host's results land in proto/test/."""
+        """Wherever the script came from, a confined host's results land in proto/test/."""
         # Arrange
         folder = tmp_path / "outside" if where == "outside" else _folder(connected) / "plugin"
         script = _script(folder, "beside.json")
@@ -635,8 +661,9 @@ class TestProtoRunResults:
         expected = _folder(connected) / "proto" / "test" / "beside.json"
         assert expected.exists(), "in the config's own folder"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_the_sandbox_flag_does_not_open_a_code_folder(self, connected):
-        """mcp-no-code-writes: with host-wide paths on, results go beside the script again, and plugin/ stays refused."""
+        """With host-wide paths on, results go beside the script again, and plugin/ stays refused."""
         # Arrange
         connected.ctx.capabilities = replace(connected.ctx.capabilities, filesystem_unconfined=True)
         connected.ctx.sync_capabilities()
@@ -658,9 +685,10 @@ class TestRunLegacy:
         path.write_text(_LEGACY_LINE, encoding="utf-8")
         return path
 
+    @pytest.mark.rule("mcp-no-code-writes")
     @pytest.mark.parametrize("name", ["old", "old*"])
     def test_a_fix_rewrites_a_script_in_run(self, host, old, name):
-        """mcp-no-code-writes: run/ is the config's own, so --fix works there, and a second report finds nothing."""
+        """run/ is the config's own, so --fix works there, and a second report finds nothing."""
         # Act
         report = _call(host, f"/run.legacy {name}")
         fix = _call(host, f"/run.legacy {name} --fix")
@@ -672,8 +700,9 @@ class TestRunLegacy:
         assert old.read_text(encoding="utf-8") != _LEGACY_LINE, "the script was rewritten"
         assert again["value"] == 0, "nothing left to fix"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_fixing_a_clean_script_is_not_a_failure(self, host):
-        """mcp-no-code-writes: a script with no hits writes nothing, and says so."""
+        """A script with no hits writes nothing, and says so."""
         # Arrange
         (_folder(host) / "run" / "clean.run").write_text("/print clean\n", encoding="utf-8")
 
@@ -684,9 +713,10 @@ class TestRunLegacy:
         assert result["success"] is True, result["error"]
         assert result["value"] == 0, "no hits"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     @pytest.mark.parametrize("fix", ["", " --fix"])
     def test_a_name_cannot_leave_run(self, host, tmp_path, fix):
-        """mcp-no-code-writes: neither a climb into plugin/ nor an absolute path reaches a file, to read or to rewrite."""
+        """Neither a climb into plugin/ nor an absolute path reaches a file, to read or to rewrite."""
         # Arrange
         in_plugin = _folder(host) / "plugin" / "victim.py"
         outside = tmp_path / "victim.txt"
@@ -702,8 +732,9 @@ class TestRunLegacy:
             assert "run/" in result["error"], "the refusal names the folder as it is on disk"
             assert path.read_text(encoding="utf-8") == _LEGACY_LINE, "the file is untouched"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_the_sandbox_flag_does_not_lift_it(self, host, tmp_path):
-        """mcp-no-code-writes: with host-wide paths on, --fix still rewrites nothing in plugin/ or outside the folder."""
+        """With host-wide paths on, --fix still rewrites nothing in plugin/ or outside the folder."""
         # Arrange
         host.ctx.capabilities = replace(host.ctx.capabilities, filesystem_unconfined=True)
         host.ctx.sync_capabilities()
@@ -722,8 +753,9 @@ class TestRunLegacy:
         assert in_plugin.read_text(encoding="utf-8") == _LEGACY_LINE, "the plugin is untouched"
         assert outside.read_text(encoding="utf-8") == _LEGACY_LINE, "the file outside is untouched"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_a_person_can_still_fix_a_script(self, tmp_path):
-        """mcp-no-code-writes: the TUI and CLI keep --fix, and the working folder as a place to find the script."""
+        """The TUI and CLI keep --fix, and the working folder as a place to find the script."""
         # Arrange
         path = tmp_path / "c" / "c.cfg"
         path.parent.mkdir()
@@ -753,8 +785,9 @@ class TestDemoTraffic:
         assert _call(host, "/port.connect")["success"] is True, "a hexdump needs a port"
         return host
 
+    @pytest.mark.rule("writes-in-cfg-folder")
     def test_a_hexdump_lands_in_cap(self, traffic):
-        """writes-in-cfg-folder: the plugin authors copy writes a new relative name under cap/."""
+        """The plugin authors copy writes a new relative name under cap/."""
         # Act
         result = _call(traffic, "/traffic.hexdump dump.txt 50ms")
 
@@ -762,8 +795,9 @@ class TestDemoTraffic:
         assert result["success"] is True, result["error"]
         assert (_folder(traffic) / "cap" / "dump.txt").exists(), "in the config's cap/"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_a_hexdump_replaces_inside_the_folder(self, traffic):
-        """mcp-no-code-writes: the plugin authors copy reuses a name in cap/ the way a capture does."""
+        """The plugin authors copy reuses a name in cap/ the way a capture does."""
         # Act
         result = _call(traffic, "/traffic.hexdump keep.txt 50ms")
 
@@ -772,8 +806,9 @@ class TestDemoTraffic:
         capture = _folder(traffic) / "cap" / "keep.txt"
         assert capture.read_text(encoding="utf-8") != _MINE, "the old text is gone"
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_a_hexdump_cannot_reach_a_code_folder(self, traffic):
-        """mcp-no-code-writes: a climb into plugin/ is refused, so the plugin cannot overwrite itself."""
+        """A climb into plugin/ is refused, so the plugin cannot overwrite itself."""
         # Arrange
         plugin = _folder(traffic) / "plugin" / "keep.py"
 
@@ -834,6 +869,7 @@ class TestTheGuards:
         with pytest.raises(MissingCapability, match="File exists"):
             handle.guard_replace(path)
 
+    @pytest.mark.rule("mcp-no-code-writes")
     def test_with_no_config_nothing_is_inside(self, tmp_path):
         """With no config the data folders are the working folder, which must not count as the config's own."""
         # Arrange
@@ -855,6 +891,7 @@ class TestTheGuards:
         with pytest.raises(MissingCapability, match="holds code"):
             handle.guard_code_folder(tmp_path / name)
 
+    @pytest.mark.rule("mcp-no-code-writes")
     @pytest.mark.parametrize("below", ["c/plugin/sub", "c/viz/a/b", "plugin/sub", "c/plugin./sub"])
     def test_a_folder_below_a_code_folder_is_refused(self, tmp_path, below):
         """plugin/sub/ is still in plugin/, in a config's layer and in the global one at the config root."""

@@ -22,6 +22,8 @@ from termapy.plugins import CmdResult, Column, Command, PluginInfo
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.params import ParamSpec
 
+pytestmark = pytest.mark.rule("state-read-immutable")
+
 
 @pytest.fixture
 def cli(tmp_path) -> CLITerminal:
@@ -79,23 +81,26 @@ class TestTheDeclaration:
         assert plugins["term.send"].state is False, "a command that acts is not"
         assert plugins["term.eol"].shows is False, "bare it reports, with an argument it acts"
 
+    @pytest.mark.rule("state-read-immutable")
     def test_a_command_that_acts_cannot_declare_it(self):
-        """state-read-immutable: a safety tier above safe says the bare form may change something."""
+        """A safety tier above safe says the bare form may change something."""
         with pytest.raises(ValueError, match="state= is for a command whose bare form"):
             Command(name="x", help="h", handler=_unused, state=True, safety="mutable")
 
+    @pytest.mark.rule("state-read-immutable")
     def test_a_picker_cannot_declare_it(self):
-        """state-read-immutable: a bare form that opens a dialog cannot be run for a help page."""
+        """A bare form that opens a dialog cannot be run for a help page."""
         with pytest.raises(ValueError, match="this one opens a picker"):
             Command(name="x", help="h", handler=_unused, state=True, picker="run")
 
+    @pytest.mark.rule("state-read-immutable")
     @pytest.mark.parametrize(
         "declared",
         [{"args": "<name>"}, {"params": [ParamSpec("name", required=True)]}],
         ids=["args", "params"],
     )
     def test_a_required_argument_cannot_declare_it(self, declared):
-        """state-read-immutable: a bare call is a usage error when an argument is required, however it is declared."""
+        """A bare call is a usage error when an argument is required, however it is declared."""
         with pytest.raises(ValueError, match="this one needs an argument"):
             Command(name="x", help="h", handler=_unused, state=True, **declared)
 
@@ -209,8 +214,9 @@ class TestThePage:
         _tag(cli, _answering(result))
         assert _state_lines(_page(cli, capsys, "/help thing")) == ["  (none)"]
 
+    @pytest.mark.rule("table-value-is-count")
     def test_an_empty_table_is_its_own_empty_line(self, cli, capsys):
-        """table-value-is-count: an empty list's value is 0, so the section shows the table's own empty line, never that."""
+        """An empty list's value is 0, so the section shows the table's own empty line, never that."""
         _tag(cli, _answering(CmdResult.table("things", "thing", (Column("N", str),), [])))
         assert _state_lines(_page(cli, capsys, "/help thing")) == ["  things - empty"]
 
@@ -239,8 +245,9 @@ class TestThePage:
         assert actual == expected.replace(" ", ""), "the failure names its type and its log"
         assert "AVAILABLE" in page, "the page goes on after a failed read"
 
+    @pytest.mark.rule("markup-escape")
     def test_brackets_in_a_value_stay_literal(self, cli, capsys):
-        """markup-escape: a value holding [red] prints as written, never read as a style tag."""
+        """A value holding [red] prints as written, never read as a style tag."""
         _tag(cli, _answering(CmdResult.ok(value="[red]x[/] [nope]")))
         assert _state_lines(_page(cli, capsys, "/help thing")) == ["  [red]x[/] [nope]"]
 
@@ -442,8 +449,9 @@ class TestEveryFrontend:
         assert (baud, dtr) == (["  115200"], ["  1"])
         assert len(record) == 16, "every row of /term.info: under the cap"
 
+    @pytest.mark.rule("baud-standard-unless-custom")
     def test_the_baud_rate_page_says_when_it_is_custom(self, cli, capsys):
-        """baud-standard-unless-custom: in custom mode the page and the bare command say (custom); the value stays the number."""
+        """In custom mode the page and the bare command say (custom); the value stays the number."""
         # Arrange
         cli._connect()
         try:

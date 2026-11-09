@@ -566,6 +566,7 @@ class TestPortPicker:
 
         _run(scenario)
 
+    @pytest.mark.rule("pickers-fit-content")
     def test_the_dialog_is_as_wide_as_its_table(self):
         """On a wide terminal the picker fits its table, not a share of the screen, and every row fits on one line."""
 
@@ -602,6 +603,7 @@ class _PortListHost(App):
 
 
 class TestPortOptionList:
+    @pytest.mark.rule("pickers-fit-content")
     def test_a_narrow_list_drops_columns_instead_of_wrapping(self):
         """Given less room than the table needs, the rows refit to the measured width by dropping columns."""
 

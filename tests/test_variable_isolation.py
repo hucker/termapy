@@ -1,4 +1,4 @@
-"""variables-isolated: a test cannot see the ``$(NAME)`` state an earlier test left behind.
+"""A test cannot see the ``$(NAME)`` state an earlier test left behind.
 
 The two tests below share an xdist group, so they run on one worker in this
 order (and in file order under ``-n 0``): the first writes to every store in
@@ -14,6 +14,8 @@ import pytest
 
 from termapy import variables
 from termapy.plugins import PluginContext
+
+pytestmark = pytest.mark.rule("variables-isolated")
 
 _LEAK = "ISOLATION_PROBE"
 

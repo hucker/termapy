@@ -19,6 +19,8 @@ from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
 from termapy.plugins.handles.serial import SerialHandle
 
+pytestmark = pytest.mark.rule("tx-text-one-path")
+
 
 def _handle(written: list[bytes], **cfg) -> SerialHandle:
     """A SerialHandle writing into ``written``, with ``cfg`` over CR + utf-8."""

@@ -15,6 +15,7 @@ import os
 import time
 from pathlib import Path
 
+import pytest
 from textual.app import App
 from textual.widgets import Button, Input, OptionList, Static
 
@@ -34,8 +35,9 @@ def _run(scenario) -> None:
 
 
 class TestConfirmDialog:
+    @pytest.mark.rule("widget-text-literal")
     def test_a_bracketed_message_renders_as_typed(self):
-        """widget-text-literal: a /confirm message is text; "[ok]" and "[Rec]" survive into the dialog."""
+        """A /confirm message is text; "[ok]" and "[Rec]" survive into the dialog."""
 
         async def scenario():
             app = _Host()

@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from termapy.config import setup_demo_config
 from termapy.devices import alias_blocks, parse_device
 from termapy.folders import SYMBOLS_SUFFIX
@@ -114,8 +116,9 @@ DEMO_DEVICE = DEMO_SYMBOLS.parent / "dev" / "console.device.json"
 class TestBundledDeviceFile:
     """The demo ships one device file: the UART block the CONSOLE constant points at."""
 
+    @pytest.mark.rule("alias-from-pointer-constant")
     def test_the_console_pointer_names_the_uart_block(self):
-        """alias-from-pointer-constant: CONSOLE holds the bundled block's base, so the demo has an alias out of the box."""
+        """CONSOLE holds the bundled block's base, so the demo has an alias out of the box."""
         # Arrange
         table = SymbolTable.load(DEMO_SYMBOLS)
         device = parse_device(json.loads(DEMO_DEVICE.read_text(encoding="utf-8")))

@@ -180,8 +180,9 @@ def _wait_for_predicate(eng, timeout: float = 2.0) -> None:
         time.sleep(0.005)
 
 
+@pytest.mark.rule("expect-consumes-to-match")
 class TestExpectConsumes:
-    """expect-consumes-to-match: after a match the buffer holds only later lines."""
+    """After a match the buffer holds only later lines."""
 
     def test_second_expect_waits_for_a_new_reply(self, env):
         """Two AT / expect OK pairs each need their own OK; the first reply is not matched twice."""
@@ -245,6 +246,7 @@ class TestExpectConsumes:
 class TestRecentLinesBuffer:
     """The buffer the waiters read is taken atomically and stays bounded."""
 
+    @pytest.mark.rule("expect-consumes-to-match")
     def test_lines_after_a_terminator_stay_buffered(self, env):
         """wait_for_lines stops at its terminator and leaves the later lines for the next drain."""
         # Arrange
@@ -558,6 +560,7 @@ class TestInAScript:
         # Assert
         assert params["timeout"].default == 5.0
 
+    @pytest.mark.rule("expect-consumes-to-match")
     def test_output_from_before_the_script_never_answers_it(self, cli, tmp_path, capsys):
         """A reply left unconsumed before a script cannot pass its expect: the stale OK that once passed fail=ERROR."""
         # Arrange -- an OK nothing consumed, as an aborted earlier run leaves one
@@ -605,6 +608,7 @@ class TestInAScript:
 
 
 class TestEolMarkers:
+    @pytest.mark.rule("rx-every-line-delivered")
     def test_an_anchored_regex_matches_a_marked_line(self, marked_cli, tmp_path, capsys):
         """With eol_markers on, ^OK$ still matches the device's OK: the watcher sees the line as sent."""
         # Arrange
@@ -620,6 +624,7 @@ class TestEolMarkers:
         assert 'Expect "^OK$" matched' in out
         assert "reached-the-end" in out
 
+    @pytest.mark.rule("rx-every-line-delivered")
     def test_a_text_capture_holds_no_marker_text(self, cli, tmp_path):
         """A line carrying the display marker is captured as the device sent it, with no \\r\\n text."""
         # Arrange -- the line as the reader produces it with eol_markers on

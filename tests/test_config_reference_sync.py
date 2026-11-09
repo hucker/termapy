@@ -15,6 +15,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _SCRIPTS_DIR = _REPO_ROOT / "scripts"
 
@@ -36,8 +38,9 @@ class TestConfigReferenceSync:
             f"({drift}); run: python scripts/update_doc_configs.py"
         )
 
+    @pytest.mark.rule("baud-standard-unless-custom")
     def test_baud_rate_row_lists_the_standard_rates(self):
-        """baud-standard-unless-custom: the baud_rate row's hand-written list is STANDARD_BAUD_RATES, no more, no fewer."""
+        """The baud_rate row's hand-written list is STANDARD_BAUD_RATES, no more, no fewer."""
         import re
 
         from termapy.defaults import STANDARD_BAUD_RATES

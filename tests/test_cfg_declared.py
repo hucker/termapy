@@ -18,6 +18,8 @@ from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
 from termapy.plugins import Command, PluginInfo, cfg_users
 
+pytestmark = pytest.mark.rule("cfg-declared")
+
 
 @pytest.fixture
 def cli(tmp_path) -> CLITerminal:
@@ -54,13 +56,15 @@ class TestTheDeclaration:
         # Assert
         assert command.cfg == {"serial.baud_rate": "set for the session"}
 
+    @pytest.mark.rule("cfg-declared-read")
     def test_an_unknown_cfg_key_fails_at_construction(self):
-        """cfg-declared-read: a key DEFAULT_CFG does not hold fails loud at load, naming the key."""
+        """A key DEFAULT_CFG does not hold fails loud at load, naming the key."""
         with pytest.raises(ValueError, match="unknown config key 'nope' in cfg="):
             Command(name="x", help="h", handler=_handler, cfg={"nope": "reads it"})
 
+    @pytest.mark.rule("cfg-declared-read")
     def test_an_empty_phrase_fails_at_construction(self):
-        """cfg-declared-read: a key with nothing said about how it is used fails loud at load."""
+        """A key with nothing said about how it is used fails loud at load."""
         with pytest.raises(ValueError, match="cfg= must say how 'eol' is used"):
             PluginInfo(name="x", args="", help="h", handler=_handler, cfg={"eol": " "})
 
@@ -149,8 +153,9 @@ class TestHelpPages:
 
 
 class TestRowLinks:
+    @pytest.mark.rule("links-are-data")
     def test_a_link_covers_only_the_name_never_the_padding(self, cli):
-        """links-are-data: in a CONFIG row and a USED BY row the linked piece is exactly the key or command name; the column padding is a plain piece."""
+        """In a CONFIG row and a USED BY row the linked piece is exactly the key or command name; the column padding is a plain piece."""
         from termapy.builtins.commands.help import _cfg_rows, _used_by_rows
 
         # Arrange -- names of different lengths, so the short one is padded

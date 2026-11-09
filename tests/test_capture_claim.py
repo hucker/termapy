@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from termapy.plugins.capabilities import state_message
 
 
@@ -25,8 +27,9 @@ def _script(folder: Path, name: str, *lines: str) -> Path:
 
 
 class TestOneCaptureAtATime:
+    @pytest.mark.rule("state-answered-by-gate")
     def test_a_second_start_is_refused_until_the_first_stops(self, cli):
-        """state-answered-by-gate: while a capture runs, the next start is the gate's refusal; after a stop it starts."""
+        """While a capture runs, the next start is the gate's refusal; after a stop it starts."""
         # Arrange
         first = cli.repl.dispatch("cap.bin a.bin bytes=1000")
 
@@ -47,6 +50,7 @@ class TestOneCaptureAtATime:
 
 
 class TestCaptureOwnsItsClaim:
+    @pytest.mark.rule("capture-owns-claim")
     def test_scripted_stop_releases_the_claim(self, cli, tmp_path):
         """/cap.bin then /cap.stop inside one script leaves the port unclaimed."""
         # Arrange
@@ -58,6 +62,7 @@ class TestCaptureOwnsItsClaim:
         # Assert
         assert cli.engine.serial_claimed is False, "the claim died with the capture, not the script"
 
+    @pytest.mark.rule("capture-owns-claim")
     def test_claim_outlives_the_script_while_the_capture_runs(self, cli, tmp_path):
         """A capture still running at script end keeps its claim until its own stop."""
         # Arrange / Act

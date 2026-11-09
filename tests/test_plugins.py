@@ -1239,8 +1239,9 @@ class TestRequirementHints:
 
         return {field.name for field in dataclasses.fields(CapabilitySet) if field.default is False}
 
+    @pytest.mark.rule("capability-declared-once")
     def test_every_restrictive_field_has_a_hint(self):
-        """capability-declared-once: every restrictive CapabilitySet field is declared with its /help hint."""
+        """Every restrictive CapabilitySet field is declared with its /help hint."""
         from termapy.plugins import REQUIREMENT_HINTS
 
         actual_unhinted = sorted(self._restrictive_fields() - set(REQUIREMENT_HINTS))
@@ -1249,6 +1250,7 @@ class TestRequirementHints:
             "REQUIRED CAPABILITIES -- declare it with _restricted(<hint>)"
         )
 
+    @pytest.mark.rule("capability-declared-once")
     def test_hints_fit_the_requires_stem(self):
         """Each hint is a non-empty noun phrase that reads after 'requires', no period."""
         from termapy.plugins import REQUIREMENT_HINTS

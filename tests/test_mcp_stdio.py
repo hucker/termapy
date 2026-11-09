@@ -235,8 +235,9 @@ def _instructions(client: _StdioClient) -> str:
 
 
 class TestFindsItsConfig:
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_two_bare_servers_are_two_free_slots(self, tmp_path):
-        """mcp-finds-its-config: termapy-a and termapy-b debug two ports at once: each holds nothing until told, then its own device."""
+        """termapy-a and termapy-b debug two ports at once: each holds nothing until told, then its own device."""
         # Arrange -- the two configs open different simulated devices.
         root = tmp_path / "termapy_cfg"
         for name, port in (("left", "DEMO"), ("right", "DEMO_JSON")):
@@ -260,8 +261,9 @@ class TestFindsItsConfig:
             first.close()
             second.close()
 
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_a_missing_named_config_stops_there(self, tmp_path):
-        """mcp-finds-its-config: a name given at launch is the only choice, so a typo exits instead of landing on another device's config."""
+        """A name given at launch is the only choice, so a typo exits instead of landing on another device's config."""
         # Arrange -- an mcp_* it could wrongly fall to.
         root = tmp_path / "termapy_cfg"
         _write_config(root, "mcp_board", "DEMO")
@@ -278,8 +280,9 @@ class TestFindsItsConfig:
         assert "No config matching 'mcp_bord'" in message, message
         assert "did you mean mcp_board?" in message, "and the likely name, as every typed name gets"
 
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_a_config_named_by_path_brings_its_folder(self, tmp_path):
-        """mcp-finds-its-config: the command line outranks the search, so the folder is the named config's, not the project's."""
+        """The command line outranks the search, so the folder is the named config's, not the project's."""
         # Arrange -- the project has its own configs, which must not be offered.
         project = tmp_path / "project"
         _write_config(project / "termapy_cfg", "mcp_here", "DEMO")
@@ -298,8 +301,9 @@ class TestFindsItsConfig:
         finally:
             client.close()
 
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_enabled_in_a_project_it_finds_the_config_there(self, tmp_path):
-        """mcp-finds-its-config: bare --mcp reads CLAUDE_PROJECT_DIR over the working folder, walks the chain and tells the agent."""
+        """Bare --mcp reads CLAUDE_PROJECT_DIR over the working folder, walks the chain and tells the agent."""
         # Arrange -- the folder is at the second place searched, and the
         # working folder is somewhere else entirely.
         project = tmp_path / "project"
@@ -325,8 +329,9 @@ class TestFindsItsConfig:
         finally:
             client.close()
 
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_a_project_with_no_folder_stays_out_of_the_os_folder(self, tmp_path):
-        """mcp-finds-its-config: no folder means no configs, so a user-scope server sees nothing of the user's other projects."""
+        """No folder means no configs, so a user-scope server sees nothing of the user's other projects."""
         # Arrange
         project = tmp_path / "project"
         project.mkdir()
@@ -342,8 +347,9 @@ class TestFindsItsConfig:
         finally:
             client.close()
 
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_several_with_no_mcp_name_starts_with_none_and_lists_them(self, tmp_path):
-        """mcp-finds-its-config: rather than guess at a device, it starts with none and the agent picks from the list."""
+        """Rather than guess at a device, it starts with none and the agent picks from the list."""
         # Arrange
         root = tmp_path / "termapy_cfg"
         _write_config(root, "demo", "DEMO")
@@ -362,8 +368,9 @@ class TestFindsItsConfig:
         finally:
             client.close()
 
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_a_config_named_at_launch_wins(self, tmp_path):
-        """mcp-finds-its-config: the explicit path: --mcp <name> needs no absolute path, and never walks."""
+        """The explicit path: --mcp <name> needs no absolute path, and never walks."""
         # Arrange
         root = tmp_path / "termapy_cfg"
         _write_config(root, "mcp_a", "DEMO")

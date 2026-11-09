@@ -62,8 +62,9 @@ def _spells_config_glob(source: str) -> bool:
 
 
 class TestWhatIsAConfig:
+    @pytest.mark.rule("config-files-one-reader")
     def test_only_config_spells_the_config_glob(self):
-        """config-files-one-reader: a second */*.cfg would count stray files as configs again, so only config.py holds it."""
+        """A second */*.cfg would count stray files as configs again, so only config.py holds it."""
         # Arrange
         package = Path(termapy.__file__).parent
         sources = [path for path in package.rglob("*.py") if "vendor" not in path.parts]
@@ -78,13 +79,15 @@ class TestWhatIsAConfig:
         # Assert
         assert spelled == ["config.py"], "read configs through config.config_files"
 
+    @pytest.mark.rule("config-files-one-reader")
     def test_the_glob_guard_fires_on_a_probe(self):
-        """config-files-one-reader: the walk catches the literal, and not a comment that names it."""
+        """The walk catches the literal, and not a comment that names it."""
         assert _spells_config_glob('paths = root.glob("*/*.cfg")') is True
         assert _spells_config_glob('# root.glob("*/*.cfg")\npaths = []') is False
 
+    @pytest.mark.rule("config-files-one-reader")
     def test_another_cfg_in_a_folder_is_not_a_config(self, tmp_path):
-        """config-files-one-reader: demo/.target_menu.cfg is not a config, so it cannot make one config look like two."""
+        """demo/.target_menu.cfg is not a config, so it cannot make one config look like two."""
         # Arrange
         _make_config(tmp_path, "demo")
         (tmp_path / "demo" / ".target_menu.cfg").write_text("{}", encoding="utf-8")
@@ -95,8 +98,9 @@ class TestWhatIsAConfig:
         # Assert
         assert actual == ["demo"]
 
+    @pytest.mark.rule("config-files-one-reader")
     def test_a_lone_config_with_a_stray_still_loads_by_itself(self, tmp_path, monkeypatch):
-        """config-files-one-reader: find_config counts by the same reader, so the stray no longer forces a picker."""
+        """find_config counts by the same reader, so the stray no longer forces a picker."""
         # Arrange
         path = _make_config(tmp_path, "demo")
         (tmp_path / "demo" / ".target_menu.cfg").write_text("{}", encoding="utf-8")
@@ -112,6 +116,7 @@ class TestWhatIsAConfig:
         """A project with no config folder answers with an empty list, not an error."""
         assert config_files(tmp_path / "nowhere") == []
 
+    @pytest.mark.rule("config-files-one-reader")
     @pytest.mark.parametrize(
         ("path", "expected"),
         [
@@ -122,11 +127,12 @@ class TestWhatIsAConfig:
         ],
     )
     def test_the_name_and_its_folder_agree(self, path, expected):
-        """config-files-one-reader: a config is <name>/<name>.cfg, case ignored as the disk ignores it."""
+        """A config is <name>/<name>.cfg, case ignored as the disk ignores it."""
         assert is_config_file(Path(path)) is expected
 
 
 class TestWhichFolder:
+    @pytest.mark.rule("mcp-finds-its-config")
     @pytest.mark.parametrize(
         ("present", "expected"),
         [
@@ -138,7 +144,7 @@ class TestWhichFolder:
         ],
     )
     def test_the_first_folder_found_wins(self, tmp_path, present, expected):
-        """mcp-finds-its-config: ./termapy_cfg, then src, then source, so a stale src/termapy_cfg cannot shadow the real one."""
+        """./termapy_cfg, then src, then source, so a stale src/termapy_cfg cannot shadow the real one."""
         # Arrange
         for folder in present:
             (tmp_path / folder).mkdir(parents=True)
@@ -150,12 +156,14 @@ class TestWhichFolder:
         assert actual is not None
         assert actual.resolve() == (tmp_path / expected).resolve()
 
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_no_folder_is_none_and_never_the_os_folder(self, tmp_path):
-        """mcp-finds-its-config: a server enabled for an unrelated project finds nothing rather than the user's other configs."""
+        """A server enabled for an unrelated project finds nothing rather than the user's other configs."""
         assert find_mcp_root(tmp_path) is None
 
 
 class TestWhichConfig:
+    @pytest.mark.rule("mcp-finds-its-config")
     @pytest.mark.parametrize(
         ("configs", "expected"),
         [
@@ -168,7 +176,7 @@ class TestWhichConfig:
         ],
     )
     def test_the_rules_in_order(self, tmp_path, configs, expected):
-        """mcp-finds-its-config: the only config, else every mcp_* in name order, else none so the agent chooses."""
+        """The only config, else every mcp_* in name order, else none so the agent chooses."""
         # Arrange
         for name in configs:
             _make_config(tmp_path, name)
@@ -215,8 +223,9 @@ def _stem(host: MCPHost) -> str:
 
 
 class TestTheChain:
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_a_failed_open_moves_on(self, root, tmp_path):
-        """mcp-finds-its-config: mcp_a's port will not open, so the server stays on mcp_b, connected, and says why."""
+        """mcp_a's port will not open, so the server stays on mcp_b, connected, and says why."""
         # Arrange
         paths = [
             str(_make_config(root, "mcp_a", port="DEMO_FAIL")),
@@ -235,8 +244,9 @@ class TestTheChain:
         finally:
             host._disconnect()
 
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_the_first_that_opens_ends_the_walk(self, root, tmp_path):
-        """mcp-finds-its-config: when the first opens, the second is never tried and there is nothing to report."""
+        """When the first opens, the second is never tried and there is nothing to report."""
         # Arrange
         paths = [str(_make_config(root, "mcp_a")), str(_make_config(root, "mcp_b"))]
         host = _bare_host(tmp_path)
@@ -251,8 +261,9 @@ class TestTheChain:
         finally:
             host._disconnect()
 
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_all_failing_lands_on_the_first_not_connected(self, root, tmp_path):
-        """mcp-finds-its-config: with no port open it stays on the first and gives every reason, so /port.connect can retry."""
+        """With no port open it stays on the first and gives every reason, so /port.connect can retry."""
         # Arrange
         paths = [
             str(_make_config(root, "mcp_a", port="DEMO_FAIL")),
@@ -326,9 +337,10 @@ class TestLoadingByName:
         made._fire_app_start()
         return made
 
+    @pytest.mark.rule("mcp-finds-its-config")
     @pytest.mark.parametrize("name", ["beta", "beta.cfg"])
     def test_any_config_in_the_folder_loads_by_name(self, host, name):
-        """mcp-finds-its-config: the folder's configs belong to the project, so an agent may load any of them."""
+        """The folder's configs belong to the project, so an agent may load any of them."""
         # Act
         result = _call(host, f"/cfg.load {name}")
 
@@ -362,8 +374,9 @@ class TestLoadingByName:
         assert result["success"] is True, result["error"]
         assert _stem(host) == "alpha"
 
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_a_stray_file_in_the_working_folder_is_not_a_config(self, host, tmp_path):
-        """mcp-finds-its-config: /cfg.load plain.json names no config, so the file is left byte for byte."""
+        """/cfg.load plain.json names no config, so the file is left byte for byte."""
         # Arrange
         stray = tmp_path / "plain.json"
         stray.write_text('{"name": "not a config"}\n', encoding="utf-8")
@@ -378,8 +391,9 @@ class TestLoadingByName:
         assert stray.read_text(encoding="utf-8") == '{"name": "not a config"}\n', "untouched"
         assert _stem(host) == "alpha", "still on the config it had"
 
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_a_path_to_another_folder_is_not_a_config(self, host, tmp_path):
-        """mcp-finds-its-config: a config outside the folder is refused, and its plugins never run."""
+        """A config outside the folder is refused, and its plugins never run."""
         # Arrange
         marker = tmp_path / "plugin_ran.txt"
         elsewhere = tmp_path / "elsewhere"
@@ -409,8 +423,9 @@ class TestItsOwnProfileLoads:
         shutil.copy(demo, path.parent / "board.profile.json")
         return path
 
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_loading_by_name_loads_its_profile(self, board, tmp_path):
-        """mcp-finds-its-config: config paths are absolute, and the path guard must not refuse the server's own profile: its tiers are the safety gate."""
+        """Config paths are absolute, and the path guard must not refuse the server's own profile: its tiers are the safety gate."""
         # Arrange
         host = _bare_host(tmp_path)
 
@@ -471,8 +486,9 @@ class TestAnAgentCanLoadAnyConfig:
         made._fire_app_start()
         return made
 
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_an_agent_can_load_another(self, started):
-        """mcp-finds-its-config: an agent moves to a sibling config and back, however the server started."""
+        """An agent moves to a sibling config and back, however the server started."""
         # Act
         there = _call(started, "/cfg.load right")
         there_stem = _stem(started)
@@ -496,8 +512,9 @@ class TestAnAgentCanLoadAnyConfig:
         assert second["success"] is True, second["error"]
         assert _stem(started) == "left"
 
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_a_reload_picks_up_an_edit(self, started):
-        """mcp-finds-its-config: a config edited on disk is what an agent gets by loading it again."""
+        """A config edited on disk is what an agent gets by loading it again."""
         # Arrange
         path = Path(started.config_path)
         cfg = json.loads(path.read_text(encoding="utf-8"))
@@ -523,8 +540,9 @@ class TestAnAgentCanLoadAnyConfig:
 
 
 class TestTheAgentIsTold:
+    @pytest.mark.rule("mcp-finds-its-config")
     def test_no_config_loaded_lists_the_choices(self, root, tmp_path):
-        """mcp-finds-its-config: the reply an agent first hits names what it can load, so it need not ask."""
+        """The reply an agent first hits names what it can load, so it need not ask."""
         # Arrange
         _make_config(root, "demo", port="")
         _make_config(root, "pico", port="")
@@ -579,8 +597,9 @@ class TestTheAgentIsTold:
 
 
 class TestAnExclusiveOpen:
+    @pytest.mark.rule("port-open-exclusive")
     def test_a_second_open_of_a_held_port_fails(self):
-        """port-open-exclusive: a second termapy cannot share a port, so a chain moves on instead of splitting its bytes."""
+        """A second termapy cannot share a port, so a chain moves on instead of splitting its bytes."""
         import serial
 
         if sys.platform == "win32":
@@ -600,9 +619,10 @@ class TestAnExclusiveOpen:
             os.close(slave)
             os.close(master)
 
+    @pytest.mark.rule("port-open-exclusive")
     @pytest.mark.sw_loopback
     def test_a_url_port_still_opens(self):
-        """port-open-exclusive: the flag reaches pyserial's URL handlers too, and loop:// must still open, twice."""
+        """The flag reaches pyserial's URL handlers too, and loop:// must still open, twice."""
         # Arrange
         cfg = {"serial": {**DEFAULT_CFG["serial"], "port": "loop://"}}
 
@@ -618,8 +638,9 @@ class TestAnExclusiveOpen:
             first.close()
             second.close()
 
+    @pytest.mark.rule("config-files-one-reader")
     def test_config_names_reads_the_one_reader(self, root):
-        """config-files-one-reader: the did-you-mean's names exclude the stray, as every other list does."""
+        """The did-you-mean's names exclude the stray, as every other list does."""
         # Arrange
         _make_config(root, "demo")
         (root / "demo" / ".target_menu.cfg").write_text("{}", encoding="utf-8")

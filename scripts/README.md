@@ -111,6 +111,13 @@ because they share the stdlib-only / fail-loud convention.
   `uv run python scripts/sync_architecture.py` after adding a module
   or test file; `test_architecture_sync.py` fails on drift.
 
+- `sync_traceability.py` - regenerate `docs/traceability-matrix.md`, the
+  ids no test pins and every test that pins an id by id, from the `rule`
+  markers under `tests/`
+  (`tests/traceability.py` reads them with `ast`).  Run it as
+  `uv run python scripts/sync_traceability.py` after tagging a test or
+  adding a rule; `test_traceability.py` fails on drift.
+
 - `throughput.py` - send numbered lines through the jumpered
   hw_loopback adapter (SN from `TERMAPY_HW_LOOPBACK_SN`, default
   `BG03U7VTA`) and report, per layer (bare pyserial, termapy's engine,

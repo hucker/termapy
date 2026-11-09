@@ -145,8 +145,9 @@ class TestCaptureOverlay:
 
         _run(scenario)
 
+    @pytest.mark.rule("state-answered-by-gate")
     def test_a_second_capture_is_refused_while_one_runs(self, app_factory):
-        """state-answered-by-gate: a second capture is refused with the reason, and allowed once the first stops."""
+        """A second capture is refused with the reason, and allowed once the first stops."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -178,6 +179,7 @@ class TestCaptureOverlay:
 
         _run(scenario)
 
+    @pytest.mark.rule("script-overlay-owns-bar")
     def test_a_scripted_capture_leaves_the_bar_to_the_script(self, app_factory):
         """Inside a script the capture mounts no overlay of its own; the bar is usable again when the script ends."""
 

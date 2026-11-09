@@ -929,6 +929,7 @@ class TestParseBool:
         # Assert - value should be recognized despite surrounding whitespace
         assert isinstance(actual, bool), f"expected bool for {val!r}, got {actual!r}"
 
+    @pytest.mark.rule("bool-one-vocabulary")
     @pytest.mark.parametrize("val", ["maybe", "2", "high", "low", "enable", "x"])
     def test_unrecognized_raises(self, val):
         """Unknown words, including near-misses like enable and the old high/low, raise; never False, never a default."""
@@ -945,6 +946,7 @@ class TestParseBool:
         assert parse_bool(text, default=False) is False, "absence reads as the declared False"
         assert parse_bool(text, default=None) is None, "None is a legal default (no override)"
 
+    @pytest.mark.rule("bool-one-vocabulary")
     def test_absence_without_a_default_raises(self):
         """A reader that declared no default fails loud on absence instead of inventing False."""
         with pytest.raises(ValueError, match=r"^Missing echo \(use on/off/"):
@@ -966,8 +968,9 @@ class TestParseBool:
 # ── select_lines (shared count scheme) ───────────────────────────
 
 
+@pytest.mark.rule("value-typed")
 class TestValueText:
-    """value-typed: the one speller turns a typed value into the text a person reads."""
+    """The one speller turns a typed value into the text a person reads."""
 
     @pytest.mark.parametrize(
         ("value", "expected"),

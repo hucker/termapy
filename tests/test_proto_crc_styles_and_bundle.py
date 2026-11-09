@@ -23,6 +23,8 @@ kwargs through.
 
 from __future__ import annotations
 
+import pytest
+
 from termapy.builtins.commands.proto import _crc_codegen
 from termapy.plugins import CapabilitySet, IOHandle, PluginContext
 from termapy.plugins.capabilities import STATE_MESSAGES
@@ -238,8 +240,9 @@ class TestMultiAlgorithmBundle:
             f"bundle should propagate doxygen style; got: {emitted[:300]!r}"
         )
 
+    @pytest.mark.rule("writes-in-cfg-folder")
     def test_bundle_to_file_writes_one_file_per_extension(self, tmp_path):
-        """writes-in-cfg-folder: a file= bundle writes one merged .h and .c in the config's firmware/."""
+        """A file= bundle writes one merged .h and .c in the config's firmware/."""
         # Arrange -- file= mode writes the merged output to disk; the
         # combined unit goes to a single STEM.<ext> set (e.g. for C:
         # one my_crcs.h + one my_crcs.c containing both algorithms).

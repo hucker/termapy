@@ -45,8 +45,9 @@ class TestHelp:
         assert result.value == "port", "the resolved name, so a script can confirm the match"
         assert "port.connect" in capsys.readouterr().out, "the page lists the subcommands"
 
+    @pytest.mark.rule("bare-declared")
     def test_bare_port_lists_without_a_picker(self, cli):
-        """bare-declared: a bare /port runs /port.list where no picker exists (the CLI); the TUI opens its picker."""
+        """A bare /port runs /port.list where no picker exists (the CLI); the TUI opens its picker."""
         bare = cli.repl.dispatch_full("/port")
         listed = cli.repl.dispatch_full("/port.list")
         assert bare.success, bare.error
@@ -194,8 +195,9 @@ class TestProperties:
             "refused value applied nowhere"
         )
 
+    @pytest.mark.rule("failure-is-failure")
     def test_a_non_number_is_refused(self, cli, capsys):
-        """failure-is-failure: a baud rate that is not an integer fails by name, printed once.
+        """A baud rate that is not an integer fails by name, printed once.
 
         Until 2026-10-16 every /port.* setter printed its refusal and
         returned success, so a script or agent read a typo as applied.
@@ -457,8 +459,9 @@ class TestConnect:
         assert "Duplicate baud rate" in result.error
         assert cli.cfg["serial"]["baud_rate"] == 115200, "nothing applied on a refused line"
 
+    @pytest.mark.rule("failure-reported-once")
     def test_a_port_that_does_not_open_fails_with_its_reason(self, cli, capsys):
-        """failure-reported-once: an open that fails answers with why, in error and printed once.
+        """An open that fails answers with why, in error and printed once.
 
         The reason used to reach only the host's status line while the
         command failed with an empty error, so --json and MCP said nothing.
@@ -679,8 +682,9 @@ class TestBannersFollowTheLevel:
 
 
 class TestCapture:
+    @pytest.mark.rule("failure-reported-once")
     def test_a_failed_capture_answers_with_the_inner_error_once(self, cli, capsys):
-        """failure-reported-once: $(B) <- a refused command fails with its error, printed once, B unset.
+        """$(B) <- a refused command fails with its error, printed once, B unset.
 
         The capture used to blank the error to dodge a double print, so an
         agent saw success false with error "" (review 2026-10-15, S4).
@@ -809,6 +813,7 @@ class TestChip:
         assert "SERIAL #" in header, "the port table uses the shared label"
         assert " SN " not in f" {header} ", "the old abbreviation is gone"
 
+    @pytest.mark.rule("labels-title-case")
     def test_display_labels_are_title_case(self, cli, capsys):
         """Every word of a /port.info label starts upper case (Baud Rate, USB Speed, In Use); symbols and acronyms stay."""
         capsys.readouterr()
@@ -879,8 +884,9 @@ class TestPortList:
         cli.repl.dispatch_full("/port.list")
         assert capsys.readouterr().out.splitlines()[0].strip() == "Ports - 3 ports"
 
+    @pytest.mark.rule("links-are-data")
     def test_the_port_cell_prefills_a_connect(self):
-        """links-are-data: a click on a port name puts /port.connect <port> in the input line, never runs it."""
+        """A click on a port name puts /port.connect <port> in the input line, never runs it."""
         from termapy.plugins.views import Link
         from termapy.port_format import PORT_TABLE_COLUMNS
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from termapy.app_dirs import app_config_dir, app_state_dir, load_app_state, save_app_state
 
 
@@ -21,8 +23,9 @@ class TestAppStateDir:
         assert actual == expected, "env override wins"
         assert isinstance(actual, Path), "returns a Path"
 
+    @pytest.mark.rule("reads-never-write")
     def test_state_dir_is_not_created_by_asking(self, monkeypatch, tmp_path):
-        """reads-never-write: asking for the state dir, or reading state from it, creates nothing."""
+        """Asking for the state dir, or reading state from it, creates nothing."""
         # Arrange
         target = tmp_path / "state"
         monkeypatch.setenv("TERMAPY_STATE_DIR", str(target))

@@ -26,14 +26,16 @@ from sync_architecture import (  # noqa: E402 -- path set above
 )
 
 
+@pytest.mark.rule("architecture-generated")
 def test_generated_blocks_are_in_sync():
-    """architecture-generated: the module tree and test table match the docstrings they are generated from."""
+    """The module tree and test table match the docstrings they are generated from."""
     assert main(["--check"]) == 0, (
         "ARCHITECTURE.md was hand-edited or a docstring changed; "
         "run: uv run python scripts/sync_architecture.py"
     )
 
 
+@pytest.mark.rule("architecture-generated")
 def test_both_blocks_keep_their_markers():
     """Deleting a block's markers fails the sync, so neither goes back to hand-kept silently."""
     # Arrange
@@ -45,6 +47,7 @@ def test_both_blocks_keep_their_markers():
             rewrite(text.replace(f"<!-- {name}:end -->", ""))
 
 
+@pytest.mark.rule("architecture-generated")
 def test_an_identifier_only_docstring_is_refused(tmp_path):
     """A module whose docstring opens with only a class name fails the sync instead of printing a bare row."""
     # Arrange
@@ -56,6 +59,7 @@ def test_an_identifier_only_docstring_is_refused(tmp_path):
         describe(module, "dialogs/bare.py")
 
 
+@pytest.mark.rule("architecture-generated")
 def test_the_line_counts_stay_release_preps():
     """A tracked row keeps the count the doc has now; the sync never recounts a row that has one."""
     # Arrange -- a count no file has, planted on app.py's row

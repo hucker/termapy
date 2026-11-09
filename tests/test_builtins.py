@@ -188,6 +188,7 @@ class TestTermSettingCycle:
             engine.dispatch("term.output cycle")
         assert flags["output_level"] == "silent", "wraps back to silent"
 
+    @pytest.mark.rule("setting-bare-queries")
     def test_output_bare_queries(self, repl_env):
         """Bare /term.output returns the current level as its value and leaves it unchanged."""
         # Arrange
@@ -398,8 +399,9 @@ class TestRunDocstring:
         assert not engine.dispatch("run.rename missing.run x").success, "missing file"
         assert (scripts_dir / "fresh.run").is_file(), "refused renames changed nothing"
 
+    @pytest.mark.rule("file-name-default-ext")
     def test_rename_takes_a_bare_old_name(self, repl_env, tmp_path):
-        """file-name-default-ext: /run.rename old new finds run/old.run; the old name's .run is optional too."""
+        """/run.rename old new finds run/old.run; the old name's .run is optional too."""
         # Arrange
         engine, _, _, output = repl_env
         scripts_dir = self._wire_scripts_dir(engine, tmp_path)
@@ -471,6 +473,7 @@ class TestRunDocstring:
             f"/run.list shows the same summary without the filename prefix: {listing}"
         )
 
+    @pytest.mark.rule("data-structured-twin")
     def test_run_list_wants_data_returns_records_without_prose(self, repl_env, tmp_path):
         """With wants_data, /run.list returns raw records (byte count, mtime) and prints nothing."""
         # Arrange
@@ -1635,8 +1638,9 @@ class TestHelp:
         assert any("dev docstring" in text for text in texts), "docstring content shown"
         assert any("DESCRIPTION" in text for text in texts), "rendered inside DESCRIPTION"
 
+    @pytest.mark.rule("handler-docstring")
     def test_help_dev_shows_a_factory_built_handlers_docstring(self, repl_env):
-        """handler-docstring: a factory-built command (the ss folder's list) answers /help.dev with its stamped docstring."""
+        """A factory-built command (the ss folder's list) answers /help.dev with its stamped docstring."""
         # Arrange
         engine, _, _, output = repl_env
         # Act
@@ -2087,6 +2091,7 @@ class TestSearch:
         names = result.value.splitlines() if result.value else []
         assert "rocket_cmd" in names, "command surfaced via flag description"
 
+    @pytest.mark.rule("value-scriptable")
     def test_search_returns_value_for_scripting(self, repl_env):
         """CmdResult.value is the newline-joined matching command names."""
         # Arrange
@@ -3151,8 +3156,9 @@ class TestCfgRead:
         assert result.success is False, "missing file fails"
         assert result.error == "File not found: nope.txt", "standard phrasing"
 
+    @pytest.mark.rule("state-answered-by-gate")
     def test_cfg_file_without_a_config_is_the_gates_answer(self, repl_env):
-        """state-answered-by-gate: /cfg.file declares config_loaded, so with none the gate answers, not the handler."""
+        """/cfg.file declares config_loaded, so with none the gate answers, not the handler."""
         # Arrange
         engine, _, _, _ = repl_env
         engine.ctx.config_path = ""
@@ -3612,8 +3618,9 @@ class TestPortChipList:
         assert result.success, "case-insensitive filter works"
         assert int(result.value) > 0, "entries found despite uppercase filter"
 
+    @pytest.mark.rule("name-one-matcher")
     def test_no_matches_is_an_empty_table(self, repl_env):
-        """name-one-matcher: no matches is still success, a 0 value and the table's empty line."""
+        """No matches is still success, a 0 value and the table's empty line."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -3675,8 +3682,9 @@ class TestPortHandlerValues:
         # Assert
         assert result.value == "COM4", "disconnect returns the port name in effect before the call"
 
+    @pytest.mark.rule("table-value-is-count")
     def test_port_list_counts_the_ports(self, repl_env):
-        """table-value-is-count: /port.list's value is the port count, one per record, whatever this machine has."""
+        """/port.list's value is the port count, one per record, whatever this machine has."""
         # Arrange
         engine, _, _, _ = repl_env
 
@@ -3784,6 +3792,7 @@ class TestLogDump:
 class TestTermEol:
     """/term.eol shows/sets the sent line ending via named tokens."""
 
+    @pytest.mark.rule("setting-bare-queries")
     def test_bare_reports_default_cr(self, repl_env):
         """Bare /term.eol reports the CR default by token name, not the raw character."""
         # Arrange

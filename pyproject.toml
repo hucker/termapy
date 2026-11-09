@@ -207,8 +207,9 @@ testpaths = ["tests"]
 # modules of that package, and the plugin loader executes a command file from
 # its path under its own module name -- so the 26 commands nothing imported by
 # name were never measured (2026-10-12; cap.py, port.py, mem.py, term.py ...).
-addopts = "-v --cov --cov-report=term-missing -n auto --dist loadgroup"
+addopts = "-v --cov --cov-report=term-missing -n auto --dist loadgroup --strict-markers"
 markers = [
+    "rule(id): the rule this test pins, a docs/rules.md row or a spec section id (tests/traceability.py SOURCES).  One marker per rule, pytestmark for a module; collection refuses an id no source holds.  --rule <id> runs the tests of one rule (docs/traceability.md).",
     "slow: subprocess-spawning, hw_loopback, or sleep-based test (~80s of full-suite runtime).  Skip during fast iteration with -m 'not slow'.",
     "sw_loopback: software loopback, pyserial's virtual loop:// port.  No hardware; runs anywhere, CI included.",
     "hw_loopback: hardware loopback, a TX-RX-jumpered USB-serial adapter attached; found by serial number (TERMAPY_HW_LOOPBACK_SN, default BG03U7VTA).  Gated: deselected unless --run-hw-loopback, FAILS when absent under --require-hw-loopback (release_prep), refused on GitHub Actions.  Run with --run-hw-loopback -m hw_loopback -n 0 --no-cov.",
@@ -220,7 +221,9 @@ markers = [
 # matching the sys.path redirect that vendor/__init__.py does at runtime.
 # scripts/ is here for the same reason: the tests that cover the release
 # scripts prepend it to sys.path and import them as top-level modules.
-extra-paths = ["src/termapy/vendor", "scripts"]
+# tests/: scripts/sync_traceability.py imports tests/traceability.py, the
+# marker index the suite and the matrix share, with tests/ put on sys.path.
+extra-paths = ["src/termapy/vendor", "scripts", "tests"]
 
 [tool.pyright]
 # The SAME vendored-pyserial facts, taught to Pylance/pyright (which do

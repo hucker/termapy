@@ -28,6 +28,12 @@ from termapy.config import load_config
 from termapy.defaults import DEFAULT_CFG
 from termapy.pickers import on_config_result, on_script_picked
 
+pytestmark = [
+    pytest.mark.rule("config-load-deterministic"),
+    pytest.mark.rule("cfg-keys-start-flags"),
+    pytest.mark.rule("script-start-one-way"),
+]
+
 BUILTINS_FOLDER = Path(termapy.builtins.__file__).parent
 FRONTENDS = ("cli", "tui", "mcp")
 
@@ -262,10 +268,11 @@ def _in_a_process(frontend: str, scenario: str, root: Path) -> dict:
 class TestArrivingEqualsAFreshStart:
     """The rule itself, in each frontend, whatever came before."""
 
+    @pytest.mark.rule("config-load-deterministic")
     @pytest.mark.slow
     @pytest.mark.parametrize("frontend", FRONTENDS)
     def test_a_load_equals_a_fresh_start(self, frontend, tmp_path):
-        """config-load-deterministic: B reached from A, used or not, is B started fresh."""
+        """B reached from A, used or not, is B started fresh."""
         # Arrange
         _write_configs(tmp_path)
         fresh = _in_a_process(frontend, "fresh", tmp_path)["after"]
@@ -281,8 +288,9 @@ class TestArrivingEqualsAFreshStart:
                 changed = _differences(fresh, outcome["before"])
                 assert "vars user.LEFTOVER" in changed, "the session to throw away really differed"
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_a_difference_is_reported_by_name(self):
-        """config-load-deterministic: the comparison names a changed, a new and a lost fact."""
+        """The comparison names a changed, a new and a lost fact."""
         # Arrange
         fresh = {"same": "1", "changed": "1", "lost": "1"}
         arrived = {"same": "1", "changed": "2", "new": "1"}
@@ -298,8 +306,9 @@ class TestArrivingEqualsAFreshStart:
         }
         assert actual == expected, "every kind of leak is seen, and a matching fact is not"
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_what_is_not_state_is_not_compared(self):
-        """config-load-deterministic: a clock differing between two runs is not a leak."""
+        """A clock differing between two runs is not a leak."""
         # Arrange
         key = "engine._last_rx_monotonic"
 
@@ -340,8 +349,9 @@ def _flags(host) -> dict:
 class TestWhatALoadForgets:
     """Each thing a user can leave behind, one at a time, in the CLI's in-process path."""
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_user_variables_go(self, cli, configs):
-        """config-load-deterministic: a /var.set from the config being left is gone."""
+        """A /var.set from the config being left is gone."""
         # Arrange
         cli.repl.dispatch("var.set LEFTOVER 1")
 
@@ -353,8 +363,9 @@ class TestWhatALoadForgets:
             "the variable is undefined after the load"
         )
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_env_set_goes(self, cli, configs):
-        """config-load-deterministic: /env.set is undone, and a variable from the process stays."""
+        """/env.set is undone, and a variable from the process stays."""
         # Arrange
         cli.repl.dispatch("env.set LEFTOVER 1")
         before = cli.repl.dispatch("env.list LEFTOVER").data
@@ -368,8 +379,9 @@ class TestWhatALoadForgets:
         assert "LEFTOVER" not in env, "what /env.set added is gone"
         assert env == dict(os.environ), "the snapshot is the process environment again"
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_find_limit_goes_back(self, cli, configs):
-        """config-load-deterministic: /find.max_count is the default again, with no hook: it is in ctx.ns()."""
+        """/find.max_count is the default again, with no hook: it is in ctx.ns()."""
         # Arrange
         expected = cli.repl.dispatch("find.max_count").value
         cli.repl.dispatch("find.max_count 7")
@@ -382,8 +394,9 @@ class TestWhatALoadForgets:
         actual = cli.repl.dispatch("find.max_count").value
         assert actual == expected
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_counters_go_and_the_clock_restarts(self, cli, configs):
-        """config-load-deterministic: {seq} starts over and {starttime} is stamped, as on a fresh start."""
+        """{seq} starts over and {starttime} is stamped, as on a fresh start."""
         # Arrange
         cli.repl.dispatch("print {seq1+}")
         assert cli.repl.ctx.ns("seq")[1] == 1, "precondition: the counter moved"
@@ -396,8 +409,9 @@ class TestWhatALoadForgets:
         assert 1 not in seq, "the counter is gone"
         assert seq["_start_time"], "the clock a fresh start sets is set"
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_a_recording_stops_and_another_can_start(self, cli, configs):
-        """config-load-deterministic: a load ends a recording, twice over, with its file closed."""
+        """A load ends a recording, twice over, with its file closed."""
         for name in ("first", "second"):
             # Arrange
             started = cli.repl.dispatch(f"run.record {name}", report=False)
@@ -411,8 +425,9 @@ class TestWhatALoadForgets:
             assert record.is_active() is False, f"{name}: the load ended the recording"
             assert cli.repl._post_dispatch_observers == [], f"{name}: nothing still listens"
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_a_capture_stops(self, cli, configs, tmp_path):
-        """config-load-deterministic: a capture running on the config being left stops and frees the port."""
+        """A capture running on the config being left stops and frees the port."""
         # Arrange
         target = tmp_path / "capture.txt"
         started = cli.capture.start(path=target, file_mode="w", mode="text", duration=60.0)
@@ -452,8 +467,9 @@ class TestWhatALoadKeeps:
         path.write_text(json.dumps(dict(cfg, **settings)), encoding="utf-8")
         return _build_headless(frontend, configs["a"])
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_the_config_decides_with_no_flag_given(self, configs):
-        """config-load-deterministic: with no flag at launch, color and level are the file's."""
+        """With no flag at launch, color and level are the file's."""
         # Arrange
         host = self._on_b("cli", configs, color=False, output_level="verbose", echo=True)
 
@@ -465,8 +481,9 @@ class TestWhatALoadKeeps:
         actual = (flags["color"], flags["output_level"], flags["echo"])
         assert actual == (False, "verbose", True), "every session flag follows the file"
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_a_fresh_start_reads_the_same_keys(self, configs):
-        """config-load-deterministic: starting on the config and loading it read the keys alike."""
+        """Starting on the config and loading it read the keys alike."""
         # Arrange
         self._on_b("cli", configs, color=False, output_level="silent")
 
@@ -477,8 +494,9 @@ class TestWhatALoadKeeps:
         flags = _flags(host)
         assert (flags["color"], flags["output_level"]) == (False, "silent")
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_no_color_and_a_level_at_launch_outlast_the_config(self, configs):
-        """config-load-deterministic: what the user asked for at launch is laid over every load."""
+        """What the user asked for at launch is laid over every load."""
         # Arrange
         from termapy.cli import CLITerminal
 
@@ -494,8 +512,9 @@ class TestWhatALoadKeeps:
         flags = _flags(host)
         assert (flags["color"], flags["output_level"]) == (False, "quiet")
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_mcp_keeps_its_rules_over_any_config(self, configs):
-        """config-load-deterministic: an agent's JSON stays uncolored, quiet and without echo."""
+        """An agent's JSON stays uncolored, quiet and without echo."""
         # Arrange
         host = self._on_b("mcp", configs, color=True, output_level="verbose", echo=True)
 
@@ -511,6 +530,7 @@ class TestWhatALoadKeeps:
 class TestCfgMovesTheFlag:
     """A key that starts a session flag is what its setter reports, whichever way it changed."""
 
+    @pytest.mark.rule("cfg-keys-start-flags")
     @pytest.mark.parametrize(
         ("key", "text", "expected"),
         [
@@ -522,7 +542,7 @@ class TestCfgMovesTheFlag:
         ],
     )
     def test_cfg_auto_moves_the_flag(self, cli, key, text, expected):
-        """cfg-keys-start-flags: /cfg.auto changes the session flag, not only the config dict."""
+        """/cfg.auto changes the session flag, not only the config dict."""
         # Act
         result = cli.repl.dispatch(f"cfg.auto {key} {text}", report=False)
 
@@ -531,8 +551,9 @@ class TestCfgMovesTheFlag:
         assert _flags(cli)[key] == expected, "the flag is what the session acts on"
         assert cli.repl._cfg_data[key] == expected, "and the config agrees"
 
+    @pytest.mark.rule("cfg-keys-start-flags")
     def test_the_setter_answers_what_cfg_auto_set(self, cli):
-        """cfg-keys-start-flags: /term.echo reports the value /cfg.auto gave the key, twice over."""
+        """/term.echo reports the value /cfg.auto gave the key, twice over."""
         for text, expected in (("on", True), ("off", False)):
             # Act
             cli.repl.dispatch(f"cfg.auto echo {text}", report=False)
@@ -540,8 +561,9 @@ class TestCfgMovesTheFlag:
             # Assert
             assert cli.repl.dispatch("term.echo", report=False).value is expected
 
+    @pytest.mark.rule("cfg-keys-start-flags")
     def test_a_port_effect_moves_the_flag(self, cli):
-        """cfg-keys-start-flags: /port.connect's echo option moves the flag too."""
+        """/port.connect's echo option moves the flag too."""
         # Arrange
         _flags(cli)["echo"] = False
 
@@ -552,8 +574,9 @@ class TestCfgMovesTheFlag:
         assert _flags(cli)["echo"] is True
         assert cli.repl._cfg_data["echo"] is True, "and the config agrees"
 
+    @pytest.mark.rule("cfg-keys-start-flags")
     def test_a_key_with_no_flag_makes_none(self, cli):
-        """cfg-keys-start-flags: only the keys the table marks reach the flags namespace."""
+        """Only the keys the table marks reach the flags namespace."""
         # Act
         cli.repl.store_cfg("timestamps", True)
 
@@ -611,8 +634,9 @@ class TestTheConnection:
 
         return asyncio.run(scenario())
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_a_load_drops_the_link_when_the_config_does_not_connect(self, configs):
-        """config-load-deterministic: a connected A does not connect a B that says auto_connect false."""
+        """A connected A does not connect a B that says auto_connect false."""
         # Arrange / Act
         actual = self._connected_then(
             configs,
@@ -624,8 +648,9 @@ class TestTheConnection:
         assert actual["connected"] is False, "a fresh start on B is not connected"
         assert actual["variable"] is None, "and the session reset"
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_a_load_connects_when_the_config_says_to(self, configs):
-        """config-load-deterministic: auto_connect true opens the port, as a fresh start does."""
+        """auto_connect true opens the port, as a fresh start does."""
         # Arrange / Act
         actual = self._connected_then(
             configs,
@@ -663,8 +688,9 @@ class TestTheConnection:
 class TestTheScreen:
     """What a load must leave right on screen, and in a script that calls it."""
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_the_find_bar_closes_and_the_record_button_goes_idle(self, configs):
-        """config-load-deterministic: neither the find bar nor the Record button outlives the session."""
+        """Neither the find bar nor the Record button outlives the session."""
         # Arrange
         app = _boot(configs, "a", auto_connect=False)
 
@@ -696,8 +722,9 @@ class TestTheScreen:
         assert recording is False, "the recording ended"
         assert label_after != label_during, "the button shows it"
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_a_script_that_loads_keeps_echo_off(self, configs):
-        """config-load-deterministic: /cfg.load inside a script keeps its lines quiet, twice in a row."""
+        """/cfg.load inside a script keeps its lines quiet, twice in a row."""
         # Arrange
         target = configs["b"].as_posix()
         for name in ("a", "b"):
@@ -733,8 +760,9 @@ class TestTheScreen:
 class TestAReplayThatLoads:
     """/run.last forces echo on and puts it back after, and a load in the replay must win."""
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_the_tui_ends_where_a_fresh_start_would(self, configs):
-        """config-load-deterministic: a replayed /cfg.load ends with the TUI's echo, not the one the replay saved."""
+        """A replayed /cfg.load ends with the TUI's echo, not the one the replay saved."""
         # Arrange
         app = _boot(configs, "a", auto_connect=False)
 
@@ -764,8 +792,9 @@ class TestAReplayThatLoads:
             "the new config starts with the TUI's default, as a fresh start does"
         )
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_the_cli_ends_where_a_fresh_start_would(self, cli, configs):
-        """config-load-deterministic: the same in the CLI, whose load builds a new context under the replay."""
+        """The same in the CLI, whose load builds a new context under the replay."""
         # Arrange
         cli._dispatch_typed(f"/cfg.load {configs['b'].as_posix()}")
         cli._dispatch_typed(f"/cfg.load {configs['a'].as_posix()}")
@@ -792,9 +821,10 @@ class TestAScriptStartsOneWay:
         script.write_text(line + chr(10), encoding="utf-8")
         return str(script)
 
+    @pytest.mark.rule("script-start-one-way")
     @pytest.mark.parametrize("launch", ["typed", "picked"])
     def test_every_launch_starts_the_same(self, configs, launch):
-        """script-start-one-way: typed or picked, twice over, a script sees the variables and its start time."""
+        """Typed or picked, twice over, a script sees the variables and its start time."""
         # Arrange
         script = self._script(configs, "show", "/print kept=$(KEPT) when=$(SESSION_DATE)")
         app = _boot(configs, "a", auto_connect=False, output_level="normal")
@@ -821,8 +851,9 @@ class TestAScriptStartsOneWay:
             assert "kept=1" in text, f"{launch}: the session's variable reached the script"
             assert "when=20" in text, f"{launch}: the start time resolved"
 
+    @pytest.mark.rule("script-start-one-way")
     def test_a_script_leaves_its_changes_behind(self, cli, configs):
-        """script-start-one-way: no restore at the end; what a script set stays, its echo hold aside."""
+        """No restore at the end; what a script set stays, its echo hold aside."""
         # Arrange
         script = self._script(configs, "setup", "/var.set LEFT 1")
 
@@ -834,8 +865,9 @@ class TestAScriptStartsOneWay:
         # Assert
         assert variables.user_vars(cli.repl.ctx).get("LEFT") == "1", "what it set stays"
 
+    @pytest.mark.rule("script-start-one-way")
     def test_a_script_gets_a_known_start_by_asking(self, cli, configs):
-        """script-start-one-way: /cfg.load as a first line drops what the session held."""
+        """/cfg.load as a first line drops what the session held."""
         # Arrange
         target = configs["b"].as_posix()
         lines = chr(10).join([f"/cfg.load {target}", "/var.set AFTER 1"])

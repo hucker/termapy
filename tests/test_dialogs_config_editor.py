@@ -96,8 +96,9 @@ class TestWhatItShows:
 
 
 class TestHelpLine:
+    @pytest.mark.rule("cfg-declared")
     def test_the_help_line_names_the_commands_that_declared_the_key(self, tmp_path):
-        """cfg-declared: on a key some command declared, the panel ends with those commands; on a key none did, no such line."""
+        """On a key some command declared, the panel ends with those commands; on a key none did, no such line."""
 
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
@@ -362,8 +363,9 @@ class TestValueValidation:
 
         _run(scenario)
 
+    @pytest.mark.rule("port-present-one-decider")
     def test_a_serial_number_port_that_resolves_is_green(self, tmp_path):
-        """port-present-one-decider: a USB serial number the connect would find is accepted, not 'port not found'."""
+        """A USB serial number the connect would find is accepted, not 'port not found'."""
 
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
@@ -546,8 +548,9 @@ class TestSave:
 
         _run(scenario)
 
+    @pytest.mark.rule("cfg-written-in-order")
     def test_save_writes_the_standard_order(self, tmp_path):
-        """cfg-written-in-order: keys typed in any order are saved in DEFAULT_CFG's order."""
+        """Keys typed in any order are saved in DEFAULT_CFG's order."""
 
         async def scenario():
             cfg, path = _write_cfg(tmp_path)
@@ -694,8 +697,9 @@ async def _save_as(pilot, screen: ConfigEditor, target: Path) -> None:
     await pilot.pause()
 
 
+@pytest.mark.rule("config-created-once")
 class TestCreatingOverAConfig:
-    """config-created-once: Save As (and Save of a new config) asks before replacing a config."""
+    """Save As (and Save of a new config) asks before replacing a config."""
 
     def test_save_as_onto_a_config_asks_and_yes_replaces_only_the_cfg(self, tmp_path):
         """The overwrite question appears; Yes writes the .cfg, keeps the run script and dismisses."""

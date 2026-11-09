@@ -15,6 +15,8 @@ from termapy import diag_log
 from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
 
+pytestmark = pytest.mark.rule("diag-log-folder")
+
 
 def _run(code: str, tmp_path: Path, **env: str) -> list[str]:
     """Run ``code`` in a fresh interpreter in ``tmp_path``; return its stdout lines.
@@ -41,9 +43,10 @@ def _run(code: str, tmp_path: Path, **env: str) -> list[str]:
 _PRINT_FOLDER = "from termapy import diag_log; print(diag_log.log_folder())"
 
 
+@pytest.mark.rule("diag-log-folder")
 @pytest.mark.slow
 class TestLogFolder:
-    """diag-log-folder: the override, else the config root's log/, else the app state folder's; never a new config root."""
+    """The override, else the config root's log/, else the app state folder's; never a new config root."""
 
     def test_the_override_wins(self, tmp_path):
         """TERMAPY_DIAG_DIR names the folder, whatever else is set."""
@@ -98,9 +101,10 @@ class TestLogFolder:
         assert not absent.exists(), "a log never creates a config root"
 
 
+@pytest.mark.rule("diag-log-per-process")
 @pytest.mark.slow
 def test_a_session_records_its_start_failures_and_exit(tmp_path):
-    """diag-log-per-process: a process start, each frontend, the version before the first problem, a traceback, and the exit."""
+    """A process start, each frontend, the version before the first problem, a traceback, and the exit."""
     # Arrange
     code = (
         "from termapy import diag_log\n"
@@ -137,8 +141,9 @@ def test_a_session_records_its_start_failures_and_exit(tmp_path):
     assert lines[-1].endswith("process exit"), "a normal exit is the last line"
 
 
+@pytest.mark.rule("diag-log-per-process")
 def test_prune_keeps_the_newest_and_any_running_process(tmp_path):
-    """diag-log-per-process: a start leaves KEEP_FILES logs, and never deletes one whose process is running."""
+    """A start leaves KEEP_FILES logs, and never deletes one whose process is running."""
     # Arrange -- pids this large are no running process on any platform
     dead = [
         tmp_path / f"20260101_{i:06d}-{3_999_999_000 + i}.log"
@@ -265,8 +270,9 @@ def cli(tmp_path) -> CLITerminal:
     return terminal
 
 
+@pytest.mark.rule("broad-catch-logged")
 def test_a_raising_command_names_its_exception_and_logs_its_traceback(cli, caplog):
-    """broad-catch-logged: dispatch answers a handler's exception with its type and the log file, and records the traceback."""
+    """Dispatch answers a handler's exception with its type and the log file, and records the traceback."""
 
     # Arrange
     def broken(ctx, args):

@@ -364,8 +364,9 @@ class TestInitFlags:
 
 
 class TestSerialIO:
+    @pytest.mark.rule("tx-only-what-went-out")
     def test_serial_write_no_port(self, host):
-        """tx-only-what-went-out: a write with no open port raises Not connected and notifies no TX observer."""
+        """A write with no open port raises Not connected and notifies no TX observer."""
         # Arrange
         host.engine.serial_port = None
 
@@ -374,8 +375,9 @@ class TestSerialIO:
             host._serial_write(b"hello")
         host.engine.notify_tx.assert_not_called()
 
+    @pytest.mark.rule("tx-only-what-went-out")
     def test_failed_write_notifies_no_tx_observer(self, host):
-        """tx-only-what-went-out: a write the port refuses raises to the caller and reaches no TX observer."""
+        """A write the port refuses raises to the caller and reaches no TX observer."""
         # Arrange
         host.engine.serial_port = MagicMock()
         host.engine.serial_port.write.side_effect = SerialException("simulated unplug")
@@ -724,8 +726,9 @@ class _PrestartHost(_StubHost):
         self._status_msgs.append("PRESTART")
 
 
+@pytest.mark.rule("prestart-before-start")
 class TestFireAppStart:
-    """prestart-before-start: the host's pre-start, then on_app_prestart, then on_app_start."""
+    """The host's pre-start, then on_app_prestart, then on_app_start."""
 
     def test_variables_are_registered_before_the_frontends_prestart(
         self, host, tmp_path, monkeypatch

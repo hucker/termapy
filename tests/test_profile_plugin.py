@@ -264,8 +264,9 @@ class TestProfileReload:
 
 
 class TestProfileSave:
+    @pytest.mark.rule("state-answered-by-gate")
     def test_no_profile_is_the_gates_answer(self, env):
-        """state-answered-by-gate: /profile.save with nothing loaded is refused by the gate, not the handler."""
+        """/profile.save with nothing loaded is refused by the gate, not the handler."""
         # Arrange / Act -- nothing loaded yet.
         eng, _ctx, _output = env
         result = eng.dispatch("profile.save")
@@ -531,8 +532,9 @@ class TestProfileLoadCfgRelative:
             "falls back to the typed path in the error"
         )
 
+    @pytest.mark.rule("file-name-default-ext")
     def test_load_and_validate_take_a_bare_stem(self, env):
-        """file-name-default-ext: /profile.load local and /profile.validate local both find local.profile.json beside the cfg."""
+        """/profile.load local and /profile.validate local both find local.profile.json beside the cfg."""
         # Arrange
         eng, ctx, _ = env
         from pathlib import Path as _Path

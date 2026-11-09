@@ -548,8 +548,9 @@ class TestDemoConfigSetup:
         expected = ["dev", "plugin", "proto", "run", "sym"]
         assert actual == expected, "no empty ss/ cap/ prof/ viz/ shipped with the demo"
 
+    @pytest.mark.rule("cfg-written-in-order")
     def test_setup_writes_the_standard_order(self, tmp_path) -> None:
-        """cfg-written-in-order: --demo copies demo.cfg as it is, so the template keeps DEFAULT_CFG's order."""
+        """--demo copies demo.cfg as it is, so the template keeps DEFAULT_CFG's order."""
         import json
 
         from termapy.config import ordered_cfg, setup_demo_config

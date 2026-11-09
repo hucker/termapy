@@ -85,8 +85,9 @@ class TestNewConfig:
         # Assert
         assert actual == expected, "a bare new config is the defaults plus its title"
 
+    @pytest.mark.rule("baud-standard-unless-custom")
     def test_a_non_standard_rate_must_be_asked_for(self):
-        """baud-standard-unless-custom: off the list without custom_baud is refused, never guessed custom."""
+        """Off the list without custom_baud is refused, never guessed custom."""
         with pytest.raises(ValueError, match=r"Invalid baud rate: 250000 \(not a standard rate"):
             new_config("a", baud=250000)
 
@@ -100,6 +101,7 @@ class TestNewConfig:
         assert actual_custom is True, "the caller asked for 250000 as custom"
         assert actual_standard is False, "nothing asked for custom"
 
+    @pytest.mark.rule("baud-standard-unless-custom")
     def test_new_from_args_reads_custom(self):
         """--new and /cfg.new take custom=true like /port.connect, and refuse an unasked-for rate."""
         # Act
@@ -130,8 +132,9 @@ class TestCreateConfig:
         assert loaded["title"] == "mydev"
         assert validate_config(loaded) == [], "a new config is valid as written"
 
+    @pytest.mark.rule("cfg-written-in-order")
     def test_writes_the_keys_in_the_standard_order(self, tmp_path):
-        """cfg-written-in-order: whatever order the dict has, the file is laid out in DEFAULT_CFG's order."""
+        """Whatever order the dict has, the file is laid out in DEFAULT_CFG's order."""
         # Arrange
         cfg = new_config("mydev", port="COM4", baud=115200)
         scrambled = dict(reversed(list(cfg.items())))
@@ -144,8 +147,9 @@ class TestCreateConfig:
         actual = list(json.loads(cfg_path.read_text(encoding="utf-8")))
         assert actual == list(DEFAULT_CFG), "the file reads in the defaults' order"
 
+    @pytest.mark.rule("config-created-once")
     def test_twice_in_a_row_the_second_is_refused(self, tmp_path):
-        """config-created-once: creating the same config again raises, and the first is untouched."""
+        """Creating the same config again raises, and the first is untouched."""
         # Arrange
         cfg_path = tmp_path / "mydev" / "mydev.cfg"
         create_config(cfg_path, new_config("mydev"))
@@ -158,8 +162,9 @@ class TestCreateConfig:
         assert excinfo.value.file_count == 2, "the .cfg and its .gitignore"
         assert _title(cfg_path) == "mydev", "the first config is untouched"
 
+    @pytest.mark.rule("config-created-once")
     def test_overwrite_replaces_the_cfg_and_keeps_the_rest(self, tmp_path):
-        """config-created-once: an overwrite rewrites the .cfg and leaves the folder's other files."""
+        """An overwrite rewrites the .cfg and leaves the folder's other files."""
         # Arrange
         cfg_path, script = _existing(tmp_path, "mydev")
 

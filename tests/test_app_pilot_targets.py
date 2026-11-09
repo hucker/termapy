@@ -230,6 +230,7 @@ def _write_scripts(cfg_path: str, **scripts: str) -> None:
 
 
 class TestScriptOverlay:
+    @pytest.mark.rule("script-overlay-owns-bar")
     def test_a_typed_run_mounts_the_overlay_and_restores_the_bar(self, app_factory):
         """A typed /run disables the prompt under a Stop overlay that names the script chain, then hands the bar and focus back.
 
@@ -286,6 +287,7 @@ class TestScriptOverlay:
 
         _run(scenario)
 
+    @pytest.mark.rule("script-overlay-owns-bar")
     def test_the_stop_button_ends_a_script(self, app_factory):
         """Clicking the overlay's Stop after a TYPED /run ends the script at the next line.
 
@@ -363,8 +365,9 @@ class TestConfigPicked:
 
         _run(scenario)
 
+    @pytest.mark.rule("port-present-one-decider")
     def test_load_by_serial_number_connects_without_asking_for_a_port(self, app_factory, tmp_path):
-        """port-present-one-decider: a config naming its port by serial number loads like a COM name, no picker."""
+        """A config naming its port by serial number loads like a COM name, no picker."""
 
         async def scenario():
             # Arrange: DEMO answers to its own serial number, so no hardware is needed
@@ -393,8 +396,9 @@ class TestConfigPicked:
 
         _run(scenario)
 
+    @pytest.mark.rule("port-display")
     def test_tooltips_show_the_device_as_port_and_the_number_as_serial(self, app_factory):
-        """port-display: a serial-number config's tooltips say port = the device, serial # = the number."""
+        """A serial-number config's tooltips say port = the device, serial # = the number."""
 
         async def scenario():
             # Arrange: DEMO answers to its own serial number, so no hardware is needed
@@ -527,8 +531,9 @@ class TestConfigPicked:
 
         _run(scenario)
 
+    @pytest.mark.rule("config-deleted-once")
     def test_delete_asks_first_and_deletes_the_folder_on_yes(self, app_factory, tmp_path):
-        """config-deleted-once: the picker's Delete is /cfg.delete; No keeps the config, Yes removes its folder."""
+        """The picker's Delete is /cfg.delete; No keeps the config, Yes removes its folder."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -570,8 +575,9 @@ class TestConfigPicked:
 
         _run(scenario)
 
+    @pytest.mark.rule("config-deleted-once")
     def test_deleting_the_active_config_is_refused(self, app_factory):
-        """config-deleted-once: the active config's folder holds the session's log, so Delete refuses it."""
+        """The active config's folder holds the session's log, so Delete refuses it."""
 
         async def scenario():
             app, _, path = app_factory()
@@ -597,8 +603,9 @@ class TestConfigPicked:
 
 
 class TestScriptPickedDelete:
+    @pytest.mark.rule("one-handler-per-command")
     def test_the_pickers_delete_is_run_delete(self, app_factory):
-        """one-handler-per-command: the Run picker's Delete is /run.delete, which asks, deletes and recounts the Scripts; the picker stays open."""
+        """The Run picker's Delete is /run.delete, which asks, deletes and recounts the Scripts; the picker stays open."""
 
         async def scenario():
             app, _, path = app_factory()
@@ -640,8 +647,9 @@ class TestScriptPickedDelete:
 
         _run(scenario)
 
+    @pytest.mark.rule("one-handler-per-command")
     def test_the_proto_pickers_rename_stays_open_on_the_new_name(self, app_factory):
-        """one-handler-per-command: the Proto picker's Rename is /proto.rename; the picker stays open with the new name highlighted."""
+        """The Proto picker's Rename is /proto.rename; the picker stays open with the new name highlighted."""
 
         async def scenario():
             app, _, path = app_factory()
@@ -871,8 +879,9 @@ class TestSessionLogFollowsConfig:
 
         asyncio.run(scenario())
 
+    @pytest.mark.rule("prestart-before-start")
     def test_startup_load_report_is_in_the_session_log(self, app_factory):
-        """prestart-before-start: the log opens at pre-start, so the startup load table is in it."""
+        """The log opens at pre-start, so the startup load table is in it."""
 
         async def scenario():
             app, _, path = app_factory(name="first")
@@ -1188,8 +1197,9 @@ async def _hover_text(pilot, app, text: str) -> None:
     await pilot.pause()
 
 
+@pytest.mark.rule("links-are-data")
 class TestClickableOutput:
-    """links-are-data: a clicked list entry runs as if typed; links live in a bounded table."""
+    """A clicked list entry runs as if typed; links live in a bounded table."""
 
     def test_clicking_a_listed_script_runs_it_twice_like_typing(self, app_factory):
         """A click on /run.list's NAME runs the script, echoed and into history, and again on a second click."""

@@ -1,4 +1,4 @@
-"""bare-declared: a bare call's behavior is a declaration the dispatcher honors.
+"""A bare call's behavior is a declaration the dispatcher honors.
 
 ``Command(picker=...)`` opens a picker on a bare call in a host that has
 pickers; everywhere else the handler runs its own bare path.  A plain
@@ -13,6 +13,8 @@ import pytest
 
 from termapy.plugins import CmdResult, PluginInfo
 from termapy.repl import ReplEngine
+
+pytestmark = pytest.mark.rule("bare-declared")
 
 
 class _PickerHost:
@@ -36,8 +38,9 @@ def engine_with_pickers():
     return eng, host
 
 
+@pytest.mark.rule("bare-declared")
 def test_a_bare_declared_command_opens_its_picker(engine_with_pickers):
-    """bare-declared: bare /cfg and /port open their pickers instead of running the handler."""
+    """Bare /cfg and /port open their pickers instead of running the handler."""
     # Arrange
     eng, host = engine_with_pickers
 
@@ -122,8 +125,9 @@ def _probe_with_list(calls: list[str]) -> list[PluginInfo]:
     ]
 
 
+@pytest.mark.rule("bare-declared")
 def test_bare_sub_is_the_fallback_where_there_is_no_picker():
-    """bare-declared: with no picker in the host, bare /probe runs its bare_sub, /probe.list."""
+    """With no picker in the host, bare /probe runs its bare_sub, /probe.list."""
     # Arrange
     eng = ReplEngine({}, "", lambda text, color=None: None)
     calls: list[str] = []

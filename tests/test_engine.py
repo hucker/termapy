@@ -113,8 +113,9 @@ class TestStartScript:
         assert result.success, "success result"
         assert eng._script_depth == 1, "marks script as running"
 
+    @pytest.mark.rule("file-name-default-ext")
     def test_a_dotted_stem_finds_its_run_file(self, engine):
-        """file-name-default-ext: /run v1.2 finds run/v1.2.run, which the old "no suffix" rule never tried."""
+        """/run v1.2 finds run/v1.2.run, which the old "no suffix" rule never tried."""
         # Arrange
         eng, output = engine
         eng.scripts_dir.mkdir(exist_ok=True)
@@ -256,8 +257,9 @@ class TestApplyCfg:
 # -- run_script --------------------------------------------------------------
 
 
+@pytest.mark.rule("blocking-commands-need-sctx")
 def test_only_nested_runs_are_intercepted_by_the_script_runner():
-    """blocking-commands-need-sctx: a script line dispatches like any other unless it runs a nested script.
+    """A script line dispatches like any other unless it runs a nested script.
 
     /delay, /expect and /confirm were intercepted until 2026-10-16, second
     copies that behaved differently from the dispatched commands (review
@@ -872,8 +874,9 @@ class TestDispatchFull:
             f"the dispatcher renders the usage line, got {output!r}"
         )
 
+    @pytest.mark.rule("tx-only-what-went-out")
     def test_failed_empty_line_send_returns_a_failure(self, dispatch_env):
-        """tx-only-what-went-out: a failed empty-line send comes back as a result, not an exception."""
+        """A failed empty-line send comes back as a result, not an exception."""
         # Arrange
         eng, output, logged, echoed, statuses, writes, do = dispatch_env
 
@@ -1525,8 +1528,9 @@ class TestDispatchCapabilities:
         assert "serial_io" in result.error, "reports baseline gap"
         assert called == [], "handler never invoked"
 
+    @pytest.mark.rule("failure-is-failure")
     def test_a_closed_port_answers_not_connected(self, cap_env):
-        """failure-is-failure: a command that needs an open port answers Not connected., as handlers do.
+        """A command that needs an open port answers Not connected., as handlers do.
 
         The gate used to name the capability (``requires: serial_connected
         (not available in this environment)``), which reads as a permanent
@@ -1590,8 +1594,10 @@ class TestDispatchCapabilities:
             )
         )
 
+    @pytest.mark.rule("test-messages-through-owner")
+    @pytest.mark.rule("state-answered-by-gate")
     def test_the_gates_answers_read_exactly_so(self):
-        """state-answered-by-gate: the one place the answers' text is pinned; scripts and agents match on it.
+        """The one place the answers' text is pinned; scripts and agents match on it.
 
         Every other test compares against ``STATE_MESSAGES``, so changing
         what a user reads is this one deliberate edit, not a sweep.
@@ -1605,8 +1611,9 @@ class TestDispatchCapabilities:
             "script_idle": "Not available in a script.",
         }
 
+    @pytest.mark.rule("state-answered-by-gate")
     def test_no_config_answers_no_config_loaded(self, cap_env):
-        """state-answered-by-gate: a command that needs a config answers No config loaded. before its handler runs."""
+        """A command that needs a config answers No config loaded. before its handler runs."""
         # Arrange -- the session has no config
         eng, ctx, _ = cap_env
         ctx.config_path = ""
@@ -1622,8 +1629,9 @@ class TestDispatchCapabilities:
         )
         assert called == [], "handler never invoked"
 
+    @pytest.mark.rule("state-answered-by-gate")
     def test_no_config_and_no_port_answers_the_config_first(self, cap_env):
-        """state-answered-by-gate: missing both, the gate names the config, since loading one may open the port."""
+        """Missing both, the gate names the config, since loading one may open the port."""
         # Arrange -- no config, and the context reports no open port
         eng, ctx, _ = cap_env
         ctx.config_path = ""
@@ -1635,6 +1643,7 @@ class TestDispatchCapabilities:
         # Assert
         assert result.error == STATE_MESSAGES["config_loaded"], "the config before the port"
 
+    @pytest.mark.rule("state-answered-by-gate")
     def test_loading_a_config_opens_the_gate(self, cap_env):
         """config_loaded is read per dispatch: the command refused without a config runs once one is loaded."""
         # Arrange
@@ -1678,6 +1687,7 @@ class TestOneScriptAtATime:
         eng.ctx.fs.capabilities = caps
         return eng, output, script
 
+    @pytest.mark.rule("script-single-owner")
     def test_a_second_launch_from_another_thread_is_refused(self, tmp_path):
         """Another thread's launch mid-run is refused as already running, depth unchanged."""
         # Arrange -- a run in progress, owned by this thread
@@ -1717,6 +1727,7 @@ class TestOneScriptAtATime:
         actual = eng._script_depth
         assert actual == 2, f"nesting deepens the run, got depth {actual}"
 
+    @pytest.mark.rule("script-single-owner")
     def test_ownership_is_released_when_the_run_ends(self, tmp_path):
         """A finished run releases ownership so another thread can start the next one."""
         # Arrange -- one complete run, start to finish

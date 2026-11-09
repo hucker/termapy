@@ -19,6 +19,8 @@ from termapy.plugins import (
 )
 from termapy.repl import ReplEngine
 
+pytestmark = pytest.mark.rule("synopsis-grammar")
+
 
 def _noop(ctx, args):
     return CmdResult.ok(value="")

@@ -83,8 +83,9 @@ class TestDump:
         )
         assert line.rstrip().endswith("|  gTemp"), "ASCII column, then the containing symbol"
 
+    @pytest.mark.rule("mem-output-levels")
     def test_normal_rows_keep_ascii_and_label_but_drop_the_address(self, cli, capsys):
-        """mem-output-levels: a plain dump shows hex + ASCII + label; the address waits for .verbose."""
+        """A plain dump shows hex + ASCII + label; the address waits for .verbose."""
         # Act
         cli.repl.dispatch("mem.dump gTemp 16")
 
@@ -95,8 +96,9 @@ class TestDump:
         assert stripped.startswith("1B 00 "), "hex pairs lead the row"
         assert line.rstrip().endswith("|  gTemp"), "the ASCII column and the symbol label stay"
 
+    @pytest.mark.rule("mem-output-levels")
     def test_quiet_rows_are_bytes_only(self, cli, capsys):
-        """mem-output-levels: .quiet drops the address, ASCII and label -- just the hex bytes."""
+        """.quiet drops the address, ASCII and label -- just the hex bytes."""
         # Act
         cli.repl.dispatch("mem.dump.quiet gTemp 16")
 
@@ -266,8 +268,9 @@ class TestWrite:
 class TestValueWrites:
     """A named scalar takes a number at its width, in the device's byte order."""
 
+    @pytest.mark.rule("mem-named-bounds")
     def test_a_typed_symbol_takes_a_number(self, cli):
-        """mem-named-bounds: a u16 symbol takes 300 and stores it as its two bytes."""
+        """A u16 symbol takes 300 and stores it as its two bytes."""
         # Act
         written = cli.repl.dispatch("mem.write gTemp 300")
         read = cli.repl.dispatch("mem.dump gTemp 2")
@@ -277,8 +280,9 @@ class TestValueWrites:
         assert written.value == "300", "the value written is the answer"
         assert read.value == "2C01", "300 as a little-endian u16"
 
+    @pytest.mark.rule("mem-named-bounds")
     def test_an_untyped_symbol_takes_a_number_at_its_size(self, cli):
-        """mem-named-bounds: a 2-byte symbol with no type holds a u16, the linker-map case."""
+        """A 2-byte symbol with no type holds a u16, the linker-map case."""
         # Act
         written = cli.repl.dispatch("mem.write sCount 513")
         read = cli.repl.dispatch("mem.dump sCount 2")
@@ -402,8 +406,9 @@ class TestValueWrites:
 class TestNamedBounds:
     """A named target stays inside its symbol; a literal address names nothing."""
 
+    @pytest.mark.rule("mem-named-bounds")
     def test_an_untyped_symbol_reads_at_its_size(self, cli, capsys):
-        """mem-named-bounds: /mem.read of a 2-byte symbol with no type decodes a u16."""
+        """/mem.read of a 2-byte symbol with no type decodes a u16."""
         # Act -- the hex twin is verbose detail
         result = cli.repl.dispatch("mem.read.verbose sCount")
 
@@ -412,8 +417,9 @@ class TestNamedBounds:
         assert result.value == 3, "the seeded counter"
         assert "sCount = 3  (0x0003)" in capsys.readouterr().out, "two bytes, so four hex digits"
 
+    @pytest.mark.rule("mem-named-bounds")
     def test_a_type_wider_than_the_symbol_is_refused(self, cli):
-        """mem-named-bounds: u32 on the 2-byte gTemp would read gPressure's first bytes."""
+        """u32 on the 2-byte gTemp would read gPressure's first bytes."""
         # Act
         result = cli.repl.dispatch("mem.read gTemp u32")
 
@@ -458,8 +464,9 @@ class TestNamedBounds:
         assert "Type required: sBanner is 15 bytes, not one value" in result.error
         assert "mem.dump it" in result.error, "the refusal says what to type instead"
 
+    @pytest.mark.rule("mem-named-bounds")
     def test_bytes_past_the_end_of_a_symbol_are_refused(self, cli):
-        """mem-named-bounds: two bytes at gTemp+1 would overwrite gPressure; nothing is written."""
+        """Two bytes at gTemp+1 would overwrite gPressure; nothing is written."""
         # Act
         result = cli.repl.dispatch("mem.write gTemp+1 0102")
 
@@ -486,6 +493,7 @@ class TestNamedBounds:
         assert result.success, result.error
         assert cli.repl.dispatch("mem.dump 0x1000 4").value == "01020304"
 
+    @pytest.mark.rule("mem-named-bounds")
     @pytest.mark.parametrize(
         "line",
         [
@@ -498,7 +506,7 @@ class TestNamedBounds:
         ],
     )
     def test_a_read_only_symbol_refuses_every_write(self, cli, line):
-        """mem-named-bounds: code and constants refuse every writing command, before the wire."""
+        """Code and constants refuse every writing command, before the wire."""
         # Act
         result = cli.repl.dispatch(line)
 
@@ -638,8 +646,9 @@ class TestBitWrites:
         assert result.data["before_word"] == 0x8008 and result.data["after_word"] == 0x0008
         assert cli.repl.dispatch("mem.read U1MODE.ON").value == 0, "read-back"
 
+    @pytest.mark.rule("mem-output-levels")
     def test_the_word_change_clause_is_verbose(self, cli, capsys):
-        """mem-output-levels: a bit write shows its value at any level, the word change only at .verbose."""
+        """A bit write shows its value at any level, the word change only at .verbose."""
         # Act -- write the same bit twice so the before/after word is stable
         cli.repl.dispatch("mem.write U1MODE.ON 1")
         capsys.readouterr()
@@ -703,8 +712,9 @@ class TestMaskOps:
             "the answer names the op, mask and where; the word change is verbose"
         )
 
+    @pytest.mark.rule("mem-output-levels")
     def test_the_word_change_clause_is_verbose(self, cli, capsys):
-        """mem-output-levels: .verbose adds the before/after word to a mask op."""
+        """.verbose adds the before/after word to a mask op."""
         # Act -- OR a bit already set, so the word is unchanged and stable to assert
         cli.repl.dispatch("mem.or.verbose gFlags 0x04")
 
@@ -821,8 +831,9 @@ class TestDumpModes:
             "signed decimal values in the records"
         )
 
+    @pytest.mark.rule("mem-output-levels")
     def test_bare_mode(self, cli, capsys):
-        """mem-output-levels: .quiet is bytes only; addr=/ascii= default off so they add nothing."""
+        """.quiet is bytes only; addr=/ascii= default off so they add nothing."""
         # Act -- quiet drops every column; the flags here are already the default
         cli.repl.dispatch("mem.dump.quiet gTemp 4 addr=off ascii=off")
 
@@ -830,8 +841,9 @@ class TestDumpModes:
         line = capsys.readouterr().out.splitlines()[0].lstrip()
         assert line == "1B 00 00 50", "no address, no ascii, no label"
 
+    @pytest.mark.rule("mem-output-levels")
     def test_a_flag_forces_a_column_on_above_its_floor(self, cli, capsys):
-        """mem-output-levels: addr=on forces the address column even at .quiet, where it is off by default."""
+        """addr=on forces the address column even at .quiet, where it is off by default."""
         # Act
         cli.repl.dispatch("mem.dump.quiet gTemp 4 addr=on")
 
@@ -994,8 +1006,9 @@ class TestSpaceForm:
         assert result.success, result.error
         assert result.value == "1B00", "identical to /mem.dump gTemp 2"
 
+    @pytest.mark.rule("failure-reported-once")
     def test_a_failed_redirect_answers_once_with_the_subcommands_error(self, cli, capsys):
-        """failure-reported-once: /mem dump on a closed port fails with Not connected., printed once.
+        """/mem dump on a closed port fails with Not connected., printed once.
 
         The redirect handed up a failure the subcommand had already printed,
         so the line showed twice (review 2026-10-15, S4).
@@ -1798,9 +1811,10 @@ class TestWriteAudit:
 class TestReadOnlyRegisters:
     """A device file's access: ro is the same gate as a constant's."""
 
+    @pytest.mark.rule("mem-named-bounds")
     @pytest.mark.parametrize("line", ["mem.write USTAT 0", "mem.write USTAT.0 1", "mem.or USTAT 1"])
     def test_a_read_only_register_refuses_writes(self, sfr_cli, line):
-        """mem-named-bounds: a status register the vendor marks read-only is not written."""
+        """A status register the vendor marks read-only is not written."""
         # Act
         result = sfr_cli.repl.dispatch(line)
 
@@ -1830,8 +1844,9 @@ class TestReadOnlyRegisters:
 class TestArraysAndStructs:
     """What an ELF types: an array by its element, a struct by its members."""
 
+    @pytest.mark.rule("mem-named-bounds")
     def test_an_array_is_not_one_value(self, cli):
-        """mem-named-bounds: a u32 array refuses a bare read and says how to read it."""
+        """A u32 array refuses a bare read and says how to read it."""
         # Act
         result = cli.repl.dispatch("mem.read sCmdTable")
 

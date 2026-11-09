@@ -72,10 +72,11 @@ def _run_hw_loopback_suite(
     )
 
 
+@pytest.mark.rule("hw-loopback-never-on-github")
 @pytest.mark.slow
 @pytest.mark.parametrize("flag", ["--run-hw-loopback", "--require-hw-loopback"])
 def test_hw_loopback_flags_are_refused_on_github_actions(flag):
-    """hw-loopback-never-on-github: on GitHub Actions either hw_loopback flag stops the session before any test is collected."""
+    """On GitHub Actions either hw_loopback flag stops the session before any test is collected."""
     # Act
     result = _run_hw_loopback_suite(flag, on_github=True)
 
@@ -89,10 +90,11 @@ def test_hw_loopback_flags_are_refused_on_github_actions(flag):
     )
 
 
+@pytest.mark.rule("hw-loopback-demanded-fails-loud")
 @_bench_only
 @pytest.mark.slow
 def test_require_hw_loopback_fails_without_the_rig():
-    """hw-loopback-demanded-fails-loud: under --require-hw-loopback a missing adapter fails the run and names the adapter."""
+    """Under --require-hw-loopback a missing adapter fails the run and names the adapter."""
     # Act
     result = _run_hw_loopback_suite("--require-hw-loopback")
 
@@ -106,6 +108,7 @@ def test_require_hw_loopback_fails_without_the_rig():
     )
 
 
+@pytest.mark.rule("hw-loopback-demanded-fails-loud")
 @_bench_only
 @pytest.mark.slow
 def test_run_hw_loopback_still_skips_without_the_rig():

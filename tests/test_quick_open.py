@@ -101,6 +101,7 @@ class TestQuickConfig:
         assert (again, verb) == (path, "Using")
         assert path.read_bytes() == before, "an open with no settings must not rewrite the config"
 
+    @pytest.mark.rule("config-created-once")
     def test_later_settings_are_laid_over_and_kept(self, cfg_root):
         """A new baud replaces the saved one; the frame given the first time stays."""
         # Arrange
@@ -286,8 +287,9 @@ def _termapy(cwd: Path, *argv: str, env_extra: dict[str, str]) -> subprocess.Com
 class TestCommandLine:
     """``main()`` end to end, ``--check`` standing in for the frontend as TestNewFlag's tests do."""
 
+    @pytest.mark.rule("quick-open-outside-project")
     def test_quick_open_outside_project(self, tmp_path):
-        """quick-open-outside-project: a port typed inside a project makes its config in the user folder, never ./termapy_cfg."""
+        """A port typed inside a project makes its config in the user folder, never ./termapy_cfg."""
         # Arrange -- a project folder, and a user folder the OS lookup lands in on every platform
         project = tmp_path / "project"
         (project / "termapy_cfg").mkdir(parents=True)

@@ -108,8 +108,9 @@ class TestHelpAndRoot:
         assert "/proto.send" in out, "the page lists the subcommands"
         assert "SCRIPTS" in out and "probe.pro" in out, "the folder's scripts are appended"
 
+    @pytest.mark.rule("bare-declared")
     def test_bare_proto_lists_without_a_picker(self, cli):
-        """bare-declared: a bare /proto runs /proto.list where no picker exists (the CLI); the TUI opens its picker."""
+        """A bare /proto runs /proto.list where no picker exists (the CLI); the TUI opens its picker."""
         bare = cli.repl.dispatch_full("/proto")
         listed = cli.repl.dispatch_full("/proto.list")
         assert bare.success, bare.error
@@ -306,8 +307,9 @@ class TestRun:
         assert result.success is True, result.error
         assert Path(result.value) == script.resolve()
 
+    @pytest.mark.rule("file-name-default-ext")
     def test_a_dotted_stem_resolves_to_its_pro_file(self, cli):
-        """file-name-default-ext: /proto.run smoke.v2 finds proto/smoke.v2.pro; a dot in the stem no longer blocks .pro."""
+        """/proto.run smoke.v2 finds proto/smoke.v2.pro; a dot in the stem no longer blocks .pro."""
         script = _pro(_proto_folder(cli), "smoke.v2.pro", 'send: "AT\\r"\nexpect: "OK\\r\\n"\n')
         result = cli.repl.dispatch_full("/proto.run smoke.v2")
         assert result.success is True, result.error
@@ -363,8 +365,9 @@ class TestRun:
         )
         assert "Results: 1/3 PASS" in out
 
+    @pytest.mark.rule("failure-is-failure")
     def test_a_failing_suite_answers_json_with_its_results(self, cli, tmp_path, capsys):
-        """failure-is-failure: a failing suite answers --json with success false and the results as data.
+        """A failing suite answers --json with success false and the results as data.
 
         Until 2026-10-16 /proto.run returned success whatever failed, so a
         regression .run or an agent saw a failing suite pass; ``termapy

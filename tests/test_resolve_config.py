@@ -30,8 +30,9 @@ def _tree(root: Path) -> list[str]:
 
 
 class TestFindConfig:
+    @pytest.mark.rule("reads-never-write")
     def test_find_config_writes_nothing(self, tmp_path, monkeypatch):
-        """reads-never-write: the startup scan finds the config and changes no file (``--check`` relies on it)."""
+        """The startup scan finds the config and changes no file (``--check`` relies on it)."""
         # Arrange -- one config, plus a pre-.cfg folder the scan once renamed
         monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
         cfg = _make_cfg(tmp_path, "bench")

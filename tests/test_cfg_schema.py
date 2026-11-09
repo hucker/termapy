@@ -39,6 +39,8 @@ from termapy.defaults import (
 )
 from termapy.dialogs.config_editor import ConfigEditor
 
+pytestmark = pytest.mark.rule("cfg-schema-one-table")
+
 LEAVES = [record.path.rpartition(".")[2] for record in CFG_KEYS]
 
 # (key, a value the file might hold, the same value as typed at /cfg)
@@ -199,8 +201,9 @@ class TestOneAnswer:
         status, error = _editor_answer(tmp_path, "baud_rate", str(rate))
         assert (status.startswith("[green]"), error) == (True, "")
 
+    @pytest.mark.rule("baud-standard-unless-custom")
     def test_a_non_standard_rate_needs_custom_baud(self, tmp_path, cli):
-        """baud-standard-unless-custom: off the list, a rate warns at load, shows red and is refused, until custom_baud is true."""
+        """Off the list, a rate warns at load, shows red and is refused, until custom_baud is true."""
         # Act
         warnings = validate_config({"serial": {"baud_rate": 250000}})
         status, _ = _editor_answer(tmp_path, "baud_rate", "250000")
@@ -280,6 +283,7 @@ class TestSetting:
         assert query.value is False, "the query answers the same spelling"
 
 
+@pytest.mark.rule("value-typed")
 class TestValueText:
     """config.cfg_value_text: one spelling for a config value wherever termapy shows one."""
 

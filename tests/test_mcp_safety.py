@@ -87,8 +87,9 @@ class TestCommandDeclaration:
         assert loaded["boom"].safety == "readonly", "root tier carried into PluginInfo"
         assert loaded["boom.now"].safety == "destructive", "subcommand tier carried too"
 
+    @pytest.mark.rule("destructive-declared")
     def test_every_delete_command_is_destructive(self, host):
-        """destructive-declared: the delete verb means removal from disk, so its command is destructive."""
+        """The delete verb means removal from disk, so its command is destructive."""
         # Act
         undeclared = sorted(
             name
@@ -99,6 +100,7 @@ class TestCommandDeclaration:
         # Assert
         assert undeclared == [], "declare each of these safety='destructive'"
 
+    @pytest.mark.rule("destructive-declared")
     @pytest.mark.parametrize(
         ("command", "expected"),
         [
@@ -115,7 +117,7 @@ class TestCommandDeclaration:
         ],
     )
     def test_each_command_declares_its_tier(self, host, command, expected):
-        """destructive-declared: a command that removes the user's files is destructive, one undone by a command is mutable."""
+        """A command that removes the user's files is destructive, one undone by a command is mutable."""
         # Act
         plugin = host.repl.plugin_for(command)
 
@@ -167,6 +169,7 @@ class TestMcpGate:
         )
         assert result["data"]["command"] == "/mem.write", "the resolved subcommand, prefixed"
 
+    @pytest.mark.rule("destructive-declared")
     def test_a_delete_is_refused_not_gated(self, host, tmp_path):
         """/cap.delete is no one's to confirm under MCP, so it never asks and confirm=true unlocks nothing."""
         # Arrange
@@ -183,6 +186,7 @@ class TestMcpGate:
         assert "interactive" in confirmed["error"], "and the same answer with confirm=true"
         assert capture.exists(), "the capture is still there"
 
+    @pytest.mark.rule("destructive-declared")
     def test_a_command_mcp_cannot_run_is_refused_not_gated(self, host):
         """/demo.force needs a human, so MCP answers why it cannot run, never asks for confirm."""
         # Act

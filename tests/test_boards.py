@@ -141,8 +141,9 @@ class TestTable:
             assert result.ok, f"{board.name}: {result.errors}"
             assert result.warnings == [], f"{board.name}: {result.warnings}"
 
+    @pytest.mark.rule("board-profile-complete")
     def test_profile_describes_the_firmware_commands(self):
-        """board-profile-complete: the profile names every command the board answers, its table's and the monitor's."""
+        """The profile names every command the board answers, its table's and the monitor's."""
         monitor_commands = set(BOARD_JSON.Monitor({}, print).builtins)
         mem_commands = set(BOARD_MEM.Memory(None, None).commands())
         for board in BOARDS:
@@ -162,8 +163,9 @@ class TestTable:
             actual = set(load_profile(BOARDS_DIR / board.name / "profile.json")["commands"])
             assert actual == expected, f"{board.name}: profile and firmware disagree"
 
+    @pytest.mark.rule("board-profile-complete")
     def test_profile_governs_every_form(self):
-        """board-profile-complete: every form a board takes reaches its profile entry, and the entry's types take it."""
+        """Every form a board takes reaches its profile entry, and the entry's types take it."""
         for board in BOARDS:
             profile = load_profile(BOARDS_DIR / board.name / "profile.json")
             registry = TypeRegistry.from_profile(profile)
@@ -430,6 +432,7 @@ class TestCommands:
         assert "Raspberry Pi Pico" in result.error
         assert not (tmp_path / "termapy_cfg" / "pico").exists()
 
+    @pytest.mark.rule("writes-in-cfg-folder")
     def test_board_firmware_copies_into_the_config_folder(self, env: Env, tmp_path):
         """/board.firmware writes into the config's firmware/ and prints the install command in full."""
         # Act
@@ -937,9 +940,10 @@ def wire(link: Link, line: str) -> str:
 class TestMicroPythonMem:
     """MicroPython's termapy_mem.py answers the MEM wire spec as termapy_mem.c does, with no map of its own."""
 
+    @pytest.mark.rule("mem-wire-cases-shared")
     @pytest.mark.parametrize(("line", "reason"), WIRE_ERRORS)
     def test_the_wire_refusals(self, line, reason):
-        """mem-wire-cases-shared: each refusal in the shared table is the one ERR line the C answers."""
+        """Each refusal in the shared table is the one ERR line the C answers."""
         link, _bus = mem_link()
         assert wire(link, "MEM." + line) == f"ERR {reason}\r\n"
 
@@ -1023,15 +1027,17 @@ class TestMicroPythonMem:
         assert '"modify"' not in wire(without_lock, "MEM.INFO"), "no lock, no MEM.M to offer"
         assert wire(without_lock, "MEM.M 0 FF 00") == "ERR usage\r\n", "as the C answers it"
 
+    @pytest.mark.rule("board-mem-pure")
     def test_no_guard_reads_any_address(self):
-        """board-mem-pure: with no guard, the address goes to the bus as given, with nothing in front of it."""
+        """With no guard, the address goes to the bus as given, with nothing in front of it."""
         link, bus = mem_link()
         assert wire(link, "MEM.R F0 16") == row(0xF0, bytes(16)) + "OK\r\n"
         assert wire(link, "MEM.R 100 1") == "ERR range\r\n", "only the platform itself refused"
         assert bus.accesses == [("read", 0xF0, 16), ("read", 0x100, 1)], "nothing but the asks"
 
+    @pytest.mark.rule("board-mem-pure")
     def test_the_guard_sees_every_access_before_it_runs(self):
-        """board-mem-pure: the guard is asked first, and a refusal is ERR range with the bus untouched."""
+        """The guard is asked first, and a refusal is ERR range with the bus untouched."""
         # Arrange: a board rule that the top half is read-only.
         asked: list[tuple[int, int, bool]] = []
 
@@ -1051,8 +1057,9 @@ class TestMicroPythonMem:
             "the refused write never ran"
         )
 
+    @pytest.mark.rule("board-mem-pure")
     def test_a_modify_the_guard_refuses_never_takes_the_lock(self):
-        """board-mem-pure: MEM.M asks the guard to read and to write before masking IRQs."""
+        """MEM.M asks the guard to read and to write before masking IRQs."""
         # Arrange
         asked: list[tuple[int, int, bool]] = []
 
@@ -1070,8 +1077,9 @@ class TestMicroPythonMem:
         assert asked == [(0x10, 1, False), (0x10, 1, True)], "asked as a read, then as a write"
         assert (bus.locks, bus.accesses) == (0, []), "nothing locked, nothing touched"
 
+    @pytest.mark.rule("board-mem-native-text")
     def test_mem_answers_in_text_whatever_the_framing(self):
-        """board-mem-native-text: in JSON framing a MEM line still gets the spec's text, and the framing stays."""
+        """In JSON framing a MEM line still gets the spec's text, and the framing stays."""
         # Arrange
         link, _bus = mem_link()
         link.ask("json on")
@@ -1084,8 +1092,9 @@ class TestMicroPythonMem:
         assert replies[1] == "ERR length\r\n", "a refusal is the spec's ERR line"
         assert replies[2] == '{"result":"hi"}\n', "the next command is still answered in JSON"
 
+    @pytest.mark.rule("board-mem-native-text")
     def test_a_json_request_gets_an_envelope(self):
-        """board-mem-native-text: a JSON request for a MEM verb gets the lines as its result, a refusal as its error."""
+        """A JSON request for a MEM verb gets the lines as its result, a refusal as its error."""
         link, _bus = mem_link()
         assert link.ask('{"method":"MEM.R","params":["0","1"],"id":7}') == [
             '{"result":["00000000: 00","OK"],"id":7}\n'

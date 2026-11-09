@@ -1,4 +1,4 @@
-"""list-one-format: a list answer is records plus a view, and dispatch renders the view once.
+"""A list answer is records plus a view, and dispatch renders the view once.
 
 ``CmdResult.table`` carries the records as ``data`` and a ``TableView``;
 the handler renders nothing.  Dispatch's exit prints the view unless the
@@ -19,6 +19,8 @@ from termapy.plugins.handles.io import IOHandle
 from termapy.plugins.views import Link, Piece, counted, pieces_markup
 from termapy.repl import ReplEngine
 
+pytestmark = pytest.mark.rule("list-one-format")
+
 _COLUMNS = (
     Column("NAME", lambda record: record["name"]),
     Column("BAUD", lambda record: str(record["baud"]), right=True),
@@ -38,8 +40,9 @@ def _view(records=_RECORDS) -> TableView:
 # -- the view: one shape ------------------------------------------------------
 
 
+@pytest.mark.rule("list-one-format")
 def test_a_table_is_title_header_dashes_rows():
-    """list-one-format: title with count, then header, dashes and one row per record, columns two apart."""
+    """Title with count, then header, dashes and one row per record, columns two apart."""
     # Act
     actual = [text for text, _ in _view().lines()]
 
@@ -85,8 +88,9 @@ def test_cmdresult_table_carries_records_and_view():
     assert result.view == _view(), "the view describes the same records"
 
 
+@pytest.mark.rule("table-value-is-count")
 def test_a_tables_value_is_its_row_count():
-    """table-value-is-count: the value is the number of rows as an int, for the records form and the mapping form alike."""
+    """The value is the number of rows as an int, for the records form and the mapping form alike."""
     # Act
     two = CmdResult.table("Boards", "board", _COLUMNS, _RECORDS)
     none = CmdResult.table("Boards", "board", _COLUMNS, [])
@@ -207,8 +211,9 @@ _STATUS = {"port": "COM4", "open": True, "note": None}
 _STATUS_ROWS = (("port", "COM4"), ("open", "yes", "green"), None, ("note", "[none]"))
 
 
+@pytest.mark.rule("record-one-format")
 def test_a_record_page_aligns_each_block_and_escapes_every_value():
-    """record-one-format: title, cyan rows aligned per block, a blank line between blocks, notes; text is escaped."""
+    """title, cyan rows aligned per block, a blank line between blocks, notes; text is escaped."""
     # Arrange
     result = CmdResult.record(
         _STATUS,
@@ -412,8 +417,9 @@ def _lists_without_records(eng: ReplEngine) -> list[str]:
     return offenders
 
 
+@pytest.mark.rule("list-one-format")
 def test_every_list_command_answers_with_records(tmp_path):
-    """list-one-format: every .list and .lib command answers a data caller with a list of dicts, never lines of text."""
+    """Every .list and .lib command answers a data caller with a list of dicts, never lines of text."""
     # Arrange
     eng = _cli_engine(tmp_path)
 
@@ -460,8 +466,9 @@ def _linked() -> TableView:
     return TableView("Boards", "board", _LINKED, _RECORDS)
 
 
+@pytest.mark.rule("links-are-data")
 def test_segments_join_to_exactly_the_plain_lines():
-    """links-are-data: the joined pieces are the plain table byte for byte, so other frontends see no change."""
+    """The joined pieces are the plain table byte for byte, so other frontends see no change."""
     # Arrange
     view = _linked()
 
@@ -552,6 +559,7 @@ def test_output_segments_follows_the_output_level():
     assert written == [], "data output is a normal-level channel"
 
 
+@pytest.mark.rule("links-are-data")
 def test_the_three_lists_reach_a_clicking_frontend_with_their_links(tmp_path, monkeypatch):
     """/cfg.list loads, /run.list and /proto.list run: each name arrives as a link through dispatch."""
     # Arrange -- a host whose frontend can click, with one config, script and test
@@ -635,8 +643,9 @@ def _fit_view(columns=_FIT_COLUMNS, records=_FIT_RECORDS) -> TableView:
     return TableView("Fit", "row", columns, tuple(records))
 
 
+@pytest.mark.rule("table-fits-the-frontend")
 def test_a_narrow_width_drops_the_highest_drop_column_first():
-    """table-fits-the-frontend: too wide by one, the highest-drop column goes; narrower still, the next; drop 0 never."""
+    """Too wide by one, the highest-drop column goes; narrower still, the next; drop 0 never."""
     # Act
     whole = [text for text, _ in _fit_view().lines(18)]
     one_gone = [text for text, _ in _fit_view().lines(17)]
@@ -707,8 +716,9 @@ def test_a_negative_drop_is_refused():
         Column("X", lambda record: "", drop=-1)
 
 
+@pytest.mark.rule("table-fits-the-frontend")
 def test_dispatch_fits_the_table_to_the_frontends_width():
-    """table-fits-the-frontend: dispatch prints the table at IOHandle.width(), so a narrow frontend gets the fitted rows."""
+    """Dispatch prints the table at IOHandle.width(), so a narrow frontend gets the fitted rows."""
     # Arrange
     output: list[str] = []
     eng = ReplEngine({}, "", lambda text, color=None: output.append(text))

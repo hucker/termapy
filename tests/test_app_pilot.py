@@ -174,8 +174,9 @@ class TestCustomButtons:
 
         _run(scenario)
 
+    @pytest.mark.rule("widget-text-literal")
     def test_a_bracketed_name_and_tooltip_render_as_typed(self, app_factory):
-        """widget-text-literal: a button named [Rec] shows [Rec]; as markup it was an empty box (2026-05-22)."""
+        """A button named [Rec] shows [Rec]; as markup it was an empty box (2026-05-22)."""
 
         async def scenario():
             from textual.widgets import Button
@@ -585,8 +586,9 @@ class TestInputLine:
 
         _run(scenario)
 
+    @pytest.mark.rule("file-arg-declared")
     def test_right_accepts_a_suggested_file_name(self, app_factory):
-        """file-arg-declared: a started /run argument ghost-completes to the run/ file; Right takes it."""
+        """A started /run argument ghost-completes to the run/ file; Right takes it."""
 
         async def scenario():
             from textual.widgets import Input
@@ -614,8 +616,9 @@ class TestInputLine:
 
         _run(scenario)
 
+    @pytest.mark.rule("file-arg-declared")
     def test_tui_hooks_keep_their_file_declarations(self, app_factory):
-        """file-arg-declared: the commands the TUI re-registers still declare their folders."""
+        """The commands the TUI re-registers still declare their folders."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -868,8 +871,9 @@ class TestFindBar:
 
         _run(scenario)
 
+    @pytest.mark.rule("widget-text-literal")
     def test_a_character_class_pattern_shows_as_typed(self, app_factory):
-        """widget-text-literal: the status shows the regex [a-z]+x; as markup the class was a tag and vanished."""
+        """The status shows the regex [a-z]+x; as markup the class was a tag and vanished."""
 
         async def scenario():
             from textual.widgets import Label
@@ -888,8 +892,9 @@ class TestFindBar:
 
         _run(scenario)
 
+    @pytest.mark.rule("markup-escape")
     def test_the_frozen_view_keeps_bracketed_text_on_unmatched_lines(self, app_factory):
-        """markup-escape: an unmatched scrollback line reaches the frozen view as Text, so [ok] survives."""
+        """An unmatched scrollback line reaches the frozen view as Text, so [ok] survives."""
 
         async def scenario():
             from textual.widgets import RichLog
@@ -929,6 +934,7 @@ class TestSerialRxHandoff:
     guaranteed to time out (docs/review/2026-08-19-v0.74.0-opus-5.md, T2/T15).
     """
 
+    @pytest.mark.rule("rx-never-blocks")
     def test_enqueue_never_blocks_and_posts_one_wakeup(self, app_factory):
         """Back-to-back RX events share one pending wake-up, then all drain and render."""
 
@@ -958,6 +964,7 @@ class TestSerialRxHandoff:
 
         _run(scenario)
 
+    @pytest.mark.rule("rx-never-blocks")
     def test_capture_echo_rides_the_rx_queue(self, app_factory):
         """A capture echo line is queued like RX, never a blocking call into main from the reader.
 
@@ -1011,8 +1018,9 @@ class TestSerialRxHandoff:
 
         _run(scenario)
 
+    @pytest.mark.rule("hex-view-wire-bytes")
     def test_a_hex_batch_renders_rows_and_feeds_lines(self, app_factory):
-        """hex-view-wire-bytes: a toggle mid-drain keeps each batch in its view; hex-view lines are logged and fed, not shown."""
+        """A toggle mid-drain keeps each batch in its view; hex-view lines are logged and fed, not shown."""
 
         async def scenario():
             from textual.widgets import RichLog
@@ -1074,8 +1082,9 @@ class TestSerialRxHandoff:
 
         _run(scenario)
 
+    @pytest.mark.rule("rx-every-line-delivered")
     def test_a_flood_reaches_every_consumer_and_renders_only_max_lines(self, app_factory, tmp_path):
-        """rx-every-line-delivered: a flood is logged and captured whole; the pane renders only what it keeps.
+        """A flood is logged and captured whole; the pane renders only what it keeps.
 
         2100 events is past the 2000 the old cap held: it dropped the oldest
         before ``_write_batch``, so they missed the session log and the
@@ -1123,8 +1132,9 @@ class TestSerialRxHandoff:
 
         _run(scenario)
 
+    @pytest.mark.rule("port-lost-tears-down")
     def test_a_lost_port_stops_the_capture_and_resets_the_ui(self, app_factory, tmp_path):
-        """port-lost-tears-down: a disconnect from the reader stops a running capture, frees its claim and resets DTR/RTS."""
+        """A disconnect from the reader stops a running capture, frees its claim and resets DTR/RTS."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -1192,6 +1202,7 @@ class TestSerialRxHandoff:
 
         _run(scenario)
 
+    @pytest.mark.rule("reader-owned-by-engine")
     def test_disconnect_leaves_no_reader_thread_behind(self, app_factory):
         """Teardown joins the reader instead of hoping it stopped.
 
@@ -1399,8 +1410,9 @@ class TestMultilinePaste:
         folder.mkdir(exist_ok=True)
         (folder / f"{name}.run").write_text(text, encoding="utf-8")
 
+    @pytest.mark.rule("table-fits-the-frontend")
     def test_the_output_panes_width_reaches_dispatch(self, app_factory):
-        """table-fits-the-frontend: after layout, IOHandle.width() is the output pane's row width, the scrollbar reserved."""
+        """After layout, IOHandle.width() is the output pane's row width, the scrollbar reserved."""
 
         async def scenario():
             # Arrange
@@ -1418,10 +1430,11 @@ class TestMultilinePaste:
 
         _run(scenario)
 
+    @pytest.mark.rule("paste-waits-for-on-connect")
     def test_a_pasted_connect_finishes_its_on_connect_script_before_the_next_line(
         self, app_factory
     ):
-        """paste-waits-for-on-connect: the script runs whole, then the next pasted line, with its echo."""
+        """The script runs whole, then the next pasted line, with its echo."""
 
         async def scenario():
             # Arrange
@@ -1442,8 +1455,9 @@ class TestMultilinePaste:
 
         _run(scenario)
 
+    @pytest.mark.rule("paste-waits-for-on-connect")
     def test_plain_on_connect_commands_come_first_too(self, app_factory):
-        """paste-waits-for-on-connect: a command that is not a script is waited for as well, across the settling pause."""
+        """A command that is not a script is waited for as well, across the settling pause."""
 
         async def scenario():
             # Arrange
@@ -1462,8 +1476,9 @@ class TestMultilinePaste:
 
         _run(scenario)
 
+    @pytest.mark.rule("paste-waits-for-on-connect")
     def test_two_connects_in_one_paste_each_wait(self, app_factory):
-        """paste-waits-for-on-connect: the wait holds for each connect, and the count returns to none."""
+        """The wait holds for each connect, and the count returns to none."""
 
         async def scenario():
             # Arrange
@@ -1487,8 +1502,9 @@ class TestMultilinePaste:
 
         _run(scenario)
 
+    @pytest.mark.rule("paste-waits-for-on-connect")
     def test_escape_during_the_wait_stops_the_script_and_the_paste(self, app_factory):
-        """paste-waits-for-on-connect: Escape ends the wait as it ends the script, so the rest of the paste never goes."""
+        """Escape ends the wait as it ends the script, so the rest of the paste never goes."""
 
         async def scenario():
             # Arrange
@@ -1511,8 +1527,9 @@ class TestMultilinePaste:
 
         _run(scenario)
 
+    @pytest.mark.rule("paste-waits-for-on-connect")
     def test_a_buttons_sequence_waits_too(self, app_factory):
-        """paste-waits-for-on-connect: several commands from one button have the same shape as a paste and take the same wait."""
+        """Several commands from one button have the same shape as a paste and take the same wait."""
 
         async def scenario():
             # Arrange
@@ -1635,6 +1652,7 @@ class TestBusyLook:
 
         _run(scenario)
 
+    @pytest.mark.rule("ui-timer-stale-fire")
     def test_a_busy_look_timer_firing_after_its_command_ended_changes_nothing(self, app_factory):
         """A stopped timer can still fire once (Textual's Windows sleep): after _end_busy, its fire leaves the bar usable.
 
@@ -1707,6 +1725,7 @@ class TestRunLast:
 
         _run(scenario)
 
+    @pytest.mark.rule("typed-lines-one-feed")
     def test_a_paste_is_not_kept(self, app_factory):
         """The lines a paste runs are never kept, so /run.last never replays a paste."""
 
@@ -1752,8 +1771,9 @@ class TestSharedStateRaces:
     which is what the uncaught exception rode in on.
     """
 
+    @pytest.mark.rule("tx-only-what-went-out")
     def test_write_failure_is_reported_not_raised(self, app_factory):
-        """tx-only-what-went-out: a send the port refuses is a failed command on screen, not an exception in the worker."""
+        """A send the port refuses is a failed command on screen, not an exception in the worker."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -1781,8 +1801,9 @@ class TestSharedStateRaces:
 
         _run(scenario)
 
+    @pytest.mark.rule("tx-only-what-went-out")
     def test_missing_port_fails_the_send_and_logs_no_tx(self, app_factory):
-        """tx-only-what-went-out: with the port nulled by teardown a send fails visibly and logs no TX line."""
+        """With the port nulled by teardown a send fails visibly and logs no TX line."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -1872,6 +1893,7 @@ class TestDispatchContention:
     than dropping the line on the floor.
     """
 
+    @pytest.mark.rule("dispatch-guard-main-never-parks")
     def test_a_worker_waits_for_the_guard_instead_of_dropping_the_line(self, app_factory):
         """An off-main dispatch blocks while the guard is held, then runs once it frees."""
 
@@ -1924,6 +1946,7 @@ class TestDispatchContention:
 
         _run(scenario)
 
+    @pytest.mark.rule("dispatch-guard-main-never-parks")
     def test_the_main_thread_is_refused_immediately(self, app_factory):
         """Deadlock-freedom, pinned.
 
@@ -1992,6 +2015,7 @@ class TestMarshalling:
 
         _run(scenario)
 
+    @pytest.mark.rule("output-helpers-marshal")
     def test_status_from_a_worker_reaches_the_screen(self, app_factory):
         """The id is only useful if it still routes a worker's output."""
 
@@ -2022,6 +2046,7 @@ class TestMarshalling:
 
         _run(scenario)
 
+    @pytest.mark.rule("output-helpers-marshal")
     def test_find_bar_updates_are_marshalled(self, app_factory):
         """T12: the one internal-handle slot wired without marshalling.
 
@@ -2064,8 +2089,9 @@ class TestMarshalling:
 
         _run(scenario)
 
+    @pytest.mark.rule("output-helpers-marshal")
     def test_connection_hooks_from_a_worker_run_on_main(self, tmp_path):
-        """output-helpers-marshal: /port.connect and /port.disconnect run on a worker; their UI hooks run on main."""
+        """/port.connect and /port.disconnect run on a worker; their UI hooks run on main."""
 
         async def scenario():
             from termapy.app import SerialTerminal
@@ -2112,8 +2138,9 @@ class TestMarshalling:
         _run(scenario)
 
 
+@pytest.mark.rule("reconnect-survives-connect-attempts")
 class TestAutoReconnect:
-    """reconnect-survives-connect-attempts: each reconnect run owns its cancel token."""
+    """Each reconnect run owns its cancel token."""
 
     def test_a_failed_connect_while_retrying_leaves_it_retrying(self, app_factory):
         """A connect attempt that fails during auto-reconnect neither ends nor replaces the run."""
@@ -2177,8 +2204,9 @@ class TestAutoReconnect:
 
         _run(scenario)
 
+    @pytest.mark.rule("reconnect-opens-once")
     def test_a_live_run_finishes_the_connection_it_opened(self, app_factory):
-        """reconnect-opens-once: the TUI finishes the port a run opened -- reader started, Connected shown -- without reopening it."""
+        """The TUI finishes the port a run opened -- reader started, Connected shown -- without reopening it."""
 
         async def scenario():
             from textual.widgets import Button
@@ -2205,8 +2233,9 @@ class TestAutoReconnect:
 
         _run(scenario)
 
+    @pytest.mark.rule("reconnect-opens-once")
     def test_a_cancelled_run_closes_only_the_port_it_opened(self, app_factory):
-        """reconnect-opens-once: a run cancelled while its open was in flight closes its own port and never another."""
+        """A run cancelled while its open was in flight closes its own port and never another."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -2356,6 +2385,7 @@ class TestConfirmIsStopAware:
     teardown joins the threads workers run on.
     """
 
+    @pytest.mark.rule("confirm-off-main")
     def test_a_script_stop_releases_a_waiting_confirm(self, app_factory):
         """A script stop with the modal up releases the waiting worker, failing closed (False)."""
 
@@ -2445,6 +2475,7 @@ class TestBatchedOutputIsEquivalent:
 
         _run(scenario)
 
+    @pytest.mark.rule("color-off-is-all-color")
     def test_color_off_writes_termapy_lines_plain_with_their_links(self, app_factory):
         """With color off a status line, a markup line and a linked row render with no color, and the link still carries its click action."""
         from rich.style import Style
@@ -2704,6 +2735,7 @@ class TestFailureReportedOnce:
     2026-10-16); the CLI-rig tests could not see it.
     """
 
+    @pytest.mark.rule("failure-reported-once")
     def test_a_failed_capture_answers_with_the_inner_error_once(self, app_factory):
         """$(B) <- a refused command fails with the inner error, shown once on screen."""
 
@@ -2861,8 +2893,9 @@ class TestTrafficCounts:
 
         _run(scenario)
 
+    @pytest.mark.rule("config-load-deterministic")
     def test_a_config_load_hides_the_counts(self, app_factory, tmp_path):
-        """config-load-deterministic: /cfg.load turns /term.traffic off, and the bar hides with no hook."""
+        """/cfg.load turns /term.traffic off, and the bar hides with no hook."""
 
         async def scenario():
             from termapy.widgets import StatusBar
@@ -2982,6 +3015,7 @@ class TestCfgWaitsForConfirm:
 
         _run(scenario)
 
+    @pytest.mark.rule("confirm-off-main")
     def test_an_escape_pressed_at_idle_does_not_cancel_a_later_dialog(self, app_factory):
         """A stop set outside a script stays set until a script starts; /cfg still waits for its own answer."""
 
@@ -3080,8 +3114,9 @@ class TestEditHooks:
     <name>`` raised AttributeError -- the ``TestDelayHook`` defect again.
     """
 
+    @pytest.mark.rule("file-name-default-ext")
     def test_edit_run_opens_the_script_editor_from_a_stem(self, app_factory):
-        """file-name-default-ext: /edit.run foo opens run/foo.run in the script editor."""
+        """/edit.run foo opens run/foo.run in the script editor."""
 
         async def scenario():
             from termapy.dialogs import ScriptEditor
@@ -3132,8 +3167,9 @@ class TestEditHooks:
 
         _run(scenario)
 
+    @pytest.mark.rule("bare-declared")
     def test_bare_picker_commands_open_their_picker(self, app_factory):
-        """bare-declared: every picker= command opens its button's picker when bare, and the TUI opens every PICKERS name."""
+        """Every picker= command opens its button's picker when bare, and the TUI opens every PICKERS name."""
 
         async def scenario():
             from termapy.dialogs import ConfigPicker, ProtoPicker, QuickSetup, ScriptPicker
@@ -3324,8 +3360,9 @@ class TestEditHooks:
 
         _run(scenario)
 
+    @pytest.mark.rule("one-handler-per-command")
     def test_cfg_load_switches_before_it_returns(self, app_factory, tmp_path):
-        """one-handler-per-command: /cfg.load from a worker returns after the TUI's switch, not before it.
+        """/cfg.load from a worker returns after the TUI's switch, not before it.
 
         The TUI's own /cfg.load scheduled the switch on main and returned at
         once, so a script line after it ran against the old config.

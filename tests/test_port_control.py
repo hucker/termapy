@@ -3,6 +3,8 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.port_control import (
     PORT_PROPS,
@@ -516,8 +518,9 @@ class TestParseOpenArgs:
         )
 
 
+@pytest.mark.rule("baud-standard-unless-custom")
 class TestBaudStandardUnlessCustom:
-    """baud-standard-unless-custom: a typed rate off the standard list needs custom=true."""
+    """A typed rate off the standard list needs custom=true."""
 
     def test_a_mistyped_rate_is_refused(self):
         """11520 (a 115200 missing a digit) is refused, and the error says how to ask for it."""
@@ -953,8 +956,6 @@ class TestSetMode:
 
 import os  # noqa: E402
 
-import pytest  # noqa: E402
-
 from termapy.port_control import (  # noqa: E402
     _BUS_REPORTED_DEVICE_DESC,
     _DEVICE_ID_SEP,
@@ -1126,8 +1127,9 @@ def _linked_device(tmp_path):
     return str(device), str(link)
 
 
+@pytest.mark.rule("port-name-one-compare")
 class TestSamePort:
-    """port-name-one-compare: two names are the same port when the OS would open the same device."""
+    """Two names are the same port when the OS would open the same device."""
 
     @windows_only
     @pytest.mark.parametrize("typed", ["COM3", "com3", "Com3", r"\\.\COM3", r"\\.\com3"])
@@ -1153,8 +1155,9 @@ class TestSamePort:
         assert same_port(link, device) is True, "the link opens the device"
 
 
+@pytest.mark.rule("port-name-one-compare")
 class TestResolvePortNameForms:
-    """port-name-one-compare: a name that opens a listed port resolves to the listed name and is present."""
+    """A name that opens a listed port resolves to the listed name and is present."""
 
     @windows_only
     @pytest.mark.parametrize("typed", ["com3", r"\\.\COM3"])
@@ -1321,8 +1324,9 @@ def _shared_serial_fleet() -> list[ChipFacts]:
     return [ChipFacts(device="COM3", serial="0001"), ChipFacts(device="COM7", serial="0001")]
 
 
+@pytest.mark.rule("port-present-one-decider")
 class TestPortPresent:
-    """port-present-one-decider: whether the configured port is here, decided as connecting resolves it."""
+    """Whether the configured port is here, decided as connecting resolves it."""
 
     @pytest.mark.parametrize(
         "spec",
@@ -1373,6 +1377,7 @@ class TestPortPresent:
             assert facts is not None, f"{name} has facts"
             assert facts.serial == serial, "the number /port.info shows is the one that resolves"
 
+    @pytest.mark.rule("port-display")
     def test_display_shows_the_device_and_its_serial_number(self):
         """A config naming its port by serial number displays as the device, the number as its serial."""
         # Act

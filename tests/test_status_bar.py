@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
 from textual.app import App, ComposeResult
 
 from termapy.widgets import StatusBar
@@ -44,8 +45,9 @@ def test_show_makes_it_visible_with_text():
     _run(scenario)
 
 
+@pytest.mark.rule("widget-text-literal")
 def test_status_text_renders_as_typed():
-    """widget-text-literal: plugin text on the status bar is shown as written, brackets and all."""
+    """Plugin text on the status bar is shown as written, brackets and all."""
 
     async def scenario():
         async with _Host().run_test() as pilot:
@@ -86,6 +88,7 @@ def test_newer_message_replaces_older():
     _run(scenario)
 
 
+@pytest.mark.rule("ui-timer-stale-fire")
 def test_a_stale_auto_clear_leaves_a_newer_message():
     """A stopped timer can still fire once (Textual's Windows sleep): the first message's clear leaves the second alone."""
 

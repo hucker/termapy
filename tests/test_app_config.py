@@ -79,8 +79,9 @@ def _cfg_with(**overrides) -> dict:
 
 
 class TestCfgDataDir:
+    @pytest.mark.rule("reads-never-write")
     def test_cfg_data_dir_writes_nothing(self, tmp_path):
-        """reads-never-write: the lookup returns the folder and leaves it exactly as found.
+        """The lookup returns the folder and leaves it exactly as found.
 
         An old-layout sidecar stays put and no ``.gitignore`` appears, so a
         listing or an MCP query can ask about any config without changing it.
@@ -418,8 +419,9 @@ class TestLoadConfig:
         assert len(actual["custom_buttons"]) == 1, "custom buttons not replaced"
         assert actual["custom_buttons"][0]["enabled"] is True, "custom value kept"
 
+    @pytest.mark.rule("cfg-written-in-order")
     def test_a_migrated_config_is_written_in_the_standard_order(self, tmp_path):
-        """cfg-written-in-order: a scrambled v31 file is rewritten in DEFAULT_CFG's order, an unknown key last."""
+        """A scrambled v31 file is rewritten in DEFAULT_CFG's order, an unknown key last."""
         # Arrange
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
@@ -604,8 +606,9 @@ class TestExpandEnvCfg:
         )
         assert actual["log_file"] == "SECRET.log", "ordinary cfg values still expand"
 
+    @pytest.mark.rule("bool-one-vocabulary")
     def test_a_templated_bool_key_reads_as_a_real_bool(self, monkeypatch):
-        """bool-one-vocabulary: a $(env.X) in a boolean key is read with the vocabulary, so the cfg holds a bool, not the text."""
+        """A $(env.X) in a boolean key is read with the vocabulary, so the cfg holds a bool, not the text."""
         # Arrange
         monkeypatch.setenv("CFG_BOOL_TEST", "yes")
         cfg = {
@@ -1358,8 +1361,9 @@ class TestOpenSerialUrl:
         assert data == b"test\r", "loopback returns written bytes"
 
 
+@pytest.mark.rule("spy-log-in-cap")
 class TestSpyLogUrl:
-    """spy-log-in-cap: pyserial's ``file=`` takes only a path relative to the config's ``cap/``."""
+    """pyserial's ``file=`` takes only a path relative to the config's ``cap/``."""
 
     def test_a_relative_file_lands_in_cap(self, tmp_path):
         """A bare name and a subfolder both land under cap/, which is created for them."""
@@ -1669,8 +1673,9 @@ class TestOnConnectChainMigration:
         assert actual == ["on_connect.run"], "one script, however often the config loads"
         assert cfg["on_connect_cmd"] == "/run on_connect", "the field still runs it"
 
+    @pytest.mark.rule("reads-never-write")
     def test_listing_a_v29_chain_writes_nothing(self, tmp_path):
-        """reads-never-write: /cfg.list migrates in memory, so no run file and no rewrite."""
+        """/cfg.list migrates in memory, so no run file and no rewrite."""
         # Arrange
         config_path = _v29_cfg(tmp_path, on_connect_cmd="/print a\n/print b")
         before = config_path.read_text(encoding="utf-8")

@@ -9,6 +9,8 @@ tested directly -- no app, no widgets.
 
 from __future__ import annotations
 
+import pytest
+
 from termapy.port_control import ChipFacts
 from termapy.title_bar import (
     format_title_tooltip,
@@ -130,6 +132,7 @@ class TestPortTooltipPairs:
 
 
 class TestPortIdentityPairs:
+    @pytest.mark.rule("port-display")
     def test_the_device_is_the_port_and_its_number_the_serial(self):
         """A device found by serial number shows as port = the device, serial # = the number."""
         # Arrange

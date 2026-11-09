@@ -1072,8 +1072,9 @@ class TestVarListing:
         assert (user.value, context.data["kind"]) == ("42", "context")
         assert "$(GOLD) = 42" in out, "the one line a person reads"
 
+    @pytest.mark.rule("view-is-the-answer")
     def test_one_name_shows_at_quiet(self, cli, capsys):
-        """view-is-the-answer: the variable's line is the answer, so .quiet prints it."""
+        """The variable's line is the answer, so .quiet prints it."""
         cli.repl.dispatch_full("/var.set GOLD 42")
         capsys.readouterr()
         cli.repl.dispatch_full("/var.quiet GOLD")
@@ -1120,8 +1121,9 @@ class TestVarListing:
         assert data["context"]["PORT.NAME"] == "DEMO"
 
 
+@pytest.mark.rule("value-typed")
 class TestCaptureSpellsTypedValues:
-    """value-typed: a command's typed value is captured as text, spelled once at the REPL's boundary."""
+    """A command's typed value is captured as text, spelled once at the REPL's boundary."""
 
     @pytest.mark.parametrize(
         ("value", "expected"),

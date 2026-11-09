@@ -173,8 +173,9 @@ def test_a_glob_matching_nothing_fails_and_names_the_groups(tmp_path):
     assert result.error.startswith("Unknown group: nope*"), result.error
 
 
+@pytest.mark.rule("list-one-format")
 def test_the_records_carry_group_command_level_and_help(tmp_path):
-    """list-one-format: an expanded group's data is records of group, command, maturity and help."""
+    """An expanded group's data is records of group, command, maturity and help."""
     # Arrange / Act
     result = _engine(tmp_path).dispatch_full("/help.group devices")
     # Assert

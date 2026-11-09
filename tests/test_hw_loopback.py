@@ -362,8 +362,9 @@ class TestReaderTeardown:
 class TestOneProcessOnePort:
     """hw_loopback: a real port is held by one opener, whichever OS enforces it."""
 
+    @pytest.mark.rule("port-open-exclusive")
     def test_a_held_adapter_refuses_a_second_open(self, loopback_device):
-        """port-open-exclusive: a second open of a held port fails, and the port opens again once released, twice over."""
+        """A second open of a held port fails, and the port opens again once released, twice over."""
         import serial
 
         # Arrange
@@ -401,6 +402,7 @@ class TestAdapterIdentity:
 class TestSpyUrl:
     """hw_loopback: pyserial's spy:// logs a real port's traffic, as help/ports.md says."""
 
+    @pytest.mark.rule("spy-log-in-cap")
     def test_a_spy_port_logs_both_directions_and_each_connect_starts_over(
         self, loopback_device, tmp_path
     ):

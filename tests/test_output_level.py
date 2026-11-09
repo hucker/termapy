@@ -600,16 +600,18 @@ class TestSegmentChannelGating:
         assert handed == [(pieces, "dim")], "the clickable frontend renders each piece itself"
 
 
+@pytest.mark.rule("view-is-the-answer")
 class TestTheAnswerShowsAtQuiet:
-    """view-is-the-answer: dispatch prints a command's table or status page on the result channel."""
+    """Dispatch prints a command's table or status page on the result channel."""
 
+    @pytest.mark.rule("view-is-the-answer")
     @pytest.mark.parametrize(
         ("command", "expected"),
         [("/port.mode", "115200 8N1"), ("/var", "LAUNCH_DATE")],
         ids=["status-page", "table"],
     )
     def test_quiet_keeps_the_answer(self, cli, capsys, command, expected):
-        """view-is-the-answer: at quiet a status page and a table both print; the level drops chatter, not the answer."""
+        """At quiet a status page and a table both print; the level drops chatter, not the answer."""
         # Arrange
         capsys.readouterr()
 

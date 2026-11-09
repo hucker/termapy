@@ -83,15 +83,17 @@ _TYPES = [
 
 
 class TestTypes:
+    @pytest.mark.rule("elf-types-or-none")
     @pytest.mark.parametrize(("name", "expected", "_"), _TYPES, ids=[row[0] for row in _TYPES])
     def test_gcc_dwarf_2(self, xc32, name, expected, _):
-        """elf-types-or-none: XC32's DWARF 2 types every scalar, enum, pointer and array."""
+        """XC32's DWARF 2 types every scalar, enum, pointer and array."""
         # Act / Assert
         assert xc32[name].type == expected
 
+    @pytest.mark.rule("elf-types-or-none")
     @pytest.mark.parametrize(("name", "_", "expected"), _TYPES, ids=[row[0] for row in _TYPES])
     def test_clang_dwarf_5(self, clang, name, _, expected):
-        """elf-types-or-none: Clang's DWARF 5 (addresses through .debug_addr) types the same."""
+        """Clang's DWARF 5 (addresses through .debug_addr) types the same."""
         # Act / Assert
         assert clang[name].type == expected
 
@@ -202,22 +204,25 @@ _VALUES = [
 
 
 class TestConstants:
+    @pytest.mark.rule("elf-values-const-only")
     @pytest.mark.parametrize(("name", "expected"), _VALUES, ids=[row[0] for row in _VALUES])
     def test_a_const_scalar_carries_its_initializer(self, xc32, clang, name, expected):
-        """elf-values-const-only: the bytes the file loads, decoded by the DWARF type, in both builds."""
+        """The bytes the file loads, decoded by the DWARF type, in both builds."""
         # Act / Assert
         assert (xc32[name].value, clang[name].value) == (expected, expected)
 
+    @pytest.mark.rule("elf-values-const-only")
     def test_a_variable_never_carries_a_value(self, xc32):
-        """elf-values-const-only: gU16 is initialized to 0x1234, but a variable's bytes are not its value."""
+        """gU16 is initialized to 0x1234, but a variable's bytes are not its value."""
         # Act
         actual = [xc32[name].value for name in ("gU16", "gPtr", "gConfig", "gName")]
 
         # Assert
         assert actual == [None] * 4, "only a const object has a value"
 
+    @pytest.mark.rule("elf-values-const-only")
     def test_a_const_array_has_no_value_yet(self, xc32):
-        """elf-values-const-only: kTable is const but an array; tables are a later step."""
+        """KTable is const but an array; tables are a later step."""
         # Act / Assert
         assert xc32["kTable"].value is None
 
@@ -237,8 +242,9 @@ class TestConstants:
         # Assert
         assert actual == [("struct", "scalar", "")] * 2
 
+    @pytest.mark.rule("elf-values-const-only")
     def test_no_debug_info_no_values(self):
-        """elf-values-const-only: without DWARF a const is an address and a size, never a value."""
+        """Without DWARF a const is an address and a size, never a value."""
         # Act
         bare = _symbols(NODEBUG)
 
@@ -285,6 +291,7 @@ class TestSymbolTable:
         # Assert
         assert actual == ("elf_sample.c", "elf_sample.c")
 
+    @pytest.mark.rule("elf-types-or-none")
     def test_a_build_without_debug_info_has_the_same_symbols_untyped(self, xc32):
         """No -g: every name, address and size is still there, and the sample is untyped.
 
@@ -359,8 +366,9 @@ class TestLayout:
 
 
 class TestRegistry:
+    @pytest.mark.rule("converter-magic-first")
     def test_the_signature_beats_text_markers(self):
-        """converter-magic-first: an XC32 ELF carries "/xc32/" and is still read as an ELF."""
+        """An XC32 ELF carries "/xc32/" and is still read as an ELF."""
         # Arrange
         data = XC32.read_bytes()
         text = data.decode("utf-8", errors="replace")

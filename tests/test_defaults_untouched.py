@@ -1,4 +1,4 @@
-"""defaults-untouched: a test that leaves ``DEFAULT_CFG`` changed fails, and the next test sees the real defaults.
+"""A test that leaves ``DEFAULT_CFG`` changed fails, and the next test sees the real defaults.
 
 The check is the autouse fixture ``_defaults_untouched`` in ``conftest.py``.
 A fixture that fails a test cannot be proved from inside the run it guards,
@@ -15,6 +15,8 @@ import sys
 from pathlib import Path
 
 import pytest
+
+pytestmark = pytest.mark.rule("defaults-untouched")
 
 _CONFTEST = Path(__file__).parent / "conftest.py"
 
@@ -42,9 +44,10 @@ def test_the_next_test_reads_the_default():
 """
 
 
+@pytest.mark.rule("defaults-untouched")
 @pytest.mark.slow
 def test_a_test_that_changes_the_defaults_fails(tmp_path):
-    """defaults-untouched: changing DEFAULT_CFG fails that test, naming the section, and the next test sees the default."""
+    """Changing DEFAULT_CFG fails that test, naming the section, and the next test sees the default."""
     # Arrange
     (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
     (tmp_path / "conftest.py").write_text(_CHILD_CONFTEST, encoding="utf-8")

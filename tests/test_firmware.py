@@ -88,8 +88,9 @@ class TestTable:
                 assert source_path(target, name).is_file(), f"{target.name}: {name} is missing"
                 assert source_text(target, name), f"{target.name}: {name} is empty"
 
+    @pytest.mark.rule("firmware-ascii-only")
     def test_shipped_sources_are_ascii(self):
-        """firmware-ascii-only: Every device-side file /firmware or /board ships is pure ASCII; a rule is --.
+        """Every device-side file /firmware or /board ships is pure ASCII; a rule is --.
 
         The sources are compiled by toolchains, run on boards, read in build
         logs and editors that mishandle UTF-8, and travel in a JSON envelope
@@ -226,6 +227,7 @@ class TestCommands:
         assert bad_lang.error == "Unknown language: rust (use c)"
         assert not (tmp_path / "out").exists(), "nothing is created for a bad request"
 
+    @pytest.mark.rule("writes-in-cfg-folder")
     def test_firmware_copy_defaults_to_the_config_folder(self, env: Env, tmp_path):
         """With no folder= the files go in the config's firmware/ folder, never the working directory."""
         # Act
@@ -240,6 +242,7 @@ class TestCommands:
         )
         assert not Path("termapy_mem.c").exists(), "the working directory is never written"
 
+    @pytest.mark.rule("writes-in-cfg-folder")
     def test_firmware_copy_relative_folder_is_under_the_config(self, env: Env, tmp_path):
         """A relative folder= lands under the config's folder, not the process working directory."""
         result = env.engine.dispatch("firmware.copy json folder=fw")
@@ -281,8 +284,9 @@ class TestCommands:
         shown = [markup_to_plain(line)[2:] for line in page]
         assert shown == expected.splitlines(), "every line reached the terminal, as written"
 
+    @pytest.mark.rule("view-is-the-answer")
     def test_firmware_dump_shows_at_quiet(self, env: Env):
-        """view-is-the-answer: the file is the answer, so .quiet prints it too."""
+        """The file is the answer, so .quiet prints it too."""
         page: list[str] = []
         env.engine.ctx.io._write_markup = page.append
 

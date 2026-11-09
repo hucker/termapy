@@ -90,6 +90,7 @@ class TestList:
         actual = capsys.readouterr().out
         assert "typed in one - 1 line" in actual, "the title says whose lines these are"
 
+    @pytest.mark.rule("typed-lines-one-feed")
     def test_run_last_is_never_kept(self, cli):
         """No spelling of /run.last, and no command around it, joins the lines it lists."""
         # Arrange
@@ -108,6 +109,7 @@ class TestList:
         # Assert
         assert _kept(cli) == ["/print a"], "a line that read the typed lines is not one of them"
 
+    @pytest.mark.rule("typed-lines-one-feed")
     def test_a_script_line_is_never_kept(self, cli):
         """A typed /run is kept, the script's own lines are not."""
         # Arrange
@@ -172,6 +174,7 @@ class TestReplay:
         assert "kept" in out, "line 1 is the newest line that succeeded"
         assert "nosuch" not in out, "the failed line never runs again"
 
+    @pytest.mark.rule("typed-lines-one-feed")
     def test_replayed_lines_are_not_kept_and_a_second_replay_repeats_the_first(self, cli, capsys):
         """Two replays in a row run the same lines, and neither adds them to the list."""
         # Arrange
@@ -271,6 +274,7 @@ class TestReplay:
 
 
 class TestOnlyAtThePrompt:
+    @pytest.mark.rule("typed-lines-one-feed")
     def test_a_script_cannot_run_it(self, cli, capsys):
         """A script that lists or replays is refused by the gate, and the typed lines never run."""
         # Arrange
@@ -289,6 +293,7 @@ class TestOnlyAtThePrompt:
         assert out.count(refusal) == 2, "both script lines are refused"
         assert "typed-line" not in out, "nothing typed was listed or replayed"
 
+    @pytest.mark.rule("typed-lines-one-feed")
     def test_a_replay_inside_a_replay_is_refused(self, cli):
         """A replayed line that starts a replay of its own is refused; the next replay still runs."""
         # Arrange -- a command that dispatches its target, empty when typed
@@ -335,6 +340,7 @@ class TestPerConfig:
         assert in_two == [], "a config nobody typed in starts empty"
         assert back_in_one == ["/print in-one"], "the first config's lines come back"
 
+    @pytest.mark.rule("typed-lines-one-feed")
     def test_a_config_switch_is_kept_where_it_was_typed(self, cli, tmp_path):
         """A typed /cfg.load is kept in the list of the config it was typed in, not the one it loads."""
         # Arrange

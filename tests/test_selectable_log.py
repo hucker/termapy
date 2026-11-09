@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import json
 
+import pytest
 from rich.style import Style
 from rich.table import Table
 from rich.text import Text
@@ -645,6 +646,7 @@ class TestOutputPane:
 class TestWithoutColor:
     """without_color: what the pane writes with /term.color off keeps everything but the colors."""
 
+    @pytest.mark.rule("color-off-is-all-color")
     def test_colors_go_and_attributes_stay(self):
         """A colored, bold, underlined span comes back bold and underlined with no color on it."""
         # Arrange
@@ -662,6 +664,7 @@ class TestWithoutColor:
         expected = ("hello", None, None, None, True, True)
         assert actual == expected, "colors dropped, text and attributes kept"
 
+    @pytest.mark.rule("color-off-is-all-color")
     def test_a_link_keeps_its_click_action(self):
         """The click meta a link carries survives, which Rich's own without_color would drop."""
         # Arrange

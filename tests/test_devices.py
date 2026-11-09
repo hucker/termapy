@@ -495,8 +495,9 @@ def _aliases(build: list[Symbol], devices: list) -> tuple[list[Symbol], list, li
 
 
 class TestAliasBlocks:
+    @pytest.mark.rule("alias-from-pointer-constant")
     def test_a_pointer_to_a_block_names_its_registers(self):
-        """alias-from-pointer-constant: SPI_PORT at PORTC's base gives SPI_PORT_DIR and SPI_PORT_OUT, nothing of PORTD."""
+        """SPI_PORT at PORTC's base gives SPI_PORT_DIR and SPI_PORT_OUT, nothing of PORTD."""
         # Act
         aliases, blocks, notes = _aliases([_pointer()], [parse_device(_PORTS)])
 
@@ -510,8 +511,9 @@ class TestAliasBlocks:
         ]
         assert notes == []
 
+    @pytest.mark.rule("alias-from-pointer-constant")
     def test_an_alias_keeps_the_registers_safety_trio_and_type(self):
-        """alias-from-pointer-constant: the copy differs from the register in name and alias_of only."""
+        """The copy differs from the register in name and alias_of only."""
         # Act
         aliases, _, _ = _aliases([_pointer()], [parse_device(_PORTS)])
         alias = next(a for a in aliases if a.name == "SPI_PORT_OUT")
@@ -522,24 +524,27 @@ class TestAliasBlocks:
             "a wo register stays wo under its alias"
         )
 
+    @pytest.mark.rule("alias-from-pointer-constant")
     def test_a_pointer_to_one_word_is_not_an_alias(self):
-        """alias-from-pointer-constant: a pointer to a register (pointee scalar) is a value, not a block name."""
+        """A pointer to a register (pointee scalar) is a value, not a block name."""
         # Act
         actual = _aliases([_pointer(pointee="scalar")], [parse_device(_PORTS)])
 
         # Assert
         assert actual == ([], [], [])
 
+    @pytest.mark.rule("alias-from-pointer-constant")
     def test_a_value_at_no_base_is_not_an_alias(self):
-        """alias-from-pointer-constant: PORTC_OUT's address is inside the block but not its base; nothing, silently."""
+        """PORTC_OUT's address is inside the block but not its base; nothing, silently."""
         # Act
         aliases, _, notes = _aliases([_pointer(value=0x41008090)], [parse_device(_PORTS)])
 
         # Assert
         assert (aliases, notes) == ([], [])
 
+    @pytest.mark.rule("alias-from-pointer-constant")
     def test_a_base_two_blocks_share_is_refused_and_said(self):
-        """alias-from-pointer-constant: two files place a block at one address: no guess, one note naming both."""
+        """Two files place a block at one address: no guess, one note naming both."""
         # Arrange
         twin = parse_device(
             _doc(device="fpga", registers=[{"name": "CTRL", "addr": "0x41008080", "size": 4}])
@@ -552,8 +557,9 @@ class TestAliasBlocks:
         assert aliases == []
         assert notes == ["SPI_PORT: 0x41008080 is the base of fpga/fpga, mcu/PORTC; no alias"]
 
+    @pytest.mark.rule("alias-from-pointer-constant")
     def test_a_taken_name_keeps_its_owner_and_is_said(self):
-        """alias-from-pointer-constant: the build already has SPI_PORT_DIR; that alias is skipped and said, the other made."""
+        """The build already has SPI_PORT_DIR; that alias is skipped and said, the other made."""
         # Arrange
         build = [_pointer(), Symbol("SPI_PORT_DIR", 0x1000, 4, "bss")]
 

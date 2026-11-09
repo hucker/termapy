@@ -69,6 +69,7 @@ def _links_of(eng, command: str) -> list[Link]:
     return links
 
 
+@pytest.mark.rule("links-are-data")
 def test_a_row_draws_the_same_characters_in_the_same_styles():
     """A command row's markup renders exactly so: cyan name, padding, plain help."""
     # Arrange
@@ -141,6 +142,7 @@ def _named(link: Link) -> str:
     return words[1] if words[0] == "help" and len(words) > 1 else words[0]
 
 
+@pytest.mark.rule("links-are-data")
 def test_every_help_link_names_a_command_that_exists(tmp_path):
     """Each link /help and a man page hand out opens, runs or fills a registered command."""
     # Arrange
@@ -160,6 +162,7 @@ def test_every_help_link_names_a_command_that_exists(tmp_path):
     assert bad == [], "no link points at a command that is not there"
 
 
+@pytest.mark.rule("links-are-data")
 def test_a_page_runs_nothing_but_pages_and_bare_forms(tmp_path):
     """On every command's page a click runs only /help <name>, a declared bare form or its list's own rows."""
     # Arrange
@@ -188,9 +191,10 @@ def test_a_page_runs_nothing_but_pages_and_bare_forms(tmp_path):
     assert bad == [], "one click on /help cap.delete must never delete the captures"
 
 
+@pytest.mark.rule("shows-declared")
 @pytest.mark.parametrize("name", ["port.info", "port.chip", "cfg.info", "find", "mem.info"])
 def test_what_acts_is_never_run_by_a_click(tmp_path, name):
-    """shows-declared: a query in name that opens a port, writes a file, sends to the device or closes the find bar fills the input instead."""
+    """A query in name that opens a port, writes a file, sends to the device or closes the find bar fills the input instead."""
     assert _engine(tmp_path)._click_runs(name) is False
 
 
@@ -220,8 +224,9 @@ def test_the_port_info_refusal_runs_nothing_on_a_click(tmp_path):
     assert named == {"port.info": False, "port.chip": False}, named
 
 
+@pytest.mark.rule("shows-declared")
 def test_a_bare_forms_link_runs_only_what_only_shows(tmp_path):
-    """shows-declared: every bare form's link runs exactly when its subcommand declares shows, so /help mem sends nothing on a click."""
+    """Every bare form's link runs exactly when its subcommand declares shows, so /help mem sends nothing on a click."""
     # Arrange
     eng = _engine(tmp_path)
     plugins = eng._plugins
@@ -241,6 +246,7 @@ def test_a_bare_forms_link_runs_only_what_only_shows(tmp_path):
     assert actual["run.list"] is True, "a list still runs"
 
 
+@pytest.mark.rule("links-are-data")
 def test_a_bare_form_only_opens_or_shows(tmp_path):
     """A declared bare_sub is a list, a folder, a viewer or an info page: /help's link runs it."""
     # Arrange
@@ -317,6 +323,7 @@ def test_a_synopsis_draws_the_same_characters_in_the_same_styles():
     assert _styles(after) == _styles(before), "the CLI and MCP see what they always saw"
 
 
+@pytest.mark.rule("links-are-data")
 def test_the_page_lines_draw_the_same_characters_in_the_same_styles(tmp_path):
     """NAME, SYNOPSIS and the bare line of /help run render as their old markup did."""
     # Arrange

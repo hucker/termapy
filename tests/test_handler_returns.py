@@ -1,4 +1,4 @@
-"""handler-returns-cmdresult: a handler that returns anything but a CmdResult fails the dispatch.
+"""A handler that returns anything but a CmdResult fails the dispatch.
 
 Until 2026-11-06 the dispatcher turned a handler's ``None`` into
 ``CmdResult.ok(value="")``, so a forgotten ``return`` read as success and a
@@ -15,6 +15,8 @@ import pytest
 
 from termapy.plugins import CmdResult
 from termapy.repl import ReplEngine
+
+pytestmark = pytest.mark.rule("handler-returns-cmdresult")
 
 
 @pytest.fixture
@@ -71,8 +73,9 @@ def test_a_wrong_type_fails_the_same_way(engine):
     )
 
 
+@pytest.mark.rule("failure-reported-once")
 def test_the_failure_is_reported_once(engine):
-    """failure-reported-once: dispatch prints the failure one time."""
+    """Dispatch prints the failure one time."""
     # Arrange
     eng, output = engine
     eng.register_hook("probe", "", "help", _returns(None))

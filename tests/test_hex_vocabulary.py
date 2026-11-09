@@ -24,6 +24,8 @@ from termapy.defaults import DEFAULT_CFG
 from termapy.protocol import parse_data, parse_hex, parse_pattern
 from termapy.symbols import parse_number
 
+pytestmark = [pytest.mark.rule("hex-one-reader"), pytest.mark.rule("hex-output-uppercase")]
+
 # One Modbus request, 01 03 00 00 00 0A, whose crc16-modbus is 0xCDC5.
 _FRAME = bytes.fromhex("01030000000A")
 _FRAME_CRC = "0xCDC5"
@@ -53,9 +55,10 @@ def cli(tmp_path):
 
 
 class TestInputIsCaseInsensitive:
+    @pytest.mark.rule("hex-one-reader")
     @pytest.mark.parametrize("spelling", list(_SPELLINGS.values()), ids=list(_SPELLINGS))
     def test_parse_hex_and_parse_data_read_every_spelling(self, spelling):
-        """hex-one-reader: both byte readers read every spelling, in either case, to the same bytes."""
+        """Both byte readers read every spelling, in either case, to the same bytes."""
         assert parse_hex(spelling) == _FRAME, "parse_hex"
         assert parse_data(spelling) == _FRAME, "parse_data"
 
@@ -116,8 +119,9 @@ class TestOnePayloadGrammar:
 
 
 class TestZeroXMarksOneByte:
+    @pytest.mark.rule("hex-one-reader")
     def test_a_multi_byte_0x_token_is_refused_with_the_fix(self):
-        """hex-one-reader: 0xDEADBEEF reads as a number of unstated byte order, so every reader refuses it and names the fix."""
+        """0xDEADBEEF reads as a number of unstated byte order, so every reader refuses it and names the fix."""
         with pytest.raises(ValueError, match=r"a 0x prefix marks one byte; write DE AD BE EF\)"):
             parse_hex("0xDEADBEEF")
         with pytest.raises(ValueError, match=r'write DE AD BE EF, or "0xDEADBEEF" for text'):
@@ -180,8 +184,9 @@ class TestCalcText:
 
 
 class TestOutputIsUppercase:
+    @pytest.mark.rule("hex-output-uppercase")
     def test_send_returns_uppercase_hex(self, cli):
-        """hex-output-uppercase: /proto.send's scriptable value is uppercase, matching what it prints."""
+        """/proto.send's scriptable value is uppercase, matching what it prints."""
         result = cli.repl.dispatch_full("/proto.send --dry-run 0a 0b")
         assert result.value == "0A0B"
 

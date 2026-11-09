@@ -335,8 +335,9 @@ class TestCfgLoadFiresOnConnected:
 class TestMcpCfgNew:
     """/cfg.new under MCP: an agent can create a config, but never overwrite one."""
 
+    @pytest.mark.rule("config-created-once")
     def test_cfg_new_creates_a_config_an_agent_can_load(self, host, two_cfgs):
-        """config-created-once: /cfg.new writes NAME/NAME.cfg beside the others and returns its path."""
+        """/cfg.new writes NAME/NAME.cfg beside the others and returns its path."""
         # Arrange
         cfg_a, _ = two_cfgs
         expected_path = cfg_a.parent.parent / "gamma" / "gamma.cfg"
@@ -350,8 +351,9 @@ class TestMcpCfgNew:
         assert result.data == {"name": "gamma", "path": str(expected_path), "overwritten": False}
         assert json.loads(expected_path.read_text(encoding="utf-8"))["title"] == "gamma"
 
+    @pytest.mark.rule("config-created-once")
     def test_cfg_new_over_an_existing_config_is_refused(self, host, two_cfgs):
-        """config-created-once: with no one to ask, an existing config is left alone and the call fails."""
+        """With no one to ask, an existing config is left alone and the call fails."""
         # Arrange
         _, cfg_b = two_cfgs
         before = cfg_b.read_text(encoding="utf-8")
@@ -375,9 +377,10 @@ def _run_mcp(host, line: str, *, confirm: bool = False) -> dict:
 class TestMcpCfgDelete:
     """/cfg.delete under MCP: refused outright, because deleting a config is a person's job."""
 
+    @pytest.mark.rule("mcp-no-file-management")
     @pytest.mark.parametrize("confirm", [False, True])
     def test_cfg_delete_is_refused(self, host, two_cfgs, confirm):
-        """mcp-no-file-management: confirm=true or not, nothing is deleted and there is nothing to ask the user."""
+        """confirm=true or not, nothing is deleted and there is nothing to ask the user."""
         # Arrange
         _, cfg_b = two_cfgs
 

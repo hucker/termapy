@@ -1540,6 +1540,7 @@ class TestParseFormatSpec:
         expected_names = ["Slave", "Func", "Addr", "Count", "CRC"]
         assert actual_names == expected_names
 
+    @pytest.mark.rule("byte-refs-one-based")
     @pytest.mark.parametrize(
         "spec",
         ["X:U0", "X:H0-2", "X:H3-0", "X:H0-*", "X:B0.3", "X:0"],
@@ -1830,6 +1831,7 @@ class TestShortData:
         _, values = apply_format(b"\x01\x03\x02", cols)
         assert values == ["01", "03", "?", "?", "?", "?"], "present columns decode, the rest are ?"
 
+    @pytest.mark.rule("crc-column-verifies")
     def test_crc_on_data_shorter_than_its_width(self):
         """A 2-byte CRC column on a 1-byte packet is ?; it used to wrap to index -1 and show 0101."""
         reset_crc_registry()
@@ -1859,6 +1861,7 @@ class TestCrcColumnStatus:
 
     _SPEC = "Slave:H1 Func:H2 Len:U3 Reg:U4-5 CRC:crc16-modbus"
 
+    @pytest.mark.rule("crc-column-verifies")
     def test_valid_crc_against_a_wildcarded_expect_matches(self):
         """A valid CRC is match when the expect pattern wildcards the CRC bytes (the raw compare said mismatch)."""
         # Arrange
@@ -1873,6 +1876,7 @@ class TestCrcColumnStatus:
         # Assert
         assert statuses[-1] == "match", "the CRC verifies over the payload"
 
+    @pytest.mark.rule("crc-column-verifies")
     def test_invalid_crc_against_its_own_literal_mismatches(self):
         """An invalid CRC is mismatch even when the expect pattern spells out those same bytes."""
         # Arrange

@@ -90,13 +90,13 @@ also stream to a CSV or JSONL file.
 Simplest form -- 60 samples at 1s intervals, terminal only:
 
 ```text
-/cap.poll cmd=AT+BAT
+/cap.poll cmd=AT+TEMP
 ```
 
 Multi-column, saved to file:
 
 ```text
-/cap.poll count=30 file=readings cmd=AT+BAT\nAT+TEMP
+/cap.poll count=30 file=readings cmd=AT+TEMP\nAT+RAMP
 ```
 
 Extract a number from a prose response with a regex:

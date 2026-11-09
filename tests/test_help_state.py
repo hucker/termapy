@@ -457,7 +457,7 @@ class TestEveryFrontend:
 
         # Assert
         assert state == ["  9460 (custom)"], "CURRENT STATE names the mode"
-        assert (bare.value, bare.data) == ("9460", {"baud": 9460, "custom": True}), (
+        assert (bare.value, bare.data) == (9460, {"baud": 9460, "custom": True}), (
             "a script still captures the rate alone"
         )
 

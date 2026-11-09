@@ -323,7 +323,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ("temp", f"{temp_c:.1f} C"),
         ("alarm", "yes" if data["alarm"] else "no", "red" if data["alarm"] else ""),
     ]
-    return CmdResult.record(data, rows, value=f"{temp_c:.1f}")
+    return CmdResult.record(data, rows, value=round(temp_c, 1))
 ```
 
 A handler never asks who is reading: it returns the table or the record
@@ -335,13 +335,13 @@ levels it shows for a person.
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     temp = read_temperature()
     ctx.io.result(f"Temperature: {temp}C")
-    return CmdResult.ok(value=str(temp))
+    return CmdResult.ok(value=temp)
 ```
 
 Examples that should set `value=`:
 
-- Query commands (`/port.baud_rate` returns `"115200"`)
-- State toggles (`/echo on` returns `"on"`)
+- Query commands (`/port.baud_rate` returns `115200`, a number)
+- State toggles (`/echo on` returns `True`; a person sees `on`)
 - Computed values (`/proto.crc.calc` returns the CRC)
 - Ping timings, version strings, variable values
 
@@ -575,7 +575,7 @@ changes nothing.** Never flip on bare, and never treat an unrecognized
 argument as a flip.
 
 ```python
-from termapy.scripting import SETTING_QUERY, SETTING_TOGGLE, parse_bool_setting
+from termapy.scripting import SETTING_QUERY, SETTING_TOGGLE, parse_bool_setting, value_text
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -590,9 +590,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         flags["myflag"] = not flags.get("myflag", False)
     else:  # a bool token: set
         flags["myflag"] = action
-    state = "on" if flags.get("myflag") else "off"
-    ctx.io.result(state)
-    return CmdResult.ok(value=state)
+    state = bool(flags.get("myflag"))
+    ctx.io.result(value_text(state))  # the person reads on/off
+    return CmdResult.ok(value=state)  # a script and --json get the bool
 ```
 
 Synopsis: `{on|off|toggle}` for a boolean; `{val1|val2|...|cycle}` for an enum

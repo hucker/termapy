@@ -29,7 +29,7 @@ class TestTerminalPoll:
         # Assert
         out = capsys.readouterr().out
         assert result.success is True, result.error
-        assert result.value == "3", "the sample count is the scriptable value"
+        assert result.value == 3, "the sample count is the scriptable value"
         assert "counter   /print 42" in out, "the command is its own label"
         assert out.count("42") == 4, "three rows plus the label"
         assert "Poll complete (3 samples)" in out

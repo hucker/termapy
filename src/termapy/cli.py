@@ -39,6 +39,7 @@ from termapy.scripting import (
     parse_bool_setting,
     render_progress_bar,
     strip_ansi,
+    value_text,
 )
 from termapy.serial_engine import SerialEngine
 from termapy.session_log import SessionLog
@@ -391,8 +392,8 @@ class CLITerminal(TerminalHost):
             return CmdResult.fail(msg=str(e))
         current = bool(cfg_value(self.cfg, "cli_completion"))
         if action is SETTING_QUERY:
-            ctx.io.result(f"CLI completion: {'on' if current else 'off'}")
-            return CmdResult.ok(value="on" if current else "off")
+            ctx.io.result(f"CLI completion: {value_text(current)}")
+            return CmdResult.ok(value=current)
         enabled = (not current) if action is SETTING_TOGGLE else action
         self.cfg["cli_completion"] = enabled
         if enabled:
@@ -401,7 +402,7 @@ class CLITerminal(TerminalHost):
         else:
             self._session = None
             self.status("CLI completion disabled.")
-        return CmdResult.ok(value="on" if enabled else "off")
+        return CmdResult.ok(value=enabled)
 
     # ``_hook_run`` and ``_hook_run_help`` are gone -- ``/run`` and
     # ``/run.help`` are now owned by the ``run.py`` built-in.

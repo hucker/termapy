@@ -90,7 +90,7 @@ class TestFingerprint:
         )
         assert any(line.startswith("DTR") for line in serial), "control lines are reported"
         assert "Runtime flags:" in out
-        assert result.value == str(
+        assert result.value == (
             out.count("\n", out.index("=== Termapy"), out.index("=== end") + 1) + 1
         ), "the value is the line count of the report"
 

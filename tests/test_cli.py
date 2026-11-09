@@ -143,7 +143,7 @@ class TestDelay:
         result = cli.repl.dispatch_full("/delay 10ms")
 
         # Assert
-        assert (result.success, result.value) == (True, "0.01"), "short delay completes ok"
+        assert (result.success, result.value) == (True, 0.01), "short delay completes ok"
         assert "Delay 10ms done." in capsys.readouterr().out
 
     def test_msg_prints_first_and_takes_the_rest_of_the_line(self, cli, capsys):
@@ -1346,20 +1346,20 @@ class TestCliCompletionHook:
         """A bare /cli.completion reports the cfg state and leaves it alone."""
         cli.cfg["cli_completion"] = True
         result = cli.repl.dispatch("cli.completion")
-        assert (result.success, result.value) == (True, "on")
+        assert (result.success, result.value) == (True, True)
         assert cli.cfg["cli_completion"] is True, "a query never mutates"
 
     def test_off_disables_and_drops_the_session(self, cli):
         """off records the cfg value and drops the prompt session so the next prompt is plain."""
         cli.cfg["cli_completion"] = True
         result = cli.repl.dispatch("cli.completion off")
-        assert (result.value, cli.cfg["cli_completion"], cli._session) == ("off", False, None)
+        assert (result.value, cli.cfg["cli_completion"], cli._session) == (False, False, None)
 
     def test_toggle_flips(self, cli):
         """toggle flips the cfg value from off to on."""
         cli.cfg["cli_completion"] = False
         result = cli.repl.dispatch("cli.completion toggle")
-        assert (result.value, cli.cfg["cli_completion"]) == ("on", True)
+        assert (result.value, cli.cfg["cli_completion"]) == (True, True)
 
     def test_an_unknown_token_fails_instead_of_querying(self, cli):
         """A typo fails with the setting message; it used to read as a bare query and return ok."""

@@ -193,7 +193,9 @@ class TestMcpStdioEndToEnd:
                 "fire-and-forget: the agent learns nothing"
             )
             on = _run_command(client, "/term.request on")
-            assert on["value"] == "on", "session flipped to request mode"
+            assert on["value"] is True, (
+                "session flipped to request mode; a switch is a boolean on the wire"
+            )
             at = _run_command(client, "AT")
             assert at["success"] is True, "request/response exchange succeeds"
             assert at["value"] == "OK", (

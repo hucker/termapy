@@ -356,7 +356,7 @@ def _handler_fingerprint(ctx: PluginContext, args: str) -> CmdResult:
         for line in lines:
             ctx.io.output(line)
 
-    return CmdResult.ok(value=str(len(lines)))
+    return CmdResult.ok(value=len(lines))
 
 
 _FINGERPRINT_HELP = (

@@ -520,7 +520,7 @@ class TestControlKeysSetting:
         after_toggle = cli.cfg["control_keys"]
 
         # Assert
-        assert first == "on", "on by default"
+        assert first is True, "on by default"
         assert after_off is False, "off sets it"
         assert after_toggle is True, "toggle flips it back"
 

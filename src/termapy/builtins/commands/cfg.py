@@ -68,13 +68,14 @@ if TYPE_CHECKING:
 
 
 def _cfg_answer(val: object) -> CmdResult:
-    """A key's value as the answer: ``data`` with its JSON type, ``value`` its text.
+    """A key's value as the answer: ``data`` with its JSON type, ``value`` the same when it is a scalar.
 
-    The text is ``config.cfg_value_text``'s: a switch ``on`` / ``off``, a
-    container compact JSON the way the config file spells it, never
-    Python's spelling.
+    A switch, a number or text is the value itself (registry
+    ``value-typed``); a container, which a value cannot be, is compact JSON
+    the way the config file spells it (``config.cfg_value_text``).
     """
-    return CmdResult.ok(value=cfg_value_text(val), data=val)
+    scalar = val is None or isinstance(val, (bool, int, float, str))
+    return CmdResult.ok(value=val if scalar else cfg_value_text(val), data=val)
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:

@@ -1293,3 +1293,26 @@ picker and `--ports` already used (`PORT_COLUMNS`, `COLUMN_HEADERS`, `DROP_ORDER
 `OPTIONAL_COLUMNS`), so the three agree; moving the picker and `--ports` onto the view is a
 follow-up. **Where:** `tests/test_architecture.py`, `tests/test_views.py`,
 `tests/test_port_commands.py`, `tests/test_sym_commands.py`, the CLI gold.
+
+## 2026-11-08 — Every value is typed: the audit the entry above deferred
+
+The same day, every `value` a handler spelled for a person became its own type (registry
+`value-typed`, now a guarantee). Counts are ints: `/sym.info`, `/sym.load`, `/mcp.info`,
+`/profile.info`, `/var.clear`, `/repeat`, `/run.last`, `/grep`, `/find`, `/log.dump`, `/mem.write`'s
+byte count, the folder deletes, `/term.usb_db`, `/cap.poll`'s samples, the demo `/traffic.*`
+counts. Switches are bools: every `_bool_setting` and `_cfg_toggle` command (`/term.echo`,
+`/term.hex`, `/term.line_no`, `/term.traffic`, `/term.request`, `/term.control_keys`, ...),
+`/proto.hex`, the CLI's `/cli.completion`, and `/confirm`, whose yes is a bool a person sees as
+`on`. Numbers are numbers: `/port.baud_rate` and the port properties answer the config's typed
+value, `/port.cts` and its siblings a level `0`/`1` (an int, the vocabulary `$(PORT.CTS)` uses, so
+`value_text` agrees), `/mem.read` the decoded scalar, `/delay` its seconds, `/ping` its mean in
+ms (the unit lives in `data`'s key, as `avg_ms`), `/term.json_fmt.indent` its indent, `/cfg KEY` a
+scalar key's own value (a container stays compact JSON, since a value is a scalar). Hex words
+keep the hex vocabulary (`/mem.or`'s `F0A5`, the demo CRC), `/port.mode`'s `115200 8N1` stays
+the round-trippable token the command accepts, and the status pages' summary lines stay text:
+their typed facts are `data`. Behavior changed, for a `--json` or MCP caller only: `"value": "on"`
+reads `true`, `"42"` reads `42`, `"123ms"` reads `123.4`; a script sees the same text as before,
+through `value_text`, except that `$(T) <- /ping` is now `123.4` without the `ms`. The guard
+flags the two idioms that spelled a value at the source. **Where:** `tests/test_architecture.py`;
+the ~90 tests that pinned the spelled form now pin the type; the gold's `/term.request off`
+envelope.

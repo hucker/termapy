@@ -79,8 +79,8 @@ class TestCfgShowKey:
         echo = engine.dispatch("cfg echo")
 
         # Assert
-        assert (rate.value, rate.data) == ("115200", 115200), "a number is data as a number"
-        assert (echo.value, echo.data) == ("off", False), (
+        assert (rate.value, rate.data) == (115200, 115200), "a number is data as a number"
+        assert (echo.value, echo.data) == (False, False), (
             "a boolean is data as a boolean, shown as off"
         )
 
@@ -108,7 +108,7 @@ class TestCfgShowKey:
         result = engine.dispatch("cfg.auto baud_rate 9600")
 
         # Assert
-        assert (result.value, result.data) == ("9600", 9600), "the applied value, typed"
+        assert (result.value, result.data) == (9600, 9600), "the applied value, typed"
 
     def test_show_unknown_key(self, repl_env):
         """A query for a key not in the config is an Unknown error rendered in red."""
@@ -156,7 +156,7 @@ class TestCfgChange:
         # Assert
         expected = [("baud_rate", 9600)]
         assert called_with == expected, "hook called with key and coerced value"
-        assert result.value == "9600", "a confirmed change answers with the new value"
+        assert result.value == 9600, "a confirmed change answers with the new value"
 
     def test_a_declined_confirmation_fails(self, repl_env):
         """When the frontend's confirmation is declined, /cfg fails as Canceled instead of answering the value."""

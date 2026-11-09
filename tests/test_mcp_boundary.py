@@ -667,10 +667,10 @@ class TestRunLegacy:
         again = _call(host, f"/run.legacy {name}")
 
         # Assert
-        assert report["value"] == "1", "the report found the line"
+        assert report["value"] == 1, "the report found the line"
         assert fix["success"] is True, fix["error"]
         assert old.read_text(encoding="utf-8") != _LEGACY_LINE, "the script was rewritten"
-        assert again["value"] == "0", "nothing left to fix"
+        assert again["value"] == 0, "nothing left to fix"
 
     def test_fixing_a_clean_script_is_not_a_failure(self, host):
         """mcp-no-code-writes: a script with no hits writes nothing, and says so."""
@@ -682,7 +682,7 @@ class TestRunLegacy:
 
         # Assert
         assert result["success"] is True, result["error"]
-        assert result["value"] == "0", "no hits"
+        assert result["value"] == 0, "no hits"
 
     @pytest.mark.parametrize("fix", ["", " --fix"])
     def test_a_name_cannot_leave_run(self, host, tmp_path, fix):

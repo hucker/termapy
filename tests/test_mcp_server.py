@@ -655,7 +655,7 @@ class TestUnifiedEnvelope:
         assert (data["connected"], data["commands"] > 0) == (False, True), (
             "real types, not display strings"
         )
-        assert result["value"] == str(data["commands"]), "value stays the command count"
+        assert result["value"] == data["commands"], "value stays the command count"
         assert result["output_lines"] == [], "the facts ride once, as data"
 
     def test_var_data_mode_emits_no_prose_even_at_verbose(self, host):

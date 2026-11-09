@@ -373,7 +373,7 @@ class TestWhatALoadForgets:
         # Arrange
         expected = cli.repl.dispatch("find.max_count").value
         cli.repl.dispatch("find.max_count 7")
-        assert cli.repl.dispatch("find.max_count").value == "7", "precondition: the limit moved"
+        assert cli.repl.dispatch("find.max_count").value == 7, "precondition: the limit moved"
 
         # Act
         cli._switch_to_cfg_path(str(configs["b"]))
@@ -533,12 +533,12 @@ class TestCfgMovesTheFlag:
 
     def test_the_setter_answers_what_cfg_auto_set(self, cli):
         """cfg-keys-start-flags: /term.echo reports the value /cfg.auto gave the key, twice over."""
-        for text in ("on", "off"):
+        for text, expected in (("on", True), ("off", False)):
             # Act
             cli.repl.dispatch(f"cfg.auto echo {text}", report=False)
 
             # Assert
-            assert cli.repl.dispatch("term.echo", report=False).value == text
+            assert cli.repl.dispatch("term.echo", report=False).value is expected
 
     def test_a_port_effect_moves_the_flag(self, cli):
         """cfg-keys-start-flags: /port.connect's echo option moves the flag too."""
@@ -656,7 +656,7 @@ class TestTheConnection:
         actual = self._connected_then(configs, lambda app: app._update_port("DEMO"))
 
         # Assert
-        expected = {"connected": True, "variable": "1", "find limit": "7", "counter": 5}
+        expected = {"connected": True, "variable": "1", "find limit": 7, "counter": 5}
         assert actual == expected, "connected, and nothing was reset"
 
 

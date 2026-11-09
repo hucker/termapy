@@ -390,6 +390,105 @@ def test_wants_data_guard_fires_on_a_probe():
     )
 
 
+# ── A value is typed, never spelled at the source ────────────────────────────
+#
+# A ``CmdResult.value`` carries its natural type and the REPL spells it at its
+# boundary (``scripting.value_text``).  Two idioms spelled one at the source
+# and recurred in forty handlers before the 2026-11-08 audit: ``str(len(...))``
+# for a count and ``"on" if x else "off"`` for a switch.  Those two shapes are
+# what the guard can see; a ``str(n)`` over a number it cannot tell from a
+# ``str(path)``, which is review.
+
+_SPELLED_SWITCHES = frozenset({"on", "off", "yes", "no", "true", "false", "1", "0"})
+
+
+def _spelled_values(tree: ast.AST) -> list[int]:
+    """The line of every ``CmdResult`` call whose ``value=`` is ``str(len(...))`` or a spelled switch."""
+    lines: list[int] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not _is_cmdresult_call(node.func):
+            continue
+        for keyword in node.keywords:
+            if keyword.arg != "value":
+                continue
+            value = keyword.value
+            counted = (
+                isinstance(value, ast.Call)
+                and isinstance(value.func, ast.Name)
+                and value.func.id == "str"
+                and len(value.args) == 1
+                and isinstance(value.args[0], ast.Call)
+                and isinstance(value.args[0].func, ast.Name)
+                and value.args[0].func.id == "len"
+            )
+            switched = (
+                isinstance(value, ast.IfExp)
+                and isinstance(value.body, ast.Constant)
+                and isinstance(value.orelse, ast.Constant)
+                and value.body.value in _SPELLED_SWITCHES
+                and value.orelse.value in _SPELLED_SWITCHES
+            )
+            if counted or switched:
+                lines.append(node.lineno)
+    return lines
+
+
+def _is_cmdresult_call(func: ast.expr) -> bool:
+    """``CmdResult(...)`` or ``CmdResult.<anything>(...)``."""
+    if isinstance(func, ast.Name):
+        return func.id == "CmdResult"
+    return (
+        isinstance(func, ast.Attribute)
+        and isinstance(func.value, ast.Name)
+        and func.value.id == "CmdResult"
+    )
+
+
+def test_a_value_is_not_spelled_at_the_source():
+    """value-typed: no CmdResult value is a str(len(...)) count or an "on" if x else "off" switch; the REPL spells a value at its boundary."""
+    # Arrange / Act
+    violations = [
+        f"{path.relative_to(SRC.parent)}:{line}"
+        for path in _package_python_files()
+        for line in _spelled_values(ast.parse(path.read_text(encoding="utf-8")))
+    ]
+
+    # Assert
+    assert violations == [], (
+        "a value carries its type; the REPL spells it (scripting.value_text):\n  "
+        + "\n  ".join(violations)
+        + "\n\nAnswer value=len(...) or value=<bool>; a person still reads the count"
+        "\nor on/off, through value_text at the capture, the poll and the state line."
+    )
+
+
+def test_spelled_value_guard_fires_on_a_probe():
+    """The guard flags the two idioms on any CmdResult constructor and passes a path's str(), a typed count and a plain text."""
+    # Arrange
+    probe = (
+        "def a(ctx, args):\n"
+        "    return CmdResult.ok(value=str(len(rows)))\n"
+        "def b(ctx, args):\n"
+        '    return CmdResult.record(data, rows, value="on" if flag else "off")\n'
+        "def c(ctx, args):\n"
+        '    return CmdResult(value="yes" if ok else "no")\n'
+        "def d(ctx, args):\n"
+        "    return CmdResult.ok(value=str(path))\n"
+        "def e(ctx, args):\n"
+        "    return CmdResult.ok(value=len(rows))\n"
+        "def f(ctx, args):\n"
+        '    return CmdResult.ok(value="ready" if ok else "busy")\n'
+    )
+
+    # Act
+    found = _spelled_values(ast.parse(probe))
+
+    # Assert
+    assert found == [2, 4, 6], (
+        "the count and the two switches; a path, a typed count and other text pass"
+    )
+
+
 # ── UI-layer confinement ─────────────────────────────────────────────────────
 
 # Textual may only be imported by the UI layer.  Everything else -- the REPL

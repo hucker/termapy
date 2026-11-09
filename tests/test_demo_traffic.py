@@ -82,7 +82,7 @@ class TestCount:
     def test_the_value_is_the_reply_size(self, cli):
         """The scriptable value is a scalar, the RX byte count; both counts are the data."""
         result = cli.repl.dispatch_full("/traffic.count wait_gap=200ms AT+RAMP")
-        assert result.value == "5", "the value is a scalar, never the data dict"
+        assert result.value == 5, "the value is a scalar, never the data dict"
 
     def test_twice_in_a_row_each_counts_its_own_reply(self, cli):
         """A second count sees its own reply and none of the first one's."""
@@ -141,13 +141,13 @@ def test_hexdump_lands_in_cap(cli, tmp_path):
 
 
 def test_rate_answers_a_scalar_and_its_data(cli):
-    """/traffic.rate's value is the RX rate as text; the window's counts and rates are the data."""
+    """/traffic.rate's value is the RX rate, a number; the window's counts and rates are the data."""
     # Act
     result = cli.repl.dispatch_full("/traffic.rate 50ms")
 
     # Assert
     assert result.success is True, result.error
-    assert isinstance(result.value, str), "the value is a scalar, never the data dict"
+    assert isinstance(result.value, float), "the value is a scalar, never the data dict"
     actual = sorted(result.data)
     expected = ["duration_s", "rx_bytes", "rx_rate_bps", "tx_bytes", "tx_rate_bps"]
     assert actual == expected, "the data carries both directions' counts and rates"

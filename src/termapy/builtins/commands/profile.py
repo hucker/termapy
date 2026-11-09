@@ -107,7 +107,7 @@ def _apply_profile(
     n = len(profile.get("commands", {}))
     rev = profile.get("profile_revision") or "(none)"
     ctx.io.result(f"Loaded {label}: {n} commands (rev {rev}).", "green")
-    return CmdResult.ok(value=str(n))
+    return CmdResult.ok(value=n)
 
 
 def _read_profile_json(ctx: PluginContext, timeout_ms: int) -> dict | None:
@@ -177,7 +177,7 @@ def _handler_validate(ctx: PluginContext, args: str) -> CmdResult:
     if result.ok:
         n = len(profile.get("commands", {})) if isinstance(profile, dict) else 0
         ctx.io.result(f"Valid profile.  {n} commands.", "green")
-        return CmdResult.ok(value=str(n))
+        return CmdResult.ok(value=n)
     ctx.io.output(f"  Profile has {len(result.errors)} error(s):", "red")
     for error in result.errors:
         ctx.io.output(f"    - {error}", "yellow")
@@ -341,7 +341,7 @@ def _handler_save(ctx: PluginContext, args: str) -> CmdResult:
             "dispatch via the profile until you audit each entry.",
             "yellow",
         )
-    return CmdResult.ok(value=str(n))
+    return CmdResult.ok(value=n)
 
 
 def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
@@ -353,7 +353,7 @@ def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
     n = len(ns.get("commands") or {})
     ns.clear()
     ctx.io.result(f"Unloaded profile ({n} commands).", "green")
-    return CmdResult.ok(value=str(n))
+    return CmdResult.ok(value=n)
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
@@ -407,7 +407,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         if device.get("startup_banner"):
             rows.append(("device.startup_banner", str(device["startup_banner"])))
     rows.append(("commands", str(cmd_count)))
-    return CmdResult.record(data, rows, value=str(cmd_count))
+    return CmdResult.record(data, rows, value=cmd_count)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

@@ -309,7 +309,7 @@ class TestSimpleForwarderRuntime:
         # Assert -- the forwarded result carries the toggle's reported state,
         # proving the forward reached /term.line_endings and it ran.
         assert result.success, "/show_line_endings forwards successfully"
-        assert result.value == "on", "/show_line_endings on -> /term.line_endings reported 'on'"
+        assert result.value is True, "/show_line_endings on -> /term.line_endings reported 'on'"
 
     def test_forwarder_emits_deprecation_note_once(self, engine_with_term):
         """Generic forwarders also warn once per session; a second /echo is silent."""

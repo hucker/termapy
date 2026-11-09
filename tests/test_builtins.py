@@ -917,7 +917,7 @@ class TestVarHandlerValues:
         result = engine.dispatch("var.clear")
 
         # Assert
-        assert result.value == "3", "clear returns the count of vars removed for scripting"
+        assert result.value == 3, "clear returns the count of vars removed for scripting"
 
 
 # -- /stop ----------------------------------------------------------------
@@ -3259,7 +3259,7 @@ class TestCfgHandlerValues:
         result = engine.dispatch("cfg.auto baud_rate 9600")
 
         # Assert
-        assert result.value == "9600", "/cfg.auto returns the new value (mirrors echo/verbose)"
+        assert result.value == 9600, "/cfg.auto returns the new value (mirrors echo/verbose)"
 
     def test_cfg_set_unchanged_returns_existing_value(self, repl_env):
         """Setting a key to its current value still returns that value, not None."""
@@ -3271,7 +3271,7 @@ class TestCfgHandlerValues:
         result = engine.dispatch("cfg baud_rate 115200")
 
         # Assert
-        assert result.value == "115200", (
+        assert result.value == 115200, (
             "/cfg key value: same value still returns the value, not None"
         )
 
@@ -3946,7 +3946,7 @@ class TestProtoHex:
 
         # Assert
         assert engine.ctx.ns("flags")["hex"] is True, "toggle verb flips the flag"
-        assert result.value == "on", "returns the new state"
+        assert result.value is True, "returns the new state"
 
     def test_proto_hex_sets_explicitly_with_shared_tokens(self, repl_env):
         """'y' is a parse_bool token that sets on; it was once rejected or treated as a toggle."""
@@ -3960,7 +3960,7 @@ class TestProtoHex:
 
         # Assert
         assert engine.ctx.ns("flags")["hex"] is True, "'y' sets on (shared token)"
-        assert result.value == "on", "explicit set, not a toggle"
+        assert result.value is True, "explicit set, not a toggle"
 
     def test_proto_hex_off(self, repl_env):
         """'off' clears the hex flag and returns 'off' as the new state."""
@@ -3973,4 +3973,4 @@ class TestProtoHex:
 
         # Assert
         assert engine.ctx.ns("flags")["hex"] is False, "'off' sets off"
-        assert result.value == "off", "returns the new state"
+        assert result.value is False, "returns the new state"

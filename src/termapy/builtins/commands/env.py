@@ -164,7 +164,7 @@ def _handler_reload(ctx: PluginContext, args: str) -> CmdResult:
     env.clear()
     env.update(os.environ)
     ctx.io.output(f"Environment reloaded ({len(env)} vars).", "green")
-    return CmdResult.ok(value=str(len(env)))
+    return CmdResult.ok(value=len(env))
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────

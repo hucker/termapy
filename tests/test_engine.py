@@ -1837,7 +1837,7 @@ class TestRepeatDoesNotEraseAScriptStop:
         # Assert
         assert result.success is True, "an interactive repeat runs"
         actual = result.value
-        assert actual == "2", f"both iterations should run, got {actual!r}"
+        assert actual == 2, f"both iterations should run, got {actual!r}"
 
 
 # -- Universal --json flag --------------------------------------------------

@@ -65,9 +65,10 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             f"{count} pings: avg={record['avg_ms']:.0f}ms min={record['min_ms']:.0f}ms "
             f"max={record['max_ms']:.0f}ms{timeouts}"
         )
-    # Every ping timed out: an empty value rather than a missing one, so a
-    # script tells "tried but nothing" from "didn't run".
-    value = f"{record['avg_ms']:.0f}ms" if replies else ""
+    # The mean reply time in ms, a number (registry value-typed; the unit is
+    # the key's, as in data).  Every ping timed out: an empty value rather
+    # than a missing one, so a script tells "tried but nothing" from "didn't run".
+    value = round(record["avg_ms"], 1) if replies else ""
     return CmdResult.ok(value=value, data=record)
 
 

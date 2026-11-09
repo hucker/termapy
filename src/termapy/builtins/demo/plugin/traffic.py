@@ -83,7 +83,7 @@ def _handler_count(ctx: PluginContext, args: str) -> CmdResult:
     # value is the scriptable scalar, the reply's size; the counts both ways
     # are the data, keyed as /cap.wire keys them.
     return CmdResult.ok(
-        value=str(rx_count[0]),
+        value=rx_count[0],
         data={"tx_bytes": tx_count[0], "rx_bytes": rx_count[0]},
     )
 
@@ -170,7 +170,7 @@ def _handler_rate(ctx: PluginContext, args: str) -> CmdResult:
         f"  RX: [cyan]{rx_count[0]:d}[/] bytes ([cyan]{rx_rate:.1f}[/] B/s)",
     )
     return CmdResult.ok(
-        value=f"{rx_rate:.1f}",
+        value=round(rx_rate, 1),
         data={
             "duration_s": duration_s,
             "tx_bytes": tx_count[0],
@@ -234,7 +234,7 @@ def _handler_snoop(ctx: PluginContext, args: str) -> CmdResult:
         f"trailing bytes captured)",
     )
     return CmdResult.ok(
-        value=str(offset),
+        value=offset,
         data={
             "matched": True,
             "pattern": pattern_hex,

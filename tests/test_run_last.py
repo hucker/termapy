@@ -153,7 +153,7 @@ class TestReplay:
         # Assert
         out = capsys.readouterr().out
         assert result.success, f"the replay succeeded: {result.error}"
-        assert result.value == "2", "the value is how many lines ran"
+        assert result.value == 2, "the value is how many lines ran"
         assert "first" not in out, "line 3 is older than the replay asked for"
         assert out.index("second") < out.index("third"), "the lines run in the order typed"
 
@@ -264,7 +264,7 @@ class TestReplay:
 
         # Assert
         out = capsys.readouterr().out
-        assert result.value == "1", "one line ran before the stop"
+        assert result.value == 1, "one line ran before the stop"
         assert "Replay stopped after 1 of 2 commands." in out, "the stop is reported"
         assert "/print after" not in out, "the line after the stop never ran (it would echo)"
         assert not stop.is_set(), "the replay was outermost, so it consumed the stop"

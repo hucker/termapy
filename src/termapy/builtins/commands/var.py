@@ -293,7 +293,7 @@ def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
     """
     count = clear_vars(ctx)
     ctx.io.output(f"Cleared {count} variable(s).", "green")
-    return CmdResult.ok(value=str(count))
+    return CmdResult.ok(value=count)
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────

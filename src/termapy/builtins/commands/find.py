@@ -150,7 +150,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         scrollback_text=text,
     )
     _refresh(ctx)
-    return CmdResult.ok(value=str(len(matches)))
+    return CmdResult.ok(value=len(matches))
 
 
 def _step(ctx: PluginContext, delta: int) -> CmdResult:
@@ -160,7 +160,7 @@ def _step(ctx: PluginContext, delta: int) -> CmdResult:
         return CmdResult.fail(msg="No active find.")
     active.current = (active.current + delta) % len(active.matches)
     _refresh(ctx)
-    return CmdResult.ok(value=str(active.current + 1))
+    return CmdResult.ok(value=active.current + 1)
 
 
 def _handler_next(ctx: PluginContext, args: str) -> CmdResult:
@@ -211,7 +211,7 @@ def _handler_max_count(ctx: PluginContext, args: str) -> CmdResult:
     raw = args.strip()
     if not raw:
         ctx.io.result(f"{ctx.prefix}find.max_count = {max_count}")
-        return CmdResult.ok(value=str(max_count))
+        return CmdResult.ok(value=max_count)
     try:
         n = int(raw)
     except ValueError:
@@ -220,7 +220,7 @@ def _handler_max_count(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg="Max count must be >= 1")
     ctx.ns(_FIND_NS)["max_count"] = n
     ctx.io.result(f"{ctx.prefix}find.max_count = {n}")
-    return CmdResult.ok(value=str(n))
+    return CmdResult.ok(value=n)
 
 
 _LONG_HELP = """\

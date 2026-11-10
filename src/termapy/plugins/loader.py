@@ -332,7 +332,6 @@ def _flatten_command(
         raw_args=node.raw_args,
         flags=dict(node.flags),
         needs=node.needs,
-        hidden=node.hidden,
         params=node.params,
         safety=node.safety,
         files=node.files,
@@ -417,7 +416,7 @@ def _make_interior_handler(full_name: str, children: list[str], intro: str = "")
         records = [
             {"command": child_name, "help": interpolate_help(plugins[child_name].help, prefix)}
             for child_name in children
-            if child_name in plugins and not plugins[child_name].hidden
+            if child_name in plugins
         ]
         columns = (
             Column(

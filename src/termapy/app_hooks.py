@@ -162,8 +162,8 @@ def register_tui_hooks(app: SerialTerminal) -> None:
         source="app",
         needs=CapabilitySet.SCREEN_CAPTURE,
     )
-    # /run and its sub_commands (.help, .legacy, .list, .dump, .show,
-    # .explore, .profile) are owned by the run.py builtin -- its
+    # /run and its sub_commands (.help, .list, .dump, .show, .explore,
+    # .profile) are owned by the run.py builtin -- its
     # picker="run" opens the Run picker through ctx.internal.open_picker,
     # wired at the top of this function.
     app.repl.register_hook(

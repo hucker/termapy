@@ -1,10 +1,9 @@
 """XMODEM file-transfer handlers (private; mounted under /xfer).
 
 Filename is underscore-prefixed so the plugin loader skips it --
-the actual command tree (``/xfer.xmodem.send`` / ``recv``, plus the
-hidden ``/xmodem`` legacy forwarders) is wired up in ``xfer.py``
-and ``xmodem.py``.  This module exists only as a home for the
-handlers and the ``QueueByteReader`` shared with ymodem.
+the actual command tree (``/xfer.xmodem.send`` / ``recv``) is wired up
+in ``xfer.py``.  This module exists only as a home for the handlers and
+the ``QueueByteReader`` shared with ymodem.
 """
 
 from __future__ import annotations

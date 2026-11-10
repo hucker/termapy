@@ -23,7 +23,6 @@ Every command here asks ``ctx.internal.session_log_path()`` which file
 that is (registry ``session-log-one-owner``).  Until 2026-10-16 six
 places worked it out for themselves, so over MCP ``/log.dump`` read the
 TUI's log rather than the agent's own (review 2026-10-15, D3).
-``/log.clear`` is the legacy name of ``/log.delete`` (``legacy.py``).
 """
 
 from __future__ import annotations

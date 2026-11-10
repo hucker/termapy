@@ -87,16 +87,14 @@ class TestTheDeclaration:
         assert cli.repl._plugins["probe"].cfg == {"title": "names the window"}
 
     def test_cfg_users_turns_the_declarations_around(self, cli):
-        """Key path -> the visible commands that declared it with their phrases, sorted; hidden aliases left out."""
+        """Key path -> the commands that declared it with their phrases, sorted."""
         # Act
         users = cfg_users(cli.repl._plugins)
 
         # Assert
         assert users["max_grep_lines"] == [("grep", "caps the matches shown")]
         names = [name for name, _ in users["eol_markers"]]
-        assert names == ["term.eol.markers", "term.info"], (
-            "the hidden /term.line_endings is left out"
-        )
+        assert names == ["term.eol.markers", "term.info"], "the two commands that declare it"
 
 
 class TestHelpPages:

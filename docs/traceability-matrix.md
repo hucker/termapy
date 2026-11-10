@@ -260,7 +260,7 @@ Ids: 180: 165 registry rows (guarantees 130, assumptions 35), 15 spec sections i
 ### `did-you-mean-one` (guarantee, data)
 
 - `test_architecture.py`: `test_suggestion_guard_fires_on_a_probe`, `test_suggestions_have_one_owner` **guard**, `test_the_suggestion_allowlist_is_not_stale`
-- `test_did_you_mean.py`: the module (22 functions) **guard**
+- `test_did_you_mean.py`: the module (21 functions) **guard**
 - `test_help_idioms.py`: `TestALookup.test_a_near_miss_suggests_what_it_meant`
 - `test_matching.py`: the module (7 functions) **guard**
 - `test_params.py`: `TestMisspelledKeywords` (3 functions)
@@ -305,14 +305,13 @@ Ids: 180: 165 registry rows (guarantees 130, assumptions 35), 15 spec sections i
 - `test_app_pilot.py`: `TestFailureReportedOnce.test_a_failed_capture_answers_with_the_inner_error_once`
 - `test_architecture.py`: `test_a_failure_carries_its_message` **guard**, `test_a_handler_never_prints_the_failure_it_returns` **guard**
 - `test_handler_returns.py`: `test_the_failure_is_reported_once`
-- `test_legacy_migration.py`: `TestSimpleForwarderRuntime.test_a_failed_forward_keeps_its_error_and_prints_once`
 - `test_mem_commands.py`: `TestSpaceForm.test_a_failed_redirect_answers_once_with_the_subcommands_error`
 - `test_port_commands.py`: `TestCapture.test_a_failed_capture_answers_with_the_inner_error_once`, `TestConnect.test_a_port_that_does_not_open_fails_with_its_reason`
 
 ### `family-has-intro` (guarantee, structure)
 
 - `test_architecture.py`: `test_every_family_says_what_it_is_for` **guard**, `test_family_intro_guard_fires_on_a_probe` **probe**
-- `test_family_intro.py`: the module (16 functions) **guard**
+- `test_family_intro.py`: the module (15 functions) **guard**
 
 ### `file-arg-declared` (assumption, structure)
 
@@ -419,7 +418,7 @@ Ids: 180: 165 registry rows (guarantees 130, assumptions 35), 15 spec sections i
 
 ### `idioms-one-table` (guarantee, requirement)
 
-- `test_help_idioms.py`: the module (28 functions) **guard**
+- `test_help_idioms.py`: the module (27 functions) **guard**
 
 ### `infra-not-under-builtins` (assumption, structure)
 
@@ -439,7 +438,7 @@ Ids: 180: 165 registry rows (guarantees 130, assumptions 35), 15 spec sections i
 
 ### `link-explains-itself` (guarantee, requirement)
 
-- `test_help_idioms.py`: the module (28 functions) **guard**
+- `test_help_idioms.py`: the module (27 functions) **guard**
 
 ### `links-are-data` (assumption, contract)
 
@@ -487,7 +486,7 @@ Ids: 180: 165 registry rows (guarantees 130, assumptions 35), 15 spec sections i
 
 ### `mcp-no-code-writes` (assumption, contract)
 
-- `test_mcp_boundary.py`: `TestDemoTraffic.test_a_hexdump_cannot_reach_a_code_folder`, `TestDemoTraffic.test_a_hexdump_replaces_inside_the_folder`, `TestNoCodeWritten.test_a_person_still_can`, `TestNoCodeWritten.test_a_saved_profile_cannot_land_in_a_code_folder`, `TestNoCodeWritten.test_a_spelling_windows_folds_is_refused_with_the_folder_absent`, `TestNoCodeWritten.test_a_writer_cannot_land_in_a_code_folder`, `TestNoCodeWritten.test_the_sandbox_flag_does_not_lift_it`, `TestProtoRunResults.test_a_fixed_name_runs_twice`, `TestProtoRunResults.test_a_run_replaces_an_earlier_results_file`, `TestProtoRunResults.test_results_beside_an_outside_script_are_not_replaced`, `TestProtoRunResults.test_the_sandbox_flag_does_not_open_a_code_folder`, `TestReplacing.test_a_capture_may_still_append`, `TestReplacing.test_a_capture_replaces_inside_the_folder`, `TestReplacing.test_a_file_outside_the_folder_is_not_replaced`, `TestReplacing.test_a_saved_profile_replaces_inside_the_folder`, `TestReplacing.test_another_configs_file_is_outside_too`, `TestReplacing.test_generated_code_replaces_inside_the_folder`, `TestRunLegacy.test_a_fix_rewrites_a_script_in_run`, `TestRunLegacy.test_a_name_cannot_leave_run`, `TestRunLegacy.test_a_person_can_still_fix_a_script`, `TestRunLegacy.test_fixing_a_clean_script_is_not_a_failure`, `TestRunLegacy.test_the_sandbox_flag_does_not_lift_it`, `TestTheGuards.test_a_folder_below_a_code_folder_is_refused`, `TestTheGuards.test_with_no_config_nothing_is_inside`
+- `test_mcp_boundary.py`: `TestDemoTraffic.test_a_hexdump_cannot_reach_a_code_folder`, `TestDemoTraffic.test_a_hexdump_replaces_inside_the_folder`, `TestNoCodeWritten.test_a_person_still_can`, `TestNoCodeWritten.test_a_saved_profile_cannot_land_in_a_code_folder`, `TestNoCodeWritten.test_a_spelling_windows_folds_is_refused_with_the_folder_absent`, `TestNoCodeWritten.test_a_writer_cannot_land_in_a_code_folder`, `TestNoCodeWritten.test_the_sandbox_flag_does_not_lift_it`, `TestProtoRunResults.test_a_fixed_name_runs_twice`, `TestProtoRunResults.test_a_run_replaces_an_earlier_results_file`, `TestProtoRunResults.test_results_beside_an_outside_script_are_not_replaced`, `TestProtoRunResults.test_the_sandbox_flag_does_not_open_a_code_folder`, `TestReplacing.test_a_capture_may_still_append`, `TestReplacing.test_a_capture_replaces_inside_the_folder`, `TestReplacing.test_a_file_outside_the_folder_is_not_replaced`, `TestReplacing.test_a_saved_profile_replaces_inside_the_folder`, `TestReplacing.test_another_configs_file_is_outside_too`, `TestReplacing.test_generated_code_replaces_inside_the_folder`, `TestTheGuards.test_a_folder_below_a_code_folder_is_refused`, `TestTheGuards.test_with_no_config_nothing_is_inside`
 
 ### `mcp-no-file-management` (guarantee, contract)
 
@@ -513,7 +512,6 @@ Ids: 180: 165 registry rows (guarantees 130, assumptions 35), 15 spec sections i
 - `test_builtins.py`: `TestPortChipList.test_no_matches_is_an_empty_table`
 - `test_env_var.py`: `TestEnvCommands.test_a_filter_matching_nothing_is_an_empty_answer`, `TestEnvCommands.test_plain_text_lists_every_name_containing_it`
 - `test_folder_ops_delete.py`: `TestPattern` (5 functions)
-- `test_legacy_migration.py`: `TestRunLegacyPattern.test_a_pattern_matching_nothing_fails`, `TestRunLegacyPattern.test_a_pattern_scans_only_the_scripts_it_matches`
 - `test_matching.py`: the module (7 functions) **guard**
 - `test_proto_crc_list.py`: `test_a_glob_is_anchored`, `test_a_pattern_matching_nothing_is_an_empty_answer`, `test_plain_text_is_contained`
 - `test_sym_commands.py`: `TestDevLib.test_a_filter_matching_nothing_is_an_empty_answer`, `TestDevRegs.test_a_pattern_matches_register_or_peripheral`
@@ -539,7 +537,7 @@ Ids: 180: 165 registry rows (guarantees 130, assumptions 35), 15 spec sections i
 
 - `test_app_pilot.py`: `TestEditHooks.test_cfg_load_switches_before_it_returns`
 - `test_app_pilot_targets.py`: `TestScriptPickedDelete.test_the_pickers_delete_is_run_delete`, `TestScriptPickedDelete.test_the_proto_pickers_rename_stays_open_on_the_new_name`
-- `test_architecture.py`: `test_each_command_has_one_handler_in_every_frontend` **guard**, `test_the_legacy_table_is_the_same_in_every_frontend` **guard**
+- `test_architecture.py`: `test_each_command_has_one_handler_in_every_frontend` **guard**
 
 ### `os-never-under-mcp` (guarantee, contract)
 

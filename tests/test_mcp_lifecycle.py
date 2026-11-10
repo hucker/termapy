@@ -466,7 +466,7 @@ class TestOnConnectCmd:
     def test_on_connect_cmd_fires_in_mcp(self, tmp_path):
         """v15 closes the latent bug: on_connect_cmd now fires in MCP."""
         # Arrange
-        h = self._make_host(tmp_path, on_connect_cmd="/ver")
+        h = self._make_host(tmp_path, on_connect_cmd="/app.ver")
 
         # Act
         try:
@@ -478,14 +478,14 @@ class TestOnConnectCmd:
 
         # Assert
         log = _logged(h)
-        assert "$ /ver  (on_connect_cmd)" in log, (
+        assert "$ /app.ver  (on_connect_cmd)" in log, (
             f"universal on_connect_cmd fires in MCP, log was:\n{log}"
         )
 
     def test_mcp_on_connect_cmd_fires_in_mcp(self, tmp_path):
         """mcp_on_connect_cmd is the MCP-only device-setup hook."""
         # Arrange
-        h = self._make_host(tmp_path, mcp_on_connect_cmd="/ver")
+        h = self._make_host(tmp_path, mcp_on_connect_cmd="/app.ver")
 
         # Act
         try:
@@ -497,7 +497,7 @@ class TestOnConnectCmd:
 
         # Assert
         log = _logged(h)
-        assert "$ /ver  (mcp_on_connect_cmd)" in log, (
+        assert "$ /app.ver  (mcp_on_connect_cmd)" in log, (
             f"mcp_on_connect_cmd fires in MCP, log was:\n{log}"
         )
 
@@ -527,7 +527,7 @@ class TestOnConnectCmd:
         h = self._make_host(
             tmp_path,
             on_connect_cmd="/cls",  # silly but distinguishable
-            mcp_on_connect_cmd="/ver",
+            mcp_on_connect_cmd="/app.ver",
         )
 
         # Act
@@ -541,7 +541,7 @@ class TestOnConnectCmd:
         # Assert
         log = _logged(h)
         cls_idx = log.find("$ /cls  (on_connect_cmd)")
-        ver_idx = log.find("$ /ver  (mcp_on_connect_cmd)")
+        ver_idx = log.find("$ /app.ver  (mcp_on_connect_cmd)")
         assert cls_idx >= 0, f"universal cmd logged, log was:\n{log}"
         assert ver_idx >= 0, f"mcp-only cmd logged, log was:\n{log}"
         assert cls_idx < ver_idx, "universal fires before mcp-only"

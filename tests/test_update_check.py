@@ -301,11 +301,11 @@ class TestParseIso:
         assert update_check._parse_iso(value) is None, "a bad state value never raises"
 
 
-# -- check_now: on-demand path used by /ver.latest and /ver.info ------------
+# -- check_now: on-demand path used by /app.ver.latest and /app.ver.info ------------
 
 
 class TestCheckNow:
-    """``check_now`` powers ``/ver.latest`` and ``/ver.info`` -- the
+    """``check_now`` powers ``/app.ver.latest`` and ``/app.ver.info`` -- the
     user-typed-the-command path.  Different contract from
     ``check``: no 7-day throttle, no state-file writes, network
     failure returns ``(None, False)`` for the caller to surface.

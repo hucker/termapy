@@ -81,9 +81,8 @@ def repl_env(tmp_path, monkeypatch):
             gui_apps=True,
             session_log=True,
         ),
-        # Wire ctx.dispatch so handlers that forward to other commands
-        # (legacy aliases like /echo -> /term.echo) actually reach the
-        # target handler instead of hitting the default no-op lambda.
+        # Wire ctx.dispatch so a handler that runs another command reaches
+        # its handler instead of hitting the default no-op lambda.
         dispatch=engine.dispatch,
     )
     engine.set_context(ctx)
@@ -97,18 +96,18 @@ def repl_env(tmp_path, monkeypatch):
     return engine, cfg, config_path, output
 
 
-# -- /echo ----------------------------------------------------------------
+# -- /term.echo -----------------------------------------------------------
 
 
 class TestEcho:
     def test_echo_on(self, repl_env):
-        """Via the legacy /echo alias, 'on' sets the device-echo flag and prints a confirmation."""
+        """'on' sets the device-echo flag and prints a confirmation."""
         # Arrange
         engine, _, _, output = repl_env
         engine.ctx.ns("flags")["echo"] = False
 
         # Act
-        engine.dispatch("echo on")
+        engine.dispatch("term.echo on")
 
         # Assert
         assert engine.ctx.ns("flags")["echo"] is True, "echo enabled"
@@ -120,28 +119,28 @@ class TestEcho:
         engine, _, _, output = repl_env
 
         # Act
-        engine.dispatch("echo off")
+        engine.dispatch("term.echo off")
 
         # Assert
         assert engine.ctx.ns("flags")["echo"] is False, "echo disabled"
         assert any("off" in t for t, _ in output), "confirmation shown"
 
     def test_echo_toggle(self, repl_env):
-        """Bare /echo only queries; the explicit toggle verb is what flips the flag, both ways."""
+        """Bare /term.echo only queries; the explicit toggle verb is what flips the flag, both ways."""
         # Arrange
         engine, _, _, output = repl_env
         assert engine.ctx.ns("flags")["echo"] is True, "starts enabled"
 
         # Act / Assert - bare invocation QUERIES (never mutates)
-        engine.dispatch("echo")
+        engine.dispatch("term.echo")
         assert engine.ctx.ns("flags")["echo"] is True, "bare query does not flip"
 
         # Act / Assert - explicit toggle verb flips off
-        engine.dispatch("echo toggle")
+        engine.dispatch("term.echo toggle")
         assert engine.ctx.ns("flags")["echo"] is False, "toggle flips off"
 
         # Act / Assert - toggle flips back on
-        engine.dispatch("echo toggle")
+        engine.dispatch("term.echo toggle")
         assert engine.ctx.ns("flags")["echo"] is True, "toggle flips back on"
 
     def test_echo_invalid_arg_errors(self, repl_env):
@@ -150,7 +149,7 @@ class TestEcho:
         engine, _, _, _ = repl_env
         engine.ctx.ns("flags")["echo"] = True
 
-        # Act -- term.echo (not the /echo legacy alias, which clears .error)
+        # Act
         result = engine.dispatch("term.echo 2")
 
         # Assert
@@ -165,9 +164,9 @@ class TestEcho:
         # Arrange
         engine, _, _, _ = repl_env
         # Act / Assert
-        engine.dispatch("echo off")
+        engine.dispatch("term.echo off")
         assert engine.ctx.ns("flags")["echo"] is False, "'off' sets off"
-        engine.dispatch("echo on")
+        engine.dispatch("term.echo on")
         assert engine.ctx.ns("flags")["echo"] is True, "'on' sets on"
 
 
@@ -562,8 +561,7 @@ class TestVer:
     ``/app.ver.latest`` (bare PyPI value), ``/app.ver.info`` (verbose
     installed-vs-PyPI compare).  ``.info`` is the verbose-state verb
     used by /cfg.info, /port.info, /mcp.info, /profile.info; ``.latest``
-    is a noun matching field-getter style.  The old top-level ``/ver*``
-    names keep working as hidden legacy forwarders.
+    is a noun matching field-getter style.
     """
 
     def test_app_ver_returns_installed_version_string(self, repl_env):
@@ -586,18 +584,6 @@ class TestVer:
 
         # Assert
         assert result.value == f"termapy v{result.data['version']}", "the line wraps the version"
-
-    def test_legacy_ver_forwards_to_app_ver(self, repl_env):
-        """The hidden /ver forwarder keeps the /app.ver value intact for old scripts."""
-        # Arrange / Act -- the old /ver keeps working via a hidden forwarder
-        engine, _, _, _ = repl_env
-        result = engine.dispatch("ver")
-
-        # Assert -- forwarded result's value is preserved
-        assert result.success, "/ver forwards to /app.ver"
-        assert result.value.startswith("termapy v"), (
-            f"forwarded value preserved, got: {result.value!r}"
-        )
 
     def test_ver_latest_returns_bare_pypi_version(
         self,
@@ -2334,9 +2320,9 @@ class TestDispatch:
         assert any("help" in text.lower() for text in texts), "empty triggers help"
 
     def test_command_case_insensitive(self, repl_env):
-        """Command names match regardless of case: ECHO reaches the echo handler."""
+        """Command names match regardless of case: TERM.ECHO reaches the term.echo handler."""
         engine, _, _, output = repl_env
-        engine.dispatch("ECHO off")
+        engine.dispatch("TERM.ECHO off")
         assert engine.ctx.ns("flags")["echo"] is False, "uppercase command works"
 
 
@@ -2483,30 +2469,30 @@ class TestCls:
         assert len(cleared) == 1, "clear_screen called"
 
 
-# -- /show_line_endings ---------------------------------------------------
+# -- /term.eol.markers ----------------------------------------------------
 
 
 class TestEol:
     def test_eol_toggle_on(self, repl_env):
-        """/show_line_endings toggle flips the eol_markers cfg key from off to on."""
+        """/term.eol.markers toggle flips the eol_markers cfg key from off to on."""
         # Arrange
         engine, cfg, _, output = repl_env
         cfg["eol_markers"] = False
 
         # Act -- explicit toggle verb (bare now queries)
-        engine.dispatch("show_line_endings toggle")
+        engine.dispatch("term.eol.markers toggle")
 
         # Assert
         assert cfg["eol_markers"] is True, "toggle flips on"
 
     def test_eol_toggle_off(self, repl_env):
-        """/show_line_endings toggle flips the eol_markers cfg key from on to off."""
+        """/term.eol.markers toggle flips the eol_markers cfg key from on to off."""
         # Arrange
         engine, cfg, _, output = repl_env
         cfg["eol_markers"] = True
 
         # Act -- explicit toggle verb (bare now queries)
-        engine.dispatch("show_line_endings toggle")
+        engine.dispatch("term.eol.markers toggle")
 
         # Assert
         assert cfg["eol_markers"] is False, "toggle flips off"
@@ -2518,7 +2504,7 @@ class TestEol:
         cfg["eol_markers"] = False
 
         # Act
-        engine.dispatch("show_line_endings on")
+        engine.dispatch("term.eol.markers on")
 
         # Assert
         assert cfg["eol_markers"] is True, "set to on"
@@ -2530,7 +2516,7 @@ class TestEol:
         cfg["eol_markers"] = True
 
         # Act
-        engine.dispatch("show_line_endings off")
+        engine.dispatch("term.eol.markers off")
 
         # Assert
         assert cfg["eol_markers"] is False, "set to off"

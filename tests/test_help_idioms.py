@@ -62,7 +62,7 @@ def _links(cli: CLITerminal, line: str) -> list:
     return found
 
 
-def _register(cli: CLITerminal, name: str, args: str = "", hidden: bool = False) -> None:
+def _register(cli: CLITerminal, name: str, args: str = "") -> None:
     """Register a command, as a plugin would, with this synopsis."""
 
     def _handler(ctx, _args):
@@ -70,7 +70,7 @@ def _register(cli: CLITerminal, name: str, args: str = "", hidden: bool = False)
         return CmdResult.ok(value="")
 
     cli.repl.register_plugin(
-        PluginInfo(name=name, args=args, help="A test command.", handler=_handler, hidden=hidden)
+        PluginInfo(name=name, args=args, help="A test command.", handler=_handler)
     )
 
 
@@ -138,7 +138,7 @@ class TestThePages:
         expected = {
             name
             for name, plugin in cli.repl._plugins.items()
-            if not plugin.hidden and plugin.args and offers.search(plugin.args)
+            if plugin.args and offers.search(plugin.args)
         }
         assert "term.eol" in expected, "precondition: a setting takes it"
 
@@ -165,25 +165,11 @@ class TestALookup:
         assert result.value == "cycle"
         assert "A test command." in _page(cli, capsys, "/help cycle"), "the command's own page"
 
-    def test_a_hidden_command_gives_way(self, cli):
-        """A legacy alias does not take a word a page answers to: color is the key, verbose the idiom."""
-        # Arrange
-        assert cli.repl._plugins["color"].hidden, "precondition: /color is a hidden alias"
-        assert cli.repl._plugins["verbose"].hidden, "precondition: /verbose is a hidden alias"
-
+    def test_a_key_and_an_idiom_answer_by_name(self, cli):
+        """A config key's name opens the key's page and an idiom's word the idiom's: color is the key, verbose the idiom."""
         # Act / Assert
         assert cli.repl.dispatch("help color").value == "color", "the config key"
         assert cli.repl.dispatch("help verbose").value == "level", "the idiom"
-
-    def test_a_hidden_command_still_answers(self, cli, capsys):
-        """With nothing else claiming the name, a hidden command's page is still there, and its dev page."""
-        # Act
-        page = _page(cli, capsys, "/help port.close")
-        dev = _page(cli, capsys, "/help.dev port.close")
-
-        # Assert
-        assert "Legacy alias" in page
-        assert "DESCRIPTION (developer)" in dev
 
     @pytest.mark.rule("did-you-mean-one")
     @pytest.mark.parametrize(
@@ -245,7 +231,7 @@ class TestTheLinks:
         names = [
             name
             for name, plugin in cli.repl._plugins.items()
-            if not plugin.hidden and plugin.args and offers.search(plugin.args)
+            if plugin.args and offers.search(plugin.args)
         ]
         assert names, "precondition: some command offers it"
         expected = IDIOM_TOKENS[word]

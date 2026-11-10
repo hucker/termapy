@@ -375,15 +375,3 @@ def test_a_misspelled_keyword_names_the_keyword_meant(demo):
     assert Link("dev.import x.svd category=mcu", run=False) in links, (
         "the click fixes the keyword in the line; the usage line after it does not hide the link"
     )
-
-
-@pytest.mark.rule("did-you-mean-one")
-def test_no_hidden_command_is_suggested(demo):
-    """A hidden alias stays off the suggestions, as it stays off every discovery surface."""
-    hidden = sorted(name for name, info in demo.repl._plugins.items() if info.hidden)
-    assert hidden, "the built-ins keep a few legacy aliases hidden"
-    for name in hidden:
-        result = demo.repl.dispatch_full(f"/{name[:-1]}")
-        assert f"/{name}?" not in result.error and f"/{name}," not in result.error, (
-            f"{name} is hidden, so a typo of it never suggests it: {result.error}"
-        )

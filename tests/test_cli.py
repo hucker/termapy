@@ -282,17 +282,6 @@ class TestTermColor:
         ), "clear msg"
         assert cli.repl.ctx.ns("flags")["color"] is True, "state unchanged"
 
-    def test_legacy_color_alias(self, cli):
-        """The legacy /color name still forwards to /term.color."""
-        # Arrange
-        cli.repl.ctx.ns("flags")["color"] = True
-
-        # Act -- /color forwards to /term.color
-        cli.repl.dispatch("color off")
-
-        # Assert
-        assert cli.repl.ctx.ns("flags")["color"] is False, "/color forwards to /term.color"
-
 
 class TestTermHex:
     """/term.hex reaches the CLI's display; it used to be honored by the TUI alone."""
@@ -1320,9 +1309,8 @@ class TestHookRegistration:
         """All expected CLI hooks are registered."""
         # Arrange
         expected = {
-            # /delay is a builtin since 2026-10-16 (D2), not a CLI hook.
-            # term.color / color moved to a portable builtin + legacy alias
-            # (see TestTermColor); no longer CLI-registered hooks.
+            # /delay is a builtin since 2026-10-16 (D2), not a CLI hook, and
+            # term.color is a portable builtin (see TestTermColor).
             "run",
             "run.profile",
             # /run.profile.* is the run builtin's since 2026-10-16 (D8).
@@ -1333,10 +1321,8 @@ class TestHookRegistration:
             "run.profile.explore",
             "demo",
             "demo.force",
-            "clr",
             "raw",
             "help.open",
-            "log.clear",
             "tui",
             "cli",
         }

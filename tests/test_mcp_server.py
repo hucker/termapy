@@ -245,7 +245,7 @@ class TestCatalog:
         cat = build_catalog(host.ctx)
         sample = next(command for command in cat["commands"] if command["name"] == "/help")
         # Assert
-        for key in ("name", "args", "help", "long_help", "flags", "needs", "hidden", "source"):
+        for key in ("name", "args", "help", "long_help", "flags", "needs", "source"):
             assert key in sample, f"command entry missing {key!r}"
 
     def test_catalog_json_parses_back(self, host):
@@ -264,16 +264,6 @@ class TestCatalog:
         # Assert
         assert cat["device"] == {}, "no profile = empty device block"
         assert cat["profile_revision"] == "", "no profile = empty revision"
-
-    def test_catalog_hidden_flag_is_bool(self, host):
-        """Every command's hidden flag is a real bool, never None or a string."""
-        # Arrange / Act
-        cat = build_catalog(host.ctx)
-        # Assert
-        for command in cat["commands"]:
-            assert isinstance(command["hidden"], bool), (
-                f"hidden flag must be bool, got {type(command['hidden']).__name__}"
-            )
 
     def test_catalog_filters_interactive_only_commands(self, host):
         """Plugins requiring ``interactive`` are filtered from MCP catalog."""
@@ -315,39 +305,6 @@ class TestCatalog:
             assert cmd not in names, (
                 f"{cmd} should be filtered (needs.gui_apps=True; MCP doesn't advertise gui_apps)"
             )
-
-    def test_hidden_and_capability_filter_are_independent(self, host):
-        """``hidden`` is a UI-discoverability flag, NOT a catalog filter.
-
-        Hidden plugins (legacy forwarders for human typing) appear in
-        the MCP catalog with ``hidden: true`` -- the LLM can choose to
-        skip them itself.  The catalog filter is purely capability-based.
-        This test stashes a synthetic hidden+capability-satisfied plugin
-        and verifies it shows up.
-        """
-        # Arrange -- synthetic hidden plugin with no needs (baseline only)
-        from termapy.plugins import CapabilitySet, PluginInfo
-
-        synthetic = PluginInfo(
-            name="__test_hidden_visible",
-            args="",
-            help="synthetic test plugin",
-            handler=lambda ctx, args: None,
-            hidden=True,
-            needs=CapabilitySet(),  # baseline only -- satisfied by every host
-        )
-        host.repl._plugins[synthetic.name] = synthetic
-        try:
-            # Act
-            cat = build_catalog(host.ctx)
-            cat_names = {command["name"] for command in cat["commands"]}
-            # Assert
-            prefixed = host.ctx.prefix + synthetic.name
-            assert prefixed in cat_names, (
-                "hidden=True with no restrictive needs should appear in catalog"
-            )
-        finally:
-            del host.repl._plugins[synthetic.name]
 
     def test_catalog_filters_tui_only_commands(self, host):
         """A registered tui_mode command such as /proto.debug is left out for MCP."""
@@ -1096,9 +1053,9 @@ class TestRunCommandsAvailableInMCP:
         assert bare.value == listed.value, "bare /run is /run.list"
 
     def test_run_list_dump_callable_from_mcp(self, host):
-        """run.list, run.dump and run.legacy are all callable under MCP capabilities, with its config loaded."""
+        """run.list and run.dump are callable under MCP capabilities, with its config loaded."""
         # Arrange / Act -- the gate's own set: the static one plus the live config
-        for name in ("run.list", "run.dump", "run.legacy"):
+        for name in ("run.list", "run.dump"):
             plugin = host.repl._plugins.get(name)
             missing = list(plugin.needs.missing_from(host.repl._effective_capabilities()))
 

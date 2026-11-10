@@ -23,8 +23,7 @@ Bare ``/run`` opens the Run picker when a host installs one
 ``/run.list`` instead (``bare_sub="list"``), the picker's contents.  Folder subcommands (.list/.dump/.show/.explore)
 come from the shared ``build_folder_subcommands`` helper, and
 ``/run.edit`` is ``/edit.run`` under its noun-first name
-(``edit.edit_command``).  ``/run.legacy`` rides along by re-exporting
-the existing ``termapy.run_legacy`` handler.
+(``edit.edit_command``).
 
 ``/run.profile`` runs a script with per-line timing through the same
 ``ctx.internal.run_script``, and its results folder ``prof/`` has the
@@ -44,7 +43,6 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy import run_legacy
 from termapy.builtins.commands._run_record import (
     _LONG_HELP as _RECORD_LONG_HELP,
     _handler as _handler_record,
@@ -379,14 +377,6 @@ COMMAND = Command(
             ),
             handler=_handler_help,
             shows=True,
-            files="run",
-        ),
-        "legacy": Command(
-            args=run_legacy.ARGS,
-            help=run_legacy.HELP,
-            long_help=run_legacy.LONG_HELP,
-            handler=run_legacy.HANDLER,
-            flags=run_legacy.FLAGS,
             files="run",
         ),
         "record": Command(

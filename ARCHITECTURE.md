@@ -176,7 +176,6 @@ src/termapy/
 ├── idioms.py               #              The global idioms: what reads the same on every command, one row each
 ├── info_views.py           #              Read-only info views for the TUI
 ├── install_info.py         #              Detect how termapy was installed, for upgrade-command hints
-├── legacy.py               #              Legacy-command forwarding helper
 ├── load_report.py          #              The load report: what the last config load put in the session, one row per file
 ├── markup.py               #              Rich markup: the one home for turning text into markup and back
 ├── matching.py             #              The one reader for a typed name: every name filter and every did-you-mean shares its rules
@@ -192,7 +191,6 @@ src/termapy/
 ├── request_response.py     #              Request/response I/O pipeline for synchronous device exchanges
 ├── response_parsers.py     #              Pure response parsers for the profile response formats
 ├── run_docstring.py        #              Parse a `.run` script file's leading docstring block
-├── run_legacy.py           #              Implementation of /run.legacy -- scan a .run script for legacy commands
 ├── scripting.py            # (751 lines)  Template expansion, script parsing, and shared utilities for termapy
 ├── serial_engine.py        # (799 lines)  SerialEngine - orchestrates serial port, reader, and capture
 ├── serial_port.py          # (618 lines)  Serial port I/O wrapper and reader data processor
@@ -785,7 +783,7 @@ config_version: N  ──migrators──▶  CURRENT_CONFIG_VERSION
    vN→vN+1, vN+1→vN+2, ...     (each step is one function in MIGRATIONS)
 ```
 
-A migrator does whatever a schema change needs: rename a key, nest keys under a sub-dict (`port` → `serial.port`), rewrite a renamed command verb in the `*_on_connect_cmd` fields (`/color` → `/term.color`, `/ver` → `/app.ver`), move what a field held into a file (v30: a multi-command on-connect field becomes `run/<field>.run` and the field `/run <field>`), or retire a key. Two supporting tables back it: `DEPRECATED_CFG` (the reason each removed key went away, surfaced as a warning) and the legacy-command tables in `legacy.py` (so `/run.legacy` can rewrite old command names inside `.run` scripts).
+A migrator does whatever a schema change needs: rename a key, nest keys under a sub-dict (`port` → `serial.port`), rewrite a renamed command verb in the `*_on_connect_cmd` fields (`/color` → `/term.color`, `/ver` → `/app.ver`), move what a field held into a file (v30: a multi-command on-connect field becomes `run/<field>.run` and the field `/run <field>`), or retire a key. One supporting table backs it: `DEPRECATED_CFG` (the reason each removed key went away, surfaced as a warning).
 
 The payoff — and the reason this is a core concept, not plumbing — is that schema and command changes ship freely: an old config opens, upgrades itself with a chatty per-step summary, and the user never hand-edits JSON. A config written by a *newer* termapy is detected and gets one clear upgrade hint instead of a wall of "unknown key" warnings.
 
@@ -913,9 +911,8 @@ Every built-in command is one file in `builtins/commands/`, listed with its
 `/command` and purpose in the [Module structure](#module-structure) tree
 above — that tree is the single source of truth, so there's no second list
 to drift out of sync. They are ordinary plugins: the same `Command` +
-`PluginContext` API a user plugin uses. Hidden legacy aliases (e.g. `/echo`
-→ `/term.echo`) are registered centrally from `legacy.py` rather than as
-files (see [Hooks](#hooks) for the host-registered exceptions).
+`PluginContext` API a user plugin uses (see [Hooks](#hooks) for the
+host-registered exceptions).
 
 ## Suppressions
 
@@ -1025,7 +1022,6 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_hygiene.py                     | The three tool gates as tests: ruff finds nothing, ruff format would change nothing, ty finds nothing                                                                               |
 | test_install_info.py                | Tests for `termapy.install_info.upgrade_command`                                                                                                                                    |
 | test_lazy_folders.py                | The data-folder rule, driven end to end from a config with NO data folders                                                                                                          |
-| test_legacy_migration.py            | Tests for the verbose/.quiet -> output-level migration                                                                                                                              |
 | test_load_report.py                 | Tests for termapy.load_report: the record shape, the table and the session report                                                                                                   |
 | test_log_fingerprint.py             | `/log.fingerprint`: the session provenance report and each of its sections                                                                                                          |
 | test_markup_escape.py               | Text reaches the terminal as typed, through every markup path                                                                                                                       |

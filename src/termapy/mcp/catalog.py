@@ -83,12 +83,6 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
     # ``attainable``, not filters: until 2026-10-16 this read the static
     # set, and every command that needs a port (/mem.*, /ping, /cap.*)
     # was missing from the catalog an agent discovers commands by.
-    #
-    # The ``hidden`` flag is intentionally NOT a filter.  ``hidden``
-    # is a UI-discoverability concern (don't list in /help) used for
-    # legacy aliases -- it doesn't speak to MCP appropriateness.
-    # Hidden plugins still appear in the catalog with ``hidden: true``
-    # so MCP clients that want to skip them can do it themselves.
     capabilities = getattr(ctx, "capabilities", None)
     reachable = attainable(capabilities) if capabilities is not None else None
     cmd_list: list[dict[str, Any]] = []
@@ -310,7 +304,6 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
         "long_help": long_help_text,
         "flags": dict(plugin.flags) if plugin.flags else {},
         "needs": _needs_list(plugin.needs),
-        "hidden": bool(plugin.hidden),
         "source": plugin.source or "built-in",
         "raw_args": bool(plugin.raw_args),
     }

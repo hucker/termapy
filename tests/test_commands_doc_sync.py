@@ -20,7 +20,6 @@ from pathlib import Path
 
 from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
-from termapy.legacy import LEGACY_COMMANDS
 
 _COMMANDS_MD = Path(__file__).parent.parent / "src" / "termapy" / "help" / "commands.md"
 # A command token in a code-span: `/name` -- dotted segments, no trailing dot
@@ -62,12 +61,11 @@ def _registered_commands() -> set[str]:
 
 
 def test_every_documented_command_exists():
-    """No commands.md table row names a command that no host registers or aliases."""
-    # Arrange -- known real commands are builtins + CLI/TUI hooks; legacy
-    # aliases (/echo -> /term.echo) are valid to document too.
-    known = _registered_commands() | set(LEGACY_COMMANDS)
+    """No commands.md table row names a command that no host registers."""
+    # Arrange -- known real commands are builtins + CLI/TUI hooks
+    known = _registered_commands()
 
-    # Act -- commands in the doc that no host registers and aren't aliases
+    # Act -- commands in the doc that no host registers
     documented = _documented_commands()
     phantom = sorted(documented - known)
 

@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 from termapy import port_control
 from termapy.defaults import STANDARD_BAUD_RATES, cfg_value
 from termapy.help_dynamic import compose, port_status
-from termapy.legacy import make_forwarder
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, TextLine, UsageError
 from termapy.plugins.waiting import wait
 from termapy.port_format import PORT_TABLE_COLUMNS, find_chips
@@ -624,11 +623,6 @@ COMMAND = Command(
                 "echo": "set for the session before opening",
             },
         ),
-        "open": Command(
-            help="Legacy alias for {prefix}port.connect.",
-            handler=make_forwarder("port.open", "port.connect"),
-            hidden=True,
-        ),
         "mode": Command(
             args="{baud} {mode} {custom=<bool>}",
             help="Show or set serial mode (e.g. {prefix}port.mode 9600 N81).",
@@ -658,11 +652,6 @@ COMMAND = Command(
             long_help=port_status,
             handler=_handler_disconnect,
             cfg={"serial.port": "the port it closes"},
-        ),
-        "close": Command(
-            help="Legacy alias for {prefix}port.disconnect.",
-            handler=make_forwarder("port.close", "port.disconnect"),
-            hidden=True,
         ),
         "info": Command(
             help="Print status, params, chip, and live signals for the connected port.",

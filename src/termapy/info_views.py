@@ -124,8 +124,6 @@ def show_commands(app: SerialTerminal) -> None:
 
     groups: dict[str, list] = {}
     for name, plugin in app.repl._plugins.items():
-        if getattr(plugin, "hidden", False):
-            continue
         if skip_linux_only and app._LINUX_ONLY_RE.search(plugin.help or ""):
             continue
         if filter_term and filter_term not in name.lower():

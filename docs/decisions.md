@@ -1410,3 +1410,17 @@ typed and the device's own echo is the record of what it accepted, so a `>` line
 double every character and log the backspaces. Chuck's framing, which settled the shape: in the
 TUI a line exists before it leaves, so `>` lines stay there; `--vt100` is the one mode where
 nothing on termapy's side holds a line. **Where:** registry `vt100-on-engine`.
+
+## 2026-11-09 — The legacy aliases and `/run.legacy` are gone
+
+Ten hidden forwarders (`/echo`, `/color`, `/line_no`, `/show_line_endings`, `/verbose`, `/clr`,
+`/log.clear`, `/ver`, `/ver.latest`, `/ver.info`), three hidden aliases in the command tables
+(`/port.open`, `/port.close`, `/term.line_endings`), the `/run.legacy` scanner that rewrote old
+names in `.run` files, and the `hidden` flag that kept them off every listing are removed. Chuck's
+rule settles it: one user, no shims, no deprecation cycles. A hidden alias was a deprecation cycle
+under another name, and every other reason to hide a command already has a visible mechanism
+(maturity, safety tier, capability gate). An old name now answers `Unknown command: echo -- did you
+mean term.echo?`, and a `.run` file that still uses one fails on that line with the new name in the
+message; the config migrations that rewrite `/color` and `/ver` in on-connect fields stay. The
+MCP catalog no longer carries a `hidden` field. **Where:** registry `one-handler-per-command`
+(its legacy-table clause dropped); todo item 5.

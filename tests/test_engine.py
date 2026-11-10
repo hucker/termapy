@@ -1011,7 +1011,7 @@ class TestDispatchFull:
         eng, output, logged, echoed, statuses, writes, do = dispatch_env
 
         # Act
-        do("/echo.silent off")
+        do("/term.echo.silent off")
 
         # Assert - .silent commands should not be echoed even with echo on
         assert not any("echo.silent" in t for t in echoed), "suppressed"

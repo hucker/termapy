@@ -24,7 +24,6 @@ import termapy
 from termapy.builtins.commands.proto import _write_crc_codegen_files
 from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
-from termapy.legacy import LEGACY_COMMANDS
 from termapy.mcp.server import MCPHost
 from termapy.plugins.capabilities import ENVIRONMENTS, CapabilitySet, MissingCapability
 from termapy.plugins.handles.fs import FilesystemHandle
@@ -131,7 +130,7 @@ def shells_that_ran(tmp_path_factory) -> list[str]:
 
 
 _MINE = "# mine\n"  # what each file starts as: valid Python, so the plugin load stays clean
-_LEGACY_LINE = f"/{next(iter(LEGACY_COMMANDS))}\n"  # a line /run.legacy --fix would rewrite
+_SCRIPT_LINE = "/print mine\n"  # what a victim script holds, so a rewrite would show
 _TRAFFIC_PLUGIN = Path(termapy.__file__).parent / "builtins" / "demo" / "plugin" / "traffic.py"
 
 
@@ -442,7 +441,6 @@ class TestReplacing:
         [
             "/cap.text {victim} timeout=100ms",
             "/proto.crc.python crc16-xmodem file={stem}",
-            "/run.legacy {victim} --fix",
             "/profile.save {victim}",
         ],
     )
@@ -456,14 +454,14 @@ class TestReplacing:
         assert _call(host, "/profile.load x.profile.json")["success"] is True, "a profile to save"
         assert _call(host, "/port.connect")["success"] is True, "a capture needs a port"
         victim = tmp_path / "victim.py"
-        victim.write_text(_LEGACY_LINE, encoding="utf-8")
+        victim.write_text(_SCRIPT_LINE, encoding="utf-8")
 
         # Act
         result = _call(host, line.format(victim=victim, stem=victim.with_suffix("")))
 
         # Assert
         assert "File exists: victim.py" in result["error"], result["error"]
-        assert victim.read_text(encoding="utf-8") == _LEGACY_LINE, "the file is untouched"
+        assert victim.read_text(encoding="utf-8") == _SCRIPT_LINE, "the file is untouched"
 
     @pytest.mark.rule("mcp-no-code-writes")
     def test_another_configs_file_is_outside_too(self, host):
@@ -675,105 +673,6 @@ class TestProtoRunResults:
         # Assert
         assert "holds code" in result["error"], result["error"]
         assert not (_folder(connected) / "plugin" / "test").exists(), "nothing was written"
-
-
-class TestRunLegacy:
-    @pytest.fixture
-    def old(self, host) -> Path:
-        """A script in run/ naming a renamed command, so --fix has a line to rewrite."""
-        path = _folder(host) / "run" / "old.run"
-        path.write_text(_LEGACY_LINE, encoding="utf-8")
-        return path
-
-    @pytest.mark.rule("mcp-no-code-writes")
-    @pytest.mark.parametrize("name", ["old", "old*"])
-    def test_a_fix_rewrites_a_script_in_run(self, host, old, name):
-        """run/ is the config's own, so --fix works there, and a second report finds nothing."""
-        # Act
-        report = _call(host, f"/run.legacy {name}")
-        fix = _call(host, f"/run.legacy {name} --fix")
-        again = _call(host, f"/run.legacy {name}")
-
-        # Assert
-        assert report["value"] == 1, "the report found the line"
-        assert fix["success"] is True, fix["error"]
-        assert old.read_text(encoding="utf-8") != _LEGACY_LINE, "the script was rewritten"
-        assert again["value"] == 0, "nothing left to fix"
-
-    @pytest.mark.rule("mcp-no-code-writes")
-    def test_fixing_a_clean_script_is_not_a_failure(self, host):
-        """A script with no hits writes nothing, and says so."""
-        # Arrange
-        (_folder(host) / "run" / "clean.run").write_text("/print clean\n", encoding="utf-8")
-
-        # Act
-        result = _call(host, "/run.legacy clean --fix")
-
-        # Assert
-        assert result["success"] is True, result["error"]
-        assert result["value"] == 0, "no hits"
-
-    @pytest.mark.rule("mcp-no-code-writes")
-    @pytest.mark.parametrize("fix", ["", " --fix"])
-    def test_a_name_cannot_leave_run(self, host, tmp_path, fix):
-        """Neither a climb into plugin/ nor an absolute path reaches a file, to read or to rewrite."""
-        # Arrange
-        in_plugin = _folder(host) / "plugin" / "victim.py"
-        outside = tmp_path / "victim.txt"
-        for path in (in_plugin, outside):
-            path.write_text(_LEGACY_LINE, encoding="utf-8")
-
-        for name, path in (("../plugin/victim.py", in_plugin), (str(outside), outside)):
-            # Act
-            result = _call(host, f"/run.legacy {name}{fix}")
-
-            # Assert
-            assert "sandbox" in result["error"], result["error"]
-            assert "run/" in result["error"], "the refusal names the folder as it is on disk"
-            assert path.read_text(encoding="utf-8") == _LEGACY_LINE, "the file is untouched"
-
-    @pytest.mark.rule("mcp-no-code-writes")
-    def test_the_sandbox_flag_does_not_lift_it(self, host, tmp_path):
-        """With host-wide paths on, --fix still rewrites nothing in plugin/ or outside the folder."""
-        # Arrange
-        host.ctx.capabilities = replace(host.ctx.capabilities, filesystem_unconfined=True)
-        host.ctx.sync_capabilities()
-        in_plugin = _folder(host) / "plugin" / "victim.py"
-        outside = tmp_path / "victim.txt"
-        for path in (in_plugin, outside):
-            path.write_text(_LEGACY_LINE, encoding="utf-8")
-
-        # Act
-        code = _call(host, "/run.legacy ../plugin/victim.py --fix")
-        away = _call(host, f"/run.legacy {outside} --fix")
-
-        # Assert
-        assert "holds code" in code["error"], code["error"]
-        assert "File exists: victim.txt" in away["error"], away["error"]
-        assert in_plugin.read_text(encoding="utf-8") == _LEGACY_LINE, "the plugin is untouched"
-        assert outside.read_text(encoding="utf-8") == _LEGACY_LINE, "the file outside is untouched"
-
-    @pytest.mark.rule("mcp-no-code-writes")
-    def test_a_person_can_still_fix_a_script(self, tmp_path):
-        """The TUI and CLI keep --fix, and the working folder as a place to find the script."""
-        # Arrange
-        path = tmp_path / "c" / "c.cfg"
-        path.parent.mkdir()
-        path.write_text(json.dumps(DEFAULT_CFG))
-        cli = CLITerminal(dict(DEFAULT_CFG), str(path), no_color=True, term_width=120)
-        cli.repl.global_root = tmp_path
-        here = tmp_path / "here"
-        here.mkdir()
-        script = here / "old.run"
-        script.write_text(_LEGACY_LINE, encoding="utf-8")
-
-        # Act
-        with contextlib.chdir(here):
-            result = cli.repl.dispatch_full("/run.legacy old --fix")
-
-        # Assert
-        assert result.success is True, result.error
-        assert script.read_text(encoding="utf-8") != _LEGACY_LINE, "the script was rewritten"
 
 
 class TestDemoTraffic:

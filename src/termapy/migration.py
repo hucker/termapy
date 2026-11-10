@@ -17,7 +17,7 @@ lands in its group, not at the end of the user's file.
 import re
 from collections.abc import Callable
 
-CURRENT_CONFIG_VERSION = 38
+CURRENT_CONFIG_VERSION = 39
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -819,6 +819,20 @@ def _migrate_v37_to_v38(cfg: dict) -> dict:
 
 
 MIGRATIONS[37] = _migrate_v37_to_v38
+
+
+def _migrate_v38_to_v39(cfg: dict) -> dict:
+    """Add ``tx_chunking`` (on): a large send reaches the driver in 192-byte pieces.
+
+    Measured 2026-11-10 on an FT232R: 4 KB writes lost lines at 750000
+    baud and up, 192-byte writes lost none.  On by default; off sends each
+    write whole, as before.
+    """
+    cfg.setdefault("tx_chunking", True)
+    return cfg
+
+
+MIGRATIONS[38] = _migrate_v38_to_v39
 
 
 def migrate_config(cfg: dict) -> dict:

@@ -255,10 +255,12 @@ lost:
 
 The losses are random: 921600 lost nothing in this sweep, and in shorter
 runs before it lost up to 81 lines in 8 s.  Across every run at 460800 and
-below, about 16 MB through termapy's layers lost nothing.  If every byte of
-a fast link matters, use hardware flow control or a protocol with
-checksums and retries: termapy cannot recover bytes the adapter never
-delivered.
+below, about 16 MB through termapy's layers lost nothing.  These runs sent
+the stream as 4 KB writes; the same adapter sending 192-byte writes lost
+nothing at any of these rates (see "Large sends go out in pieces" below).
+If every byte of a fast link matters, use hardware flow control or a block
+protocol that acknowledges and retransmits, `/xfer.xmodem` or
+`/xfer.ymodem`: termapy cannot recover bytes the adapter never delivered.
 
 **What the layers mean for you:**
 
@@ -275,6 +277,32 @@ delivered.
   stream backs up into the driver's buffer and loses bytes once it is full;
   these runs printed into nothing, so the terminal's own speed is not in
   them.
+
+### Large sends go out in pieces
+
+termapy hands anything longer than 192 bytes to the driver in 192-byte
+pieces, back to back (`tx_chunking`, on by default).  It helps large,
+high-speed transfers arrive intact.  Measured 2026-11-10 on the same rig:
+2 MB streams sent as 4 KB writes, the way a program usually writes, against
+the same streams sent as 192-byte writes, lines lost of 32768 in bare
+pyserial, termapy's reader and the CLI:
+
+| Baud | 4 KB writes, two runs | 192-byte writes | Line rate kept, 192-byte writes |
+| --- | --- | --- | --- |
+| 750000 | 21 / 1 / 64, then 1 / 18 / 73 | 0 / 0 / 1 | 99% |
+| 921600 | 61 / 31 / 0, then 24 / 52 / 2 | 0 / 0 / 0 | 99% |
+| 2 Mbaud | 1 / 120 / 29, then 0 / 8 / 2 | 0 / 0 / 0 | 97% |
+
+The one loss with 192-byte writes was the tail of a write, on the sending
+side.  384-byte writes still lost a few lines; 4 KB writes with a 2 ms pause
+after each lost as many as without; a pause after each 192-byte piece
+changed nothing, so there is none.  192 is half the FT232R's 384-byte FIFO.
+The same stream crossed the wire at the same rate either way, so what
+changed is how the adapter's driver handled the writes, not what the
+receiver could take.  A device sending into termapy writes its own way;
+whether a receive-only link loses anything at these rates is not measured
+here.  `tx_chunking` off (`/cfg tx_chunking off` for the session,
+`/cfg.auto` to keep it) sends each write whole, as before.
 
 **How it was measured.**  A USB adapter with TX jumpered to RX, so every
 byte sent comes back, and four layers each on a fresh connection: bare

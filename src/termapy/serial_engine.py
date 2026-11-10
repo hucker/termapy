@@ -508,6 +508,7 @@ class SerialEngine:
             # Lets wait_for_idle ask "when did the DEVICE last speak?" instead
             # of inspecting a port buffer this engine keeps drained.
             last_rx=lambda: self._last_rx_monotonic,
+            tx_chunking=lambda: bool(cfg_value(self._cfg, "tx_chunking")),
         )
         self._reader = SerialReader(
             encoding=cfg_value(self._cfg, "encoding"),

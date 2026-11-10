@@ -70,7 +70,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 38,
+    "config_version": 39,
     "title": "IoT Device",
     "border_color": "blue",
     "serial": {
@@ -92,6 +92,7 @@ Here is an example config for a device called `iot_device`:
     "eol": "\r",
     "tx_char_delay_ms": 0,
     "tx_line_delay_ms": 0,
+    "tx_chunking": true,
     "eol_rx": "auto",
     "eol_markers": false,
     "send_bare_enter": false,
@@ -191,6 +192,7 @@ reported as a type warning.
 | `eol`                         | `"\r"`                        | Appended to each sent command: `\r`, `\r\n`, or `\n` |
 | `tx_char_delay_ms`            | `0`                           | Delay in ms after each character of a line sent to the device (TeraTerm's transmit delay, msec/char), for a device that drops bytes sent back to back; `0` = off. File transfers, `/proto` and `/raw` are never paced |
 | `tx_line_delay_ms`            | `0`                           | Delay in ms after each line sent to the device (TeraTerm's msec/line); `0` = off |
+| `tx_chunking`                 | `true`                        | Hand a large send to the driver in 192-byte pieces, so large, high-speed transfers arrive intact (measured on an FT232R: 4 KB writes lost lines at 750000 baud and up, 192-byte writes lost none; see [Serial ports](ports.md#large-sends-go-out-in-pieces)). `false` sends each write whole |
 | `eol_rx`                      | `auto`                        | Receive newline: split output into lines. `auto`/`cr`/`lf`/`crlf` (set: /term.eol.rx) |
 | `eol_markers`                 | `false`                       | Show dim `\r` `\n` markers in serial output for debugging |
 | `send_bare_enter`             | `false`                       | Send line ending on empty Enter (for "press enter to continue" prompts) |

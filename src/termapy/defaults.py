@@ -397,6 +397,16 @@ CFG_KEYS: tuple[CfgKey, ...] = (
         help="Pause in ms after each line sent to the device.",
         hint="0 = off. Lines only: binary sends are never paced.",
     ),
+    # A write longer than serial_port.TX_CHUNK_BYTES (192) reaches the driver
+    # in pieces that size.  Measured 2026-11-10 on an FT232R: 4 KB writes lost
+    # lines at 750000 baud and up, 192-byte writes lost none.
+    CfgKey(
+        "tx_chunking",
+        True,
+        "bool",
+        help="Hand a large send to the driver in 192-byte pieces: large, high-speed transfers arrive intact.",
+        hint="true (default), false. Off sends each write whole.",
+    ),
     # Receive newline: how incoming device output is split into lines.
     # "auto" treats CR, LF, and CRLF all as line terminators (TeraTerm's
     # Receive=AUTO -- works for any device); cr/lf/crlf force a single

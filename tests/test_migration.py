@@ -1016,6 +1016,17 @@ def test_v37_to_v38_removes_json_style_and_keeps_a_json_section():
     assert result["json_fmt"] == {"indent": 4, "highlight": True}, "what was there stays"
 
 
+def test_v38_to_v39_adds_tx_chunking_on():
+    """Migration v38->v39 adds tx_chunking as true, and a config that already set it keeps its value."""
+    # Act
+    added = migrate_config({"config_version": 38})
+    kept = migrate_config({"config_version": 38, "tx_chunking": False})
+
+    # Assert
+    assert added["tx_chunking"] is True, "the new key arrives on"
+    assert kept["tx_chunking"] is False, "a value already in the file wins"
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labeled line to _migration_steps."""
     # Arrange -- a config from v17 runs every migrator since.

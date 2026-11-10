@@ -190,7 +190,7 @@ class TestCaptureOverlay:
             # The delay keeps the script alive long enough to be watched, on a
             # loaded CI runner too, where a 300 ms window was missed whole.
             (folder / "cap.run").write_text(
-                "/cap.bin t.bin bytes=100000\n/delay 300ms\n/cap.stop\n",
+                "/cap.bin t.bin bytes=100000\n/delay 1500ms\n/cap.stop\n",
                 encoding="utf-8",
             )
             async with app.run_test(size=_SIZE) as pilot:

@@ -275,7 +275,7 @@ class TestCfgLoadFiresOnConnected:
         """A load that auto-connects runs the new cfg's mcp_on_connect_cmd."""
         # Arrange - cfg with mcp_on_connect_cmd set, monkeypatched cfg_dir
         monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
-        self._make_cfg(tmp_path, "target", mcp_on_connect_cmd="/ver")
+        self._make_cfg(tmp_path, "target", mcp_on_connect_cmd="/app.ver")
 
         # Build host on a different cfg with no on-connect cmds
         unrelated = self._make_cfg(tmp_path, "unrelated")
@@ -299,7 +299,7 @@ class TestCfgLoadFiresOnConnected:
         log_path = h.session_log_path()
         assert log_path is not None, "log path set after switch"
         log = log_path.read_text(encoding="utf-8")
-        assert "$ /ver  (mcp_on_connect_cmd)" in log, (
+        assert "$ /app.ver  (mcp_on_connect_cmd)" in log, (
             f"mcp_on_connect_cmd fired on cfg.load reconnect, log was:\n{log}"
         )
 
@@ -307,7 +307,7 @@ class TestCfgLoadFiresOnConnected:
         """Same regression for the universal on_connect_cmd."""
         # Arrange
         monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
-        self._make_cfg(tmp_path, "target", on_connect_cmd="/ver")
+        self._make_cfg(tmp_path, "target", on_connect_cmd="/app.ver")
         unrelated = self._make_cfg(tmp_path, "unrelated")
         cfg = json.loads(unrelated.read_text())
         h = MCPHost(cfg, str(unrelated), verbose=False)
@@ -327,7 +327,7 @@ class TestCfgLoadFiresOnConnected:
         log = (lambda path: path.read_text(encoding="utf-8") if path is not None else "")(
             h.session_log_path()
         )
-        assert "$ /ver  (on_connect_cmd)" in log, (
+        assert "$ /app.ver  (on_connect_cmd)" in log, (
             f"on_connect_cmd fired on cfg.load reconnect, log was:\n{log}"
         )
 

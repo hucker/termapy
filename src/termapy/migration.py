@@ -405,9 +405,8 @@ def _migrate_v19_to_v20(cfg: dict) -> dict:
 
     The CLI-only ``/color`` toggle was renamed to ``/term.color`` to
     sit alongside its display-toggle siblings (``/term.echo``,
-    ``/term.line_no``, ``/term.timestamps``, ...).  A hidden legacy
-    alias keeps ``/color`` working at runtime, so user .run scripts,
-    shell aliases, and muscle memory continue to work.
+    ``/term.line_no``, ``/term.timestamps``, ...).  The old name is gone
+    (decision 2026-11-09): typed, it answers with the new name suggested.
 
     This migration is cosmetic: it walks the four ``*_on_connect_cmd``
     cfg fields and rewrites any ``/color`` command-verb occurrences in
@@ -507,10 +506,9 @@ def _migrate_v22_to_v23(cfg: dict) -> dict:
     """Rewrite ``/ver`` -> ``/app.ver`` in on-connect command chains.
 
     ``/ver`` moved under ``/app`` (``/app.ver``, ``/app.ver.latest``,
-    ``/app.ver.info``) to group the app-info commands.  A hidden legacy
-    alias keeps ``/ver`` working at runtime, so this migration is
-    cosmetic: it updates the four ``*_on_connect_cmd`` chains so
-    ``/cfg.dump`` shows the canonical name and the user learns it.
+    ``/app.ver.info``) to group the app-info commands.  This migration
+    updates the four ``*_on_connect_cmd`` chains; the old name itself is
+    gone (decision 2026-11-09).
     """
     for key in (
         "on_connect_cmd",

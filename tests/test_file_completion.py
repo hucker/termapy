@@ -147,7 +147,6 @@ class TestDeclarations:
         [
             ("run", "run"),
             ("run.help", "run"),
-            ("run.legacy", "run"),
             ("run.edit", "run"),
             ("run.dump", "run"),
             ("run.rename", "run"),

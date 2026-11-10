@@ -642,7 +642,7 @@ COMMAND = Command(
                 "off renders everything plain from the next line on (bold,\n"
                 "underline and links stay) and strips the device's escapes,\n"
                 "the same as --no-color, which starts the CLI with it off.\n"
-                "Works in both the TUI and CLI.  Legacy alias: {prefix}color."
+                "Works in both the TUI and CLI."
             ),
             handler=_handler_color,
             cfg={"color": "the value a load starts from"},
@@ -729,13 +729,6 @@ COMMAND = Command(
             needs=CapabilitySet.TUI_MODE,
             state=True,
         ),
-        "line_endings": Command(
-            args="{on|off|toggle}",
-            help="Hidden alias for {prefix}term.eol.markers.",
-            handler=_handler_eol_markers,
-            cfg={"eol_markers": "set for the session; bare shows it"},
-            hidden=True,
-        ),
         "eol": Command(
             args="{cr|lf|crlf|none|cycle}",
             help="Show or set the line ending sent with commands (cr/lf/crlf/none).",
@@ -782,8 +775,7 @@ COMMAND = Command(
                         "\\r \\n markers so you can see exactly how the device\n"
                         "terminates lines.  Distinct from {prefix}term.eol (which\n"
                         "SETS the sent ending) and {prefix}term.eol.rx (which\n"
-                        "controls how received output is split).  Legacy aliases:\n"
-                        "{prefix}term.line_endings, {prefix}show_line_endings."
+                        "controls how received output is split)."
                     ),
                     handler=_handler_eol_markers,
                     cfg={"eol_markers": "set for the session; bare shows it"},

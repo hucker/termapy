@@ -430,32 +430,6 @@ class ReplEngine:
             self.register_directive(directive)
         for hook in result.lifecycle_hooks:
             self.register_lifecycle_hook(hook)
-        self._register_legacy_forwarders()
-
-    def _register_legacy_forwarders(self) -> None:
-        """Register the hidden legacy command aliases centrally.
-
-        Old top-level commands that moved to a namespace (``/echo`` ->
-        ``/term.echo``, ``/line_no`` -> ``/term.line_no``,
-        ``/show_line_endings`` -> ``/term.line_endings``, ``/verbose`` ->
-        ``/term.output``) used to be one plugin file each.  They now live
-        in ``legacy.LEGACY_FORWARDERS`` and register here, once per
-        engine, so every frontend (TUI/CLI/MCP) gets them without four
-        extra files in ``builtins/commands/``.
-        """
-        from termapy.legacy import LEGACY_FORWARDERS
-
-        for fwd in LEGACY_FORWARDERS:
-            self.register_plugin(
-                PluginInfo(
-                    name=fwd.name,
-                    args=fwd.args,
-                    help=fwd.help,
-                    handler=fwd.handler,
-                    needs=fwd.needs,
-                    hidden=True,
-                )
-            )
 
     # -- Expect / pattern matching ---------------------------------------------
 
@@ -1289,7 +1263,6 @@ class ReplEngine:
         raw_args: bool = False,
         flags: dict[str, str] | None = None,
         needs: CapabilitySet | None = None,
-        hidden: bool = False,
         files: str = "",
         picker: str = "",
         group: str = "",
@@ -1318,7 +1291,6 @@ class ReplEngine:
             flags: First-class flag declarations (see ``Command.flags``).
             needs: Environment capabilities the handler requires
                 (see ``CapabilitySet``).
-            hidden: Omit from discovery surfaces (see ``Command.hidden``).
             files: Data folder the first argument's file lives in
                 (see ``Command.files``).
             picker: Picker a bare invocation opens (see ``Command.picker``).
@@ -1361,7 +1333,6 @@ class ReplEngine:
             raw_args=raw_args,
             flags=dict(flags) if flags else {},
             needs=needs if needs is not None else CapabilitySet(),
-            hidden=hidden,
             files=files,
             picker=picker,
             group=group or GROUP_DEFAULT,
@@ -1397,7 +1368,7 @@ class ReplEngine:
         device = profile_command_view(self.ctx.ns("active_profile")).get(name)
         path = cfg_key_path(name)
         idiom = idiom_for(name)
-        if plugin is not None and not plugin.hidden:
+        if plugin is not None:
             text = plugin.help
         elif device is not None:
             text = device.help
@@ -2279,9 +2250,7 @@ class ReplEngine:
                 self.ctx._call_level = saved_call_level
                 self.ctx.wants_data = saved_wants_data
         else:
-            # Hidden aliases stay off every discovery surface, this one too.
-            shown = (command for command, info in self._plugins.items() if not info.hidden)
-            hint = did_you_mean(closest(name, shown), prefix=self.prefix)
+            hint = did_you_mean(closest(name, list(self._plugins)), prefix=self.prefix)
             result = CmdResult.fail(msg=f"Unknown command: {name}{hint}")
         return _finish(result)
 

@@ -75,7 +75,7 @@ before it reads the text as a pattern.
 
 A command that deletes or rewrites files takes a pattern the same way,
 but plain text there is one file's name, and a pattern that matches
-nothing is an error: `/cap.delete adc_*`, `/run.legacy test_*`. Only the
+nothing is an error: `/cap.delete adc_*`. Only the
 folders termapy writes (`ss/`, `cap/`, `prof/`) delete by pattern; a
 script or plugin you wrote is deleted one name at a time, after a yes.
 
@@ -229,7 +229,6 @@ sends to the device) waits in the input line for Enter.
 | `/run {file}`             | TUI bare: open Run picker. CLI bare: list scripts. With file: run it.       |
 | `/run.edit {file}`        | Edit a .run script (same as `/edit.run`)                                    |
 | `/run.help`               | Show `/run` help (alias for `/help run`)                                    |
-| `/run.legacy <file\|pat>` | Find renamed (legacy) command names in scripts; `--fix` rewrites in place   |
 | `/run.list`               | List .run files in run/, newest first, with size, age, and summary          |
 | `/search <term>`          | Deep search: name, help, args, flags, long help (multi-term, `-exclude`, regex) |
 | `/seq`                    | Show sequence counters                                                      |

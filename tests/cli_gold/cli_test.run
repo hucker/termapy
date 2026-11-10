@@ -165,10 +165,10 @@ $(BAUD) <- /port.baud_rate
 /print === section: port subcommands ===
 /port.help
 
-# ── REPL: show_line_endings toggle ──────────────────────────────────────────
+# ── REPL: term.eol.markers toggle ──────────────────────────────────────────
 /print === section: line endings ===
-/show_line_endings on
-/show_line_endings off
+/term.eol.markers on
+/term.eol.markers off
 
 # ── REPL: sequence counters ─────────────────────────────────────────────────
 /print === section: seq ===
@@ -388,7 +388,7 @@ MEM.INFO
 # --demo mode (connected), which satisfies serial_connected, and .run files
 # satisfy block_until -- neither reaches the gate here.
 /print === section: capability gates (tui_mode + screen_capture) ===
-/line_no on
+/term.line_no on
 /ss.svg
 /ss.txt
 
@@ -449,8 +449,6 @@ MEM.R 0x1000 2 --json
 +PROD-ID
 /print === section: coverage: folders ===
 /run.help at_demo
-/run.legacy at_demo
-/run.legacy zz*
 /edit.run.list
 /run.dump status_check
 /proto

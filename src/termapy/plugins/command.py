@@ -541,13 +541,6 @@ class Command:
             the context lacks any declared capability, failing with a
             clear message naming what's missing.  See ``CapabilitySet``
             for the full vocabulary.
-        hidden: When True, this command is omitted from ``/help``
-            listings, the ``/`` popup, ``/search`` results, and other
-            discovery surfaces.  Still dispatches normally -- so legacy
-            aliases (``/echo`` -> ``/term.echo``) can forward silently
-            without polluting the user's sense of the "real" command
-            surface.  ``/help <name>`` with an exact hidden name still
-            shows the help.
         safety: Safety tier, the profile vocabulary -- ``safe`` (default),
             ``readonly``, ``mutable``, ``destructive``.  Over MCP a
             destructive command needs ``confirm=true`` exactly like a
@@ -626,7 +619,6 @@ class Command:
     raw_args: bool = False
     flags: dict[str, str] = field(default_factory=dict)
     needs: CapabilitySet = field(default_factory=CapabilitySet)
-    hidden: bool = False
     params: list[ParamSpec] = field(default_factory=list)
     safety: str = "safe"
     files: str = ""
@@ -1010,7 +1002,6 @@ class PluginInfo:
     raw_args: bool = False
     flags: dict[str, str] = field(default_factory=dict)
     needs: CapabilitySet = field(default_factory=CapabilitySet)
-    hidden: bool = False
     params: list[ParamSpec] = field(default_factory=list)
     safety: str = "safe"
     files: str = ""
@@ -1123,18 +1114,15 @@ def validate_cfg_uses(cfg: Mapping[str, str], name: str) -> dict[str, str]:
 
 
 def cfg_users(plugins: Mapping[str, PluginInfo]) -> dict[str, list[tuple[str, str]]]:
-    """Key path -> ``(command name, how it uses the key)`` for every visible command that declared it, names sorted.
+    """Key path -> ``(command name, how it uses the key)`` for every command that declared it, names sorted.
 
     The reverse of the declarations, read by ``/help <key>``, the config
     editor's help line and anything else that answers "who uses this
-    key" (registry ``cfg-declared``).  Hidden commands (legacy aliases)
-    are left out as every discovery surface leaves them out.
+    key" (registry ``cfg-declared``).
     """
     users: dict[str, list[tuple[str, str]]] = {}
     for name in sorted(plugins):
         info = plugins[name]
-        if info.hidden:
-            continue
         for path, use in info.cfg.items():
             users.setdefault(path, []).append((name, use))
     return users

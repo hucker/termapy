@@ -250,13 +250,6 @@ data, `ctx.status()` is progress chatter. Each gates on the active level.
 Handlers that produce scriptable data must call `CmdResult.ok(value=...)`
 so silent mode is useful.
 
-> **Migrating older scripts.** A script that uses `/verbose on/off` keeps
-> working through a hidden forwarder. Run `/run.legacy <file>` to preview
-> the canonical replacements for it and for `/term.verbose on/off` and the
-> old `*.quiet` "set silently" idiom, or `/run.legacy --fix <file>` to
-> rewrite in place. A [name pattern](commands.md#name-patterns) processes every
-> script it matches: `/run.legacy *` is all of `run/`.
-
 ## Example script
 
 ```text

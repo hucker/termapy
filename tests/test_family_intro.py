@@ -135,18 +135,6 @@ class TestTheBareList:
         assert envelope["output_lines"] == [], "no prose beside the records"
         assert envelope["value"] == 3, "the value is the row count, an integer in the envelope"
 
-    def test_a_hidden_child_stays_off_the_list(self, cli, capsys):
-        """A hidden alias dispatches but is not listed, as on the help page."""
-        # Arrange
-        cli.repl._plugins["xfer.root"].hidden = True
-
-        # Act
-        out = _page(cli, capsys, "/xfer")
-
-        # Assert
-        assert "/xfer.root" not in out, out
-        assert "/xfer.xmodem" in out, out
-
     def test_the_space_form_still_redirects(self, cli, capsys):
         """An argument names a subcommand as before: /xfer root reaches /xfer.root and prints no intro."""
         out = _page(cli, capsys, "/xfer root")

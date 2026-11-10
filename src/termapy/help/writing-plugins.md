@@ -341,7 +341,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 Examples that should set `value=`:
 
 - Query commands (`/port.baud_rate` returns `115200`, a number)
-- State toggles (`/echo on` returns `True`; a person sees `on`)
+- State toggles (`/term.echo on` returns `True`; a person sees `on`)
 - Computed values (`/proto.crc.calc` returns the CRC)
 - Ping timings, version strings, variable values
 

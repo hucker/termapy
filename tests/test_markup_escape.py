@@ -15,9 +15,7 @@ from dataclasses import dataclass, field
 import pytest
 from rich.text import Text
 
-from termapy.defaults import cfg_key_path
 from termapy.help_dynamic import green, is_state_line
-from termapy.idioms import idiom_for
 from termapy.markup import escape_markup, markup_to_plain, received_json_markup
 from termapy.plugins import (
     CapabilitySet,
@@ -294,8 +292,6 @@ def test_every_help_page_shows_its_own_text(session):
 
     # Act
     for name, plugin in sorted(engine._plugins.items()):
-        if plugin.hidden and (cfg_key_path(name) or idiom_for(name)):
-            continue  # a hidden alias gives way to the word's own page (idioms-one-table)
         screen.lines.clear()
         engine.dispatch(f"help {name}")
         shown = screen.text

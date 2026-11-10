@@ -143,11 +143,7 @@ def test_a_star_expands_every_group(tmp_path):
     """/help.group * lists every visible root, each with its group, under a GROUP column."""
     # Arrange
     eng = _engine(tmp_path)
-    roots = {
-        name
-        for name, plugin in eng.ctx.internal.plugins.items()
-        if "." not in name and not plugin.hidden
-    }
+    roots = {name for name, plugin in eng.ctx.internal.plugins.items() if "." not in name}
     # Act
     result = eng.dispatch_full("/help.group *")
     # Assert

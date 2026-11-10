@@ -235,7 +235,7 @@ AVAILABLE
   TUI: yes   CLI: yes (current)   MCP: yes
 
 SEE ALSO
-  /term.color, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.info, /term.json_fmt, /term.line_endings, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.traffic, /term.usb_db, /term
+  /term.color, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.info, /term.json_fmt, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.traffic, /term.usb_db, /term
 demo> /cfg.auto custom_buttons_side Right
   custom_buttons_side = right  (session)
 demo> /cfg custom_buttons_side
@@ -556,11 +556,10 @@ SUBCOMMANDS
   /port.usb             Show the whole USB tree, with serial ports marked.
 demo> /print === section: line endings ===
   === section: line endings ===
-demo> /show_line_endings on
-    Note: /show_line_endings is legacy; use /term.line_endings.
+demo> /term.eol.markers on
   eol_markers = on  (session)
   on
-demo> /show_line_endings off
+demo> /term.eol.markers off
   eol_markers = off  (session)
   off
 demo> /print === section: seq ===
@@ -1366,7 +1365,6 @@ SUBCOMMANDS
   /run.explore    Open run/ in the system file explorer.
   /run.help       Show /run help, or print a script's docstring.
   /run.last       Replay the last <count> commands typed (bare /run.last lists them).
-  /run.legacy     Scan a .run script for legacy command names (report, or --fix to rewrite).
   /run.list       List .run scripts, newest first, with size, age, and docstring summary.
   /run.profile    Run a script with per-line timing (CSV to prof/).
   /run.record     Record commands to a .run script (bare /run.record stops).
@@ -1783,8 +1781,7 @@ demo> /port.break -5
   Error: Invalid duration (use milliseconds, e.g. 250)
 demo> /print === section: capability gates (tui_mode + screen_capture) ===
   === section: capability gates (tui_mode + screen_capture) ===
-demo> /line_no on
-    Note: /line_no is legacy; use /term.line_no.
+demo> /term.line_no on
   Error: /term.line_no requires: tui_mode (not available in this environment)
 demo> /ss.svg
   Error: /ss.svg requires: screen_capture (not available in this environment)
@@ -1885,10 +1882,6 @@ demo> /print === section: coverage: folders ===
   === section: coverage: folders ===
 demo> /run.help at_demo
   AT Command Demo -- Walks through all demo device commands
-demo> /run.legacy at_demo
-    at_demo.run: no legacy commands found.
-demo> /run.legacy zz*
-  Error: No scripts in run/ match: zz*
 demo> /edit.run.list
   run/ - 9 scripts
   NAME SIZE UPDATED SUMMARY

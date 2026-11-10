@@ -378,8 +378,6 @@ def _find_candidates(term: str, plugins: dict, prefix: str) -> list[str]:
         return []
     hits: list[str] = []
     for name, plugin in plugins.items():
-        if getattr(plugin, "hidden", False):
-            continue
         help_text = interpolate_help(plugin.help, prefix)
         haystack = f"{name} {help_text}".lower()
         if all(word in haystack for word in words):
@@ -732,11 +730,7 @@ def _render_man_page(
     # Clean name + one-liner, no args column. This is the fix for the
     # pre-redesign "wall of text" complaint on /help cap.
     if plugin.children:
-        children = [
-            (n, plugins[n])
-            for n in sorted(plugin.children)
-            if n in plugins and not plugins[n].hidden
-        ]
+        children = [(n, plugins[n]) for n in sorted(plugin.children) if n in plugins]
         if children:
             ctx.io.output_markup("")
             ctx.io.output_markup(_section_markup("SUBCOMMANDS"))
@@ -909,8 +903,7 @@ def _commands_taking(plugins: Mapping, idiom: Idiom) -> list[str]:
     return sorted(
         name
         for name, plugin in plugins.items()
-        if not plugin.hidden
-        and plugin.args
+        if plugin.args
         and any(token in idiom.tokens for token in _IDIOM_TOKEN_RE.findall(plugin.args))
     )
 
@@ -986,11 +979,9 @@ def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) ->
       3. A config key          -> its page: meaning, value, the commands
                                   that use it (`value` = the key path).
       4. A global idiom        -> its page (`value` = the idiom's name).
-      5. A hidden command      -> its page, last among exact names, so a legacy
-                                  alias never takes a word a page answers to.
-      6. Candidate list        -> name+help substring match, CmdResult.ok
+      5. Candidate list        -> name+help substring match, CmdResult.ok
                                   with `value` = newline-joined names.
-      7. Zero matches          -> fail with hint to try /search.
+      6. Zero matches          -> fail with hint to try /search.
 
     ``dev_mode`` routes exact matches to the developer docstring view
     instead of the normal DESCRIPTION.
@@ -999,7 +990,7 @@ def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) ->
 
     # 1. An exact match wins.
     plugin = plugins.get(name)
-    if plugin is not None and (dev_mode or not plugin.hidden):
+    if plugin is not None:
         _render_man_page(ctx, name, plugin, dev_mode=dev_mode)
         # Resolved name so scripts can confirm what /help matched.
         return CmdResult.ok(value=name)
@@ -1025,24 +1016,17 @@ def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) ->
         _render_idiom_page(ctx, idiom)
         return CmdResult.ok(value=idiom.name)
 
-    # 5. A hidden command: /help verbose is the idiom, and /help port.close
-    #    still answers.
-    if plugin is not None:
-        _render_man_page(ctx, name, plugin, dev_mode=dev_mode)
-        return CmdResult.ok(value=name)
-
-    # 6. Forgiving candidate list (name + short help only -- args, long_help,
+    # 5. Forgiving candidate list (name + short help only -- args, long_help,
     #    and flags live in /search's territory).
     candidates = _find_candidates(name, plugins, ctx.prefix)
     if candidates:
         _render_candidates(ctx, name, candidates)
         return CmdResult.ok(value="\n".join(candidates))
 
-    # 7. No hits anywhere -- hint at the deeper tool.
+    # 6. No hits anywhere -- hint at the deeper tool.
     p = ctx.prefix
     # Bare names: what /help takes, so a click fills in /help <name>.
-    shown = [command for command, plugin in plugins.items() if not plugin.hidden]
-    hint = did_you_mean(closest(name, [*shown, *cfg_key_paths(), *IDIOM_WORDS]))
+    hint = did_you_mean(closest(name, [*plugins, *cfg_key_paths(), *IDIOM_WORDS]))
     if hint:
         return CmdResult.fail(msg=f"No command matches '{name}'{hint}")
     return CmdResult.fail(
@@ -1103,8 +1087,6 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             continue
         if plugin.needs.block_until:
             continue
-        if getattr(plugin, "hidden", False):
-            continue
         if mcp_caps is not None and plugin.needs.missing_from(mcp_caps):
             continue
         groups.setdefault(plugin.group, []).append((cmd_name, plugin))
@@ -1116,7 +1098,6 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         for cmd_name, plugin in all_plugins.items()
         if "." not in cmd_name
         and plugin.needs.block_until
-        and not getattr(plugin, "hidden", False)
         and (mcp_caps is None or not plugin.needs.missing_from(mcp_caps))
     ]
     directives = ctx.internal.directives or []
@@ -1132,9 +1113,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         # everything that would otherwise have been listed top-level
         # (matching the post-filter denominator users care about).
         shown = sum(len(value) for value in groups.values()) + len(script_only)
-        total = sum(
-            1 for n, p in all_plugins.items() if "." not in n and not getattr(p, "hidden", False)
-        )
+        total = sum(1 for n, p in all_plugins.items() if "." not in n)
         ctx.io.output_markup(
             f"[{_SEP}]-- MCP-visible only ({shown:d} of {total:d} top-level) --[/]"
         )
@@ -1307,13 +1286,11 @@ def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:
             continue
         if plugin.needs.block_until:
             continue
-        if getattr(plugin, "hidden", False):
-            continue
         groups.setdefault(plugin.source, []).append((cmd_name, plugin))
     script_only = [
         (cmd_name, plugin)
         for cmd_name, plugin in all_plugins.items()
-        if "." not in cmd_name and plugin.needs.block_until and not getattr(plugin, "hidden", False)
+        if "." not in cmd_name and plugin.needs.block_until
     ]
     all_names = [n for names in groups.values() for n, _ in names] + [n for n, _ in script_only]
     prefix = ctx.prefix
@@ -1356,7 +1333,7 @@ def _group_members(ctx: PluginContext, group: str) -> list:
         (
             (name, plugin)
             for name, plugin in ctx.internal.plugins.items()
-            if "." not in name and not getattr(plugin, "hidden", False) and plugin.group == group
+            if "." not in name and plugin.group == group
         ),
         key=lambda pair: pair[0],
     )
@@ -1375,11 +1352,7 @@ def _handler_group(ctx: PluginContext, args: str) -> CmdResult:
     """
     wanted = args.strip().lower()
     present = sorted(
-        {
-            plugin.group
-            for name, plugin in ctx.internal.plugins.items()
-            if "." not in name and not getattr(plugin, "hidden", False)
-        }
+        {plugin.group for name, plugin in ctx.internal.plugins.items() if "." not in name}
     )
     if not wanted:
         return _groups_table(ctx, present)

@@ -1412,8 +1412,7 @@ def _shows_problems(tables: dict[str, dict[str, Any]]) -> tuple[list[str], list[
             f"{frontend}: {name}"
             for frontend, table in tables.items()
             for name, info in table.items()
-            if not info.hidden
-            and info.safety == "safe"  # readonly and up can never declare it
+            if info.safety == "safe"  # readonly and up can never declare it
             and name.rsplit(".", 1)[-1] in SHOW_SUFFIXES
             and not info.shows
             and name not in SHOWS_EXEMPT
@@ -1448,7 +1447,7 @@ def test_shows_guard_fires_on_a_probe():
     from types import SimpleNamespace
 
     def info(shows: bool) -> SimpleNamespace:
-        return SimpleNamespace(hidden=False, shows=shows, safety="safe")
+        return SimpleNamespace(shows=shows, safety="safe")
 
     tables = {
         "CLI": {"thing.list": info(False), "x.info": info(True), "app.ver.info": info(False)},
@@ -1536,8 +1535,8 @@ def _intro_problems(tables: dict[str, dict[str, Any]]) -> tuple[list[str], list[
     unfit: set[str] = set()
     for frontend, table in tables.items():
         for name, info in table.items():
-            kids = [kid for kid in info.children if kid in table and not table[kid].hidden]
-            if info.hidden or not kids:
+            kids = [kid for kid in info.children if kid in table]
+            if not kids:
                 continue
             if not info.intro:
                 missing.add(f"{frontend}: {name}")
@@ -1563,7 +1562,7 @@ def test_family_intro_guard_fires_on_a_probe():
     from types import SimpleNamespace
 
     def info(children=(), intro="") -> SimpleNamespace:
-        return SimpleNamespace(hidden=False, children=list(children), intro=intro)
+        return SimpleNamespace(children=list(children), intro=intro)
 
     table = {
         "a": info(["a.x"]),
@@ -1768,10 +1767,7 @@ def _state_declaration_problems(
             f"{frontend}: {name}"
             for frontend, table in tables.items()
             for name, info in table.items()
-            if not info.hidden
-            and _reports_state(name, info)
-            and not info.state
-            and name not in STATE_EXEMPT
+            if _reports_state(name, info) and not info.state and name not in STATE_EXEMPT
         }
     )
     names = set().union(*tables.values())
@@ -1804,7 +1800,7 @@ def test_state_declaration_guard_fires_on_a_probe():
     from types import SimpleNamespace
 
     def info(state: bool, args: str = "", cfg: dict[str, str] | None = None) -> SimpleNamespace:
-        return SimpleNamespace(hidden=False, state=state, args=args, cfg=cfg or {})
+        return SimpleNamespace(state=state, args=args, cfg=cfg or {})
 
     tables = {
         "CLI": {
@@ -2376,18 +2372,12 @@ KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset(
 )
 
 
-def _command_groups(*, visible_only: bool = False) -> list[list[str]]:
-    """Every registered built-in command name, grouped by handler code object.
-
-    Args:
-        visible_only: Leave out hidden commands (the legacy forwarders).
-    """
+def _command_groups() -> list[list[str]]:
+    """Every registered built-in command name, grouped by handler code object."""
     from termapy.plugins import builtins_dir, load_plugins_from_dir
 
     groups: dict[object, list[str]] = {}
     for info in load_plugins_from_dir(builtins_dir(), source="built-in").plugins:
-        if visible_only and info.hidden:
-            continue
         key = getattr(info.handler, "__code__", None) or id(info.handler)
         groups.setdefault(key, []).append(info.name)
     return [sorted(names) for names in groups.values()]
@@ -2592,7 +2582,7 @@ def _gold_names(script: str, known: set[str]) -> set[str]:
 
 def _gold_gaps() -> tuple[list[str], set[str]]:
     """Families neither in the gold run nor excused; and the excused names actually used."""
-    groups = _command_groups(visible_only=True)
+    groups = _command_groups()
     used = _gold_names(
         GOLD_RUN.read_text(encoding="utf-8"), {name for names in groups for name in names}
     )
@@ -4453,52 +4443,6 @@ def test_known_unregistered_where_available_has_no_stale_entries(frontend_plugin
     )
 
 
-@pytest.mark.rule("one-handler-per-command")
-def test_the_legacy_table_is_the_same_in_every_frontend(frontend_tables):
-    """/run.legacy reads one rename table; no frontend adds to it by registering.
-
-    Until 2026-10-16 ``make_forwarder`` recorded a rename when a frontend
-    registered it, so the table differed by frontend (review 2026-10-15,
-    D9).  A fresh interpreter that loads the commands every frontend
-    shares (a bare engine: the builtins and the central forwarders) must
-    already hold every rename the three frontends know.
-    """
-    import subprocess
-    import sys
-
-    from termapy.legacy import LEGACY_COMMANDS
-
-    # Arrange -- frontend_tables has built the TUI, CLI and MCP in this process
-    assert frontend_tables, "the frontends ran"
-    script = (
-        "import json, pathlib, tempfile\n"
-        "from termapy.repl import ReplEngine\n"
-        "from termapy.legacy import LEGACY_COMMANDS\n"
-        "root = pathlib.Path(tempfile.mkdtemp())\n"
-        "cfg = root / 'bare.cfg'\n"
-        "cfg.write_text('{}')\n"
-        "ReplEngine({}, str(cfg), lambda *a, **k: None, global_root=root)\n"
-        "print(json.dumps(sorted(LEGACY_COMMANDS)))\n"
-    )
-
-    # Act
-    fresh = subprocess.run(
-        [sys.executable, "-c", script],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=True,
-    ).stdout
-
-    # Assert
-    import json
-
-    added = sorted(set(LEGACY_COMMANDS) - set(json.loads(fresh)))
-    assert added == [], (
-        f"renames only a frontend's registration records; list them in legacy.py: {added}"
-    )
-
-
 # ── Text files are UTF-8, never UTF-8 read back as cp1252 ─────────────────────
 #
 # Bug 2026-10-17: an edit in 72a671e round-tripped app.py through cp1252, so
@@ -4841,7 +4785,7 @@ def test_every_visible_root_declares_a_group(frontend_plugins):
         frontend: sorted(
             name
             for name, info in plugins.items()
-            if "." not in name and not info.hidden and info.group == GROUP_DEFAULT
+            if "." not in name and info.group == GROUP_DEFAULT
         )
         for frontend, plugins in frontend_plugins.items()
     }
@@ -4862,9 +4806,7 @@ def test_subcommands_inherit_their_roots_group(frontend_plugins):
     strays = []
     for frontend, plugins in frontend_plugins.items():
         for name, info in plugins.items():
-            # A hidden legacy forwarder (/log.clear) is not in any listing,
-            # so it has no group to keep; the rule is about what /help shows.
-            if "." not in name or info.hidden:
+            if "." not in name:
                 continue
             root = plugins.get(name.split(".", 1)[0])
             if root is not None and info.group != root.group:
@@ -4952,7 +4894,7 @@ def test_group_guard_fires_on_a_probe(frontend_plugins):
     undeclared = [
         name
         for name, info in {**plugins, "probe": probe}.items()
-        if "." not in name and not info.hidden and info.group == GROUP_DEFAULT
+        if "." not in name and info.group == GROUP_DEFAULT
     ]
 
     # Assert
@@ -5339,7 +5281,6 @@ MODULE_STATE_OUTSIDE_NS = {
     ),
     "diag_log.py": "the process's diagnostic log: which repeating failures it has recorded",
     "env_flags.py": "whether this process is the MCP server",
-    "legacy.py": "tables built at import from the built-in commands",
     "profile/loader.py": "a cache of a fixed schema",
     "protocol/crc.py": "a cache of crcglot's registry",
     "variables.py": (

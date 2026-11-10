@@ -315,8 +315,7 @@ class CLITerminal(TerminalHost):
             needs=CapabilitySet.GUI_APPS,
             shows=True,
         )
-        # The /log.* family, /log.delete and its legacy /log.clear included,
-        # is the log builtin's (builtins/commands/log.py, legacy.py).
+        # The /log.* family is the log builtin's (builtins/commands/log.py).
         self.repl.register_hook(
             "tui",
             "",

@@ -101,18 +101,18 @@ class TestPrefixDispatchShapes:
     """
 
     def test_bare_command_dispatches(self, tmp_path):
-        """The shortest shape, a bare !ver with no arguments, reaches the version handler."""
-        # Arrange -- `!ver` is the shortest possible REPL invocation.
+        """The shortest shape, a bare !app.ver with no arguments, reaches the version handler."""
+        # Arrange -- `!app.ver` is the shortest REPL invocation with a stable answer.
         result = _run_cli(
             tmp_path,
             cfg_overrides={"cmd_prefix": "!"},
-            script_lines=["!ver"],
+            script_lines=["!app.ver"],
         )
 
         # Assert
         actual = result.stdout
         assert result.returncode == 0, f"stderr: {result.stderr}"
-        assert "termapy v" in actual, f"!ver didn't dispatch the version handler: {actual!r}"
+        assert "termapy v" in actual, f"!app.ver didn't dispatch the version handler: {actual!r}"
 
     def test_positional_string_dispatches(self, tmp_path):
         """A free-text argument after the ! prefix reaches !print as the whole rest of the line."""
@@ -264,7 +264,7 @@ class TestPrefixOutputFlowThrough:
         # listing line must NOT begin with a `/`-prefixed command.
         # A "  /cfg " on a listing line would be the smoking-gun
         # shape for a hardcoded prefix in the help-listing renderer.
-        for cmd in ("help", "cfg", "print", "ver", "echo"):
+        for cmd in ("help", "cfg", "print", "app", "term"):
             assert f"  /{cmd} " not in actual and f"  /{cmd}\n" not in actual, (
                 f"/help listing contains hardcoded '/{cmd}' in the "
                 f"command-name column: the listing renderer isn't "

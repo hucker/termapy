@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 179: 164 registry rows (guarantees 129, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 175. Pinned by none: 4.
+Ids: 180: 165 registry rows (guarantees 130, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 176. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -896,6 +896,10 @@ Ids: 179: 164 registry rows (guarantees 129, assumptions 35), 15 spec sections i
 - `test_firmware.py`: `TestCommands.test_firmware_dump_shows_at_quiet`
 - `test_output_level.py`: `TestTheAnswerShowsAtQuiet` (3 functions)
 - `test_var.py`: `TestVarListing.test_one_name_shows_at_quiet`
+
+### `vt100-on-engine` (guarantee, contract)
+
+- `test_vt100.py`: `TestPassthroughSession` **guard** (3 functions)
 
 ### `widget-text-literal` (guarantee, data)
 

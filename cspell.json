@@ -153,6 +153,7 @@
     "getattr",
     "getc",
     "gethostname",
+    "getkey",
     "getpid",
     "GFLAGS",
     "Gnox",

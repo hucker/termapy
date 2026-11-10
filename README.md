@@ -1011,7 +1011,7 @@ termapy --vt100 --demo         # no hardware: an interactive ANSI menu/dashboard
 
 `--vt100 --demo` connects to a simulated VT100 device that draws a colored, cursor-addressed menu (arrow keys to move, Enter to open) and a live status dashboard - the quickest way to see what passthrough buys you over plain line output. Quit with Ctrl-].
 
-It's a peer of CLI and TUI mode: set `"default_ui": "vt100"` in a config to make it the default, and `--vt100` overrides the config the same way `--cli` does. The byte pump is the vendored pyserial `miniterm`, which enables VT processing on Windows 10+ automatically.
+It's a peer of CLI and TUI mode: set `"default_ui": "vt100"` in a config to make it the default, and `--vt100` overrides the config the same way `--cli` does. The port is termapy's own serial engine, as in every mode; the console is the vendored pyserial `miniterm`, which enables VT processing on Windows 10+ automatically. It writes the TUI's session log, `<cfg>.log`: received lines only, since in passthrough each key goes to the device as typed and the device's echo is the record.
 
 It's also a reversible toggle from inside the TUI, like `/cli` <-> `/tui`: `/vt100` hands the current device to a passthrough terminal, and `/demo.vt100` jumps to the widget tour. In both cases Ctrl-] returns you to the TUI (when launched from the shell with `--vt100`, Ctrl-] quits instead).
 

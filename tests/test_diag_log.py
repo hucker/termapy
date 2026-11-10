@@ -7,6 +7,7 @@ import logging
 import os
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -267,6 +268,10 @@ def cli(tmp_path) -> CLITerminal:
     path.write_text(json.dumps(cfg))
     terminal = CLITerminal(cfg, str(path), no_color=True, term_width=120)
     terminal.repl.global_root = tmp_path  # keep the checkout's plugin/ out of the boot
+    # The desktop capability a developer machine has, so /log.diag.show
+    # reaches its name check on a headless CI runner too.
+    terminal.ctx.capabilities = replace(terminal.ctx.capabilities, gui_apps=True)
+    terminal.ctx.sync_capabilities()
     return terminal
 
 

@@ -404,8 +404,8 @@ CFG_KEYS: tuple[CfgKey, ...] = (
         "tx_chunking",
         True,
         "bool",
-        help="Hand a large send to the driver in 192-byte pieces: large, high-speed transfers arrive intact.",
-        hint="true (default), false. Off sends each write whole.",
+        help="Hand a large send to the driver in 192-byte pieces.",
+        hint="true (default) keeps large fast sends intact; false sends each whole.",
     ),
     # Receive newline: how incoming device output is split into lines.
     # "auto" treats CR, LF, and CRLF all as line terminators (TeraTerm's

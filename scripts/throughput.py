@@ -19,6 +19,13 @@ delivers at most the line rate, so a layer that keeps up finishes with the
 wire, and one that falls behind finishes late by its backlog -- visible
 long before any buffer overflows.  Every line is numbered and checked.
 
+``--chunk`` and ``--gap-us`` shape the writes: the stream goes to the
+driver in writes of ``--chunk`` bytes (4096 by default, a program's usual
+write) with ``--gap-us`` of ``time.sleep`` after each (0 by default; on
+Windows a sub-millisecond sleep is 1 to 2 ms).  2026-11-10: 192-byte writes
+lost nothing where 4 KB writes lost lines, which is why termapy's own
+writes are chunked (``serial_port.TX_CHUNK_BYTES``, ``tx_chunking``).
+
 The same traffic goes through four layers, each on a fresh connection:
 
   raw     a bare pyserial reader thread: the adapter and driver ceiling
@@ -114,6 +121,8 @@ class Plan:
     data: bytes
     baud: int
     reply_lines: int  # 0: one stream, flat out; else lines per reply, each waiting for the last
+    chunk: int = WRITE_CHUNK  # stream: bytes per write handed to the driver
+    gap_s: float = 0.0  # stream: a sleep after each write
 
     def wire_s(self, size: int) -> float:
         """Seconds ``size`` bytes take on the wire at this baud."""
@@ -179,8 +188,11 @@ class Writer:
             if self._plan.reply_lines:
                 self._replies()
             else:
-                for offset in range(0, len(self._plan.data), WRITE_CHUNK):
-                    self._send(self._plan.data[offset : offset + WRITE_CHUNK])
+                chunk, gap_s = self._plan.chunk, self._plan.gap_s
+                for offset in range(0, len(self._plan.data), chunk):
+                    self._send(self._plan.data[offset : offset + chunk])
+                    if gap_s:
+                        time.sleep(gap_s)
         except OSError as e:  # pyserial's SerialException is an OSError
             self.error = f"{type(e).__name__}: {e}"
         finally:
@@ -443,7 +455,7 @@ def _tally(
         while seq < stream.count and seq not in seen:
             seq += 1
         gaps += 1
-        if (seq * stream.line_bytes) % WRITE_CHUNK == 0:
+        if (seq * stream.line_bytes) % plan.chunk == 0:
             gaps_at_write_end += 1
     return Result(
         baud=baud,
@@ -498,6 +510,9 @@ def _report_baud(plan: Plan, mode: str, results: list[Result]) -> None:
         print(
             f"  {stream.count} lines x {stream.line_bytes} B = {total} B, {wire:.2f} s on the wire"
         )
+        if plan.chunk != WRITE_CHUNK or plan.gap_s:
+            gap = f", {plan.gap_s * 1e6:.0f} us after each" if plan.gap_s else ""
+            print(f"  sent as {plan.chunk} B writes{gap}")
         print(
             f"  {'LAYER':<7} {'LINES':>6} {'LOST':>5} {'CORRUPT':>7} {'GAPS':>5} {'AT WRITE END':>12}"
             f" {'SHORT WRITES':>12} {'FINISH':>7} {'KEPT UP':>7}"
@@ -562,7 +577,7 @@ def _plan(baud: int, args: argparse.Namespace) -> Plan:
         wanted = args.kb * 1024 if args.kb else args.seconds * rate
         count = max(1, round(wanted / args.line_bytes))
     stream = Stream(args.line_bytes, count)
-    return Plan(stream, stream.data(), baud, reply_lines)
+    return Plan(stream, stream.data(), baud, reply_lines, args.chunk, args.gap_us / 1e6)
 
 
 def _rig(sn: str) -> str | None:
@@ -619,6 +634,18 @@ def main(argv: list[str] | None = None) -> int:
         "--line-bytes", type=int, default=64, help="bytes per line, CRLF included (default 64)"
     )
     parser.add_argument(
+        "--chunk",
+        type=int,
+        default=WRITE_CHUNK,
+        help=f"stream: bytes per write handed to the driver (default {WRITE_CHUNK})",
+    )
+    parser.add_argument(
+        "--gap-us",
+        type=float,
+        default=0.0,
+        help="stream: time.sleep after each write, in microseconds (default 0; Windows sleeps 1-2 ms at least)",
+    )
+    parser.add_argument(
         "--layers", default=",".join(LAYERS), help=f"comma-separated, from {', '.join(LAYERS)}"
     )
     parser.add_argument(
@@ -637,6 +664,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"invalid --baud: {args.baud}")
     if not bauds or args.line_bytes < 16 or args.seconds <= 0 or args.replies < 1:
         parser.error("need a baud, --line-bytes >= 16, --seconds > 0 and --replies >= 1")
+    if args.chunk < 64 or args.gap_us < 0:
+        parser.error("need --chunk >= 64 and --gap-us >= 0")
     # termapy's one rule for a typed rate (registry baud-standard-unless-custom).
     for baud in bauds:
         reason = check_baud(baud, custom=args.custom_baud, remedy="add --custom-baud")

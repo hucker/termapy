@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 180: 165 registry rows (guarantees 130, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 176. Pinned by none: 4.
+Ids: 181: 166 registry rows (guarantees 131, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 177. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -820,6 +820,11 @@ Ids: 180: 165 registry rows (guarantees 130, assumptions 35), 15 spec sections i
 ### `traceability-matrix-generated` (guarantee, repository)
 
 - `test_traceability.py`: `TestMatrix` (2 functions)
+
+### `tx-chunked-writes` (guarantee, contract)
+
+- `test_hw_loopback.py`: `TestChunkedWrites` **guard** (1 functions)
+- `test_tx_chunk.py`: the module (8 functions) **guard**
 
 ### `tx-only-what-went-out` (guarantee, contract)
 

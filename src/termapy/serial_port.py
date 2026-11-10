@@ -23,6 +23,16 @@ from termapy.defaults import RX_NEWLINE_MODES
 from termapy.markup import escape_markup
 from termapy.protocol.core import format_hex
 
+# How a write longer than this reaches the driver when the config's
+# ``tx_chunking`` is on: in pieces this size, back to back.  Measured
+# 2026-11-10 on an FT232R (help/ports.md, "Large sends go out in pieces"):
+# 2 MB streams at 750000 to 2 Mbaud sent as 4 KB writes lost 20 to 120 lines
+# a run, in every layer and in bare pyserial; sent as 192-byte writes they
+# lost none in 27 runs, at 97 to 99.5% of the line rate.  192 is half the
+# FT232R's 384-byte FIFO.  A pause between the pieces changed nothing, so
+# there is none.
+TX_CHUNK_BYTES = 192
+
 
 class SerialPort:
     """Serial port I/O wrapper.
@@ -38,6 +48,10 @@ class SerialPort:
             which is why every reader drains it first.
         log: Logging callback - log(direction, text). Direction is ">" for TX.
         encoding: Character encoding for decoding TX bytes for logging.
+        tx_chunking: Asked at each write whether a long write goes to the
+            driver in ``TX_CHUNK_BYTES`` pieces (the ``tx_chunking`` config
+            key, read live so ``/cfg`` takes effect at once).  Omitted,
+            every write goes whole.
     """
 
     def __init__(
@@ -47,12 +61,14 @@ class SerialPort:
         log: Callable[[str, str], None] | None = None,
         encoding: str = "utf-8",
         last_rx: Callable[[], float] | None = None,
+        tx_chunking: Callable[[], bool] | None = None,
     ) -> None:
         self._port = port
         self._rx_queue = rx_queue
         self._log = log or (lambda _d, _t: None)
         self._encoding = encoding
         self._last_rx = last_rx
+        self._tx_chunking = tx_chunking or (lambda: False)
 
     @property
     def port(self) -> object:
@@ -67,20 +83,42 @@ class SerialPort:
     def write(self, data: bytes) -> None:
         """Write bytes to the serial port, then log them as TX.
 
-        The ``>`` line is written only once the write returns, so a failed
-        write leaves no log line claiming bytes went out (registry
-        ``tx-only-what-went-out``).
+        With ``tx_chunking`` on, a write longer than ``TX_CHUNK_BYTES``
+        reaches the driver in pieces that size, one ``>`` line for the whole
+        write (registry ``tx-chunked-writes``).  The line is written only
+        once the write returns, so a failed write leaves no log line claiming
+        bytes went out, and a piece that fails logs the pieces before it
+        (registry ``tx-only-what-went-out``).
 
         Args:
             data: Bytes to send.
         """
-        if self._port:
-            self._port.write(data)
+        sent = 0
         try:
-            text = data.decode(self._encoding).rstrip("\r\n")
+            if self._port:
+                for piece in self._pieces(data):
+                    self._port.write(piece)
+                    sent += len(piece)
+        except BaseException:
+            if sent:
+                self._log(">", self._tx_text(data[:sent]))
+            raise
+        self._log(">", self._tx_text(data))
+
+    def _pieces(self, data: bytes) -> list[bytes]:
+        """``data`` as the writes the driver gets: whole, or ``TX_CHUNK_BYTES`` at a time."""
+        if not self._tx_chunking() or len(data) <= TX_CHUNK_BYTES:
+            return [data]
+        return [
+            data[offset : offset + TX_CHUNK_BYTES] for offset in range(0, len(data), TX_CHUNK_BYTES)
+        ]
+
+    def _tx_text(self, data: bytes) -> str:
+        """The ``>`` line for ``data``: its text, or its hex when the encoding cannot read it."""
+        try:
+            return data.decode(self._encoding).rstrip("\r\n")
         except (UnicodeDecodeError, LookupError):
-            text = data.hex(" ").upper()
-        self._log(">", text)
+            return data.hex(" ").upper()
 
     def read_raw(self, timeout_ms: int = 1000, frame_gap_ms: int = 50) -> bytes:
         """Collect raw bytes using timeout-based framing.

@@ -2,7 +2,9 @@
 
 Transfer files to and from serial devices using XMODEM or YMODEM
 protocols. Both are widely supported by bootloaders, firmware updaters,
-and embedded systems.
+and embedded systems. Each block reaches the driver in 192-byte pieces
+(`tx_chunking`, on by default), the measured remedy for bytes lost at high
+baud; see [Serial ports](ports.md#large-sends-go-out-in-pieces).
 
 ## XMODEM
 

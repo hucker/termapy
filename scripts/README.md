@@ -125,7 +125,9 @@ because they share the stdlib-only / fail-loud convention.
   arrived intact.  `--mode repl` sends 1 KB replies one at a time and
   times each; the default stream mode sends one long stream (`--kb` for
   the same size at every baud) and shows how close each layer finished
-  to the wire time.  The results are written up in `help/ports.md`.  A
+  to the wire time.  `--chunk` and `--gap-us` shape the writes (bytes
+  per write, a sleep after each): the sweep behind termapy's own
+  `tx_chunking`.  The results are written up in `help/ports.md`.  A
   measurement, not a gate: the numbers belong to the machine and the
   adapter.  Refuses to run unless the port echoes a probe, so it never
   streams into a device.  Not stdlib-only (it drives termapy), so use

@@ -1424,3 +1424,22 @@ mean term.echo?`, and a `.run` file that still uses one fails on that line with 
 message; the config migrations that rewrite `/color` and `/ver` in on-connect fields stay. The
 MCP catalog no longer carries a `hidden` field. **Where:** registry `one-handler-per-command`
 (its legacy-table clause dropped); todo item 5.
+
+## 2026-11-10 — A large send reaches the driver in 192-byte pieces
+
+The throughput page said the adapter loses lines in 2 MB streams above 460800 baud. A sweep on the
+jumpered FT232R narrowed it: the same stream sent as 4 KB writes lost 20 to 120 lines a run in every
+layer, bare pyserial included; sent as 192-byte writes, with or without a pause between them, it
+lost none in 27 runs at 97 to 99.5% of the line rate. 384-byte writes still lost a few; 4 KB writes
+with a 2 ms pause lost as many as without. So what the adapter's driver does with a large write is
+the loss, not a receiver that cannot keep up, and the remedy costs nothing. `SerialPort.write` now
+hands anything longer than `TX_CHUNK_BYTES` (192, half the FT232R's FIFO) to the driver in pieces
+that size, one `>` line for the whole write, under the config key `tx_chunking`, on by default
+(migration v39); off sends each write whole. No pause between pieces: none was needed, and a
+sub-millisecond `time.sleep` on Windows is 1 to 2 ms anyway, while a spin on a dispatch worker
+would hold the GIL against the reader. Chuck's framing: a boolean, on, explained as helping large
+high-speed transfers, and a toggle rather than tunable sizes on purpose: a serial terminal sending a
+massive payload in one shot is the wrong tool for the job, the transfer protocols are for that, so
+the chunking needs to be good enough to forget about, not a surface to tune. Left open: whether a device streaming into termapy loses anything at these
+rates, which needs two adapters crossed with the sender in its own process. **Where:** registry
+`tx-chunked-writes`; `scripts/throughput.py --chunk` and `--gap-us` reproduce the sweep.

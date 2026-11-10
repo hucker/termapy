@@ -436,3 +436,38 @@ class TestSpyUrl:
         assert len(tx_rows) == 1, "only the second connect's send is left in the file"
         assert "SECOND" in tx_rows[0], "the send is logged with its text"
         assert rx_rows, "what came back is logged too"
+
+
+@pytest.mark.rule("tx-chunked-writes")
+class TestChunkedWrites:
+    """The claim help/ports.md makes: a large send through termapy's own write path arrives intact at 921600."""
+
+    def test_a_2mb_stream_through_termapys_write_arrives_intact(self, engine):
+        """2 MB of numbered lines written through SerialPort.write at 921600 come back with no line lost."""
+        # Arrange -- the fixture's cfg leaves tx_chunking at its default, on;
+        # 32768 lines of 64 bytes, the stream help/ports.md measured.
+        count = 32768
+        fill = "x" * (64 - len("00000000 ") - len("\r\n"))
+        data = "".join(f"{seq:08d} {fill}\r\n" for seq in range(count)).encode()
+        seen: list[str] = []
+        taken = [0]
+
+        def on_lines(lines: list[str]) -> None:
+            seen.extend(lines)
+            taken[0] = len(seen)
+
+        engine.start_reader(on_lines=on_lines)
+        port = engine.serial_port
+        assert port is not None, "the fixture connected"
+
+        # Act -- one write, as a transfer or /raw would make it; the pieces are the port's
+        port.write(data)
+        _settle(taken, quiet_s=2.0, cap_s=90.0)
+
+        # Assert
+        heads = {line[:8] for line in seen if line[:8].isdigit()}
+        missing = [seq for seq in range(count) if f"{seq:08d}" not in heads]
+        assert missing == [], (
+            f"{len(missing)} of {count} lines lost through SerialPort.write at {BAUD}, first"
+            f" {missing[:5]}; the chunked write path should deliver every line on this adapter"
+        )

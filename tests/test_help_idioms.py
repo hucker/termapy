@@ -290,6 +290,8 @@ class TestTheLinks:
         async def scenario() -> tuple[str, str]:
             async with app.run_test(size=(120, 60)) as pilot:
                 await pilot.pause()
+                # Under load the prompt mounts a beat after run_test yields.
+                assert await until(pilot, lambda: bool(app.query("#cmd"))), "the prompt mounted"
                 field = app.query_one("#cmd", Input)
                 field.value = "/help term.eol"
                 field.focus()
@@ -304,6 +306,9 @@ class TestTheLinks:
                 # Act
                 app.action_click_link(link_id)
                 await until(pilot, lambda: "/term.json_fmt" in app._get_screen_text())
+                # Leave only once the dispatch worker is done, or its tail runs
+                # against a torn-down screen.
+                await until(pilot, lambda: not app._busy)
                 return tooltip, app._get_screen_text()
 
         # Assert
@@ -439,6 +444,8 @@ class TestALinkExplainsItself:
         async def scenario() -> str:
             async with app.run_test(size=(120, 60)) as pilot:
                 await pilot.pause()
+                # Under load the prompt mounts a beat after run_test yields.
+                assert await until(pilot, lambda: bool(app.query("#cmd"))), "the prompt mounted"
                 field = app.query_one("#cmd", Input)
                 field.value = "/help term.output"
                 field.focus()

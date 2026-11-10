@@ -1396,3 +1396,17 @@ keeps `port` as the file's spelling and adds `device`, so an agent sees both. Th
 assumption: which displays show a port is not a shape an `ast` walk can find, so each new one is
 review, and the three listings now have instance tests. **Where:** `port_control.py`,
 `dialogs/config_picker.py`, `app.py`, `builtins/commands/cfg.py`, `docs/rules.md`.
+
+## 2026-11-09 — `--vt100` runs on the engine and writes the session log
+
+Passthrough opened the bare pyserial object and let the vendored miniterm read it, so nothing in
+termapy saw the bytes and the mode wrote no session log, the one TeraTerm habit it broke. The
+bypass was for byte transparency, but `SerialEngine` already hands every raw chunk to its RX
+observers unchanged (that is how `/cap` works), so the engine reads the port now: an observer feeds
+the console, the line path feeds the TUI's `<cfg>.log`, and a key goes through `SerialPort.write`.
+miniterm stays for what it is good at, raw key input and VT processing on Windows, with its reader
+never started. The log holds received lines only, ANSI stripped: in passthrough each key goes as
+typed and the device's own echo is the record of what it accepted, so a `>` line per key would
+double every character and log the backspaces. Chuck's framing, which settled the shape: in the
+TUI a line exists before it leaves, so `>` lines stay there; `--vt100` is the one mode where
+nothing on termapy's side holds a line. **Where:** registry `vt100-on-engine`.

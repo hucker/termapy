@@ -1,12 +1,13 @@
 """Session log: a frontend's transcript of a config's sessions, written by one class in every frontend.
 
-The TUI writes ``<cfg>.log`` (or the ``log_file`` key) and the MCP server
-``<cfg>.mcp.log`` beside it, through :class:`SessionLog`, so the two read
-alike: every line is ``[YYYY-mm-dd HH:MM:SS.mmm] <marker> <text>``, and each
-session is framed by :data:`SESSION_START` and :data:`SESSION_END`.  They are
-two files because a TUI and an MCP server can run on one config at once,
-and a file two processes append to is unsafe on Windows (decision
-2026-11-05).  The CLI keeps none.
+The TUI writes ``<cfg>.log`` (or the ``log_file`` key), ``--vt100`` the same
+file, and the MCP server ``<cfg>.mcp.log`` beside it, through
+:class:`SessionLog`, so they read alike: every line is
+``[YYYY-mm-dd HH:MM:SS.mmm] <marker> <text>``, and each session is framed by
+:data:`SESSION_START` and :data:`SESSION_END`.  The MCP log is a second file
+because a TUI and an MCP server can run on one config at once, and a file two
+processes append to is unsafe on Windows (decision 2026-11-05).  The CLI
+keeps none.
 
 Markers:
 

@@ -858,7 +858,7 @@ def cfg_log_path(config_path: str) -> str:
 
 
 def session_log_file(cfg: Mapping[str, Any], config_path: str | None) -> Path | None:
-    """The TUI's session log: ``log_file`` when set, else ``<cfg>.log``; None with no config.
+    """The TUI's session log, which ``--vt100`` shares: ``log_file`` when set, else ``<cfg>.log``; None with no config.
 
     The TUI's ``session_log_path`` is this; nothing else reads ``log_file``
     or calls ``cfg_log_path`` for the session log (registry

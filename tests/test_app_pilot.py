@@ -1646,6 +1646,7 @@ class TestBusyLook:
 
         _run(scenario)
 
+    @pytest.mark.timing
     def test_a_slow_command_greys_the_bar_and_restores_it(self, app_factory):
         """A command still running after the delay greys the bar, and it comes back when it ends."""
 
@@ -1895,6 +1896,7 @@ class TestSharedStateRaces:
         _run(scenario)
 
 
+@pytest.mark.timing
 class TestDispatchContention:
     """D3: a refused dispatch is not a delayed command, it is a lost one.
 
@@ -2153,6 +2155,7 @@ class TestMarshalling:
 class TestAutoReconnect:
     """Each reconnect run owns its cancel token."""
 
+    @pytest.mark.timing
     def test_a_failed_connect_while_retrying_leaves_it_retrying(self, app_factory):
         """A connect attempt that fails during auto-reconnect neither ends nor replaces the run."""
 
@@ -2187,6 +2190,7 @@ class TestAutoReconnect:
 
         _run(scenario)
 
+    @pytest.mark.timing
     def test_a_successful_connect_ends_the_retrying(self, app_factory):
         """A connect that succeeds while retrying ends the run, and no spinner frame paints over Connected."""
 
@@ -3097,6 +3101,7 @@ class TestDelayHook:
 
         _run(scenario)
 
+    @pytest.mark.timing
     def test_silent_delay_waits(self, app_factory):
         """/delay.silent waits its full duration in the TUI and prints nothing."""
 

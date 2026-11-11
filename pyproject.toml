@@ -213,9 +213,10 @@ testpaths = ["tests"]
 addopts = "-v --cov --cov-report=term-missing -n auto --dist loadgroup --strict-markers"
 markers = [
     "rule(id): the rule this test pins, a docs/rules.md row or a spec section id (tests/traceability.py SOURCES).  One marker per rule, pytestmark for a module; collection refuses an id no source holds.  --rule <id> runs the tests of one rule (docs/traceability.md).",
-    "slow: subprocess-spawning, hw_loopback, or sleep-based test (~80s of full-suite runtime).  Skip during fast iteration with -m 'not slow'.",
+    "slow: subprocess-spawning, hw_loopback, or sleep-based test.  Skip during fast iteration with -m 'not slow'.",
     "sw_loopback: software loopback, pyserial's virtual loop:// port.  No hardware; runs anywhere, CI included.",
     "hw_loopback: hardware loopback, a TX-RX-jumpered USB-serial adapter attached; found by serial number (TERMAPY_HW_LOOPBACK_SN, default BG03U7VTA).  Gated: deselected unless --run-hw-loopback, FAILS when absent under --require-hw-loopback (release_prep), refused on GitHub Actions.  Run with --run-hw-loopback -m hw_loopback -n 0 --no-cov.",
+    "timing: the result depends on wall-clock time (an elapsed bound, a real-time window, pacing or a timer), so a loaded machine can fail it.  Runs alone, after the parallel pass: pytest -m 'not timing', then pytest -m timing -n 0.",
 ]
 
 [tool.ty.environment]

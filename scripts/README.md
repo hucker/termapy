@@ -28,8 +28,8 @@ This will:
 7. Regenerate tagged config examples (`update_doc_configs.py`) and check `credits.py` is in sync with `help/acknowledgments.md`
 8. Refresh the USB vendor table from upstream `usb.ids`
 9. Insert a CHANGELOG stub populated from `git log <last-tag>..HEAD --oneline --no-merges`
-10. Run `pytest` without coverage: nothing in a release reads a local coverage figure (CI measures it for Codecov)
-11. Run `tox` on every Python in its env list except the one step 10 just ran, stopping at the first version that fails (`--fail-fast`); that version still reports every failure it found
+10. Run `pytest` without coverage, in two passes: the suite on every worker (`-m "not timing"`), then the `timing` tests alone (`-m timing -n 0`). Nothing in a release reads a local coverage figure (CI measures it for Codecov)
+11. Run `tox`, whose commands are the same two passes, on every Python in its env list except the one step 10 just ran, stopping at the first version that fails (`--fail-fast`); that version still reports every failure it found
 12. Build HTML help with `uvx zensical build`
 13. Commit the HTML rebuild
 14. Commit the version bump + lock + CHANGELOG + counts as `Release v0.53.2`

@@ -40,6 +40,7 @@ class TestSend:
         # Assert
         assert written == [b"AT\r"]
 
+    @pytest.mark.timing
     def test_a_char_delay_writes_each_character_on_its_own(self):
         """tx_char_delay_ms sends one character per write and waits after each."""
         # Arrange
@@ -55,6 +56,7 @@ class TestSend:
         assert written == [b"A", b"T", b"\r"], "each character, the line ending too, in order"
         assert elapsed >= 0.015, "three waits of 5 ms"
 
+    @pytest.mark.timing
     def test_a_line_delay_waits_after_the_line(self):
         """tx_line_delay_ms leaves the line in one write and waits after it."""
         # Arrange

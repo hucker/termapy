@@ -438,6 +438,7 @@ class TestRunCommandErrors:
         assert result["success"] is False, "no port = no send"
         assert STATE_MESSAGES["serial_connected"] in result["error"], "error says disconnected"
 
+    @pytest.mark.timing
     def test_timeout_returns_failure(self, host):
         """No longer slow: the timeout used to be followed by a join.
 
@@ -463,6 +464,7 @@ class TestRunCommandErrors:
             f"dispatch finishes; took {elapsed:.2f}s for a 0.2s timeout"
         )
 
+    @pytest.mark.timing
     def test_the_event_loop_keeps_running_during_a_timeout(self, host):
         """The join starved everything else on the loop, not just the caller.
 

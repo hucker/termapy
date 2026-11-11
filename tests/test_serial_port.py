@@ -282,6 +282,7 @@ class TestReadRaw:
 # -- Wait for Idle -------------------------------------------------------------
 
 
+@pytest.mark.timing
 class TestWaitForIdle:
     def test_wait_for_idle_returns_when_no_data(self, port_env):
         """A silent port reads idle after one gap, well before max_wait_s."""
@@ -1081,6 +1082,7 @@ class TestSerialReaderReset:
         assert result.lines == ["new"], "no leftover from before reset"
 
 
+@pytest.mark.timing
 class TestWaitForIdleUsesTheReaderClock:
     """``in_waiting`` is not a silence signal while a reader is draining it.
 

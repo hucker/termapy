@@ -29,7 +29,12 @@ jobs:
         # whose count depends on what is installed: a missing extra reads
         # as an unresolved import.  The gate names the all-extras
         # environment (CLAUDE.md Precommit), so CI checks in it too.
-        run: uv run --python ${{ matrix.python-version }} --all-extras pytest
+        run: uv run --python ${{ matrix.python-version }} --all-extras pytest -m "not timing"
+      - name: Run the timing tests alone
+        # Their result depends on wall-clock time, so they run after the
+        # parallel pass with nothing beside them (registry
+        # timing-tests-run-alone).
+        run: uv run --python ${{ matrix.python-version }} --all-extras pytest -m timing -n 0
 
   coverage:
     runs-on: ubuntu-latest
@@ -40,7 +45,11 @@ jobs:
         # --all-extras so the MCP tests run and mcp/* is counted in coverage
         # (previously 0% in CI because those tests were uncollected), and so
         # the ty gate in tests/test_hygiene.py sees every optional import.
-        run: uv run --python 3.14 --all-extras pytest --cov=termapy --cov-report=xml:coverage.xml
+        # Two passes, as in the test job; the second appends to the first's
+        # data and writes the report, so Codecov sees the whole suite.
+        run: |
+          uv run --python 3.14 --all-extras pytest -m "not timing" --cov=termapy --cov-report=
+          uv run --python 3.14 --all-extras pytest -m timing -n 0 --cov=termapy --cov-append --cov-report=xml:coverage.xml
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

@@ -2775,6 +2775,7 @@ class TestCapWire:
         assert rx_cbs == [], "RX observer released even on exception"
         assert tx_cbs == [], "TX observer released even on exception"
 
+    @pytest.mark.timing
     def test_wire_wait_gap_zero_skips_settle_loop(self, repl_env):
         """wait_gap=0ms skips the idle-settle loop, returning well under the 50 ms default."""
         # Arrange -- wait_gap=0 disables the settle loop so the handler

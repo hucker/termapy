@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 181: 166 registry rows (guarantees 131, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 177. Pinned by none: 4.
+Ids: 182: 167 registry rows (guarantees 132, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 178. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -36,7 +36,7 @@ Ids: 181: 166 registry rows (guarantees 131, assumptions 35), 15 spec sections i
 
 ### `architecture-generated` (guarantee, repository)
 
-- `test_architecture_sync.py`: `test_an_identifier_only_docstring_is_refused` **guard**, `test_both_blocks_keep_their_markers` **guard**, `test_generated_blocks_are_in_sync` **guard**, `test_the_line_counts_stay_release_preps` **guard**
+- `test_architecture_sync.py`: `test_an_identifier_only_docstring_is_refused` **guard**, `test_every_block_keeps_its_markers` **guard**, `test_generated_blocks_are_in_sync` **guard**, `test_the_line_counts_stay_release_preps` **guard**
 
 ### `available-matches-registration` (guarantee, structure)
 
@@ -816,6 +816,10 @@ Ids: 181: 166 registry rows (guarantees 131, assumptions 35), 15 spec sections i
 
 - `test_engine.py`: `TestDispatchCapabilities.test_the_gates_answers_read_exactly_so`
 - `test_lazy_folders.py`: `TestTuiWritersCreateTheirFolder.test_ss_and_captures_shortcuts_with_no_config_open_nothing`
+
+### `timing-tests-run-alone` (guarantee, repository)
+
+- `test_architecture.py`: `test_a_test_that_reads_the_clock_runs_alone` **guard**, `test_the_timing_guard_fires_on_a_probe` **guard**
 
 ### `traceability-matrix-generated` (guarantee, repository)
 

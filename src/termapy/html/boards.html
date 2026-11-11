@@ -20,18 +20,18 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.74">
+      <meta name="generator" content="zensical-0.1.1">
     
     
       
-        <title>Dev Boards - Termapy Help v0.79.0</title>
+        <title>Dev Boards - Termapy Help v0.80.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.4ab2de0c.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.ebb7f775.min.css">
       
         
           
@@ -87,7 +87,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.79.0" class="md-header__button md-logo" aria-label="Termapy Help v0.79.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.80.0" class="md-header__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -102,7 +102,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.79.0
+            Termapy Help v0.80.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.79.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.79.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.80.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.79.0
+    Termapy Help v0.80.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -845,6 +845,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Memory
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-boards-commands" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1134,6 +1145,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Memory
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-boards-commands" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1183,8 +1205,8 @@ hardware; the simulator is <code>/demo</code>.</p>
 <tr>
 <td><code>pico</code></td>
 <td>MicroPython</td>
-<td><code>main.py</code>, <code>termapy_json.py</code></td>
-<td><code>help</code>, <code>led</code>, <code>temp</code>, <code>id</code>, <code>json</code></td>
+<td><code>main.py</code>, <code>termapy_json.py</code>, <code>termapy_mem.py</code></td>
+<td><code>help</code>, <code>led</code>, <code>temp</code>, <code>id</code>, <code>json</code>, <code>MEM.*</code></td>
 </tr>
 <tr>
 <td><code>esp32s3</code></td>
@@ -1222,11 +1244,11 @@ no compiler:</p>
    appears as a drive named <code>RPI-RP2</code>. Download the <code>RPI_PICO</code> <code>.uf2</code> from
    micropython.org and drag it onto the drive. The board restarts as a USB
    serial port.</li>
-<li><strong>Copy the device code.</strong> <code>/board.firmware pico</code> writes <code>main.py</code> and
-   <code>termapy_json.py</code> to the active config's <code>firmware/</code> folder and prints
-   the one command that puts them on the board, with the board's port and
-   the files' full paths:
-   <code>uvx mpremote connect COM5 cp ...\main.py ...\termapy_json.py : + reset</code>.
+<li><strong>Copy the device code.</strong> <code>/board.firmware pico</code> writes <code>main.py</code>,
+   <code>termapy_json.py</code> and <code>termapy_mem.py</code> to the active config's
+   <code>firmware/</code> folder and prints the one command that puts them on the
+   board, with the board's port and the files' full paths:
+   <code>uvx mpremote connect COM5 cp ...\main.py ...\termapy_json.py ...\termapy_mem.py : + reset</code>.
    MicroPython then runs <code>main.py</code> at every power-up.</li>
 <li><strong>Create the config.</strong> <code>/board.new pico</code>, then <code>/cfg.load pico</code>, or
    start termapy with <code>termapy --board pico</code>.</li>
@@ -1249,8 +1271,7 @@ maker and no serial number, so nothing on it says which board it is.</p>
 </span></code></pre></div>
 <p>The board restarts as a new serial port, MicroPython's (<code>303A:4001</code>).
 2. <strong>Copy the device code.</strong> <code>/board.firmware esp32s3</code>, then the
-   <code>uvx mpremote</code> line it prints, as on the Pico; the S3 has a third file,
-   <code>termapy_mem.py</code>.
+   <code>uvx mpremote</code> line it prints, as on the Pico.
 3. <strong>Create the config.</strong> <code>/board.new esp32s3</code>, then <code>/cfg.load esp32s3</code>,
    or start termapy with <code>termapy --board esp32s3</code>.</p>
 <p>The board's RGB LED on GPIO48 is a red, a green and a blue LED in one
@@ -1262,7 +1283,8 @@ levels: <code>[255,0,0]</code> in JSON, one level per line in text. A board with
 LED on another pin changes one line of <code>main.py</code>. <code>id</code> is the chip's
 factory MAC address. MicroPython answers on the UART port too, but the
 config uses the chip's own USB, by its serial number.</p>
-<p>The S3 also answers the MEM commands that <code>/mem.*</code> speaks (<a href="memory.html">Memory</a>),
+<h2 id="memory">Memory<a class="headerlink" href="#memory" title="Permanent link">&para;</a></h2>
+<p>Both boards answer the MEM commands that <code>/mem.*</code> speaks (<a href="memory.html">Memory</a>),
 from <code>termapy_mem.py</code>: <code>MEM.R</code>, <code>MEM.W</code>, <code>MEM.M</code> and <code>MEM.INFO</code>. The board
 reads and writes whatever address it is given and knows nothing about its
 memory; checking the address is termapy's job, from the JSON that
@@ -1272,6 +1294,11 @@ guard to <code>direct()</code> in <code>main.py</code>: <code>guard(addr, count,
 access first, and returning False refuses it with <code>ERR range</code>. The MEM
 replies are the wire spec's text even when the board answers MCP in JSON,
 so <code>/mem.*</code> works the same in the TUI and over MCP.</p>
+<p>This is full access to the chip, so an MCP agent gets it in two tiers. It
+reads with <code>/mem.read</code>, <code>/mem.dump</code> and <code>/mem.info</code> freely. Every write
+(<code>/mem.write</code>, <code>.or</code>, <code>.and</code>, <code>.xor</code>, <code>.clear</code>, <code>.not</code>) and every raw
+<code>MEM.R</code>, <code>MEM.W</code> or <code>MEM.M</code> is destructive: it runs only after you confirm
+it.</p>
 <h2 id="the-boards-commands">The board's commands<a class="headerlink" href="#the-boards-commands" title="Permanent link">&para;</a></h2>
 <p>Each board answers one command per line:</p>
 <table>
@@ -1330,7 +1357,7 @@ so <code>/mem.*</code> works the same in the TUI and over MCP.</p>
 </tr>
 <tr>
 <td><code>MEM.R</code>, <code>MEM.W</code>, <code>MEM.M</code>, <code>MEM.INFO</code></td>
-<td>ESP32-S3: the <a href="memory.html">memory wire spec</a>'s rows, <code>OK</code> or <code>ERR</code></td>
+<td>the <a href="memory.html">memory wire spec</a>'s rows, <code>OK</code> or <code>ERR</code></td>
 <td>the same text: MEM keeps its own</td>
 </tr>
 </tbody>
@@ -1341,21 +1368,35 @@ server and any JSON-RPC client: each reply is one JSON-RPC 2.0 response
 line, the same contract as the C module on <a href="firmware-json.html">JSON integration</a>,
 with an error as <code>{"error":{"code":...,"message":...}}</code>. <code>json on</code> switches
 to it, and a request line such as <code>{"method":"temp","id":1}</code> switches by
-itself and gets its <code>id</code> back. Each board's config sends <code>json on</code> when
-the MCP server connects, so an agent gets typed values while the TUI stays
-in text.</p>
+itself and gets its <code>id</code> back. Each board's config sends <code>json on</code> at
+every connect, so the TUI, the CLI and an MCP agent all see the same JSON.
+On screen termapy shows each JSON line the board sends indented and
+highlighted (<code>/term.json_fmt</code>), while the session log and captures keep it as
+it arrived. <code>/term.json_fmt.indent 0</code> with <code>/term.json_fmt.highlight off</code> shows
+the lines as they arrive.</p>
 <p>Each command in <code>main.py</code> is a row of its <code>COMMANDS</code> table: the name, a
 one-line help and the handler, which takes the argument words and returns
 the reply value. <code>help</code> reads its answer from that table, so a new command
 is a handler and a row, and <code>help</code> lists it at once. <code>termapy_json.py</code> is
 the monitor itself, one file every MicroPython board shares.</p>
+<p><code>main.py</code> runs asyncio. The monitor is one task, <code>monitor.run()</code>, and your
+project's own tasks start beside it in <code>main()</code>. The monitor answers a
+command once its line ending (CR, LF or both) is in, then yields to the
+other tasks; with nothing waiting it sleeps 10 ms. A line longer than 512
+characters is refused with <code>ERR line too long</code>. A project with a super loop
+of its own calls <code>monitor.poll()</code> on every pass instead: it never waits,
+answers at most one command, and keeps a partial line for the next pass. A
+board that only answers commands can call <code>serve(COMMANDS)</code>, which waits
+for each character.</p>
 <p>The board's profile describes every command in this table and every form
 of it, <code>help</code> and <code>json</code> included, so <code>/help</code> shows them all and an MCP
 agent can call each one, its arguments checked before they are sent. A new
 command also gets its profile entry; the starter's tests fail until it has
 one.</p>
-<p>Ctrl-C in the terminal stops the monitor and leaves the MicroPython <code>&gt;&gt;&gt;</code>
-prompt; Ctrl-D restarts it.</p>
+<p>Ctrl-C stops the monitor and leaves the MicroPython <code>&gt;&gt;&gt;</code> prompt; Ctrl-D
+restarts it. In the TUI, press <strong>Ctrl+C</strong> with no text selected, and
+<strong>Ctrl+D</strong> on an empty prompt. From a script, the CLI or an MCP agent, send
+them with <code>/term.ctrl c</code> and <code>/term.ctrl d</code>.</p>
 
 
 
@@ -1454,7 +1495,7 @@ prompt; Ctrl-D restarts it.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.d31f0ffa.min.js"></script>
+      <script src="./assets/javascripts/bundle.3cb411a8.min.js"></script>
       
     
   </body>

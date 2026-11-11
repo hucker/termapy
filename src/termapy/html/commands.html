@@ -20,18 +20,18 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.74">
+      <meta name="generator" content="zensical-0.1.1">
     
     
       
-        <title>REPL Commands - Termapy Help v0.79.0</title>
+        <title>REPL Commands - Termapy Help v0.80.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.4ab2de0c.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.ebb7f775.min.css">
       
         
           
@@ -87,7 +87,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.79.0" class="md-header__button md-logo" aria-label="Termapy Help v0.79.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.80.0" class="md-header__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -102,7 +102,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.79.0
+            Termapy Help v0.80.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.79.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.79.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.80.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.79.0
+    Termapy Help v0.80.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1225,6 +1225,12 @@ takes the verb <code>toggle</code>, and a bare invocation shows the current valu
 without changing it.  Leaving an optional boolean out means its documented
 default.  Any other word is an error that names the accepted tokens, never
 a silent off: <code>Invalid echo: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)</code>.</p>
+<p>A setting with several values takes <code>cycle</code> the same way: it moves to the next
+value, in the order the synopsis lists them, and wraps at the end.  Any command
+takes <code>--json</code> for a JSON answer to that one call, and <code>--silent</code>, <code>--quiet</code>,
+<code>--normal</code> or <code>--verbose</code> for how much that call prints; each also works as a
+suffix on the name (<code>/port.list.json</code>, <code>/port.list.quiet</code>).  <code>/help.idioms</code> lists
+these words, and <code>/help cycle</code> opens a page on one, with the commands that take it.</p>
 <p>A command that opens a file of a known type takes the name with or without
 its extension: <code>/run hex_view</code> runs <code>run/hex_view.run</code>. The same holds for
 <code>/proto.run</code>, <code>/profile.load</code>, <code>/sym.load</code> and a folder's <code>.dump</code> and
@@ -1269,7 +1275,7 @@ filters are <code>/env</code>, <code>/dev.lib</code>, <code>/proto.crc.list</cod
 before it reads the text as a pattern.</p>
 <p>A command that deletes or rewrites files takes a pattern the same way,
 but plain text there is one file's name, and a pattern that matches
-nothing is an error: <code>/cap.delete adc_*</code>, <code>/run.legacy test_*</code>. Only the
+nothing is an error: <code>/cap.delete adc_*</code>. Only the
 folders termapy writes (<code>ss/</code>, <code>cap/</code>, <code>prof/</code>) delete by pattern; a
 script or plugin you wrote is deleted one name at a time, after a yes.</p>
 <p>A name that names nothing suggests the names you most likely meant, with
@@ -1407,8 +1413,8 @@ sends to the device) waits in the input line for Enter.</p>
 <td>Print acknowledgments (libraries and authors termapy depends on)</td>
 </tr>
 <tr>
-<td><code>/delay &lt;duration&gt;</code></td>
-<td>Wait for a duration (e.g. <code>500ms</code>, <code>1.5s</code>); Escape/Ctrl+C cancel</td>
+<td><code>/delay &lt;duration&gt; {msg=&lt;text&gt;}</code></td>
+<td>Wait for a duration (e.g. <code>500ms</code>, <code>1.5s</code>), <code>msg=</code> saying what for; Escape/Ctrl+C cancel</td>
 </tr>
 <tr>
 <td><code>/edit &lt;file&gt;</code></td>
@@ -1499,6 +1505,10 @@ sends to the device) waits in the input line for Enter.</p>
 <td>The landscape: terminal commands in full, other groups folded</td>
 </tr>
 <tr>
+<td><code>/help.idioms</code></td>
+<td>List the words commands share: <code>--json</code>, <code>--quiet</code>, <code>toggle</code>, <code>cycle</code>, ...</td>
+</tr>
+<tr>
 <td><code>/help.group</code></td>
 <td>List the groups, each with its commands</td>
 </tr>
@@ -1539,8 +1549,24 @@ sends to the device) waits in the input line for Enter.</p>
 <td>Delete the session log file; it stays stopped until <code>/log.start</code> (TUI only)</td>
 </tr>
 <tr>
-<td><code>/log.dump {N}</code></td>
-<td>Print the session log (all, or an N-line slice) to the terminal</td>
+<td><code>/log.diag</code></td>
+<td>Open this run's diagnostic log: termapy's own record, with tracebacks</td>
+</tr>
+<tr>
+<td><code>/log.diag.dump {N}</code></td>
+<td>Print this run's diagnostic log (all, or an N-line slice)</td>
+</tr>
+<tr>
+<td><code>/log.diag.list</code></td>
+<td>List the diagnostic logs, newest first</td>
+</tr>
+<tr>
+<td><code>/log.diag.show {name}</code></td>
+<td>Open this run's diagnostic log, or a listed one, in the system viewer</td>
+</tr>
+<tr>
+<td><code>/log.dump {name} {N}</code></td>
+<td>Print a session log, this frontend's or a listed one (all, or N lines)</td>
 </tr>
 <tr>
 <td><code>/log.fingerprint</code></td>
@@ -1548,11 +1574,11 @@ sends to the device) waits in the input line for Enter.</p>
 </tr>
 <tr>
 <td><code>/log.list</code></td>
-<td>List the session log file with its size and age (<code>/help log</code> ends with it)</td>
+<td>List the config's session logs, the TUI's and the MCP server's</td>
 </tr>
 <tr>
-<td><code>/log.show</code></td>
-<td>Open the session log in the system viewer</td>
+<td><code>/log.show {name}</code></td>
+<td>Open a session log in the system viewer, this frontend's or a listed one</td>
 </tr>
 <tr>
 <td><code>/log.start</code></td>
@@ -1612,15 +1638,15 @@ sends to the device) waits in the input line for Enter.</p>
 </tr>
 <tr>
 <td><code>/os &lt;cmd&gt;</code></td>
-<td>Run a shell command (requires <code>TERMAPY_OS_CMD_ENABLED=1</code> in env)</td>
+<td>Run a shell command (requires <code>TERMAPY_OS_CMD_ENABLED=1</code> in env); a nonzero exit or the 10s timeout is an error and stops a script</td>
 </tr>
 <tr>
 <td><code>/port {name}</code></td>
 <td>TUI bare: open Port picker. CLI bare: list ports. With name: open it.</td>
 </tr>
 <tr>
-<td><code>/port.baud_rate {value}</code></td>
-<td>Show or set baud rate (hardware only)</td>
+<td><code>/port.baud_rate {value} {custom=&lt;bool&gt;}</code></td>
+<td>Show or set baud rate (hardware only): a standard one, or any from 300 with <code>custom=true</code></td>
 </tr>
 <tr>
 <td><code>/port.break {ms}</code></td>
@@ -1635,8 +1661,8 @@ sends to the device) waits in the input line for Enter.</p>
 <td>Show CD state (read-only)</td>
 </tr>
 <tr>
-<td><code>/port.connect {name} {baud} {mode}</code></td>
-<td>Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81)</td>
+<td><code>/port.connect {name} {baud} {mode} {custom=&lt;bool&gt;} {timeout=&lt;dur&gt;} {msg=&lt;text&gt;}</code></td>
+<td>Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81); a non-standard rate needs <code>custom=true</code>; <code>timeout=</code> keeps trying until the port opens (a board plugged in or rebooting), <code>msg=</code> says what for</td>
 </tr>
 <tr>
 <td><code>/port.cts</code></td>
@@ -1671,8 +1697,8 @@ sends to the device) waits in the input line for Enter.</p>
 <td>Chip-aware port table (MFG, CHIP, SPEED, VID:PID, SERIAL #, ...)</td>
 </tr>
 <tr>
-<td><code>/port.mode {baud} {mode}</code></td>
-<td>Show or set serial mode (e.g. /port.mode 9600 N81)</td>
+<td><code>/port.mode {baud} {mode} {custom=&lt;bool&gt;}</code></td>
+<td>Show or set serial mode (e.g. /port.mode 9600 N81); a non-standard rate needs <code>custom=true</code></td>
 </tr>
 <tr>
 <td><code>/port.parity {value}</code></td>
@@ -1811,10 +1837,6 @@ sends to the device) waits in the input line for Enter.</p>
 <td>Show <code>/run</code> help (alias for <code>/help run</code>)</td>
 </tr>
 <tr>
-<td><code>/run.legacy &lt;file\|pat&gt;</code></td>
-<td>Find renamed (legacy) command names in scripts; <code>--fix</code> rewrites in place</td>
-</tr>
-<tr>
 <td><code>/run.list</code></td>
 <td>List .run files in run/, newest first, with size, age, and summary</td>
 </tr>
@@ -1904,7 +1926,11 @@ sends to the device) waits in the input line for Enter.</p>
 </tr>
 <tr>
 <td><code>/term.color {on\|off\|toggle}</code></td>
-<td>Toggle rendering of device ANSI color (TUI and CLI)</td>
+<td>Toggle color in the output, termapy's own and the device's ANSI (TUI and CLI)</td>
+</tr>
+<tr>
+<td><code>/term.ctrl &lt;key&gt;</code></td>
+<td>Send a control character to the device: <code>c</code> is Ctrl-C (03), <code>d</code> Ctrl-D, <code>esc</code> Esc</td>
 </tr>
 <tr>
 <td><code>/term.echo {on\|off\|toggle}</code></td>
@@ -1928,11 +1954,19 @@ sends to the device) waits in the input line for Enter.</p>
 </tr>
 <tr>
 <td><code>/term.info</code></td>
-<td>Snapshot the state of every <code>/term.*</code> toggle</td>
+<td>Snapshot every <code>/term.*</code> toggle, and the bytes sent and received</td>
 </tr>
 <tr>
-<td><code>/term.json {compact\|indent\|color\|cycle}</code></td>
-<td>How JSON answers print: one line, indented, or indented and colored</td>
+<td><code>/term.json_fmt</code></td>
+<td>Show how JSON prints on screen: its highlighting and its indent</td>
+</tr>
+<tr>
+<td><code>/term.json_fmt.highlight {on\|off\|toggle}</code></td>
+<td>Highlight JSON on screen (shows only when color is on)</td>
+</tr>
+<tr>
+<td><code>/term.json_fmt.indent {0\|2\|4\|cycle}</code></td>
+<td>Spaces per level for JSON on screen; 0 is one line</td>
 </tr>
 <tr>
 <td><code>/term.eol.markers {on\|off\|toggle}</code></td>
@@ -1967,6 +2001,10 @@ sends to the device) waits in the input line for Enter.</p>
 <td>Toggle <code>[HH:MM:SS.mmm]</code> timestamp prefix</td>
 </tr>
 <tr>
+<td><code>/term.traffic {on\|off\|toggle}</code></td>
+<td>Show live TX/RX byte counts in the bottom bar (TUI only)</td>
+</tr>
+<tr>
 <td><code>/term.usb_db</code></td>
 <td>Report bundled USB vendor-database freshness (local read)</td>
 </tr>
@@ -1980,7 +2018,7 @@ sends to the device) waits in the input line for Enter.</p>
 </tr>
 <tr>
 <td><code>/var.list</code></td>
-<td>List user variables (explicit alias for bare <code>/var</code>)</td>
+<td>List every variable as a table: name, kind, value (alias for bare <code>/var</code>)</td>
 </tr>
 <tr>
 <td><code>/var.set &lt;NAME&gt; &lt;value&gt;</code></td>
@@ -2008,7 +2046,7 @@ sends to the device) waits in the input line for Enter.</p>
 </tr>
 </tbody>
 </table>
-<p><strong>Line counts:</strong> <code>/ss.txt</code>, <code>/log.dump</code>, and <code>/mcp.log.dump</code> take an
+<p><strong>Line counts:</strong> <code>/ss.txt</code>, <code>/log.dump</code>, and <code>/log.diag.dump</code> take an
 optional <code>N</code>. <code>N&gt;0</code> saves/prints the <strong>last N</strong> lines (most recent),
 <code>N&lt;0</code> the <strong>first N</strong> (oldest); omit it for everything.</p>
 <h2 id="script-profiling">Script profiling<a class="headerlink" href="#script-profiling" title="Permanent link">&para;</a></h2>
@@ -2197,7 +2235,7 @@ family of file subcommands:</p>
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.d31f0ffa.min.js"></script>
+      <script src="./assets/javascripts/bundle.3cb411a8.min.js"></script>
       
     
   </body>

@@ -81,7 +81,7 @@ src/termapy/
 ├── devices/                #              Device files -- the registers of a memory-mapped part, as data termapy owns
 │   └── converters/         #   Device converters -- a vendor's register description in, a device document out
 │       └── svd.py          #     CMSIS-SVD converter -- ARM's System View Description into a device document
-├── dialogs/                # (3122 lines) Modal dialog screens for termapy
+├── dialogs/                # (3445 lines) Modal dialog screens for termapy
 │   ├── _common.py          #   Shared constants and helpers for the dialog submodules
 │   ├── cfg_confirm.py      #   CfgConfirm -- confirms a config value change (/cfg <key> <value> in the TUI)
 │   ├── config_editor.py    #   ConfigEditor -- edit a config's JSON, validated before it is saved
@@ -99,11 +99,11 @@ src/termapy/
 ├── firmware/               #              The device-side sources termapy ships, one command away: the `/firmware` registry
 ├── help/                   #              Markdown help pages, the source of the HTML help
 ├── html/                   #              Generated HTML help, what the wheel ships (rebuilt at release)
-├── mcp/                    # (2172 lines) Termapy MCP (Model Context Protocol) server package
+├── mcp/                    # (2248 lines) Termapy MCP (Model Context Protocol) server package
 │   ├── catalog.py          #   Build JSON catalog/state snapshots from a running PluginContext
 │   ├── prompts.py          #   MCP prompts: user-invocable conversation recipes
 │   └── server.py           #   MCP stdio server: MCPHost + run_command tool + resources
-├── plugins/                # (4454 lines) Plugin system for termapy - discovery, loading, and context API
+├── plugins/                # (4952 lines) Plugin system for termapy - discovery, loading, and context API
 │   ├── handles/            #   The handles a PluginContext carries: io, serial, fs, ui, and the internal escape hatch
 │   ├── capabilities.py     #   Capability model: what a command needs and what a frontend provides, checked before dispatch
 │   ├── command.py          #   Command, transform, directive, and lifecycle dataclasses
@@ -113,18 +113,18 @@ src/termapy/
 │   ├── params.py           #   Declarative command parameters -- parse/coerce/validate before the handler
 │   ├── views.py            #   Views: how a typed answer looks in prose, kept apart from the answer itself
 │   └── waiting.py          #   A wait a person can watch and stop: the one loop behind `/delay` and `/port.connect timeout=`
-├── profile/                # (1326 lines) Device-profile schema, loader, validator, and type registry
+├── profile/                # (1328 lines) Device-profile schema, loader, validator, and type registry
 │   ├── loader.py           #   Device profile: declarative description of a serial device
 │   ├── matcher.py          #   Match a typed command line against a profile's command catalog
 │   ├── schema.json         #   The JSON Schema a device profile is validated against (Draft 2020-12)
 │   └── types.py            #   Profile-local user-defined types for the v2 device profile schema
-├── protocol/               # (2787 lines) Binary-protocol toolkit: format-spec parser, CRC catalog, .pro runner
+├── protocol/               # (2829 lines) Binary-protocol toolkit: format-spec parser, CRC catalog, .pro runner
 │   ├── core.py             #   Binary protocol utilities - hex parsing, framing, pattern matching, script parsing
 │   ├── crc.py              #   CRC plugin loading and registry (termapy-side)
 │   ├── runner.py           #   Headless protocol test runner with JSON result output
 │   ├── type_codes.py       #   The format-spec type codes -- one table, every consumer iterates it
 │   └── viz.py              #   Visualizer plugin discovery and loading
-├── symbols/                # (3040 lines) Symbol tables -- named addresses for a firmware build
+├── symbols/                # (3072 lines) Symbol tables -- named addresses for a firmware build
 │   ├── converters/         #   Symbol converters -- a build's ELF or linker map in, termapy symbols out
 │   │   ├── elf.py          #     ELF converter -- a build's symbols, with their C types from its debug info
 │   │   └── xc32.py         #     Microchip XC32 (GNU ld) linker-map converter -- the only home of XC32 knowledge
@@ -148,21 +148,21 @@ src/termapy/
 │   ├── selection_list.py   #   StrongSelectionList -- a SelectionList with a clearer on/off glyph
 │   ├── status_bar.py       #   The transient status line beside the REPL input
 │   └── suggester.py        #   CommandSuggester -- input type-ahead from REPL commands + history
-├── app.py                  # (4221 lines) Textual TUI frontend: the app, its panes and buttons, and the wiring around the engines
+├── app.py                  # (4344 lines) Textual TUI frontend: the app, its panes and buttons, and the wiring around the engines
 ├── app_dirs.py             #              User-level application directories and files for termapy
 ├── app_hooks.py            #              TUI-specific REPL hooks registered against the app's ReplEngine
 ├── breadcrumbs.py          #              Breadcrumbs: every running termapy leaves a file saying what it holds, so `--kill` can find it
 ├── capture.py              # (475 lines)  Capture engine - file capture state machine (no UI dependency)
 ├── capture_view.py         #              TUI capture-progress view: start/stop, status bar, and progress widget
-├── cli.py                  # (859 lines)  CLI serial terminal - no Textual dependency
+├── cli.py                  # (908 lines)  CLI serial terminal - no Textual dependency
 ├── cli_flags.py            #              Print-and-exit handlers for termapy's CLI flags
 ├── cli_prompt.py           #              The CLI's interactive prompt: prompt_toolkit history, completion and session
-├── config.py               # (1680 lines) Config file management - paths, defaults, loading, and serial port setup
+├── config.py               # (2014 lines) Config file management - paths, defaults, loading, and serial port setup
 ├── config_resolve.py       #              Config-path resolution helpers
 ├── converters.py           #              Converter registries -- vendor files in, termapy data out, one record type
 ├── credits_data.py         #              The dependency and attribution registry -- one table, every consumer iterates it
-├── defaults.py             # (650 lines)  The config schema, one table, and the file templates
-├── demo.py                 # (2132 lines) Simulated serial device for demo mode
+├── defaults.py             # (1020 lines) The config schema, one table, and the file templates
+├── demo.py                 # (2152 lines) Simulated serial device for demo mode
 ├── demo_ndjson.py          #              Simulated NDJSON serial device for `DEMO_JSON` port name
 ├── demo_vt100.py           #              Simulated VT100/ANSI serial device for the `DEMO_VT100` port name
 ├── diag_log.py             #              Diagnostic log: termapy's record of itself, one file per process, for when something goes wrong
@@ -181,19 +181,19 @@ src/termapy/
 ├── matching.py             #              The one reader for a typed name: every name filter and every did-you-mean shares its rules
 ├── memory.py               # (880 lines)  Device memory access -- bytes in, bytes out, over an injected exchange
 ├── memory_views.py         # (395 lines)  Typed views over device bytes -- layer 3 of the memory design
-├── migration.py            # (795 lines)  Config schema versioning and migration chain
+├── migration.py            # (880 lines)  Config schema versioning and migration chain
 ├── palette_provider.py     #              Textual command-provider that surfaces termapy's PALETTE_CMDS
 ├── pickers.py              #              Modal-picker callbacks for the TUI
-├── port_control.py         # (2236 lines) Pure functions for serial port control - no Textual, no pyserial imports
+├── port_control.py         # (2408 lines) Pure functions for serial port control - no Textual, no pyserial imports
 ├── port_format.py          #              One-line-per-port formatting for serial-port tables
-├── proto_debug.py          # (1365 lines) Interactive protocol debug screen
-├── repl.py                 # (2617 lines) REPL engine for termapy - plugin-based command dispatch and scripting
+├── proto_debug.py          # (1420 lines) Interactive protocol debug screen
+├── repl.py                 # (2845 lines) REPL engine for termapy - plugin-based command dispatch and scripting
 ├── request_response.py     #              Request/response I/O pipeline for synchronous device exchanges
 ├── response_parsers.py     #              Pure response parsers for the profile response formats
 ├── run_docstring.py        #              Parse a `.run` script file's leading docstring block
-├── scripting.py            # (751 lines)  Template expansion, script parsing, and shared utilities for termapy
-├── serial_engine.py        # (799 lines)  SerialEngine - orchestrates serial port, reader, and capture
-├── serial_port.py          # (618 lines)  Serial port I/O wrapper and reader data processor
+├── scripting.py            # (798 lines)  Template expansion, script parsing, and shared utilities for termapy
+├── serial_engine.py        # (839 lines)  SerialEngine - orchestrates serial port, reader, and capture
+├── serial_port.py          # (679 lines)  Serial port I/O wrapper and reader data processor
 ├── session_log.py          #              Session log: a frontend's transcript of a config's sessions, written by one class in every frontend
 ├── terminal_host.py        #              Base class for the TUI, CLI and MCP frontends: builds the PluginContext, owns the one TX path
 ├── title_bar.py            #              Title-bar rendering for the TUI App
@@ -916,7 +916,7 @@ host-registered exceptions).
 
 ## Suppressions
 
-26 lint/type/coverage pragmas in `src/termapy` (excluding vendor). Every one carries a specific rule code and a reason; `release_prep` hard-fails any newly-added suppression that lacks either. Run `python scripts/suppression_audit.py` for the current list, or `--since <tag>` to gate a diff.
+11 lint/type/coverage pragmas in `src/termapy` (excluding vendor). Every one carries a specific rule code and a reason; `release_prep` hard-fails any newly-added suppression that lacks either. Run `python scripts/suppression_audit.py` for the current list, or `--since <tag>` to gate a diff.
 
 ## Test coverage
 

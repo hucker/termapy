@@ -41,6 +41,7 @@ def test_several_pings_carry_every_round_trip(cli):
     assert result.value == round(data["avg_ms"], 1), "the value is the mean, in ms"
 
 
+@pytest.mark.timing  # the DEMO's reply must arrive after the 1 ms timeout
 def test_a_timeout_is_counted_never_averaged(cli):
     """Every ping timing out: an empty value, None for each time, and no stats to report."""
     # Act -- 1ms is far under the DEMO's reply time, so each read gives up first

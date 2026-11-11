@@ -20,18 +20,18 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.74">
+      <meta name="generator" content="zensical-0.1.1">
     
     
       
-        <title>Configuration - Termapy Help v0.79.0</title>
+        <title>Configuration - Termapy Help v0.80.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.4ab2de0c.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.ebb7f775.min.css">
       
         
           
@@ -87,7 +87,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.79.0" class="md-header__button md-logo" aria-label="Termapy Help v0.79.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.80.0" class="md-header__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -102,7 +102,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.79.0
+            Termapy Help v0.80.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.79.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.79.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.80.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.79.0
+    Termapy Help v0.80.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -429,6 +429,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Connection behavior
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-load-resets" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What a load resets
       </span>
     </span>
   </a>
@@ -1211,6 +1222,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#what-a-load-resets" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What a load resets
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#on-connect-commands" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1287,6 +1309,10 @@
 <p>The OS default location is <code>%APPDATA%\termapy</code> on Windows,
 <code>~/Library/Application Support/termapy</code> on macOS, and
 <code>~/.config/termapy</code> on Linux (respects <code>XDG_CONFIG_HOME</code>).</p>
+<p>A port's own config (<code>termapy COM3</code>, see
+<a href="getting-started.html#quick-open-just-a-port">Quick open</a>) skips priority 3:
+it lives in the OS default unless <code>--cfg-dir</code> or <code>TERMAPY_CFG_DIR</code> names a
+folder, so opening a port inside a project adds nothing to it.</p>
 <h2 id="creating-a-new-config">Creating a new config<a class="headerlink" href="#creating-a-new-config" title="Permanent link">&para;</a></h2>
 <p>When you create a new config (first run, or <strong>Cfg → New</strong>), termapy shows
 a quick-setup dialog where you pick a name, a serial port, and a baud
@@ -1302,10 +1328,29 @@ connecting, line text, display, device replies, device profile, files,
 protocol tests, startup and frontends, buttons. termapy writes every
 config that way, the editor's Save included, so a key you add anywhere
 moves to its group.</p>
+<p><strong>Finding a key.</strong> The editor's <strong>Find</strong> button, or <strong>Ctrl+F</strong> (<strong>Alt+F</strong>
+in VS Code, whose terminal keeps Ctrl+F for its own find), opens a find
+bar under the text. It matches any text, keys or values, as typed:
+literal and case-insensitive, so <code>$(CFG)</code> finds the prompt template.
+Enter or Down selects the next match and Up the previous, wrapping at
+either end; the help panel follows the selection, so finding a key shows
+its help. Escape closes the bar and leaves the cursor on the match.</p>
+<p><strong>Who uses a key.</strong> <code>/help &lt;key&gt;</code> (<code>/help baud_rate</code>, <code>/help serial.port</code>)
+shows what a key means, its current value, the config file it lives in
+and how it is spelled there, and the commands that use it, each with how;
+a command's own <code>/help</code> page lists the keys it depends on in a CONFIG
+section; and the editor's help line names the commands that use the key
+under the cursor. A change by <code>/cfg &lt;key&gt; &lt;value&gt;</code> or a <code>/term.*</code> setter
+lasts the session; the editor's Save writes the file.</p>
+<p><strong>One check.</strong> A value is judged the same way wherever it comes from: a load
+warns about a bad one, the editor shows it red and its Save refuses, and <code>/cfg</code>
+and <code>/cfg.auto</code> refuse it (<code>Invalid max_lines: 0 (must be a positive integer)</code>).
+<code>config_version</code> is termapy's to write, so <code>/cfg</code> refuses that too. A non-standard
+baud rate is flagged everywhere and allowed, since some hardware needs one.</p>
 <p>Here is an example config for a device called <code>iot_device</code>:</p>
 <!-- validate-config-keys -->
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="nt">"config_version"</span><span class="p">:</span><span class="w"> </span><span class="mi">33</span><span class="p">,</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="nt">"config_version"</span><span class="p">:</span><span class="w"> </span><span class="mi">39</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"IoT Device"</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">"border_color"</span><span class="p">:</span><span class="w"> </span><span class="s2">"blue"</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="nt">"serial"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
@@ -1325,64 +1370,72 @@ moves to its group.</p>
 </span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">    </span><span class="nt">"mcp_on_connect_cmd"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span>
 </span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">    </span><span class="nt">"encoding"</span><span class="p">:</span><span class="w"> </span><span class="s2">"utf-8"</span><span class="p">,</span>
 </span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">    </span><span class="nt">"eol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"\r"</span><span class="p">,</span>
-</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">    </span><span class="nt">"eol_rx"</span><span class="p">:</span><span class="w"> </span><span class="s2">"auto"</span><span class="p">,</span>
-</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">    </span><span class="nt">"eol_markers"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">    </span><span class="nt">"send_bare_enter"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">    </span><span class="nt">"cmd_delay_ms"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
-</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">    </span><span class="nt">"multiline_paste"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">    </span><span class="nt">"multiline_paste_delay_ms"</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span>
-</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="w">    </span><span class="nt">"echo"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">    </span><span class="nt">"echo_fmt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"[purple]$(CFG)&gt; {cmd}[/]"</span><span class="p">,</span>
-</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="w">    </span><span class="nt">"timestamps"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="w">    </span><span class="nt">"line_no"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-0-32"><a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="w">    </span><span class="nt">"hex"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-0-33"><a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="w">    </span><span class="nt">"max_lines"</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="p">,</span>
-</span><span id="__span-0-34"><a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a><span class="w">    </span><span class="nt">"max_grep_lines"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
-</span><span id="__span-0-35"><a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a><span class="w">    </span><span class="nt">"protocol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"text"</span><span class="p">,</span>
-</span><span id="__span-0-36"><a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a><span class="w">    </span><span class="nt">"ndjson_field_routing"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-37"><a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="w">        </span><span class="nt">"response_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"id"</span><span class="p">,</span>
-</span><span id="__span-0-38"><a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="w">        </span><span class="nt">"error_field"</span><span class="p">:</span><span class="w"> </span><span class="s2">"error"</span><span class="p">,</span>
-</span><span id="__span-0-39"><a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a><span class="w">        </span><span class="nt">"event_field"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event"</span>
-</span><span id="__span-0-40"><a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a><span class="w">    </span><span class="p">},</span>
-</span><span id="__span-0-41"><a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a><span class="w">    </span><span class="nt">"request_mode"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-0-42"><a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a><span class="w">    </span><span class="nt">"request_err_pattern"</span><span class="p">:</span><span class="w"> </span><span class="s2">"(?i)^(ERROR|ERR|FAULT)\\b"</span><span class="p">,</span>
-</span><span id="__span-0-43"><a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a><span class="w">    </span><span class="nt">"strip_device_echo"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-0-44"><a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a><span class="w">    </span><span class="nt">"json_style"</span><span class="p">:</span><span class="w"> </span><span class="s2">"compact"</span><span class="p">,</span>
-</span><span id="__span-0-45"><a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a><span class="w">    </span><span class="nt">"profile_path"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span>
-</span><span id="__span-0-46"><a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a><span class="w">    </span><span class="nt">"validate_typed_args"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-0-47"><a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a><span class="w">    </span><span class="nt">"default_response_timeout_ms"</span><span class="p">:</span><span class="w"> </span><span class="mi">1000</span><span class="p">,</span>
-</span><span id="__span-0-48"><a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a><span class="w">    </span><span class="nt">"log_file"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span>
-</span><span id="__span-0-49"><a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a><span class="w">    </span><span class="nt">"file_xfer_root"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span>
-</span><span id="__span-0-50"><a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a><span class="w">    </span><span class="nt">"proto_frame_gap_ms"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
-</span><span id="__span-0-51"><a id="__codelineno-0-51" name="__codelineno-0-51" href="#__codelineno-0-51"></a><span class="w">    </span><span class="nt">"proto_results_template"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{name}_results.json"</span><span class="p">,</span>
-</span><span id="__span-0-52"><a id="__codelineno-0-52" name="__codelineno-0-52" href="#__codelineno-0-52"></a><span class="w">    </span><span class="nt">"default_ui"</span><span class="p">:</span><span class="w"> </span><span class="s2">"tui"</span><span class="p">,</span>
-</span><span id="__span-0-53"><a id="__codelineno-0-53" name="__codelineno-0-53" href="#__codelineno-0-53"></a><span class="w">    </span><span class="nt">"quiet_start"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-</span><span id="__span-0-54"><a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a><span class="w">    </span><span class="nt">"vt100_hint"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-</span><span id="__span-0-55"><a id="__codelineno-0-55" name="__codelineno-0-55" href="#__codelineno-0-55"></a><span class="w">    </span><span class="nt">"cmd_prefix"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/"</span><span class="p">,</span>
-</span><span id="__span-0-56"><a id="__codelineno-0-56" name="__codelineno-0-56" href="#__codelineno-0-56"></a><span class="w">    </span><span class="nt">"cli_prompt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"$(CFG)&gt; "</span><span class="p">,</span>
-</span><span id="__span-0-57"><a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a><span class="w">    </span><span class="nt">"cli_completion"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-</span><span id="__span-0-58"><a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a><span class="w">    </span><span class="nt">"show_traceback"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-0-59"><a id="__codelineno-0-59" name="__codelineno-0-59" href="#__codelineno-0-59"></a><span class="w">    </span><span class="nt">"cfg_enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-</span><span id="__span-0-60"><a id="__codelineno-0-60" name="__codelineno-0-60" href="#__codelineno-0-60"></a><span class="w">    </span><span class="nt">"run_enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-</span><span id="__span-0-61"><a id="__codelineno-0-61" name="__codelineno-0-61" href="#__codelineno-0-61"></a><span class="w">    </span><span class="nt">"proto_enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-</span><span id="__span-0-62"><a id="__codelineno-0-62" name="__codelineno-0-62" href="#__codelineno-0-62"></a><span class="w">    </span><span class="nt">"record_enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-</span><span id="__span-0-63"><a id="__codelineno-0-63" name="__codelineno-0-63" href="#__codelineno-0-63"></a><span class="w">    </span><span class="nt">"config_read_only"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-0-64"><a id="__codelineno-0-64" name="__codelineno-0-64" href="#__codelineno-0-64"></a><span class="w">    </span><span class="nt">"custom_buttons_side"</span><span class="p">:</span><span class="w"> </span><span class="s2">"bottom"</span><span class="p">,</span>
-</span><span id="__span-0-65"><a id="__codelineno-0-65" name="__codelineno-0-65" href="#__codelineno-0-65"></a><span class="w">    </span><span class="nt">"custom_buttons"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-</span><span id="__span-0-66"><a id="__codelineno-0-66" name="__codelineno-0-66" href="#__codelineno-0-66"></a><span class="w">        </span><span class="p">{</span>
-</span><span id="__span-0-67"><a id="__codelineno-0-67" name="__codelineno-0-67" href="#__codelineno-0-67"></a><span class="w">            </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-</span><span id="__span-0-68"><a id="__codelineno-0-68" name="__codelineno-0-68" href="#__codelineno-0-68"></a><span class="w">            </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Reset"</span><span class="p">,</span>
-</span><span id="__span-0-69"><a id="__codelineno-0-69" name="__codelineno-0-69" href="#__codelineno-0-69"></a><span class="w">            </span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ATZ"</span><span class="p">,</span>
-</span><span id="__span-0-70"><a id="__codelineno-0-70" name="__codelineno-0-70" href="#__codelineno-0-70"></a><span class="w">            </span><span class="nt">"tooltip"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Reset device"</span>
-</span><span id="__span-0-71"><a id="__codelineno-0-71" name="__codelineno-0-71" href="#__codelineno-0-71"></a><span class="w">        </span><span class="p">},</span>
-</span><span id="__span-0-72"><a id="__codelineno-0-72" name="__codelineno-0-72" href="#__codelineno-0-72"></a><span class="w">        </span><span class="p">{</span>
-</span><span id="__span-0-73"><a id="__codelineno-0-73" name="__codelineno-0-73" href="#__codelineno-0-73"></a><span class="w">            </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-</span><span id="__span-0-74"><a id="__codelineno-0-74" name="__codelineno-0-74" href="#__codelineno-0-74"></a><span class="w">            </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Init"</span><span class="p">,</span>
-</span><span id="__span-0-75"><a id="__codelineno-0-75" name="__codelineno-0-75" href="#__codelineno-0-75"></a><span class="w">            </span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ATZ\\nAT+BAUD=115200"</span><span class="p">,</span>
-</span><span id="__span-0-76"><a id="__codelineno-0-76" name="__codelineno-0-76" href="#__codelineno-0-76"></a><span class="w">            </span><span class="nt">"tooltip"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Reset and set baud"</span>
-</span><span id="__span-0-77"><a id="__codelineno-0-77" name="__codelineno-0-77" href="#__codelineno-0-77"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-0-78"><a id="__codelineno-0-78" name="__codelineno-0-78" href="#__codelineno-0-78"></a><span class="w">    </span><span class="p">]</span>
-</span><span id="__span-0-79"><a id="__codelineno-0-79" name="__codelineno-0-79" href="#__codelineno-0-79"></a><span class="p">}</span>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">    </span><span class="nt">"tx_char_delay_ms"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">    </span><span class="nt">"tx_line_delay_ms"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">    </span><span class="nt">"tx_chunking"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">    </span><span class="nt">"eol_rx"</span><span class="p">:</span><span class="w"> </span><span class="s2">"auto"</span><span class="p">,</span>
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">    </span><span class="nt">"eol_markers"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">    </span><span class="nt">"send_bare_enter"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="w">    </span><span class="nt">"cmd_delay_ms"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">    </span><span class="nt">"multiline_paste"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="w">    </span><span class="nt">"multiline_paste_delay_ms"</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span>
+</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="w">    </span><span class="nt">"control_keys"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-0-32"><a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="w">    </span><span class="nt">"echo"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-0-33"><a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="w">    </span><span class="nt">"echo_fmt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"[purple]$(CFG)&gt; {cmd}[/]"</span><span class="p">,</span>
+</span><span id="__span-0-34"><a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a><span class="w">    </span><span class="nt">"timestamps"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-0-35"><a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a><span class="w">    </span><span class="nt">"line_no"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-0-36"><a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a><span class="w">    </span><span class="nt">"hex"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-0-37"><a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="w">    </span><span class="nt">"color"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-0-38"><a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="w">    </span><span class="nt">"output_level"</span><span class="p">:</span><span class="w"> </span><span class="s2">"normal"</span><span class="p">,</span>
+</span><span id="__span-0-39"><a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a><span class="w">    </span><span class="nt">"max_lines"</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="p">,</span>
+</span><span id="__span-0-40"><a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a><span class="w">    </span><span class="nt">"max_grep_lines"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
+</span><span id="__span-0-41"><a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a><span class="w">    </span><span class="nt">"protocol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"text"</span><span class="p">,</span>
+</span><span id="__span-0-42"><a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a><span class="w">    </span><span class="nt">"ndjson_field_routing"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-43"><a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a><span class="w">        </span><span class="nt">"response_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"id"</span><span class="p">,</span>
+</span><span id="__span-0-44"><a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a><span class="w">        </span><span class="nt">"error_field"</span><span class="p">:</span><span class="w"> </span><span class="s2">"error"</span><span class="p">,</span>
+</span><span id="__span-0-45"><a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a><span class="w">        </span><span class="nt">"event_field"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event"</span>
+</span><span id="__span-0-46"><a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a><span class="w">    </span><span class="p">},</span>
+</span><span id="__span-0-47"><a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a><span class="w">    </span><span class="nt">"request_mode"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-0-48"><a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a><span class="w">    </span><span class="nt">"request_err_pattern"</span><span class="p">:</span><span class="w"> </span><span class="s2">"(?i)^(ERROR|ERR|FAULT)\\b"</span><span class="p">,</span>
+</span><span id="__span-0-49"><a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a><span class="w">    </span><span class="nt">"strip_device_echo"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-0-50"><a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a><span class="w">    </span><span class="nt">"json_fmt"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-51"><a id="__codelineno-0-51" name="__codelineno-0-51" href="#__codelineno-0-51"></a><span class="w">        </span><span class="nt">"highlight"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-0-52"><a id="__codelineno-0-52" name="__codelineno-0-52" href="#__codelineno-0-52"></a><span class="w">        </span><span class="nt">"indent"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span>
+</span><span id="__span-0-53"><a id="__codelineno-0-53" name="__codelineno-0-53" href="#__codelineno-0-53"></a><span class="w">    </span><span class="p">},</span>
+</span><span id="__span-0-54"><a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a><span class="w">    </span><span class="nt">"profile_path"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span>
+</span><span id="__span-0-55"><a id="__codelineno-0-55" name="__codelineno-0-55" href="#__codelineno-0-55"></a><span class="w">    </span><span class="nt">"validate_typed_args"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-0-56"><a id="__codelineno-0-56" name="__codelineno-0-56" href="#__codelineno-0-56"></a><span class="w">    </span><span class="nt">"default_response_timeout_ms"</span><span class="p">:</span><span class="w"> </span><span class="mi">1000</span><span class="p">,</span>
+</span><span id="__span-0-57"><a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a><span class="w">    </span><span class="nt">"log_file"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span>
+</span><span id="__span-0-58"><a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a><span class="w">    </span><span class="nt">"file_xfer_root"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span>
+</span><span id="__span-0-59"><a id="__codelineno-0-59" name="__codelineno-0-59" href="#__codelineno-0-59"></a><span class="w">    </span><span class="nt">"proto_frame_gap_ms"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
+</span><span id="__span-0-60"><a id="__codelineno-0-60" name="__codelineno-0-60" href="#__codelineno-0-60"></a><span class="w">    </span><span class="nt">"proto_results_template"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{name}_results.json"</span><span class="p">,</span>
+</span><span id="__span-0-61"><a id="__codelineno-0-61" name="__codelineno-0-61" href="#__codelineno-0-61"></a><span class="w">    </span><span class="nt">"default_ui"</span><span class="p">:</span><span class="w"> </span><span class="s2">"tui"</span><span class="p">,</span>
+</span><span id="__span-0-62"><a id="__codelineno-0-62" name="__codelineno-0-62" href="#__codelineno-0-62"></a><span class="w">    </span><span class="nt">"quiet_start"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-0-63"><a id="__codelineno-0-63" name="__codelineno-0-63" href="#__codelineno-0-63"></a><span class="w">    </span><span class="nt">"vt100_hint"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-0-64"><a id="__codelineno-0-64" name="__codelineno-0-64" href="#__codelineno-0-64"></a><span class="w">    </span><span class="nt">"cmd_prefix"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/"</span><span class="p">,</span>
+</span><span id="__span-0-65"><a id="__codelineno-0-65" name="__codelineno-0-65" href="#__codelineno-0-65"></a><span class="w">    </span><span class="nt">"cli_prompt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"$(CFG)&gt; "</span><span class="p">,</span>
+</span><span id="__span-0-66"><a id="__codelineno-0-66" name="__codelineno-0-66" href="#__codelineno-0-66"></a><span class="w">    </span><span class="nt">"cli_completion"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-0-67"><a id="__codelineno-0-67" name="__codelineno-0-67" href="#__codelineno-0-67"></a><span class="w">    </span><span class="nt">"cfg_enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-0-68"><a id="__codelineno-0-68" name="__codelineno-0-68" href="#__codelineno-0-68"></a><span class="w">    </span><span class="nt">"run_enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-0-69"><a id="__codelineno-0-69" name="__codelineno-0-69" href="#__codelineno-0-69"></a><span class="w">    </span><span class="nt">"proto_enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-0-70"><a id="__codelineno-0-70" name="__codelineno-0-70" href="#__codelineno-0-70"></a><span class="w">    </span><span class="nt">"record_enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-0-71"><a id="__codelineno-0-71" name="__codelineno-0-71" href="#__codelineno-0-71"></a><span class="w">    </span><span class="nt">"config_read_only"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-0-72"><a id="__codelineno-0-72" name="__codelineno-0-72" href="#__codelineno-0-72"></a><span class="w">    </span><span class="nt">"custom_buttons_side"</span><span class="p">:</span><span class="w"> </span><span class="s2">"bottom"</span><span class="p">,</span>
+</span><span id="__span-0-73"><a id="__codelineno-0-73" name="__codelineno-0-73" href="#__codelineno-0-73"></a><span class="w">    </span><span class="nt">"custom_buttons"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+</span><span id="__span-0-74"><a id="__codelineno-0-74" name="__codelineno-0-74" href="#__codelineno-0-74"></a><span class="w">        </span><span class="p">{</span>
+</span><span id="__span-0-75"><a id="__codelineno-0-75" name="__codelineno-0-75" href="#__codelineno-0-75"></a><span class="w">            </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-0-76"><a id="__codelineno-0-76" name="__codelineno-0-76" href="#__codelineno-0-76"></a><span class="w">            </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Reset"</span><span class="p">,</span>
+</span><span id="__span-0-77"><a id="__codelineno-0-77" name="__codelineno-0-77" href="#__codelineno-0-77"></a><span class="w">            </span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ATZ"</span><span class="p">,</span>
+</span><span id="__span-0-78"><a id="__codelineno-0-78" name="__codelineno-0-78" href="#__codelineno-0-78"></a><span class="w">            </span><span class="nt">"tooltip"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Reset device"</span>
+</span><span id="__span-0-79"><a id="__codelineno-0-79" name="__codelineno-0-79" href="#__codelineno-0-79"></a><span class="w">        </span><span class="p">},</span>
+</span><span id="__span-0-80"><a id="__codelineno-0-80" name="__codelineno-0-80" href="#__codelineno-0-80"></a><span class="w">        </span><span class="p">{</span>
+</span><span id="__span-0-81"><a id="__codelineno-0-81" name="__codelineno-0-81" href="#__codelineno-0-81"></a><span class="w">            </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-0-82"><a id="__codelineno-0-82" name="__codelineno-0-82" href="#__codelineno-0-82"></a><span class="w">            </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Init"</span><span class="p">,</span>
+</span><span id="__span-0-83"><a id="__codelineno-0-83" name="__codelineno-0-83" href="#__codelineno-0-83"></a><span class="w">            </span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ATZ\\nAT+BAUD=115200"</span><span class="p">,</span>
+</span><span id="__span-0-84"><a id="__codelineno-0-84" name="__codelineno-0-84" href="#__codelineno-0-84"></a><span class="w">            </span><span class="nt">"tooltip"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Reset and set baud"</span>
+</span><span id="__span-0-85"><a id="__codelineno-0-85" name="__codelineno-0-85" href="#__codelineno-0-85"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-0-86"><a id="__codelineno-0-86" name="__codelineno-0-86" href="#__codelineno-0-86"></a><span class="w">    </span><span class="p">]</span>
+</span><span id="__span-0-87"><a id="__codelineno-0-87" name="__codelineno-0-87" href="#__codelineno-0-87"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>This file would be saved at <code>termapy_cfg/iot_device/iot_device.cfg</code>.</p>
 <p>A <code>$(env.NAME)</code> template may sit on a boolean key too, as in
@@ -1421,12 +1474,12 @@ reported as a type warning.</p>
 <tr>
 <td><code>serial.baud_rate</code></td>
 <td><code>115200</code></td>
-<td>Serial baud rate -- non-standard rates require <code>custom_baud</code></td>
+<td>Serial baud rate, one of the standard rates so a mistyped one is refused: 110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600, 115200, 230400, 460800, 921600. Any other rate from 300 up needs <code>custom_baud</code></td>
 </tr>
 <tr>
 <td><code>serial.custom_baud</code></td>
 <td><code>false</code></td>
-<td>Allow non-standard baud rates (&gt;= 300). Modern drivers support arbitrary rates</td>
+<td>Allow a baud rate off the standard list (&gt;= 300); modern drivers take arbitrary rates. A command that sets a rate asks for one with <code>custom=true</code>, which sets this for the session</td>
 </tr>
 <tr>
 <td><code>serial.byte_size</code></td>
@@ -1489,6 +1542,21 @@ reported as a type warning.</p>
 <td>Appended to each sent command: <code>\r</code>, <code>\r\n</code>, or <code>\n</code></td>
 </tr>
 <tr>
+<td><code>tx_char_delay_ms</code></td>
+<td><code>0</code></td>
+<td>Delay in ms after each character of a line sent to the device (TeraTerm's transmit delay, msec/char), for a device that drops bytes sent back to back; <code>0</code> = off. File transfers, <code>/proto</code> and <code>/raw</code> are never paced</td>
+</tr>
+<tr>
+<td><code>tx_line_delay_ms</code></td>
+<td><code>0</code></td>
+<td>Delay in ms after each line sent to the device (TeraTerm's msec/line); <code>0</code> = off</td>
+</tr>
+<tr>
+<td><code>tx_chunking</code></td>
+<td><code>true</code></td>
+<td>Hand a large send to the driver in 192-byte pieces, so large, high-speed transfers arrive intact (measured on an FT232R: 4 KB writes lost lines at 750000 baud and up, 192-byte writes lost none; see <a href="ports.html#large-sends-go-out-in-pieces">Serial ports</a>). <code>false</code> sends each write whole</td>
+</tr>
+<tr>
 <td><code>eol_rx</code></td>
 <td><code>auto</code></td>
 <td>Receive newline: split output into lines. <code>auto</code>/<code>cr</code>/<code>lf</code>/<code>crlf</code> (set: /term.eol.rx)</td>
@@ -1506,7 +1574,7 @@ reported as a type warning.</p>
 <tr>
 <td><code>cmd_delay_ms</code></td>
 <td><code>0</code></td>
-<td>Milliseconds between commands in autoconnect and multi-command input</td>
+<td>Milliseconds after each of the TUI's on-connect commands</td>
 </tr>
 <tr>
 <td><code>multiline_paste</code></td>
@@ -1517,6 +1585,11 @@ reported as a type warning.</p>
 <td><code>multiline_paste_delay_ms</code></td>
 <td><code>10</code></td>
 <td>Delay in ms between the lines of a multi-line paste (TeraTerm's default); <code>0</code> = none</td>
+</tr>
+<tr>
+<td><code>control_keys</code></td>
+<td><code>true</code></td>
+<td>In the TUI, Ctrl+C with nothing selected, Ctrl+D and Ctrl+Z on an empty prompt, and Escape with nothing running on an empty prompt go to the device; <code>false</code> keeps them termapy's (copy, delete, clear) in every session (set for one session: /term.control_keys)</td>
 </tr>
 <tr>
 <td><code>echo</code></td>
@@ -1542,6 +1615,16 @@ reported as a type warning.</p>
 <td><code>hex</code></td>
 <td><code>false</code></td>
 <td>Display received bytes as hex instead of text</td>
+</tr>
+<tr>
+<td><code>color</code></td>
+<td><code>true</code></td>
+<td>Color in the output, termapy's own and the device's ANSI</td>
+</tr>
+<tr>
+<td><code>output_level</code></td>
+<td><code>normal</code></td>
+<td>How loud commands are: <code>silent</code>, <code>quiet</code>, <code>normal</code> or <code>verbose</code></td>
 </tr>
 <tr>
 <td><code>max_lines</code></td>
@@ -1579,9 +1662,14 @@ reported as a type warning.</p>
 <td>Drop a half-duplex device's echoed command from <code>request_mode</code> responses (opt in per device)</td>
 </tr>
 <tr>
-<td><code>json_style</code></td>
-<td><code>compact</code></td>
-<td>How JSON answers print (<code>request_mode</code>, <code>--json</code>): <code>compact</code> one line per answer, <code>indent</code>, or <code>color</code> (indented and highlighted). Set: <code>/term.json</code></td>
+<td><code>json_fmt.highlight</code></td>
+<td><code>true</code></td>
+<td>Highlight JSON on screen: <code>request_mode</code> and <code>--json</code> answers, and each JSON line a device sends. Shows only with color on (<code>/term.color</code>). A pipe or a file gets plain JSON. Set: <code>/term.json_fmt.highlight</code></td>
+</tr>
+<tr>
+<td><code>json_fmt.indent</code></td>
+<td><code>2</code></td>
+<td>Spaces per level for JSON on screen: <code>0</code> (one line), <code>2</code> or <code>4</code>. A pipe or a file always gets one line per JSON value, for a program reading stdout line by line. Set: <code>/term.json_fmt.indent</code></td>
 </tr>
 <tr>
 <td><code>profile_path</code></td>
@@ -1601,7 +1689,7 @@ reported as a type warning.</p>
 <tr>
 <td><code>log_file</code></td>
 <td><code>""</code></td>
-<td>The TUI's session log path (defaults to <code>&lt;name&gt;.log</code> in config subfolder); MCP logs to <code>mcp/session.log</code>, the CLI keeps none</td>
+<td>The TUI's session log path (defaults to <code>&lt;name&gt;.log</code> in config subfolder); MCP logs to <code>&lt;name&gt;.mcp.log</code> beside it, the CLI keeps none</td>
 </tr>
 <tr>
 <td><code>file_xfer_root</code></td>
@@ -1649,11 +1737,6 @@ reported as a type warning.</p>
 <td>Enable CLI tab completion, auto-suggest, and help toolbar</td>
 </tr>
 <tr>
-<td><code>show_traceback</code></td>
-<td><code>false</code></td>
-<td>Show full stack trace on serial errors</td>
-</tr>
-<tr>
 <td><code>cfg_enabled</code></td>
 <td><code>true</code></td>
 <td>Show the Cfg button in the title bar</td>
@@ -1698,6 +1781,24 @@ reported as a type warning.</p>
 switch). <code>auto_reconnect</code> retries the connection when the port drops or
 a manual connect attempt fails -- it does not control startup behavior.
 While reconnecting, the title bar turns amber and shows a spinner.</p>
+<h2 id="what-a-load-resets">What a load resets<a class="headerlink" href="#what-a-load-resets" title="Permanent link">&para;</a></h2>
+<p>Loading a config puts the session where a fresh start on that config would, so
+the configs you used before cannot change how this one behaves.</p>
+<ul>
+<li><strong>Back to the config:</strong> <code>echo</code>, <code>hex</code>, <code>line_no</code>, <code>color</code>, <code>output_level</code> and
+  every other key take the file's value, and <code>/term.echo_repl</code> its default.</li>
+<li><strong>Gone:</strong> user variables, <code>/env.set</code> values, <code>{seq}</code> counters and the device
+  profile. The <code>{starttime}</code> clock starts again and the find bar closes.</li>
+<li><strong>Stopped:</strong> a capture and a recording.</li>
+<li><strong>The port:</strong> it opens only if the config says <code>auto_connect</code>.</li>
+</ul>
+<p>Saving in the config editor counts as a load, except that a connected port
+stays connected. Changing the port from the title bar or the port picker is
+not a load: nothing resets.</p>
+<p>Some inputs live outside the config, so they are the same whichever config came
+first: the global <code>termapy_cfg/plugin/</code>, <code>lib/</code> and <code>dev/</code> folders, <code>$(env.NAME)</code>
+values from the environment, <code>TERMAPY_*</code> switches, and what you asked for at
+launch, such as <code>--no-color</code> or <code>--quiet</code>.</p>
 <h2 id="on-connect-commands">On-connect commands<a class="headerlink" href="#on-connect-commands" title="Permanent link">&para;</a></h2>
 <p><code>on_connect_cmd</code> runs after every connect, then the frontend's own
 <code>tui_</code>, <code>cli_</code> or <code>mcp_on_connect_cmd</code>. Each field holds one command, run
@@ -1830,7 +1931,7 @@ first with size, last-updated age, port, baud, and title.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.d31f0ffa.min.js"></script>
+      <script src="./assets/javascripts/bundle.3cb411a8.min.js"></script>
       
     
   </body>

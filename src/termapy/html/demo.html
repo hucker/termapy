@@ -20,18 +20,18 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.74">
+      <meta name="generator" content="zensical-0.1.1">
     
     
       
-        <title>Demo Mode - Termapy Help v0.79.0</title>
+        <title>Demo Mode - Termapy Help v0.80.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.4ab2de0c.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.ebb7f775.min.css">
       
         
           
@@ -87,7 +87,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.79.0" class="md-header__button md-logo" aria-label="Termapy Help v0.79.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.80.0" class="md-header__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -102,7 +102,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.79.0
+            Termapy Help v0.80.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.79.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.79.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.80.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.79.0
+    Termapy Help v0.80.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1642,13 +1642,13 @@ the byte stream without disrupting normal operation -- it demonstrates the
 <tbody>
 <tr>
 <td><code>/traffic.count</code></td>
-<td><code>&lt;cmd&gt;</code></td>
-<td>Run a command and report TX/RX bytes during it</td>
+<td><code>&lt;cmd&gt; {wait_gap=&lt;dur&gt;}</code></td>
+<td>Run a command and report the TX/RX bytes, its reply included: it waits until the device has been quiet for <code>wait_gap</code> (default 50ms)</td>
 </tr>
 <tr>
 <td><code>/traffic.hexdump</code></td>
 <td><code>&lt;file&gt; [duration]</code></td>
-<td>Tee timestamped hex of all I/O to a file (default 5s)</td>
+<td>Tee timestamped hex of all I/O to a file in <code>cap/</code> (default 5s)</td>
 </tr>
 <tr>
 <td><code>/traffic.rate</code></td>
@@ -1663,19 +1663,20 @@ the byte stream without disrupting normal operation -- it demonstrates the
 </tbody>
 </table>
 <p>Examples against the demo:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>demo&gt; /traffic.count AT+INFO
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>  TX: 7  RX: 12  bytes
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>demo&gt; /traffic.rate 3s
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>  Sampling for 3.0s...
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>  TX: 0 bytes (0.0 B/s)
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>  RX: 28 bytes (9.3 B/s)
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
-</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>demo&gt; /traffic.hexdump capture.log 10s
-</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>
-</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>demo&gt; /traffic.snoop 4F 4B timeout=2s    # wait for "OK" in RX
-</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>  Matched 4f4b at offset 14
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>demo&gt; /traffic.count AT+RAMP
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>demo&gt; AT+RAMP
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>0.0
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>  TX: 8  RX: 5  bytes
 </span></code></pre></div>
+<p><code>AT+RAMP\r</code> is the 8 bytes sent and <code>0.0\r\n</code> the 5 received.  A device that
+takes longer than 50ms to start answering needs a bigger gap,
+<code>/traffic.count wait_gap=200ms AT+INFO</code>; with <code>wait_gap=0ms</code> the reply arrives
+after the count and lands in whatever is measuring next.</p>
+<p><code>/traffic.rate 3s</code> counts whatever moves during the window, so on the idle
+demo it reports zero; run it while something streams.
+<code>/traffic.hexdump capture.log 10s</code> writes ten seconds of both directions to
+<code>cap/capture.log</code>.  <code>/traffic.snoop 4F 4B timeout=2s</code> waits for <code>OK</code> in the
+received bytes; it blocks, so it runs only in a <code>.run</code> script.</p>
 <hr />
 
 
@@ -1775,7 +1776,7 @@ the byte stream without disrupting normal operation -- it demonstrates the
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.d31f0ffa.min.js"></script>
+      <script src="./assets/javascripts/bundle.3cb411a8.min.js"></script>
       
     
   </body>

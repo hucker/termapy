@@ -1908,7 +1908,7 @@ requires-dist = [
     { name = "termapy", extras = ["mcp", "web"], marker = "extra == 'all'" },
     { name = "textual", specifier = ">=2.0" },
     { name = "textual-serve", marker = "extra == 'web'", specifier = ">=1.1" },
-    { name = "tree-sitter", specifier = ">=0.25.0,<0.27" },
+    { name = "tree-sitter", specifier = ">=0.25.0,<0.26.1" },
     { name = "tree-sitter-bash", specifier = ">=0.23.0,<0.26" },
     { name = "tree-sitter-json", specifier = ">=0.24.0,<0.25" },
     { name = "tree-sitter-toml", specifier = ">=0.6.0,<0.8" },

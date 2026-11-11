@@ -34,8 +34,11 @@ dependencies = [
     # scripts=bash).  Upper bounds capped to the next-minor of the
     # currently-tested release; pre-1.0 tree-sitter libraries routinely
     # break their API between minor versions.  Bump the caps manually
-    # after smoke-testing a new release locally.
-    "tree-sitter>=0.25.0,<0.27",
+    # after smoke-testing a new release locally.  0.26.1 is excluded: on
+    # Windows / CPython 3.14.2 it crashes the process (access violation)
+    # while a TextArea loads its highlight query, 4 runs in 6 against 0 in 6
+    # for 0.26.0 (decision 2026-11-10).
+    "tree-sitter>=0.25.0,<0.26.1",
     "tree-sitter-json>=0.24.0,<0.25",
     "tree-sitter-toml>=0.6.0,<0.8",
     "tree-sitter-bash>=0.23.0,<0.26",

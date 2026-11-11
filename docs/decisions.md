@@ -1443,3 +1443,15 @@ massive payload in one shot is the wrong tool for the job, the transfer protocol
 the chunking needs to be good enough to forget about, not a surface to tune. Left open: whether a device streaming into termapy loses anything at these
 rates, which needs two adapters crossed with the sender in its own process. **Where:** registry
 `tx-chunked-writes`; `scripts/throughput.py --chunk` and `--gap-us` reproduce the sweep.
+
+## 2026-11-10 — tree-sitter stops below 0.26.1
+
+The v0.80.0 release prep's `uv lock --upgrade` moved tree-sitter from 0.26.0 to 0.26.1, inside the
+existing `<0.27` cap, and the full suite then lost test workers to a Windows access violation. Every
+crash was in the config editor's tests, while Textual's `TextArea` loaded its highlight query
+through tree-sitter. Run six times each on CPython 3.14.2, with nothing else changed,
+`tests/test_cfg_schema.py` crashed 4 times under 0.26.1 and passed 6 times under 0.26.0. CI could not
+have shown it: it runs the committed lock, and the crash is Windows-only. The cap is now
+`>=0.25.0,<0.26.1`, which keeps the lock at 0.26.0. Lift it on a chore branch once a later
+tree-sitter passes that test file repeatedly on Windows, as the cap's comment says of every move.
+**Where:** `pyproject.toml`'s tree-sitter line.

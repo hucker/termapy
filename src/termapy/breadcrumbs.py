@@ -106,6 +106,10 @@ def process_token(pid: int) -> str | None:
 
 def _windows_token(pid: int) -> str | None:
     """The process's creation time from ``GetProcessTimes``, while it is still active."""
+    if sys.platform != "win32":
+        # Only ever called on Windows (see ``_token``); the check tells the type
+        # checker so on another platform it does not read ctypes.WinDLL.
+        return None
     import ctypes
     from ctypes import wintypes
 

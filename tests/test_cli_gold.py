@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import difflib
+import os
 import re
 import subprocess
 import sys
@@ -48,6 +49,9 @@ def _run_cli_script(script_name: str, tmp_path: Path) -> subprocess.CompletedPro
             "from termapy.entry import main; main()",
         ],
         capture_output=True,
+        # gui_apps as on the desktop the gold was recorded on, so a headless
+        # runner answers /log.diag.show with its name check, not the gate.
+        env={**os.environ, "TERMAPY_GUI": "1"},
         text=True,
         timeout=30,
     )

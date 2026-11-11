@@ -1447,6 +1447,9 @@ class TestMultilinePaste:
                 _paste(app, "/port.connect\n/print after\n")
                 await until(pilot, lambda: "after" in app._get_screen_text(), seconds=10.0)
                 text = app._get_screen_text()
+                # The paste worker finishes its tail after the last line shows;
+                # leave only once it has, or it runs against a torn-down screen.
+                await until(pilot, lambda: not app._busy)
                 app._disconnect()
 
                 # Assert
@@ -1469,6 +1472,9 @@ class TestMultilinePaste:
                 _paste(app, "/port.connect\n/print after\n")
                 await until(pilot, lambda: "after" in app._get_screen_text(), seconds=10.0)
                 text = app._get_screen_text()
+                # The paste worker finishes its tail after the last line shows;
+                # leave only once it has, or it runs against a torn-down screen.
+                await until(pilot, lambda: not app._busy)
                 app._disconnect()
 
                 # Assert

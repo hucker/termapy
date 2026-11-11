@@ -359,6 +359,10 @@ def _windows_records() -> list[UsbRecord]:
     ``port_control.parse_location_paths`` reads, so the paths here and the
     ones in the LOCATION column are the same strings.
     """
+    if sys.platform != "win32":
+        # Only ever called on Windows; the check tells the type checker so on
+        # another platform it does not read winreg's members.
+        return []
     import winreg
 
     from termapy.port_control import (

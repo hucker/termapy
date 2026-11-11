@@ -245,7 +245,13 @@ class TestMatrix:
 
 
 def _child_pytest(scratch: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    """Collect ``scratch`` in a child pytest with the suite's conftest and pyproject in force."""
+    """Collect ``scratch`` in a child pytest with the suite's conftest and pyproject in force.
+
+    The root is ``scratch``'s own folder, not the repo: with the repo as root,
+    pytest lists every folder from the drive down to ``scratch``, the shared
+    temp folder among them, and another program's file vanishing from it
+    mid-listing failed collection (a browser updater's, 2026-11-11).
+    """
     env = {**os.environ, "PYTHONPATH": str(TESTS), "COLUMNS": "200"}
     return subprocess.run(
         [
@@ -256,7 +262,7 @@ def _child_pytest(scratch: Path, *args: str) -> subprocess.CompletedProcess[str]
             "-c",
             str(REPO / "pyproject.toml"),
             "--rootdir",
-            str(REPO),
+            str(scratch.parent),
             "-p",
             "conftest",
             "-p",

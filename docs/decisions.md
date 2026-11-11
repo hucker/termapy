@@ -1455,3 +1455,24 @@ have shown it: it runs the committed lock, and the crash is Windows-only. The ca
 `>=0.25.0,<0.26.1`, which keeps the lock at 0.26.0. Lift it on a chore branch once a later
 tree-sitter passes that test file repeatedly on Windows, as the cap's comment says of every move.
 **Where:** `pyproject.toml`'s tree-sitter line.
+
+## 2026-11-11 — The release gate runs each Python once, without coverage, and stops at the first failure
+
+One `release_prep` run had grown to about an hour on the Windows dev machine: the full suite once in
+the pytest step and once more for each of tox's five Pythons, every run with coverage on. The v0.80.0
+run failed four times on Pilot and subprocess tests whose time windows a loaded machine outran, and
+each failure cost a full restart. Three changes, none to what the gate checks:
+
+- **No coverage.** Nothing in a release reads a local coverage figure; CI measures it for Codecov.
+  `release_prep`'s pytest step passes `--no-cov`, and `tox.ini` runs `pytest --no-cov`. Measured on
+  Python 3.11 through tox: 11 min 34 s with coverage, 9 min 18 s without.
+- **No duplicate Python.** The pytest step runs the suite on uv's Python, so tox skips that env
+  (`--skip-env`, read from `uv run python` rather than written down).
+- **Stop at the first failing Python** (`tox --fail-fast`). The failing env still reports every
+  failure it found; the Pythons after it no longer run for a release that has already failed.
+
+Measured on the way, for the follow-up: the time is spread across the suite, not in its slow tests
+(`-m "not slow"` still took about 5 min), Defender used about 6% of the machine during a run, and the
+heaviest single tests are `test_config_load_state.py`'s three frontends (about 1 to 1.5 min each) and
+`test_traceability.py`'s `TestSession`, whose child sessions collect the whole suite (about 50 s each).
+**Where:** `scripts/release_prep.py` (`run_pytest`, `run_tox`), `tox.ini`, `scripts/README.md`.

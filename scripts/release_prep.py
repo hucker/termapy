@@ -20,8 +20,8 @@ What it does:
     7. Update tagged config examples in help docs
     8. Refresh USB vendor table from upstream usb.ids
     9. Insert CHANGELOG stub
-    10. Run pytest
-    11. Run tox (multi-version)
+    10. Run pytest (no coverage)
+    11. Run tox on every other Python, stopping at the first that fails
     12. Build HTML help with zensical
     13. Commit HTML rebuild
     14. Commit release
@@ -602,14 +602,40 @@ def insert_changelog_stub(version: str) -> None:
 
 
 def run_pytest() -> None:
-    info("Running pytest...")
-    run(["uv", "run", "pytest", "-q"])
+    """The full suite on uv's Python, without coverage.
+
+    Nothing in a release reads a local coverage figure (CI measures it for
+    Codecov), and tracing every line slows each run.
+    """
+    info("Running pytest (no coverage)...")
+    run(["uv", "run", "pytest", "-q", "--no-cov"])
     ok("pytest passed")
 
 
+def uv_python_env() -> str:
+    """The tox env name of the Python ``uv run`` uses, e.g. ``py314``."""
+    return run_out(
+        [
+            "uv",
+            "run",
+            "python",
+            "-c",
+            "import sys; print(f'py{sys.version_info[0]}{sys.version_info[1]}')",
+        ]
+    )
+
+
 def run_tox() -> None:
-    info("Running tox (multi-version)...")
-    run(["tox"])
+    """Every other Python in tox's env list, stopping at the first that fails.
+
+    run_pytest has just run the suite on uv's Python, so tox skips that
+    env.  ``--fail-fast`` stops after the first failing env, which still
+    reports every failure it found, rather than running the rest of a
+    release that has already failed.
+    """
+    current = uv_python_env()
+    info(f"Running tox (multi-version, {current} skipped: pytest just ran it)...")
+    run(["tox", "run", "--fail-fast", "--skip-env", f"^{current}$"])
     ok("tox passed")
 
 

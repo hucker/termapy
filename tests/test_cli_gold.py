@@ -53,7 +53,8 @@ def _run_cli_script(script_name: str, tmp_path: Path) -> subprocess.CompletedPro
         # runner answers /log.diag.show with its name check, not the gate.
         env={**os.environ, "TERMAPY_GUI": "1"},
         text=True,
-        timeout=30,
+        # About 15 s idle; past 30 s under tox's parallel load on Python 3.11.
+        timeout=120,
     )
 
 

@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from pilot_wait import has_link, until
+from pilot_wait import has_link, steady, until
 from textual.widgets import Button, Input, OptionList, RichLog, Static
 
 from termapy.defaults import DEFAULT_CFG
@@ -1174,14 +1174,7 @@ async def _settled(pilot, app, polls: int = 3) -> None:
     wrong line.  Found 2026-10-31 under tox's parallel load, where a click
     on a help link landed between links and ran nothing.
     """
-    previous, steady = -1, 0
-    for _ in range(250):  # about 5 s
-        count = len(_screen(app))
-        steady = steady + 1 if count == previous else 0
-        if steady >= polls:
-            return
-        previous = count
-        await pilot.pause(0.02)
+    await steady(pilot, lambda: len(_screen(app)), polls)
 
 
 async def _click_text(pilot, app, text: str) -> None:

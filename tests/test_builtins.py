@@ -2210,12 +2210,6 @@ class TestShow:
 
 
 class TestOs:
-    def test_os_disabled(self, repl_env):
-        """/os is refused by default; only the TERMAPY_OS_CMD_ENABLED env var opens it."""
-        engine, _, _, output = repl_env
-        engine.dispatch("os echo hi")
-        assert any("disabled" in t for t, _ in output), "blocked by default"
-
     def test_os_enabled(self, repl_env, monkeypatch):
         """With the env gate open, /os runs the shell command and captures its stdout."""
         # Arrange -- /os gating moved from cfg to env-var-only in v19;

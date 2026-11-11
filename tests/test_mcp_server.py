@@ -446,15 +446,19 @@ class TestRunCommandErrors:
         loop, so the call returned only when the /delay finished.  The
         symptom was annotated rather than diagnosed (T11).
         """
-        # Arrange / Act -- /delay 1s with timeout_s=0.2
+        # Arrange / Act -- /delay 5s with timeout_s=0.2: the join would hold
+        # the call for the whole 5 s, far past the 3 s bound, which a
+        # returning call stays under however loaded the machine.
         started = time.monotonic()
-        result = asyncio.run(host.run_command_async("/delay 1s", "normal", 0.2))
+        result = asyncio.run(host.run_command_async("/delay 5s", "normal", 0.2))
         elapsed = time.monotonic() - started
+        # The abandoned /delay sleeps on in the worker; stop it as Escape would.
+        host.ctx.internal.script_stop()
 
         # Assert
         assert result["success"] is False, "timeout fails"
         assert "timeout" in result["error"].lower(), "error names timeout"
-        assert elapsed < 0.7, (
+        assert elapsed < 3.0, (
             "the call must return on its timeout, not when the abandoned "
             f"dispatch finishes; took {elapsed:.2f}s for a 0.2s timeout"
         )
@@ -463,42 +467,43 @@ class TestRunCommandErrors:
         """The join starved everything else on the loop, not just the caller.
 
         async_events, other tool calls, and the MCP transport itself all
-        share this event loop.
-
-        The window is a full second (not the 0.3 s the sibling test uses):
-        tick DENSITY is the assertion, and over 0.3 s the executor-thread
-        spin-up plus coverage tracing under eight xdist workers cost enough
-        ticks to fail a live loop (3 ticks in 0.40 s, needing 4).  A longer
-        window makes the steady state dominate the sample.
+        share this event loop, so it must stay live for the whole call.
+        The join froze it from the timeout until the abandoned /delay
+        ended: here one silence of about 4.5 s.  A live loop's longest
+        silence is bounded by the call, which ends at its 0.5 s timeout, so
+        even a machine loaded enough to stall the process for a second (as
+        eight xdist workers on Python 3.11 did) stays well under 3 s.  A
+        tick count or density is no test: the first is met by ticks earned
+        before a freeze, the second fails a live loop on a loaded machine.
         """
 
         async def scenario():
-            ticks = 0
+            beats: list[float] = []
 
             async def ticker() -> None:
-                nonlocal ticks
                 while True:
                     await asyncio.sleep(0.05)
-                    ticks += 1
+                    beats.append(time.monotonic())
 
             beat = asyncio.create_task(ticker())
             started = time.monotonic()
-            result = await host.run_command_async("/delay 3s", "normal", 1.0)
-            elapsed = time.monotonic() - started
+            result = await host.run_command_async("/delay 5s", "normal", 0.5)
+            ended = time.monotonic()
             beat.cancel()
-            return result, ticks, elapsed
+            return result, started, beats, ended
 
         # Act
-        result, ticks, elapsed = asyncio.run(scenario())
+        result, started, beats, ended = asyncio.run(scenario())
+        # The abandoned /delay sleeps on in the worker; stop it as Escape would.
+        host.ctx.internal.script_stop()
 
-        # Assert -- density, not count.  A count alone proves nothing: the
-        # ticks earned before the timeout satisfy it whether or not the loop
-        # then froze for the rest of the call.
-        possible = elapsed / 0.05
+        # Assert
+        marks = [started, *[beat for beat in beats if beat <= ended], ended]
+        longest = max(later - earlier for earlier, later in zip(marks, marks[1:]))
         assert result["success"] is False, "the call still times out"
-        assert ticks >= possible * 0.5, (
-            f"the loop must stay live for the WHOLE call; got {ticks} ticks in "
-            f"{elapsed:.2f}s, which allows about {possible:.0f}"
+        assert longest < 3.0, (
+            f"the loop must stay live for the WHOLE call; it went {longest:.2f}s "
+            f"without a tick in a {ended - started:.2f}s call"
         )
 
 

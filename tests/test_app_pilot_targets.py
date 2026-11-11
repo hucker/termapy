@@ -63,8 +63,16 @@ def app_factory(tmp_path):
 
 
 async def _submit(pilot, text: str) -> None:
-    """Type ``text`` into the prompt and press Enter."""
-    inp = pilot.app.query_one("#cmd", Input)
+    """Type ``text`` into the prompt and press Enter, once the prompt is there and the app idle.
+
+    Under load the prompt mounts a beat after ``run_test`` yields, and a line
+    typed while the previous command is still busy can be lost.
+    """
+    app = pilot.app
+    await until(
+        pilot, lambda: bool(app.query("#cmd")) and not getattr(app, "_busy", False), seconds=15
+    )
+    inp = app.query_one("#cmd", Input)
     inp.value = text
     inp.focus()
     await pilot.pause()

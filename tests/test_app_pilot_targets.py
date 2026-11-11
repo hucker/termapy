@@ -1198,12 +1198,16 @@ async def _click_until(pilot, app, text: str, done, tries: int = 3) -> None:
     Under load a click can land between links and run nothing; another click
     is then harmless, while a click on the wrong link still fails the
     caller's check.  Each try waits ``until``'s whole window first, so a slow
-    click that did land is never repeated.
+    click that did land is never repeated.  It returns once the command the
+    click ran has finished: a test that leaves ``run_test`` while it is still
+    busy tears the screen down under its busy-look timer, which then fails
+    looking for the prompt.
     """
     for _ in range(tries):
         await _click_text(pilot, app, text)
         if await until(pilot, done):
-            return
+            break
+    await until(pilot, lambda: not getattr(app, "_busy", False), seconds=15)
 
 
 async def _hover_text(pilot, app, text: str) -> None:

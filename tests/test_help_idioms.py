@@ -297,7 +297,9 @@ class TestTheLinks:
                 field.focus()
                 await pilot.pause()
                 await pilot.press("enter")
-                await until(pilot, lambda: "/term.eol {cr" in app._get_screen_text())
+                assert await until(
+                    pilot, lambda: "/term.eol {cr" in app._get_screen_text(), seconds=15
+                ), "the term.eol page rendered"
                 link_id = next(
                     key for key, link in app._links.items() if link.command == "help cycle"
                 )
@@ -305,7 +307,9 @@ class TestTheLinks:
 
                 # Act
                 app.action_click_link(link_id)
-                await until(pilot, lambda: "/term.json_fmt" in app._get_screen_text())
+                # Wait for the cycle page itself: /term.json_fmt is on the term.eol
+                # page already, so waiting for it returned before the click landed.
+                await until(pilot, lambda: "TAKEN BY" in app._get_screen_text(), seconds=15)
                 # Leave only once the dispatch worker is done, or its tail runs
                 # against a torn-down screen.
                 await until(pilot, lambda: not app._busy)
@@ -451,7 +455,9 @@ class TestALinkExplainsItself:
                 field.focus()
                 await pilot.pause()
                 await pilot.press("enter")
-                await until(pilot, lambda: "CONFIG" in app._get_screen_text())
+                assert await until(pilot, lambda: "CONFIG" in app._get_screen_text(), seconds=15), (
+                    "the term.output page rendered"
+                )
                 link_id = next(
                     key for key, link in app._links.items() if link.command == "help output_level"
                 )

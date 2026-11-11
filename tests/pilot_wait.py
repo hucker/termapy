@@ -23,3 +23,12 @@ async def until(pilot: Any, predicate: Callable[[], object], seconds: float = 5.
             return True
         await pilot.pause(0.02)
     return bool(predicate())
+
+
+def has_link(app: Any, command: str) -> bool:
+    """True once the output pane has registered a link that runs ``command``.
+
+    A page arrives in pieces, so its text can show before the link a test
+    wants to read or click: wait on this, not on the text.
+    """
+    return any(link.command == command for link in app._links.values())

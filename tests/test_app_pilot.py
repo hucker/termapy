@@ -1627,6 +1627,11 @@ class TestBusyLook:
 
         async def scenario():
             app, _, _ = app_factory()
+            # The delay is wall-clock time, and under tox's parallel load even
+            # /print can outlast the real 150 ms.  What is pinned is that a
+            # command finishing inside the delay never greys the bar, not how
+            # fast /print runs, so this app waits 3 s.
+            app._BUSY_LOOK_DELAY_S = 3.0
             async with app.run_test() as pilot:
                 await pilot.pause()
 

@@ -19,6 +19,7 @@ import asyncio
 import json
 
 import pytest
+from pilot_wait import until
 from rich.style import Style
 from rich.table import Table
 from rich.text import Text
@@ -443,22 +444,29 @@ class TestSelectionLifetime:
         async def scenario():
             app = _Host()
             async with app.run_test(size=(40, 12)) as pilot:
-                # Arrange: 50 of a 60-line cap
+                # Arrange: 50 of a 60-line cap.  The writes auto-scroll to the
+                # end a frame after they land; scrolling home before that leaves
+                # the drag on the top line of the last page, so wait for the end.
                 log = app.query_one(SelectableRichLog)
                 _write_lines(log, 50)
-                await pilot.pause()
+                await until(
+                    pilot,
+                    lambda: len(log.lines) == 50 and 0 < log.max_scroll_y == log.scroll_y,
+                )
                 log.scroll_home(animate=False)
-                await pilot.pause()
+                await until(pilot, lambda: log.scroll_y == 0)
                 await _drag(pilot, log, (0, 1), (6, 1))
+                arranged = app.screen.get_selected_text()
                 # Act / Assert: five more lines fit under the cap
                 _write_lines(log, 5, first=50)
-                await pilot.pause()
+                await until(pilot, lambda: len(log.lines) == 55)
+                assert arranged == "line 01", "the drag selected line 01"
                 assert app.screen.get_selected_text() == "line 01", (
                     "lines appended below the cap leave the selection where it was"
                 )
                 # Act / Assert: ten more push the top off
                 _write_lines(log, 10, first=55)
-                await pilot.pause()
+                await until(pilot, lambda: log.text_selection is None)
                 assert log.text_selection is None, "a trim off the top drops the selection"
                 assert app.screen.get_selected_text() is None, "and nothing is left to copy"
 

@@ -47,10 +47,11 @@ class TestSend:
         written: list[bytes] = []
         handle = _handle(written, tx_char_delay_ms=5)
 
-        # Act
-        start = time.monotonic()
+        # Act -- perf_counter, not monotonic: the delays are real-time sleeps,
+        # and Windows' monotonic before Python 3.13 ticks in 15.6 ms steps.
+        start = time.perf_counter()
         handle.send("AT")
-        elapsed = time.monotonic() - start
+        elapsed = time.perf_counter() - start
 
         # Assert
         assert written == [b"A", b"T", b"\r"], "each character, the line ending too, in order"
@@ -63,10 +64,10 @@ class TestSend:
         written: list[bytes] = []
         handle = _handle(written, tx_line_delay_ms=30)
 
-        # Act
-        start = time.monotonic()
+        # Act -- perf_counter, as above: a real-time sleep, timed finely.
+        start = time.perf_counter()
         handle.send("AT")
-        elapsed = time.monotonic() - start
+        elapsed = time.perf_counter() - start
 
         # Assert
         assert written == [b"AT\r"], "no character delay, so one write"

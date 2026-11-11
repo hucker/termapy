@@ -12,7 +12,9 @@ a hostile cfg setting its own flag):
 Both are evaluated once at import time and cached as module-level
 constants.  Tests use monkeypatch to override the cached constants
 where the *behavior* needs to differ, rather than re-running module
-imports inside the test process.
+imports inside the test process; a test that shows the variable itself
+reaches its gate runs a fresh interpreter with the variable set or
+cleared, so it never depends on the machine's own environment.
 
 Every env boolean is read through ``scripting.parse_bool``
 (bool-one-vocabulary): absence is the declared default, and a present
@@ -225,6 +227,50 @@ class TestOsCmdGate:
 
         # Assert
         assert result.success is False, "cfg key cannot grant /os"
+
+    @pytest.mark.slow  # fresh interpreter: the gate is read once, at import
+    @pytest.mark.parametrize(("env_value", "expected_runs"), [("1", True), (None, False)])
+    def test_the_variable_opens_and_closes_the_gate(self, env_value, expected_runs):
+        """TERMAPY_OS_CMD_ENABLED=1 at process start lets /os run; without it /os refuses, whatever this machine sets."""
+        # Arrange -- a subprocess, so the variable is read at import as in a
+        # real launch, and set or cleared here rather than inherited.
+        import os
+        import subprocess
+        import sys
+
+        env = {k: v for k, v in os.environ.items() if k != "TERMAPY_OS_CMD_ENABLED"}
+        if env_value is not None:
+            env["TERMAPY_OS_CMD_ENABLED"] = env_value
+        probe = (
+            "from termapy.builtins.commands import os_cmd\n"
+            "class _IO:\n"
+            "    def output(self, text, *_a, **_kw):\n"
+            "        print('OUT', text)\n"
+            "class _Ctx:\n"
+            "    io = _IO()\n"
+            "    prefix = '/'\n"
+            "result = os_cmd._handler(_Ctx(), 'echo zz_marker')\n"
+            "print('SUCCESS', result.success)\n"
+            "print('ERROR', result.error)\n"
+        )
+
+        # Act
+        result = subprocess.run(
+            [sys.executable, "-c", probe],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        # Assert
+        assert result.returncode == 0, result.stderr
+        actual_ran = "SUCCESS True" in result.stdout
+        actual_echoed = "zz_marker" in result.stdout
+        actual_named = "TERMAPY_OS_CMD_ENABLED" in result.stdout
+        assert actual_ran == expected_runs, "the variable decides whether /os runs"
+        assert actual_echoed == expected_runs, "the shell's output appears only when /os ran"
+        assert actual_named == (not expected_runs), "a refusal names the variable that opens /os"
 
 
 class TestMigrationV18ToV19:

@@ -1,5 +1,177 @@
 # Changelog
 
+## 0.80.0 (2026-11-11)
+
+Control keys, transmit pacing and an end to the byte loss in long sends
+at high baud; `termapy PORT` to open a port with no setup; help pages
+that show a command's live state and the config keys it uses; typed
+JSON answers for agents; and an MCP server that finds its project's
+config by itself and stays inside it.
+
+### Talking to the device
+
+- **Ctrl+C, Ctrl+D, Ctrl+Z and Escape reach the device** when the prompt
+  has nothing to act on: Ctrl+C copies a selection or sends Ctrl-C,
+  Ctrl+D deletes or, on an empty prompt, sends Ctrl-D, and Ctrl+Z on an
+  empty prompt sends Ctrl-Z. `/term.ctrl <key>` sends any control
+  character from a script, a button or an MCP agent, so any of them can
+  interrupt a running MicroPython program.
+- **Transmit pacing** for a device that drops bytes arriving back to
+  back, as in TeraTerm: `tx_char_delay_ms` hands each character to the
+  driver on its own, that many ms apart, and `tx_line_delay_ms` waits
+  after each line. Both are 0 (off) by default.
+- **A large send reaches the driver in 192-byte pieces** (`tx_chunking`,
+  on by default). Measured on an FT232R, a 2 MB stream above 460800
+  baud lost 20 to 120 lines a run when written 4 KB at a time, and none
+  in 27 runs in 192-byte pieces; on a heavily loaded machine a few lines
+  can still drop at 921600. Set it to false to send each write whole.
+- **JSON from the device is laid out for a person**: a received JSON
+  object or array is indented and, with color on, highlighted in the
+  TUI and an interactive CLI, and passed through as one line to a pipe.
+  The `json_fmt` section (`highlight`, `indent` 0, 2 or 4) replaces
+  `json_style`, which existing configs migrate; `/term.json_fmt` shows
+  and sets it for the session.
+- **`/expect fail=<text>`** ends the wait as soon as an error reply
+  arrives, instead of waiting out the timeout, and stops a script as a
+  timeout does.
+- **`/port.connect timeout=<dur>`** keeps retrying the open, so a script
+  can wait for a board that is rebooting or being plugged in. `msg=`
+  says what the wait is for, here and on `/delay`.
+- **`--vt100` writes the session log**: passthrough now runs on the same
+  serial engine as every other frontend.
+
+### Opening ports and configs
+
+- **Quick open**: `termapy PORT [SETTING ...]` opens a port by name, USB
+  serial number or URL with a config of its own (`quick-<port>`, in the
+  OS user folder, never the project), so its log, history and captures
+  have a home and its settings are kept for the next open.
+- **A config load ends where a fresh start on it would**, in every
+  frontend. Behavior changed: user variables, `/env.set` values and
+  other session state no longer carry over from the config you came
+  from.
+- **The Cfg picker and `/cfg.list` show the device** a config's port
+  names, not the USB serial number written in the file.
+- **Find in the config editor**: Ctrl+F (Alt+F in VS Code).
+- **`/run.last`** lists the lines typed at the prompt and replays the
+  last N.
+- **Paste a transcript** copied from the output pane and only its
+  commands run; the output between them is skipped.
+- **`$(PORT.NAME)` and the other `PORT.*` variables** describe the open
+  port, so a config that connects by serial number can name it; every
+  data folder has its `CFG.<NAME>_DIR`, including the new `SYM`, `DEV`,
+  `LIB` and `FIRMWARE`. A `$(NAME)` that names nothing warns.
+- Files you write (`.run`, `.cfg`, `.pro`, profiles) may start with a
+  UTF-8 byte-order mark; it no longer breaks the first line.
+
+### Help
+
+- **`/help <cmd>` ends with a CONFIG section**: the config keys the
+  command uses, their live values and how it uses each. `/help <key>`
+  is a page of its own: the key's meaning, value, file and the commands
+  that use it.
+- **A CURRENT STATE section** shows what a setting command reports, run
+  live when the page opens.
+- **A family says what it is for** at the top of its page and of its
+  subcommand list, which is now a table.
+- **The shared words have pages**: `/help cycle`, `/help json` and the
+  rest, all listed by `/help.idioms`, and every link's tooltip leads
+  with the definition of what it names.
+- A command list no longer prints each row's maturity level: a name not
+  yet stable is italic, with its level in the tooltip.
+
+### Output levels and JSON
+
+- **`.json` is a per-call suffix**, as `.quiet` is: `/cmd.json` answers
+  as `/cmd --json` does, and combines with a level in either order.
+- **`--quiet` and `.quiet` show a command's table or status page**; they
+  printed nothing before.
+- **Connect and disconnect banners follow the command's output level**,
+  and under `--json` they go into the envelope.
+- **Values are typed for agents**: under `--json` and MCP a switch is
+  `true`, a count is `42`, never the text `"on"` or `"42"`. A person sees
+  the same text as before. Behavior changed for a `--json` or MCP
+  caller that compared the text.
+- **`/term.traffic`** shows live TX and RX byte counts on the TUI's
+  bottom bar, and `/term.info` reports them in every frontend. It replaces the example traffic plugin.
+- Bare `/var` is a table of every variable.
+
+### MCP
+
+- **A server finds its project's config by rule**: the command line
+  first (`--cfg-dir`, `TERMAPY_CFG_DIR`, a config named by its path),
+  then `./termapy_cfg`, `./src/termapy_cfg` or `./source/termapy_cfg`
+  under the project, never the OS config folder. help/mcp-server.md has
+  the whole rule.
+- **An agent may load any config in the project.** Behavior removed:
+  `termapy --mcp left` no longer pins the server to `left`; it is where
+  the server starts.
+- **An agent never reaches a shell, never renames or deletes a file, and
+  never writes into `plugin/` or `viz/` or outside the config's folder**,
+  whatever flags are set.
+- **The MCP session log is the same kind of file as the TUI's**:
+  `<cfg>.mcp.log` beside `<cfg>.log`, with timestamps and the same line
+  markers. `/log.list`, `/log.show` and `/log.dump` reach either log.
+  Behavior removed: `/mcp.log`, `/mcp.log.dump`, `/mcp.log.path`.
+- A `spy://` traffic log is written in the config's `cap/` folder.
+
+### Dev boards (prototype)
+
+- The MicroPython monitor never blocks, so a project can run its own
+  loop, and the board samples run on asyncio.
+- The Raspberry Pi Pico answers the MEM commands too.
+
+### Diagnostics
+
+- **A diagnostic log**, one file per process in the config root's `log/`
+  folder, records termapy's own errors with their tracebacks; an error
+  line names the file. `/log.diag` shows it.
+- `scripts/throughput.py`, in the repository, measures what termapy
+  receives intact, and help/ports.md says how fast that is.
+
+### Other fixes
+
+- `/term.color off` drops every color, termapy's own included, as
+  `--no-color` does.
+- `/os` fails on a nonzero exit code, and stops a script there.
+  Behavior changed: a script that went on past a failing `/os` stops.
+- A typed baud rate must be a standard one unless asked for as custom
+  (`custom=true`, or `custom_baud` in a config); a typo such as `11520`
+  used to be taken silently.
+- `/search` no longer fails when a profile with device commands is
+  loaded.
+- The status bar and quick commands no longer flicker the screen, and
+  the bottom bar can no longer stay greyed, answering Busy, after a
+  fast command.
+- A pasted line waits while on-connect commands, or a script the paste
+  did not start, are running, so a pasted `/port.connect` no longer lets
+  the next line reach the device ahead of the on-connect setup.
+- Rename and Delete keep the Run and Proto pickers open.
+- With `eol_markers` on, the echo shows its marker instead of raw codes,
+  and `/expect.regex match=^OK$` matches.
+- tree-sitter is held below 0.26.1, which crashed the config editor on
+  Windows.
+
+### Removed and renamed
+
+- The thirteen old command names that forwarded to their new ones
+  (`/echo`, `/color`, `/ver`, `/clr` and the rest) and `/run.legacy`
+  are gone; an old name answers with the closest real one.
+- `/ping` prints each round trip's time; the reply's text moved to
+  `/ping.verbose`, and `/ping.quiet` prints the summary alone.
+- The `/ss.svg.silent` command and its alias `/ss.svg.quiet` are gone.
+  `/ss.svg.silent` now means `/ss.svg` at the silent level, which saves
+  without a word. Behavior removed: the fixed-name screenshot that
+  replaced the last one.
+
+### For plugin authors
+
+- A handler that returns no `CmdResult` fails, naming the command; it
+  used to read as an empty success.
+- A command declares the config keys it uses, `Command(cfg={...})`,
+  that it reports state, `Command(state=True)`, and what a family is
+  for, `Command(intro=...)`; `/help` renders each.
+
 ## 0.79.0 (2026-10-31)
 
 Starter projects for dev boards, with the device-side firmware they run;

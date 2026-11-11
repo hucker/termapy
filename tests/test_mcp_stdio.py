@@ -31,6 +31,10 @@ pytestmark = pytest.mark.slow  # subprocess spawn + real stdio round-trips
 
 from termapy.defaults import DEFAULT_CFG  # noqa: E402
 
+# The first reply waits for a fresh server process to start: a second or two
+# on an idle machine, past 20 s under tox's parallel load on Python 3.11.
+STARTUP_S = 60.0
+
 
 class _StdioClient:
     """A minimal JSON-RPC 2.0 client over a subprocess's stdio."""
@@ -166,6 +170,7 @@ class TestMcpStdioEndToEnd:
                     "capabilities": {},
                     "clientInfo": {"name": "pytest-stdio", "version": "0"},
                 },
+                timeout=STARTUP_S,
             )
             server_name = init["result"]["serverInfo"]["name"]
             assert server_name == "termapy", "server identifies itself"
@@ -229,6 +234,7 @@ def _instructions(client: _StdioClient) -> str:
             "capabilities": {},
             "clientInfo": {"name": "pytest-stdio", "version": "0"},
         },
+        timeout=STARTUP_S,
     )
     client.rpc("notifications/initialized", {}, notify=True)
     return init["result"]["instructions"]
@@ -270,7 +276,7 @@ class TestFindsItsConfig:
         client = _StdioClient(["mcp_bord"], project=tmp_path)
 
         # Act
-        returncode = client.proc.wait(timeout=20)
+        returncode = client.proc.wait(timeout=STARTUP_S)
         stderr = client.proc.stderr
         assert stderr is not None, "opened with stderr=PIPE"
         message = stderr.read()

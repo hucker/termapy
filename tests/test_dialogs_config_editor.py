@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pilot_wait import until
 from textual.app import App
 from textual.widgets import Button, Input, Label, Static, TextArea
 
@@ -697,6 +698,22 @@ async def _save_as(pilot, screen: ConfigEditor, target: Path) -> None:
     await pilot.pause()
 
 
+async def _answer(pilot, app: App, button: str) -> None:
+    """Click ``button`` on the confirm dialog in front, until the dialog closes.
+
+    Under load a click can reach the dialog before its buttons are laid out
+    and do nothing.  While the dialog is still in front another click is the
+    same answer to the same question, and each try first waits out
+    ``until``'s whole window, so a slow click that did land is never repeated.
+    """
+    if not await until(pilot, lambda: isinstance(app.screen, ConfirmDialog)):
+        return  # never asked: the caller's assert says so
+    for _ in range(3):
+        await pilot.click(button)
+        if await until(pilot, lambda: not isinstance(app.screen, ConfirmDialog)):
+            return
+
+
 @pytest.mark.rule("config-created-once")
 class TestCreatingOverAConfig:
     """Save As (and Save of a new config) asks before replacing a config."""
@@ -711,11 +728,11 @@ class TestCreatingOverAConfig:
             async with app.run_test() as pilot:
                 screen, results = await _open(app, pilot, cfg, path)
                 await _save_as(pilot, screen, target)
-                asked = isinstance(app.screen, ConfirmDialog)
+                asked = await until(pilot, lambda: isinstance(app.screen, ConfirmDialog))
 
                 # Act
-                await pilot.click("#confirm-yes")
-                await pilot.pause()
+                await _answer(pilot, app, "#confirm-yes")
+                await until(pilot, lambda: bool(results))
 
                 # Assert
                 assert asked, "the overwrite question was asked"
@@ -737,8 +754,7 @@ class TestCreatingOverAConfig:
                 await _save_as(pilot, screen, target)
 
                 # Act
-                await pilot.click("#confirm-no")
-                await pilot.pause()
+                await _answer(pilot, app, "#confirm-no")
 
                 # Assert
                 assert json.loads(target.read_text(encoding="utf-8"))["title"] == "old"
@@ -763,11 +779,11 @@ class TestCreatingOverAConfig:
 
                 # Act
                 await pilot.click("#cfg-save")
-                await pilot.pause()
+                asked = await until(pilot, lambda: isinstance(app.screen, ConfirmDialog))
 
                 # Assert
                 assert '"title": "other"' in shown, "the editor shows the new cfg, not the file"
-                assert isinstance(app.screen, ConfirmDialog), "Save asks before replacing"
+                assert asked, "Save asks before replacing"
                 assert json.loads(target.read_text(encoding="utf-8"))["title"] == "old"
 
         _run(scenario)

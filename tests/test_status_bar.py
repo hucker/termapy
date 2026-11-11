@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from pilot_wait import steady
 from textual.app import App, ComposeResult
 
 from termapy.widgets import StatusBar
@@ -30,6 +31,17 @@ def _run(scenario) -> None:
     """Run an async Pilot scenario (matches the asyncio.run pattern in
     test_palette.py -- no pytest-asyncio needed)."""
     asyncio.run(scenario())
+
+
+async def _settled_width(pilot, bar: StatusBar) -> int:
+    """The bar's width once it has stopped changing.
+
+    One pause is not always enough under a loaded run: a layout pass from
+    mounting, or the one that follows a resize, can land a frame later and
+    would be read as the bar's own.  A layout the bar asks for still shows
+    within the wait, so this hides nothing the tests are about.
+    """
+    return await steady(pilot, lambda: bar.size.width)
 
 
 def test_show_makes_it_visible_with_text():
@@ -169,17 +181,14 @@ def test_a_counter_never_narrows_the_bar_while_it_shows():
         async with _Host().run_test() as pilot:
             bar = pilot.app.query_one(StatusBar)
             bar.show("TX:1,000  RX:2,000", timeout=99)
-            await pilot.pause()
-            wide = bar.size.width
+            wide = await _settled_width(pilot, bar)
 
             # Act
             bar.show("TX:9  RX:9", timeout=99)
-            await pilot.pause()
-            after_shorter = bar.size.width
+            after_shorter = await _settled_width(pilot, bar)
             shown = str(bar.render()).strip()
             bar.show("TX:10,000  RX:20,000", timeout=99)
-            await pilot.pause()
-            after_wider = bar.size.width
+            after_wider = await _settled_width(pilot, bar)
 
             # Assert
             assert shown == "TX:9  RX:9", "the shorter text is what shows"
@@ -196,16 +205,15 @@ def test_hiding_the_bar_lets_the_next_text_size_it_afresh():
         async with _Host().run_test() as pilot:
             bar = pilot.app.query_one(StatusBar)
             bar.show("a long status message for a moment", timeout=99)
-            await pilot.pause()
-            wide = bar.size.width
+            wide = await _settled_width(pilot, bar)
 
             # Act
             bar.clear_status()
             await pilot.pause()
             bar.show("ok", timeout=99)
-            await pilot.pause()
+            actual = await _settled_width(pilot, bar)
 
             # Assert
-            assert bar.size.width < wide, "sized for the new text"
+            assert actual < wide, "sized for the new text"
 
     _run(scenario)

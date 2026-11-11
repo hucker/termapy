@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from pilot_wait import until
+from pilot_wait import has_link, until
 from textual.widgets import Button, Input, OptionList, RichLog, Static
 
 from termapy.defaults import DEFAULT_CFG
@@ -667,18 +667,25 @@ class TestScriptPickedDelete:
                 # Act
                 await pilot.click("#proto-rename")
                 prompted = await until(pilot, lambda: isinstance(app.screen, FilenameDialog))
-                app.screen.query_one("#filename-input", Input).value = "new"
-                await pilot.click("#filename-ok")
-                renamed = await until(pilot, lambda: (proto / "new.pro").exists())
-                back = await until(pilot, lambda: app.screen is picker)
+                assert prompted, "Rename asks for the new name"
+                dialog = app.screen
+                assert isinstance(dialog, FilenameDialog), "the name dialog is in front"
+                dialog.query_one("#filename-input", Input).value = "new"
+                # OK and Enter both run submit(), as test_dialogs.py pins; calling it
+                # keeps a click that lands before the dialog's layout under load
+                # from deciding a test about the picker.
+                dialog.submit()
+                renamed = await until(pilot, lambda: (proto / "new.pro").exists(), seconds=15)
+                back = await until(pilot, lambda: app.screen is picker, seconds=15)
+                # The picker re-lists its folder once /proto.rename has finished,
+                # a beat after it is in front again.
+                ol = picker.query_one("#proto-list", OptionList)
+                await until(pilot, lambda: _highlighted_name(ol) == "new.pro", seconds=15)
 
                 # Assert
-                assert prompted, "Rename asks for the new name"
                 assert renamed, "and /proto.rename keeps the .pro"
                 assert back, "the picker is in front again"
-                ol = picker.query_one("#proto-list", OptionList)
-                highlighted = Path(str(ol.get_option_at_index(ol.highlighted or 0).id)).name
-                assert highlighted == "new.pro", "on the renamed script"
+                assert _highlighted_name(ol) == "new.pro", "on the renamed script"
 
         _run(scenario)
 
@@ -1153,6 +1160,13 @@ def _text_offset(app, text: str) -> tuple[int, int]:
     return x, y
 
 
+def _highlighted_name(option_list: OptionList) -> str:
+    """The file name of a picker list's highlighted row; empty while the list is being refilled."""
+    if option_list.option_count == 0:
+        return ""
+    return Path(str(option_list.get_option_at_index(option_list.highlighted or 0).id)).name
+
+
 async def _settled(pilot, app, polls: int = 3) -> None:
     """Wait until the output pane stops growing, so an offset computed from it still holds.
 
@@ -1579,14 +1593,24 @@ class TestClickableOutput:
             async with app.run_test(size=(120, 60)) as pilot:
                 await pilot.pause()
                 await _submit(pilot, "/help run")
-                await until(pilot, lambda: any("Run picker" in line for line in _screen(app)))
+                # Wait for the link itself, and for /help run to finish, so the
+                # next line never waits behind it for the dispatch guard.
+                assert await until(pilot, lambda: has_link(app, "run"), seconds=15), (
+                    "the /help run page registered its links"
+                )
+                assert await until(pilot, lambda: not app._busy, seconds=15), "/help run finished"
                 link_id = next(key for key, link in app._links.items() if link.command == "run")
 
                 # Act
                 colored = app._describe_link(link_id)
                 await _submit(pilot, "/term.color off")
-                await until(pilot, lambda: not app._color_on())
+                assert await until(pilot, lambda: not app._color_on(), seconds=15), (
+                    "/term.color off took effect"
+                )
                 plain = app._describe_link(link_id)
+                # Leave only once the worker is done, or its tail runs against a
+                # torn-down screen.
+                await until(pilot, lambda: not app._busy)
 
                 # Assert
                 assert plain.plain == colored.plain, "the same words"

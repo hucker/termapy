@@ -15,7 +15,7 @@ from importlib import resources
 from pathlib import Path
 
 import pytest
-from pilot_wait import until
+from pilot_wait import has_link, until
 from textual.widgets import Button, Input
 
 import termapy
@@ -300,6 +300,14 @@ class TestTheLinks:
                 assert await until(
                     pilot, lambda: "/term.eol {cr" in app._get_screen_text(), seconds=15
                 ), "the term.eol page rendered"
+                assert await until(pilot, lambda: has_link(app, "help cycle"), seconds=15), (
+                    "the term.eol page registered the cycle link"
+                )
+                # A click while /help term.eol is still running answers Busy and
+                # runs nothing, so click only once it has finished.
+                assert await until(pilot, lambda: not app._busy, seconds=15), (
+                    "/help term.eol finished"
+                )
                 link_id = next(
                     key for key, link in app._links.items() if link.command == "help cycle"
                 )
@@ -455,13 +463,19 @@ class TestALinkExplainsItself:
                 field.focus()
                 await pilot.pause()
                 await pilot.press("enter")
-                assert await until(pilot, lambda: "CONFIG" in app._get_screen_text(), seconds=15), (
-                    "the term.output page rendered"
+                # Wait for the CONFIG row's link, not the CONFIG heading: the page
+                # arrives in pieces, and the heading can show before its rows.
+                assert await until(pilot, lambda: has_link(app, "help output_level"), seconds=15), (
+                    "the term.output page registered its CONFIG row's link"
                 )
                 link_id = next(
                     key for key, link in app._links.items() if link.command == "help output_level"
                 )
-                return app._describe_link(link_id).plain
+                described = app._describe_link(link_id).plain
+                # Leave only once the worker is done, or its tail runs against a
+                # torn-down screen.
+                await until(pilot, lambda: not app._busy)
+                return described
 
         # Act
         actual = asyncio.run(scenario())

@@ -437,6 +437,7 @@ class TestEscape:
 
         _run(scenario)
 
+    @pytest.mark.timing
     def test_escape_between_pasted_lines_stops_the_paste_and_sends_nothing(self, app_factory):
         """In the pause between pasted lines nothing holds the dispatch guard; Escape still stops the paste."""
 

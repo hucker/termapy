@@ -74,16 +74,19 @@ _RAMP = {"tx_bytes": 8, "rx_bytes": 5}
 class TestCount:
     """/traffic.count waits for the reply: the DEMO answers after the command has returned."""
 
+    @pytest.mark.timing
     def test_the_reply_is_counted(self, cli):
         """With the default 50ms gap, AT+RAMP counts its 8 bytes out and its 5-byte reply."""
         result = cli.repl.dispatch_full("/traffic.count AT+RAMP")
         assert result.data == _RAMP, result.error
 
+    @pytest.mark.timing
     def test_the_value_is_the_reply_size(self, cli):
         """The scriptable value is a scalar, the RX byte count; both counts are the data."""
         result = cli.repl.dispatch_full("/traffic.count wait_gap=200ms AT+RAMP")
         assert result.value == 5, "the value is a scalar, never the data dict"
 
+    @pytest.mark.timing
     def test_twice_in_a_row_each_counts_its_own_reply(self, cli):
         """A second count sees its own reply and none of the first one's."""
         # Act
@@ -93,6 +96,7 @@ class TestCount:
         # Assert
         assert (first.data, second.data) == (_RAMP, _RAMP), "each count is its own exchange"
 
+    @pytest.mark.timing
     @pytest.mark.parametrize(
         "line",
         ["/traffic.count wait_gap=200ms AT+RAMP", "/traffic.count AT+RAMP wait_gap=200ms"],
@@ -116,6 +120,7 @@ class TestCount:
         assert result.success is False, "an unreadable gap never runs the command"
         assert "wait_gap" in result.error, result.error
 
+    @pytest.mark.timing
     def test_cap_wire_counts_the_same_bytes(self, cli):
         """One wait for both: /cap.wire and /traffic.count see the same exchange for the same command."""
         # Act

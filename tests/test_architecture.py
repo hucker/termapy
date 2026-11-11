@@ -2665,6 +2665,21 @@ def _mark_names(nodes: list[ast.expr]) -> set[str]:
     }
 
 
+def _module_marks(tree: ast.Module) -> set[str]:
+    """The marker names a module's ``pytestmark`` gives every test in it."""
+    return _mark_names(
+        [
+            stmt.value
+            for stmt in tree.body
+            if isinstance(stmt, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "pytestmark"
+                for target in stmt.targets
+            )
+        ]
+    )
+
+
 def _loop_url_constants(node: ast.AST, docstrings: set[int]) -> set[int]:
     """Ids of the string constants under ``node`` that name loop://, docstrings excluded."""
     return {
@@ -2693,17 +2708,7 @@ def _sw_loopback_unlabeled(tree: ast.Module) -> list[str]:
         and isinstance(node.body[0].value, ast.Constant)
         and isinstance(node.body[0].value.value, str)
     }
-    module_marks = _mark_names(
-        [
-            stmt.value
-            for stmt in tree.body
-            if isinstance(stmt, ast.Assign)
-            and any(
-                isinstance(target, ast.Name) and target.id == "pytestmark"
-                for target in stmt.targets
-            )
-        ]
-    )
+    module_marks = _module_marks(tree)
 
     unlabeled: list[str] = []
     in_tests: set[int] = set()
@@ -2782,6 +2787,196 @@ class TestMarkedClass:
     assert actual == ["test_unlabeled", "<module>"], (
         "the unlabeled test, and the helper with no module mark"
     )
+
+
+# ── Timing tests run alone ───────────────────────────────────────────────────
+#
+# A test whose result depends on wall-clock time fails when the parallel
+# suite loads the machine, so it carries ``timing`` and runs in a serial
+# pass after the parallel one (release_prep, tox, CI).  The mechanical sign
+# is an assert that depends on a clock reading; a hardware-loopback test
+# already runs alone in its own step.  Found 2026-11-11, when the v0.80.0 release gate
+# failed on a different load-raced test each run.
+
+_CLOCK_READS = frozenset({"monotonic", "monotonic_ns", "perf_counter", "perf_counter_ns"})
+_RUNS_ALONE = frozenset({"timing", "hw_loopback"})
+
+
+def _reads_the_clock(node: ast.AST, clock_names: set[str]) -> bool:
+    """Whether ``node`` calls ``time.monotonic`` / ``perf_counter`` or uses a name holding a clock reading."""
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Name) and sub.id in clock_names:
+            return True
+        if not isinstance(sub, ast.Call):
+            continue
+        func = sub.func
+        if isinstance(func, ast.Name) and func.id in _CLOCK_READS:
+            return True
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr in _CLOCK_READS
+            and isinstance(func.value, ast.Name)
+            and func.value.id == "time"
+        ):
+            return True
+    return False
+
+
+def _bound_names(target: ast.expr) -> list[str]:
+    """The names an assignment target binds: a name, or names unpacked from a tuple or list.
+
+    ``reader._last_rx = ...`` or ``table[key] = ...`` binds none: the value
+    goes into an object, and ``reader`` itself holds no clock reading.
+    """
+    if isinstance(target, ast.Name):
+        return [target.id]
+    if isinstance(target, ast.Starred):
+        return _bound_names(target.value)
+    if isinstance(target, (ast.Tuple, ast.List)):
+        return [name for element in target.elts for name in _bound_names(element)]
+    return []
+
+
+def _asserts_on_the_clock(test: ast.AST) -> bool:
+    """Whether an assert in ``test`` depends on a clock reading.
+
+    A name assigned from a clock call holds a reading (``started =
+    time.monotonic()``), and so does one assigned from such a name
+    (``elapsed = ended - started``), followed to a fixed point across the
+    test and its nested functions.  An attribute set from the clock
+    (backdating ``reader._last_rx``) or a deadline no assert reads is not a
+    timing assert: load cannot change its outcome.
+    """
+    assigns = [node for node in ast.walk(test) if isinstance(node, (ast.Assign, ast.AnnAssign))]
+    clock_names: set[str] = set()
+    grew = True
+    while grew:
+        grew = False
+        for assign in assigns:
+            if assign.value is None or not _reads_the_clock(assign.value, clock_names):
+                continue
+            targets = assign.targets if isinstance(assign, ast.Assign) else [assign.target]
+            for target in targets:
+                for name in _bound_names(target):
+                    if name not in clock_names:
+                        clock_names.add(name)
+                        grew = True
+    return any(
+        isinstance(node, ast.Assert) and _reads_the_clock(node.test, clock_names)
+        for node in ast.walk(test)
+    )
+
+
+def _timing_unmarked(tree: ast.Module) -> list[str]:
+    """Tests with an assert that depends on a clock reading, without a marker that runs them alone.
+
+    A test's marks are its own decorators, its classes' decorators and the
+    module's ``pytestmark``.
+    """
+    unmarked: list[str] = []
+
+    def visit(body: list[ast.stmt], prefix: str, inherited: set[str]) -> None:
+        for node in body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith(
+                "test"
+            ):
+                marks = inherited | _mark_names(node.decorator_list)
+                if _asserts_on_the_clock(node) and not marks & _RUNS_ALONE:
+                    unmarked.append(prefix + node.name)
+            elif isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
+                visit(
+                    node.body, f"{prefix}{node.name}.", inherited | _mark_names(node.decorator_list)
+                )
+
+    visit(tree.body, "", _module_marks(tree))
+    return unmarked
+
+
+@pytest.mark.rule("timing-tests-run-alone")
+def test_a_test_that_reads_the_clock_runs_alone():
+    """Every test with an assert on a time.monotonic or perf_counter reading carries timing (or hw_loopback).
+
+    This file is skipped: its probe names the clock calls it looks for.
+    """
+    # Arrange / Act
+    violations = []
+    for path in sorted(TESTS.rglob("test_*.py")):
+        if path == Path(__file__):
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        violations.extend(f"{path.name}::{name}" for name in _timing_unmarked(tree))
+
+    # Assert
+    assert violations == [], (
+        "these assert on a clock reading, so a loaded machine can fail them; add "
+        "@pytest.mark.timing (or a class or module mark) so they run alone:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+@pytest.mark.rule("timing-tests-run-alone")
+def test_the_timing_guard_fires_on_a_probe():
+    """The guard flags unmarked asserts on a clock reading, however it is carried, and passes marks and clock uses no assert reads."""
+    # Arrange -- one of each case in a single module
+    source = """
+import time
+from time import perf_counter
+import pytest
+
+def test_unmarked():
+    started = time.monotonic()
+    assert time.monotonic() - started < 0.1
+
+def test_bare_import_unmarked():
+    assert perf_counter() > 0
+
+def test_carried_through_names_unmarked():
+    started = time.monotonic()
+    marks = [started, time.monotonic()]
+    longest = max(marks) - min(marks)
+    assert longest < 3.0
+
+def test_backdates_an_attribute():
+    reader._last_rx = time.monotonic() - 0.3
+    assert reader.flush() == ["partial"]
+
+def test_a_deadline_no_assert_reads():
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        pass
+    assert done
+
+@pytest.mark.timing
+def test_marked():
+    assert time.monotonic() > 0
+
+@pytest.mark.hw_loopback
+def test_hardware():
+    assert time.monotonic() > 0
+
+def test_reads_without_assert():
+    time.monotonic()
+
+def test_wall_clock_stamp_only():
+    assert time.time() > 0
+
+@pytest.mark.timing
+class TestMarkedClass:
+    def test_inherits(self):
+        assert time.monotonic() > 0
+"""
+
+    # Act
+    actual = _timing_unmarked(ast.parse(source))
+    module_marked = _timing_unmarked(ast.parse("pytestmark = pytest.mark.timing\n" + source))
+
+    # Assert
+    assert actual == [
+        "test_unmarked",
+        "test_bare_import_unmarked",
+        "test_carried_through_names_unmarked",
+    ], "the three unmarked asserts on a reading, nothing else"
+    assert module_marked == [], "a module pytestmark covers every test in it"
 
 
 # ── Hex: one reader for input, one case for output ───────────────────────────

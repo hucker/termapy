@@ -313,6 +313,7 @@ class TestArguments:
 
 
 class TestStopButton:
+    @pytest.mark.timing
     @pytest.mark.slow
     def test_stop_ends_the_run_after_the_current_test(self, tmp_path):
         """Stop during a run of silent tests ends it after the test in flight, with 'stopped by user' in the summary."""

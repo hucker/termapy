@@ -20,7 +20,7 @@ What it does:
     7. Update tagged config examples in help docs
     8. Refresh USB vendor table from upstream usb.ids
     9. Insert CHANGELOG stub
-    10. Run pytest (no coverage)
+    10. Run pytest (no coverage): the parallel pass, then the timing tests alone
     11. Run tox on every other Python, stopping at the first that fails
     12. Build HTML help with zensical
     13. Commit HTML rebuild
@@ -602,13 +602,17 @@ def insert_changelog_stub(version: str) -> None:
 
 
 def run_pytest() -> None:
-    """The full suite on uv's Python, without coverage.
+    """The full suite on uv's Python, without coverage: the parallel pass, then the timing tests alone.
 
     Nothing in a release reads a local coverage figure (CI measures it for
-    Codecov), and tracing every line slows each run.
+    Codecov), and tracing every line slows each run.  A ``timing`` test's
+    result depends on wall-clock time, so it runs after the parallel pass
+    with nothing beside it (registry ``timing-tests-run-alone``).
     """
-    info("Running pytest (no coverage)...")
-    run(["uv", "run", "pytest", "-q", "--no-cov"])
+    info("Running pytest (no coverage): the parallel pass...")
+    run(["uv", "run", "pytest", "-q", "--no-cov", "-m", "not timing"])
+    info("Running pytest: the timing tests, alone...")
+    run(["uv", "run", "pytest", "-q", "--no-cov", "-m", "timing", "-n", "0"])
     ok("pytest passed")
 
 

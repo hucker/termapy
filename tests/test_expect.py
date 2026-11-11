@@ -341,6 +341,7 @@ class TestExpectTimeout:
 
 
 class TestFail:
+    @pytest.mark.timing
     def test_a_fail_line_ends_the_wait_at_once(self, env):
         """A line containing fail= fails the expect when it arrives, long before the timeout, naming the line."""
         # Arrange
@@ -531,6 +532,7 @@ class TestInAScript:
         assert 'Expect "NEVER" timeout after 300ms' in out
         assert "reached-the-end" not in out, "the capture spelling stops the script as well"
 
+    @pytest.mark.timing
     def test_a_stop_ends_a_long_wait_at_once(self, cli, tmp_path, capsys):
         """A stop (Escape) during a 5 s expect ends the wait within a poll, not at the timeout."""
         # Arrange
@@ -582,6 +584,7 @@ class TestInAScript:
         )
         assert "reached-the-end" not in out
 
+    @pytest.mark.timing
     def test_a_device_error_stops_the_script_at_once(self, cli, tmp_path, capsys):
         """The DEMO device's ERROR reply fails fail=ERROR at once and the script stops there."""
         # Arrange

@@ -219,6 +219,7 @@ class _StreamingPort:
 
 
 class TestDrainIsBounded:
+    @pytest.mark.timing
     @pytest.mark.slow
     def test_a_streaming_device_does_not_hold_the_drain(self) -> None:
         """_drain gives up on a device that never goes quiet, so the first test can start."""

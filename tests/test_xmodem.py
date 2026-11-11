@@ -87,6 +87,7 @@ class TestQueueByteReader:
         # Assert
         assert actual == expected, "full 128-byte block"
 
+    @pytest.mark.timing
     def test_getc_timeout_returns_none(self) -> None:
         """getc returns None when queue is empty and timeout expires."""
         # Arrange

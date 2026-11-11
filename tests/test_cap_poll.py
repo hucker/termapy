@@ -174,6 +174,7 @@ class TestStop:
             cli.repl._script_stop.clear()
         assert result.success is False and result.error == "Poll interrupted."
 
+    @pytest.mark.timing
     @pytest.mark.slow
     def test_a_stop_during_the_delay_wakes_it(self, cli, tmp_path):
         """A stop raised during the between-tick delay ends the poll at once, keeping the samples taken."""

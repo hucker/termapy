@@ -156,6 +156,7 @@ class TestStop:
         # Assert
         assert result.data["summary"]["passed"] == 1, "the run happened"
 
+    @pytest.mark.timing
     @pytest.mark.slow
     def test_stop_ends_a_toml_run_after_the_current_test(self, cli, tmp_path, capsys):
         """A stop raised mid-run ends the script after the test in flight, skips the teardown, and says so."""
@@ -181,6 +182,7 @@ class TestStop:
         assert "CMD: ATI" not in out, "script-level teardown skipped after a stop"
         assert elapsed_s < 0.8, "ten tests would take a second or more"
 
+    @pytest.mark.timing
     @pytest.mark.slow
     def test_stop_wakes_a_flat_delay(self, cli, tmp_path, capsys):
         """A flat-format delay step waits on the stop event, so a stop ends it at once instead of sleeping it out."""

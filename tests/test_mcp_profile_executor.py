@@ -136,6 +136,7 @@ def _profile_with(commands: dict, *, error_detection: dict | None = None) -> dic
 
 
 class TestLiteralFormat:
+    @pytest.mark.timing
     def test_returns_matched_when_response_equals_pattern(self, host):
         """A literal match returns the text, and the wire bytes use the cfg line ending."""
         # Arrange
@@ -160,6 +161,7 @@ class TestLiteralFormat:
         assert actual_value == expected_value, "literal returns the matched text"
         assert host._sent == [b"AT\r\n"], "wire bytes match cfg.line_ending"
 
+    @pytest.mark.timing
     def test_returns_failure_when_response_differs(self, host):
         """A reply that differs from the literal pattern fails with a mismatch error."""
         # Arrange
@@ -183,6 +185,7 @@ class TestLiteralFormat:
 
 
 class TestRegexFormat:
+    @pytest.mark.timing
     def test_named_groups_with_type_coercion(self, host):
         """Named groups are coerced to their types in data; value keeps the raw reply."""
         # Arrange
@@ -212,6 +215,7 @@ class TestRegexFormat:
         assert actual == expected, "named group coerced to float, in data"
         assert result["value"] == "23.4C", "raw response text kept in value"
 
+    @pytest.mark.timing
     def test_regex_no_match_fails_with_raw(self, host):
         """A regex miss fails but keeps the raw reply in value and leaves data None."""
         # Arrange
@@ -241,6 +245,7 @@ class TestRegexFormat:
 
 
 class TestLinesFormat:
+    @pytest.mark.timing
     def test_collects_until_terminator(self, host):
         """Lines collect up to the terminator; it and anything after are excluded."""
         # Arrange — multi-line reply ending with OK terminator
@@ -270,6 +275,7 @@ class TestLinesFormat:
 
 
 class TestTextFormat:
+    @pytest.mark.timing
     def test_returns_raw_joined_text(self, host):
         """format=text returns the reply lines newline-joined, with no parsing."""
         # Arrange -- format=text: unstructured human-oriented output,
@@ -294,6 +300,7 @@ class TestTextFormat:
         assert result["success"] is True, "text format succeeds"
         assert actual == expected, "raw text handed back unchanged"
 
+    @pytest.mark.timing
     def test_unknown_format_degrades_to_text(self, host):
         """A format name this host doesn't know degrades to text instead of failing."""
         # Arrange -- compatibility policy: a format name from a newer
@@ -370,6 +377,7 @@ class TestUnknownSafetyTier:
 
 
 class TestJsonFormat:
+    @pytest.mark.timing
     def test_returns_parsed_object(self, host):
         """A JSON reply is parsed into data, while value keeps the raw wire text."""
         # Arrange
@@ -420,6 +428,7 @@ class TestNoneFormat:
         assert result["cmd"] == "RESET", "command name on the envelope"
         assert host._sent == [b"RESET\r\n"], "bytes still went out"
 
+    @pytest.mark.timing
     def test_unexpected_reply_fails_the_contract(self, host):
         """A reply to a no-reply command fails and surfaces the stray output."""
         # Arrange -- profile says no reply, but the device sends one.
@@ -446,6 +455,7 @@ class TestNoneFormat:
         )
         assert "OOPS unexpected" in result["value"], "rejected output also readable as the scalar"
 
+    @pytest.mark.timing
     def test_timeout_zero_opts_out_of_silence_check(self, host):
         """timeout_ms=0 skips the silence check, so a later reply is ignored."""
         # Arrange -- explicit timeout_ms: 0 disables the wait, restoring
@@ -469,6 +479,7 @@ class TestNoneFormat:
         assert result["success"] is True, "timeout_ms=0 opts out of the silence verification"
         assert result["data"] == {"sent": True}, "sent-marker still returned, in data"
 
+    @pytest.mark.timing
     def test_whitespace_only_reply_does_not_fail(self, host):
         """Blank or whitespace-only lines don't count as a reply under format=none."""
         # Arrange -- some devices emit a bare newline as idle artifact.
@@ -495,6 +506,7 @@ class TestNoneFormat:
 
 
 class TestErrorDetection:
+    @pytest.mark.timing
     def test_error_pattern_dominates_response(self, host):
         """An error_detection match fails the call and its message group is the error."""
         # Arrange — even though regex would match, error_detection wins
@@ -564,6 +576,7 @@ class TestDestructiveGate:
         assert actual_marker == expected_marker, "value carries structured marker for client UIs"
         assert host._sent == [], "no bytes hit the wire when gate fires"
 
+    @pytest.mark.timing
     def test_destructive_with_confirm_runs(self, host):
         """confirm=True lets a destructive command out and parses its reply normally."""
         # Arrange
@@ -587,6 +600,7 @@ class TestDestructiveGate:
         assert result["value"] == "OK", "command ran and parsed normally"
         assert host._sent == [b"RESET\r\n"], "bytes went out after confirmation"
 
+    @pytest.mark.timing
     def test_safe_command_ignores_confirm(self, host):
         """A readonly command runs without confirm; the gate is destructive-only."""
         # Arrange — safe (default) command; confirm should be a no-op
@@ -609,6 +623,7 @@ class TestDestructiveGate:
         assert result["success"] is True, "readonly runs without confirm"
         assert host._sent == [b"AT\r\n"], "readonly hit the wire normally"
 
+    @pytest.mark.timing
     def test_mutable_runs_without_confirm(self, host):
         """mutable state changes run without confirm; reversible is not destructive."""
         # Arrange — mutable: changes state but reversible (LED toggle).
@@ -677,6 +692,7 @@ class TestEnabledGate:
         assert actual_marker == expected_marker, "structured marker for client UI"
         assert host._sent == [], "no bytes hit the wire when entry is disabled"
 
+    @pytest.mark.timing
     def test_enabled_default_true_runs_normally(self, host):
         """An entry that omits enabled runs, so existing profiles behave unchanged."""
         # Arrange -- entry omits ``enabled`` entirely.  Default true.
@@ -792,6 +808,7 @@ class TestFallThrough:
 
 
 class TestStaleArchival:
+    @pytest.mark.timing
     def test_pre_send_drain_moves_buffer_to_async_events(self, host):
         """Lines received between calls go to async_events, not into the next response."""
         # Arrange — load a profile, push some "between calls" lines into
@@ -827,6 +844,7 @@ class TestStaleArchival:
 
 
 class TestSendTemplate:
+    @pytest.mark.timing
     def test_send_template_command_matches_rendered_text(self, host):
         """A rendered line like AT+LED=on matches its send_template entry and goes out."""
         # Arrange — AT+LED={state} entry; LLM types the rendered form.
@@ -864,6 +882,7 @@ class TestTypedArgValidation:
         p["types"] = types
         return p
 
+    @pytest.mark.timing
     def test_valid_custom_enum_passes_through(self, host):
         """A value in a profile enum type passes and is sent unchanged."""
         # Arrange -- enum-kind type with two members.
@@ -969,6 +988,7 @@ class TestTypedArgValidation:
         assert "unknown type" in result["error"].lower(), "error names the missing-type case"
         assert host._sent == [], "no bytes sent -- short-circuited"
 
+    @pytest.mark.timing
     def test_builtin_type_still_works(self, host):
         """Builtin types like str work without a profile types block."""
         # Arrange -- typed_arg uses 'str' builtin; no types block needed.

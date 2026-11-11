@@ -85,6 +85,7 @@ def _squash(text: str) -> str:
 
 
 class TestCaptureOverlay:
+    @pytest.mark.timing  # the overlay's label is read before the capture's 1 s timer ends it
     def test_a_text_capture_shows_progress_and_ends_on_its_timer(self, app_factory):
         """A timed text capture mounts the overlay with a live label, disables the prompt, and tears down when the timer fires."""
 

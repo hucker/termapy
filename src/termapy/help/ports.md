@@ -89,7 +89,9 @@ that included keyboards and webcams would stop being a port listing.
 When you need the other view, `/port.usb` (or `termapy --usb`) draws the
 entire USB tree and marks the nodes that carry a serial port, `-> COM7`.
 In the TUI, and from `--usb` at a terminal, those rows are cyan and their
-port name bold green; piped or with `--no-color`, `--usb` prints plain text:
+port name bold: green when this session holds the port, yellow when another
+termapy session does (see below).  Piped or with `--no-color`, `--usb`
+prints plain text:
 
 ```text
 1                       USB Root Hub (USB 3.0)  USBHUB3
@@ -391,6 +393,18 @@ and chip model) and termapy identifies that chip from then on.  A
 `max_baud` of `0` marks a non-UART device (bootloader, HID, etc.).
 
 ## When you hit "In use" and can't connect
+
+The port lists show termapy's own sessions at a glance.  In `/port.list`,
+the port picker, `/port.usb` and `termapy --ports`, a port's name is
+**green** when this session has it open and **yellow** when another
+termapy session does: a TUI in another window, or an MCP server running in
+the background.  termapy knows from the breadcrumb every running termapy
+leaves, so it opens no port to find out, and it works the same on every
+OS.  Only termapy sessions are seen this way: a port PuTTY, Arduino IDE or
+any other program holds stays uncolored, so an uncolored port is not
+necessarily free.  An MCP client gets the same fact as data, `session` on
+each port record, naming the other session only as `another termapy
+session` unless the server has `TERMAPY_MCP_HOST_INFO=1`.
 
 `/port.info` and `/port.chip.in_use` report whether another process has
 the port open.  Termapy's own connection counts as "in use," so if you

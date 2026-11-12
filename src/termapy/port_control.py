@@ -474,7 +474,7 @@ def list_port_records(*, source: PortSource | None = None) -> list[dict]:
     """
     from termapy.port_format import facts_to_json_record
 
-    facts_list = _gather_all_chip_facts(fast=True, enrich=True, source=source)
+    facts_list = _gather_all_chip_facts(fast=True, enrich=True, source=source, sessions=True)
     return [facts_to_json_record(facts) for facts in facts_list]
 
 
@@ -583,6 +583,11 @@ class ChipFacts:
     max_baud: str | None = None
     permissions: str | None = None
     in_use: str | None = None
+    # The termapy session holding the port, from the breadcrumbs, when a
+    # listing asked (``fill_sessions``): ``this session`` or ``termapy mcp,
+    # PID 17140``.  None when no termapy holds it, which says nothing about
+    # any other program.
+    session: str | None = None
     # Silicon-vendor name resolved from the VID via ``usb_vendor``.
     # Independent of ``manufacturer`` (which is the descriptor / INF
     # string) -- they can disagree, and that disagreement is itself
@@ -1243,6 +1248,73 @@ def _normalize_windows_location(loc: str) -> str:
     return f"{m.group(2)}.{m.group(1)}"
 
 
+#: The session that holds a port when it is this process: ``in_use`` and
+#: ``ChipFacts.session`` both read ``this session``.
+THIS_SESSION = "this session"
+
+
+def port_state_style(session: str | None) -> str:
+    """The style that marks a port by the termapy session holding it: green this one, yellow another.
+
+    ``""`` when no termapy session holds it: free, or held by a program
+    termapy cannot see.  The one owner of these colors: ``/port.list``,
+    the port picker, ``/port.usb`` and ``termapy --ports`` read them here.
+    """
+    if not session:
+        return ""
+    return "green" if session == THIS_SESSION else "yellow"
+
+
+def session_holding(
+    device: str, crumbs: list[Any], own_pid: int, *, hides_host: bool | None = None
+) -> str | None:
+    """The termapy session holding ``device``, by its breadcrumb; None when none does.
+
+    Only termapy sessions are seen, on every OS alike: a breadcrumb is a
+    file every running termapy writes, so reading them opens no port.  This
+    process's own is ``this session``, another's names it (``termapy mcp,
+    PID 17140``), and under MCP without ``TERMAPY_MCP_HOST_INFO`` another is
+    ``another termapy session`` (decision 2026-11-12).
+
+    Args:
+        device: The port, as the system lists it.
+        crumbs: The running termapys (``breadcrumbs.read_running``).
+        own_pid: This process's id.
+        hides_host: Leave another session unnamed; None asks this process's policy.
+    """
+    for crumb in crumbs:
+        if not crumb.open_port or not same_port(crumb.open_port, device):
+            continue
+        if crumb.pid == own_pid:
+            return THIS_SESSION
+        if hides_host is None:
+            hides_host = env_flags.port_policy().hides_host
+        return (
+            "another termapy session"
+            if hides_host
+            else f"termapy {crumb.frontend}, PID {crumb.pid}"
+        )
+    return None
+
+
+def fill_sessions(facts_list: list[ChipFacts]) -> None:
+    """Mark each port a termapy session holds, from the breadcrumbs, opening nothing.
+
+    A listing that colors ports by state calls this; resolution and the
+    reconnect loop never do.  A port no session holds keeps ``session``
+    None: termapy does not see other programs here.
+    """
+    from termapy import breadcrumbs
+
+    crumbs = breadcrumbs.read_running()
+    if not crumbs:
+        return
+    own_pid = os.getpid()
+    for fact in facts_list:
+        if fact.device:
+            fact.session = session_holding(fact.device, crumbs, own_pid)
+
+
 def _check_in_use(device: str, connected_port: str = "") -> str:
     """Report whether another process holds *device* -- non-invasively where possible.
 
@@ -1266,7 +1338,7 @@ def _check_in_use(device: str, connected_port: str = "") -> str:
       available (avoids pulsing the auto-reset line).
     """
     if connected_port and same_port(device, connected_port):
-        return "yes (this session)"
+        return f"yes ({THIS_SESSION})"
     if sys.platform != "win32":
         # Non-invasive: lsof never opens the port.  Names the holder.
         from termapy.serial_engine import _find_port_holder, shown_holder
@@ -1541,6 +1613,7 @@ def _gather_all_chip_facts(
     source: PortSource | None = None,
     trust_env: bool = True,
     policy: PortPolicy | None = None,
+    sessions: bool = False,
 ) -> list[ChipFacts]:
     """Return ChipFacts for every allowed port, sorted by device name.
 
@@ -1573,16 +1646,23 @@ def _gather_all_chip_facts(
             machine's would be.
         trust_env: Whether the environment may supply a fleet.
         policy: The port policy; None is this process's.
+        sessions: Mark the ports a termapy session holds, from the
+            breadcrumbs (``fill_sessions``), for a listing that colors
+            ports by state.
     """
     policy = _policy(policy)
     fleet = resolve_port_source(source, trust_env)
     if fleet is not None:
         allowed = [fact for fact in fleet if policy.allows_device(fact.device, fact.serial)]
-        return sorted(allowed, key=lambda f: f.device or "")
-    return [
-        _facts_from_port_info(p, connected_port, fast=fast, enrich=enrich)
-        for p in sorted(system_ports(policy=policy), key=lambda x: x.device)
-    ]
+        facts_list = sorted(allowed, key=lambda f: f.device or "")
+    else:
+        facts_list = [
+            _facts_from_port_info(p, connected_port, fast=fast, enrich=enrich)
+            for p in sorted(system_ports(policy=policy), key=lambda x: x.device)
+        ]
+    if sessions:
+        fill_sessions(facts_list)
+    return facts_list
 
 
 def _policy(policy: PortPolicy | None) -> PortPolicy:

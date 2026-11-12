@@ -436,6 +436,8 @@ def _port_facts(ports: list) -> list[ChipFacts]:
         port_control.gather_chip_facts(port.device, fast=True, enrich=True) for port in ports
     ]
     facts_list = [fact for fact in facts_list if fact is not None]
+    # The termapy session holding each port, for its color (breadcrumbs).
+    port_control.fill_sessions(facts_list)
     # Always offer the pyserial loopback as a selectable virtual port,
     # appended below real hardware.  It echoes writes back -- handy for
     # testing without a device.  Honest facts (no invented VID/PID/SN).
@@ -443,15 +445,23 @@ def _port_facts(ports: list) -> list[ChipFacts]:
     return facts_list
 
 
-def _fill_port_rows(ol: OptionList, rows: list[tuple[str, dict]], row_width: int) -> None:
+def _fill_port_rows(
+    ol: OptionList,
+    rows: list[tuple[str, dict]],
+    row_width: int,
+    colors: dict[str, str] | None = None,
+) -> None:
     """Add a header, a separator, and one option per port row, fit to ``row_width``.
 
     Formatting lives in ``termapy.port_format`` so the CLI
     (``--ports`` / ``--watch``) can reuse it without pulling Textual
     into its code path.  This maps formatted lines to ``OptionList``
     entries, attaching each data row's port name as the option id so
-    selection returns the device string.
+    selection returns the device string.  A row whose port has a state
+    color (``_port_colors``) shows its name in it.
     """
+    from rich.text import Text
+
     from termapy.port_format import active_columns, compute_widths, format_header, format_row
 
     widths, columns = compute_widths(rows, row_width, active_columns(rows))
@@ -459,7 +469,19 @@ def _fill_port_rows(ol: OptionList, rows: list[tuple[str, dict]], row_width: int
     ol.add_option(Option(header, disabled=True))
     ol.add_option(Option(separator, disabled=True))
     for port_id, row_data in rows:
-        ol.add_option(Option(format_row(row_data, widths, columns), id=port_id))
+        prompt = Text(format_row(row_data, widths, columns))
+        color = (colors or {}).get(port_id, "")
+        if color and prompt.plain.startswith(port_id):
+            prompt.stylize(color, 0, len(port_id))
+        ol.add_option(Option(prompt, id=port_id))
+
+
+def _port_colors(facts: list[ChipFacts]) -> dict[str, str]:
+    """Each port's state color, by device (``port_control.port_state_style``); free ports omitted."""
+    from termapy.port_control import port_state_style
+
+    colors = {fact.device: port_state_style(fact.session) for fact in facts if fact.device}
+    return {device: color for device, color in colors.items() if color}
 
 
 def _populate_port_option_list(
@@ -474,7 +496,8 @@ def _populate_port_option_list(
     """
     from termapy.port_format import row_from_facts
 
-    _fill_port_rows(ol, [row_from_facts(fact) for fact in _port_facts(ports)], row_width)
+    facts = _port_facts(ports)
+    _fill_port_rows(ol, [row_from_facts(fact) for fact in facts], row_width, _port_colors(facts))
 
 
 class PortOptionList(OptionList):
@@ -493,6 +516,7 @@ class PortOptionList(OptionList):
         """Build the list from the ports' facts (``_port_facts``)."""
         super().__init__(id=id)
         self._rows: list[tuple[str, dict]] = []
+        self._colors: dict[str, str] = {}
         # 0 until layout measures the list: fill at the table's full width.
         self._row_width = 0
         self.set_facts(facts)
@@ -502,6 +526,7 @@ class PortOptionList(OptionList):
         from termapy.port_format import row_from_facts
 
         self._rows = [row_from_facts(fact) for fact in facts]
+        self._colors = _port_colors(facts)
         self._fill()
 
     def table_width(self) -> int:
@@ -519,7 +544,7 @@ class PortOptionList(OptionList):
         """Rebuild the options at the list's width, keeping the highlighted port."""
         kept = _highlighted_file(self)
         self.clear_options()
-        _fill_port_rows(self, self._rows, self._row_width or self.table_width())
+        _fill_port_rows(self, self._rows, self._row_width or self.table_width(), self._colors)
         for i in range(self.option_count):
             if kept is not None and self.get_option_at_index(i).id == kept:
                 self.highlighted = i

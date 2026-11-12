@@ -57,10 +57,11 @@ def _bus() -> list[UsbRecord]:
 class _Facts:
     """Stand-in for ChipFacts, carrying only what the tagger reads."""
 
-    def __init__(self, device, location, interface_number=None):
+    def __init__(self, device, location, interface_number=None, session=None):
         self.device = device
         self.location = location
         self.interface_number = interface_number
+        self.session = session
 
 
 class TestParentPath:

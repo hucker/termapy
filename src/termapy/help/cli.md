@@ -202,6 +202,7 @@ Each `--ports --json` record has a stable schema:
   "vid_pid": "0403:6001",
   "serial_number": "AL01ABCD",
   "in_use": false,
+  "session": null,
   "driver": "ftdi_sio",
   "location": "Hub_#0009.Port_#0004",
   "interface_number": null
@@ -225,10 +226,20 @@ driver — a Microchip USB-serial chip running on Microsoft's
 benefit from seeing all three.
 
 Numeric fields stay numeric; missing values are `null` (not omitted).
-`vid_pid` is the canonical lowercase-hex form for literal matching.
-`driver` is the kernel module name on Linux (`ftdi_sio`, `cdc_acm`,
-`ch341`, `cp210x`, ...) and the Windows service name (`FTDIBUS`,
-`usbser`, `silabser`, ...). On macOS `driver` is `null` for now.
+`vid_pid` is the canonical uppercase-hex form (`10C4:EA60`) for literal
+matching.  `driver` is the kernel module name on Linux (`ftdi_sio`,
+`cdc_acm`, `ch341`, `cp210x`, ...) and the Windows service name
+(`FTDIBUS`, `usbser`, `silabser`, ...).  On macOS `driver` is `null` for
+now.
+
+`session` is the termapy session holding the port, from the breadcrumb
+every running termapy leaves: `"termapy mcp, PID 17140"`, or `null` when
+no termapy holds it.  Only termapy sessions are seen there, on every OS,
+so `null` does not mean free: PuTTY or another program may have it.
+`in_use` is `true` or `false` only when something checked (the in-use
+probe `--ports --json` runs, or a session's breadcrumb), and `null` when
+nothing did.  At a terminal `--ports` colors a port another termapy
+session holds yellow.
 
 ### Hardware-free CI: `--ports DEMO`
 

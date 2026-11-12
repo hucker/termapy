@@ -19,7 +19,7 @@ from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, PortOptio
 class PortPicker(ModalScreen[str | None]):
     """Modal dialog to select an available serial port.
 
-    Polls ``comports()`` once a second so the list reflects USB
+    Polls ``system_ports()`` once a second so the list reflects USB
     plug / unplug events while the dialog is open -- useful when
     you're trying to identify which COM port belongs to which
     physical device by plugging it in and watching the new row
@@ -67,10 +67,11 @@ class PortPicker(ModalScreen[str | None]):
         self.set_interval(1.0, self._poll_ports)
 
     def compose(self) -> ComposeResult:
-        from serial.tools.list_ports import comports
         from textual.widgets import Static
 
-        self._ports = sorted(comports(), key=lambda p: p.device)
+        from termapy.port_control import system_ports
+
+        self._ports = sorted(system_ports(), key=lambda p: p.device)
         port_list = PortOptionList(_port_facts(self._ports), id="port-list")
         with Vertical(id="port-dialog") as dialog:
             dialog.styles.width = port_list.dialog_width()
@@ -86,9 +87,9 @@ class PortPicker(ModalScreen[str | None]):
         OptionList flicker and to keep the user's highlighted row
         stable when nothing has changed.
         """
-        from serial.tools.list_ports import comports
+        from termapy.port_control import system_ports
 
-        fresh = sorted(comports(), key=lambda p: p.device)
+        fresh = sorted(system_ports(), key=lambda p: p.device)
         if [p.device for p in fresh] == [p.device for p in self._ports]:
             return
         self._ports = fresh

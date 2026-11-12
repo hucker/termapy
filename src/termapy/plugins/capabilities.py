@@ -325,11 +325,11 @@ class CapabilitySet:
     )
 
     # What:  Handler may open a NETWORK connection -- pyserial
-    #        serial-over-URL "ports" (``socket://``, ``rfc2217://``) via
-    #        ``/port.connect``.  When absent, a URL port is refused so an
-    #        automated peer can't open arbitrary outbound TCP and send data
-    #        off the machine; physical device ports are unaffected.
+    #        serial-over-URL "ports" (``socket://``, ``rfc2217://``).
     # Where: CLI, TUI.  MCP only when ``TERMAPY_MCP_NET_EGRESS`` is set.
+    # No command reads it now: config.open_serial reads the flag itself, through
+    # env_flags.port_policy, for every route (decision 2026-11-11).  Removing
+    # the field is a follow-up chore.
     network_egress: bool = _restricted(
         "outbound network access (TERMAPY_MCP_NET_EGRESS=1 under MCP)",
     )

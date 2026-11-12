@@ -57,6 +57,7 @@ from termapy.migration import (
     DEPRECATED_CFG,
     migrate_config,
 )
+from termapy.port_allow import PortPolicy
 from termapy.scripting import parse_bool, value_text
 
 CFG_DIR: str | None = None  # set by --cfg-dir; None = use resolution chain
@@ -1777,15 +1778,23 @@ def spy_log_url(url: str, cap_folder: Path | None) -> str:
     return f"{url.partition('?')[0]}?{urlencode(moved)}"
 
 
-def open_serial(cfg: dict, *, cap_folder: Path | None = None) -> Any:
+def open_serial(
+    cfg: dict, *, cap_folder: Path | None = None, policy: PortPolicy | None = None
+) -> Any:
     """Open serial port from config dict.
 
     ``cfg["serial"]["port"]`` may be a plain device name (``"COM3"``,
     ``"/dev/ttyUSB0"``), a USB serial number, a ``|``-separated fallback
     chain (``"A1B2C3D4|COM3"``), a reserved name (``"DEMO"``,
     ``"DEMO_FAIL"``), or a pyserial URL.  Resolution to a concrete
-    device happens here via ``resolve_port()``; see that function's
-    docstring and ``help/ports.md`` for the full grammar.
+    device happens here via ``resolve_port_for_open()``; see
+    ``resolve_port``'s docstring and ``help/ports.md`` for the full grammar.
+
+    This is the one place termapy opens a port (registry
+    ``port-policy-at-opener``), so the port policy
+    (``TERMAPY_ALLOWED_PORTS``) is applied here, before a simulator is
+    built, a ``spy://`` log is created, or pyserial touches a device or the
+    network.
 
     If the resolved name is ``"DEMO"``, returns a ``FakeSerial``
     simulated device instead of a real serial connection.  If the
@@ -1798,6 +1807,8 @@ def open_serial(cfg: dict, *, cap_folder: Path | None = None) -> Any:
         cap_folder: Where a ``spy://`` port's log goes (``spy_log_url``).
             Omitted, such a port is refused rather than written from the
             working folder.
+        policy: The port policy; None is this process's
+            (``env_flags.port_policy``).
 
     Returns:
         A serial port object (real or simulated).
@@ -1807,12 +1818,13 @@ def open_serial(cfg: dict, *, cap_folder: Path | None = None) -> Any:
             spec whose serial-number candidate matches two or more
             connected devices.  Surfaces through to the connect failure
             path so the user sees which devices collided.
+        PortNotAllowedError: The port policy refuses the port.
         ValueError: A ``spy://`` port's ``file=`` is refused.
     """
-    from termapy.port_control import resolve_port
+    from termapy.port_control import resolve_port_for_open
 
     serial_cfg = cfg["serial"]
-    resolved = resolve_port(serial_cfg["port"])
+    resolved = resolve_port_for_open(serial_cfg["port"], policy=policy)
     name = resolved.upper()
     if name == "DEMO":
         from termapy.demo import FakeSerial

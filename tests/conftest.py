@@ -1,3 +1,11 @@
+# TERMAPY_ALLOWED_PORTS is read once, when termapy is imported, and hides
+# ports from every listing: a developer's own value must not change what the
+# suite sees.  Dropped before the first termapy import; a test that needs a
+# list passes a policy, or sets the variable in a fresh interpreter.
+import os
+
+os.environ.pop("TERMAPY_ALLOWED_PORTS", None)
+
 # Register vendored pyserial before any test imports serial.
 # This mirrors what termapy/__init__.py does at app startup.
 import termapy.vendor  # noqa: F401

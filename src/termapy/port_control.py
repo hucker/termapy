@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 if TYPE_CHECKING:
     from types import ModuleType
 
+from termapy import env_flags
 from termapy.defaults import (
     VALID_BYTE_SIZES,
     VALID_FLOW_CONTROLS,
@@ -35,6 +36,16 @@ from termapy.defaults import (
 )
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.views import Item, TextLine
+from termapy.port_allow import (
+    LOOPBACK_SCHEME,
+    NETWORK_SCHEMES,
+    WRAPPER_SCHEMES,
+    PortNotAllowedError,
+    PortPolicy,
+    not_allowed_message,
+    url_scheme,
+    wrapped_port,
+)
 from termapy.scripting import format_duration, parse_bool
 from termapy.usb import chip as _usb_chip, vendor_for as _usb_vendor_for
 
@@ -465,6 +476,17 @@ def list_port_records(*, source: PortSource | None = None) -> list[dict]:
 
     facts_list = _gather_all_chip_facts(fast=True, enrich=True, source=source)
     return [facts_to_json_record(facts) for facts in facts_list]
+
+
+def ports_note(*, policy: PortPolicy | None = None) -> str | None:
+    """What a port listing leaves out under ``TERMAPY_ALLOWED_PORTS``; None when it leaves out nothing."""
+    return _policy(policy).listing_note()
+
+
+def ports_title(*, policy: PortPolicy | None = None) -> str:
+    """The title of a port listing: ``Ports``, and ``ports_note`` when the list is limited."""
+    note = ports_note(policy=policy)
+    return f"Ports ({note})" if note else "Ports"
 
 
 # Field names exposed by /port.chip.<field> subcommands.  Order is the
@@ -1373,8 +1395,11 @@ def gather_chip_facts(
     enrich: bool = False,
     source: PortSource | None = None,
     trust_env: bool = True,
+    policy: PortPolicy | None = None,
 ) -> ChipFacts | None:
     """Look up the named port and return all known facts about it.
+
+    A port the policy refuses is not found, as if it were not plugged in.
 
     ``fast=True`` skips the ``in_use``/``permissions`` probe (which opens
     the port on Windows -- see ``_check_in_use``).  Pass it from any
@@ -1397,19 +1422,19 @@ def gather_chip_facts(
         source: Callable returning a substitute port list; wins over the
             environment and over real hardware.
         trust_env: Whether the environment may supply a fleet.
+        policy: The port policy; None is this process's.
 
     Returns:
-        ChipFacts on success, or None if no connected port matches.
+        ChipFacts on success, or None if no allowed port matches.
     """
+    policy = _policy(policy)
     fleet = resolve_port_source(source, trust_env)
     if fleet is not None:
         for facts in fleet:
             if facts.device is not None and same_port(facts.device, port_name):
-                return facts
+                return facts if policy.allows_device(facts.device, facts.serial) else None
         return None
-    from serial.tools.list_ports import comports
-
-    for port in comports():
+    for port in system_ports(policy=policy):
         if same_port(port.device, port_name):
             return _facts_from_port_info(port, connected_port, fast=fast, enrich=enrich)
     # OS didn't enumerate it; fall back to synthesizing a record for
@@ -1515,8 +1540,14 @@ def _gather_all_chip_facts(
     enrich: bool = False,
     source: PortSource | None = None,
     trust_env: bool = True,
+    policy: PortPolicy | None = None,
 ) -> list[ChipFacts]:
-    """Return ChipFacts for every connected port, sorted by device name.
+    """Return ChipFacts for every allowed port, sorted by device name.
+
+    A port the policy refuses (``TERMAPY_ALLOWED_PORTS``) is left out
+    before anything is looked up, so the in-use probe never opens it, and no
+    listing, resolution or hint built on this one names it (registry
+    ``port-policy-at-opener``).
 
     ``fast=True`` skips the per-port ``_check_in_use`` probe so the
     gather doesn't scale linearly with port count -- ``--watch`` uses
@@ -1538,18 +1569,44 @@ def _gather_all_chip_facts(
         fast: Skip the per-port in_use/permissions probe.
         enrich: Look up driver / location / latency anyway.
         source: Callable returning a substitute port list; wins over the
-            environment and over real hardware.
+            environment and over real hardware.  It is filtered as the
+            machine's would be.
         trust_env: Whether the environment may supply a fleet.
+        policy: The port policy; None is this process's.
     """
+    policy = _policy(policy)
     fleet = resolve_port_source(source, trust_env)
     if fleet is not None:
-        return sorted(fleet, key=lambda f: f.device or "")
-    from serial.tools.list_ports import comports
-
+        allowed = [fact for fact in fleet if policy.allows_device(fact.device, fact.serial)]
+        return sorted(allowed, key=lambda f: f.device or "")
     return [
         _facts_from_port_info(p, connected_port, fast=fast, enrich=enrich)
-        for p in sorted(comports(), key=lambda x: x.device)
+        for p in sorted(system_ports(policy=policy), key=lambda x: x.device)
     ]
+
+
+def _policy(policy: PortPolicy | None) -> PortPolicy:
+    """``policy``, or this process's when None (``env_flags.port_policy``)."""
+    return env_flags.port_policy() if policy is None else policy
+
+
+def system_ports(*, policy: PortPolicy | None = None) -> list[Any]:
+    """The serial ports the system lists that the policy allows: the one call to ``comports()``.
+
+    Every other module asks here (registry ``ports-enumerated-once``), so a
+    port ``TERMAPY_ALLOWED_PORTS`` leaves out is left out of every picker,
+    hint and listing.  Opens nothing.
+
+    Args:
+        policy: The port policy; None is this process's.
+
+    Returns:
+        pyserial ``ListPortInfo`` entries, in the system's order.
+    """
+    from serial.tools.list_ports import comports
+
+    policy = _policy(policy)
+    return [port for port in comports() if policy.allows_device(port.device, port.serial_number)]
 
 
 #: The reserved virtual ports and their descriptions, the one list of them.
@@ -1757,6 +1814,11 @@ def resolve_port(
             this as a user-facing error rather than silently picking one.
     """
     facts = _gather_all_chip_facts(connected_port, fast=True, source=source, trust_env=trust_env)
+    return _resolve_against(spec, facts)
+
+
+def _resolve_against(spec: str, facts: list[ChipFacts]) -> str:
+    """``resolve_port``'s matching, against a port list already gathered."""
     candidates = spec.split("|")
     for candidate in candidates:
         result = _match_candidate(candidate, facts)
@@ -1765,6 +1827,142 @@ def resolve_port(
     # No candidate resolved.  Return the last one so open_serial's error
     # message names what the user most explicitly asked for.
     return candidates[-1]
+
+
+def resolve_port_for_open(
+    spec: str, *, source: PortSource | None = None, policy: PortPolicy | None = None
+) -> str:
+    """Resolve a port spec to the name to open, refusing what the port policy does not allow.
+
+    The one gate ``config.open_serial`` passes every open through (registry
+    ``port-policy-at-opener``): resolution sees only allowed ports, and
+    ``check_open`` judges what it resolved to against the same list.
+
+    A person's session is told which a refused device is, plugged in or not
+    there (``_refused_device``); an MCP server is not, so an agent cannot
+    map the ports the listings hide.
+
+    Raises:
+        AmbiguousSerialNumberError: As ``resolve_port``.
+        PortNotAllowedError: The policy refuses the port; nothing was opened.
+    """
+    policy = _policy(policy)
+    facts = _gather_all_chip_facts(fast=True, source=source, policy=policy)
+    resolved = _resolve_against(spec, facts)
+    try:
+        return check_open(resolved, facts, policy=policy)
+    except PortNotAllowedError:
+        if policy.under_mcp or policy.allowlist is None or url_scheme(resolved) is not None:
+            raise
+        present = _refused_device(spec, source)
+        message = not_allowed_message(resolved, policy, present=present, absent=present is None)
+        raise PortNotAllowedError(message) from None
+
+
+def _refused_device(spec: str, source: PortSource | None) -> str | None:
+    """The plugged-in device a refused device spec names, or None when it names none.
+
+    For a person's denial only: it looks past the policy, at every port the
+    system lists, and opens nothing.
+    """
+    everything = _gather_all_chip_facts(fast=True, source=source, policy=PortPolicy())
+    try:
+        hidden = _resolve_against(spec, everything)
+    except AmbiguousSerialNumberError:
+        return None
+    devices = {fact.device for fact in everything}
+    return hidden if hidden in devices else None
+
+
+# A Windows device name the policy can read as written: no path, drive, stream
+# or extension syntax that Windows might map onto a different device.
+_PLAIN_WINDOWS_NAME = re.compile(r"[A-Za-z0-9_-]+")
+
+
+def port_identity(name: str) -> str | None:
+    r"""The canonical name the port policy reads for a name the system did not list.
+
+    Never the spelling as typed.  On Windows, ``COM5:``, ``COM2\..\COM5`` and
+    ``//./COM5`` may all open COM5, so only a plain name (once the Win32
+    ``\\.\`` prefix is dropped) has an identity; any other spelling has
+    none and is refused.  On Linux and macOS the identity is the real path,
+    with symlinks and ``..`` resolved, so a link named to fit a pattern is
+    read as the device it opens.
+    """
+    if not name:
+        return None
+    if os.name == "nt":
+        if name.startswith(_WIN32_DEVICE_PREFIX):
+            name = name[len(_WIN32_DEVICE_PREFIX) :]
+        return name if _PLAIN_WINDOWS_NAME.fullmatch(name) else None
+    return os.path.realpath(name)
+
+
+def check_open(resolved: str, facts: list[ChipFacts], *, policy: PortPolicy) -> str:
+    """The name to open for a resolved port, or ``PortNotAllowedError``.
+
+    With no policy in force every port opens as resolved.  Otherwise:
+
+    - a simulator port and ``loop://`` open: they reach no device and no network;
+    - a device is judged by the identities of the port it is (the name the
+      system lists and its serial number), or, for a name the system did not
+      list, by its canonical name (``port_identity``);
+    - ``spy://`` and ``alt://`` are judged by the port they wrap;
+    - a network URL must be named exactly (``PortPolicy.network_refusal``);
+    - ``hwgrep://`` and every other scheme are refused: termapy cannot
+      check what they open.
+
+    Args:
+        resolved: The resolved port, ``_resolve_against``'s answer.
+        facts: The allowed ports the resolution was made against.
+        policy: The port policy.
+
+    Raises:
+        PortNotAllowedError: The policy refuses the port; nothing was opened.
+    """
+    if not policy.in_force or resolved.upper() in _RESERVED_PORTS:
+        return resolved
+    scheme = url_scheme(resolved)
+    if scheme is None:
+        return _check_device(resolved, resolved, facts, policy)
+    if scheme == LOOPBACK_SCHEME:
+        return resolved
+    if scheme in WRAPPER_SCHEMES:
+        try:
+            inner = wrapped_port(resolved)
+        except ValueError:
+            raise PortNotAllowedError(not_allowed_message(resolved, policy)) from None
+        checked = _check_device(inner, resolved, facts, policy)
+        if checked == inner:
+            return resolved
+        # Open the port that was checked: the listed spelling, or a real path.
+        head, _, query = resolved.partition("?")
+        return f"{head.split('://', 1)[0]}://{checked}" + (f"?{query}" if query else "")
+    if scheme in NETWORK_SCHEMES:
+        refusal = policy.network_refusal(resolved)
+        if refusal is not None:
+            raise PortNotAllowedError(refusal)
+        return resolved
+    raise PortNotAllowedError(not_allowed_message(resolved, policy, scheme=scheme))
+
+
+def _check_device(name: str, shown: str, facts: list[ChipFacts], policy: PortPolicy) -> str:
+    """The name to open for device ``name``, or ``PortNotAllowedError`` naming ``shown``.
+
+    ``facts`` is normally the allowed list already; the port is still judged
+    here, so a caller that hands in the whole list cannot open a refused one.
+    """
+    for fact in facts:
+        if fact.device is not None and same_port(fact.device, name):
+            if policy.allows_device(fact.device, fact.serial):
+                return fact.device
+            break
+    identity = port_identity(name)
+    if identity is None or not policy.allows_device(identity):
+        raise PortNotAllowedError(not_allowed_message(shown, policy))
+    # On Linux and macOS open the path that was checked, not a link that
+    # could be pointed elsewhere; a Windows name opens as written.
+    return name if os.name == "nt" else identity
 
 
 def resolve_port_trace(

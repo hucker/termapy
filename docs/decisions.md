@@ -1476,3 +1476,42 @@ Measured on the way, for the follow-up: the time is spread across the suite, not
 heaviest single tests are `test_config_load_state.py`'s three frontends (about 1 to 1.5 min each) and
 `test_traceability.py`'s `TestSession`, whose child sessions collect the whole suite (about 50 s each).
 **Where:** `scripts/release_prep.py` (`run_pytest`, `run_tox`), `tox.ini`, `scripts/README.md`.
+
+## 2026-11-11 — `TERMAPY_ALLOWED_PORTS` limits the ports termapy opens and lists; an MCP server with none set opens none
+
+Chuck asked for a way to limit which serial ports termapy can reach on a machine, by name or by
+serial number, several at once and by pattern, "fail correctly no matter how they are specified".
+It is one environment variable, one regex with `|` between alternatives, matched against the whole
+of a port's canonical name or its USB serial number, ignoring case. The choices, each his:
+
+- **The environment, not a config key.** An agent can write `.cfg` files; it cannot change the
+  environment of the server it is talking to. The list is read once, at import, so `/env.set`
+  (which writes its own snapshot) and anything else a session runs cannot widen it.
+- **Unset: everything for a person, nothing under MCP.** A person at the TUI or CLI keeps today's
+  behavior. An MCP server with no list opens and lists no hardware or network port, so a
+  registration that loses its environment fails closed; `.*` allows every device.
+- **The simulator and `loop://` are always allowed.** They reach no device and no network.
+- **A network port is named exactly.** `socket://` and `rfc2217://` open only when one alternative
+  spells the endpoint out as `scheme://host:port`; `.*` allows every device and no host, and the
+  decision is made on the text, so a refused host is never looked up. Under MCP
+  `TERMAPY_MCP_NET_EGRESS` is needed too, now checked where the port opens rather than only in
+  `/port.connect`, which `/port <url>`, `/cfg port`, a config load and the startup connect skipped.
+  `hwgrep://` is always refused (pyserial picks its port after the check, and `&skip_busy` opens
+  every match), as is any scheme termapy cannot read.
+- **Hidden, not just refused.** Every listing leaves out what the list does not allow, before
+  anything is looked up, so the Windows in-use probe (which opens the port) never touches one and
+  an agent cannot read other devices' serial numbers; under MCP `/port.usb` draws only the branches
+  that lead to an allowed port. A denial names the variable, so the reader stops trying other
+  spellings. A person is told which it is, a refused port that is plugged in or one not found (a
+  port allowed only by serial number is recognized only while plugged in); an MCP client gets one
+  answer for both, `Port not allowed or not found`.
+
+A port's identity is never the spelling typed: an enumerated device is the name the system lists
+and its serial number; anything else is its canonical name, which on Windows must be a plain name
+(`COM2\..\COM5` and `COM5:` may open COM5 and have none) and on Linux and macOS is the real path.
+The list limits termapy's own commands, not the machine: any other program reaches what the
+operating system lets it, an agent's shell included, and a USB serial number is whatever the
+device's firmware says.
+**Where:** `port_allow.py`, `env_flags.ALLOWED_PORTS`, `port_control.system_ports` and
+`resolve_port_for_open`, `config.open_serial`; registry `port-policy-at-opener`,
+`ports-enumerated-once`, `network-port-named-exactly`; `help/ports.md`, `help/mcp-server.md`.

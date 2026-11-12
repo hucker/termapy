@@ -304,23 +304,22 @@ class ConfigEditor(ModalScreen[tuple | None]):
     def _port_status(self, val: str, pair_markup: str) -> tuple[str, str]:
         """What only a live editor can say about a port: whether it is plugged in now.
 
-        comports() can fail with OSError on permission/driver issues
+        system_ports() can fail with OSError on permission/driver issues
         (Linux udev, macOS IOKit, Windows WMI) and with ImportError if
         pyserial's list_ports backend isn't available on this platform.
         Both are environmental, so they degrade to the neutral display.
         Anything else is a bug and should surface.
         """
         try:
-            from serial.tools.list_ports import comports
-
             from termapy import port_control
+            from termapy.port_control import system_ports
 
             if port_control.synthetic_facts_for_reserved(val.upper()) is not None:
                 return f"[green]{pair_markup}[/] [dim](simulated port)[/]", ""
             # Present as connecting would resolve it: a serial number counts too.
             if port_control.port_present(val):
                 return f"[green]{pair_markup}[/]", ""
-            available = {port.device for port in comports()}
+            available = {port.device for port in system_ports()}
             if available:
                 ports_markup = escape_markup(", ".join(sorted(available)))
                 return (

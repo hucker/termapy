@@ -1858,13 +1858,13 @@ class SerialTerminal(TerminalHost, App):
         resolution, so a serial number or a ``|`` chain loads like a COM name.
         """
         port = cfg["serial"]["port"]
-        # comports() failures are environmental: OSError on udev / IOKit
+        # system_ports() failures are environmental: OSError on udev / IOKit
         # / WMI hiccups, ImportError on platforms without list_ports.
         # Treat either as "no ports visible" and fall through.
         try:
-            from serial.tools.list_ports import comports
+            from termapy.port_control import system_ports
 
-            available = {p.device for p in comports()}
+            available = {p.device for p in system_ports()}
             present = port_control.port_present(port)
         except (OSError, ImportError):
             available, present = set(), False

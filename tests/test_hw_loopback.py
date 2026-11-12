@@ -471,3 +471,48 @@ class TestChunkedWrites:
             f"{len(missing)} of {count} lines lost through SerialPort.write at {BAUD}, first"
             f" {missing[:5]}; the chunked write path should deliver every line on this adapter"
         )
+
+
+@pytest.mark.rule("port-policy-at-opener")
+class TestPortListOnTheRig:
+    """TERMAPY_ALLOWED_PORTS against a real adapter: identity is the device, however it is named."""
+
+    def test_an_allowed_serial_number_opens_the_port_by_name(self, loopback_device):
+        """The adapter's serial number on the list lets its COM name open."""
+        # Arrange
+        from termapy.port_allow import PortAllowlist, PortPolicy
+
+        policy = PortPolicy(allowlist=PortAllowlist.parse(HW_LOOPBACK_SN))
+        cfg = {**DEFAULT_CFG, "serial": {**DEFAULT_CFG["serial"], "port": loopback_device}}
+
+        # Act
+        port = open_serial(cfg, policy=policy)
+
+        # Assert
+        try:
+            assert port.is_open, "the port named by its COM name opened"
+        finally:
+            port.close()
+
+    def test_a_list_without_it_refuses_its_serial_number(self, loopback_device):
+        """A list that leaves the adapter out refuses it by serial number, opens nothing, and tells a person it is plugged in."""
+        # Arrange
+        from termapy.port_allow import (
+            PortAllowlist,
+            PortNotAllowedError,
+            PortPolicy,
+            not_allowed_message,
+        )
+
+        policy = PortPolicy(allowlist=PortAllowlist.parse("COM254"))
+        cfg = {**DEFAULT_CFG, "serial": {**DEFAULT_CFG["serial"], "port": HW_LOOPBACK_SN}}
+        expected = not_allowed_message(HW_LOOPBACK_SN, policy, present=loopback_device)
+
+        # Act
+        with pytest.raises(PortNotAllowedError) as caught:
+            open_serial(cfg, policy=policy)
+
+        # Assert
+        assert str(caught.value) == expected
+        probe = _open_raw(loopback_device, 115200)
+        probe.close()  # the refusal left the port free: nothing held it open

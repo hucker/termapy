@@ -196,6 +196,10 @@ def run_ports(args: argparse.Namespace, *, source: PortSource | None = None) -> 
     all_facts = port_control._gather_all_chip_facts(
         fast=not getattr(args, "json", False), enrich=True, source=source
     )
+    # On stderr, so --json stays one JSON document.
+    note = port_control.ports_note()
+    if note:
+        print(f"termapy: ports {note}", file=sys.stderr)
 
     if args.ports and args.ports != "*":
         all_facts = [

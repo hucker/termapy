@@ -5831,3 +5831,152 @@ def test_stop_clear_allowlist_has_no_stale_entries():
     # Assert
     stale = sorted(set(STOP_CLEAR_ALLOWED) - used)
     assert stale == [], f"take these off STOP_CLEAR_ALLOWED: {stale}"
+
+
+# ── Ports open in one place and are listed by one function ───────────────────
+#
+# TERMAPY_ALLOWED_PORTS is applied where a port opens (config.open_serial) and
+# where the system's ports are listed (port_control.system_ports).  A second
+# opener or a direct comports() would be a route around it (decision
+# 2026-11-11).  The vendored pyserial is not scanned; termapy's own code is.
+
+PORT_OPEN_NAMES = frozenset({"serial_for_url", "Serial"})
+
+PORT_OPEN_ALLOWED: dict[tuple[str, str], str] = {
+    ("config.py", "open_serial"): "the one opener; the port policy is applied in it first",
+    (
+        "port_control.py",
+        "_check_in_use",
+    ): "the Windows in-use probe, run only on ports system_ports allowed",
+}
+
+PORT_LIST_ALLOWED: dict[tuple[str, str], str] = {
+    ("port_control.py", "system_ports"): "the one call to comports(); it applies the port policy",
+}
+
+
+def _port_open_sites(tree: ast.Module) -> list[tuple[str, int]]:
+    """``(qualname, line)`` of every call that builds a pyserial port: ``serial_for_url(...)`` or ``Serial(...)``."""
+    sites: list[tuple[str, int]] = []
+    for qualname, node in _scoped_nodes(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = (
+            func.attr
+            if isinstance(func, ast.Attribute)
+            else func.id
+            if isinstance(func, ast.Name)
+            else None
+        )
+        if name in PORT_OPEN_NAMES:
+            sites.append((qualname, node.lineno))
+    return sites
+
+
+def _port_list_sites(tree: ast.Module) -> list[tuple[str, int]]:
+    """``(qualname, line)`` of every import of pyserial's port enumeration, ``serial.tools.list_ports``."""
+    sites: list[tuple[str, int]] = []
+    for qualname, node in _scoped_nodes(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            module = node.module
+            if module.startswith("serial.tools.list_ports") or (
+                module == "serial.tools" and any(alias.name == "list_ports" for alias in node.names)
+            ):
+                sites.append((qualname, node.lineno))
+        elif isinstance(node, ast.Import):
+            if any(alias.name.startswith("serial.tools.list_ports") for alias in node.names):
+                sites.append((qualname, node.lineno))
+    return sites
+
+
+@pytest.mark.rule("port-policy-at-opener")
+def test_only_open_serial_opens_a_port():
+    """No module builds a pyserial port but config.open_serial and the in-use probe, so every open meets the port policy."""
+    # Arrange / Act
+    violations, _ = _unallowed(_port_open_sites, PORT_OPEN_ALLOWED)
+
+    # Assert
+    assert violations == [], (
+        "open a port through config.open_serial, which applies TERMAPY_ALLOWED_PORTS:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+@pytest.mark.rule("port-policy-at-opener")
+def test_port_open_guard_fires_on_a_probe():
+    """The finder sees serial_for_url and Serial, bare or through the module, and passes a simulator."""
+    # Arrange
+    probe = (
+        "def a():\n"
+        "    serial.serial_for_url('COM3')\n"
+        "def b():\n"
+        "    Serial('COM3')\n"
+        "def c():\n"
+        "    FakeSerial(baudrate=9600)\n"
+    )
+
+    # Act
+    found = _port_open_sites(ast.parse(probe))
+
+    # Assert
+    assert found == [("a", 2), ("b", 4)], "both builders are found; the simulator is not"
+
+
+@pytest.mark.rule("port-policy-at-opener")
+def test_port_open_allowlist_has_no_stale_entries():
+    """Every allowlisted opener still opens a port, so the list cannot rot."""
+    # Arrange / Act
+    _, used = _unallowed(_port_open_sites, PORT_OPEN_ALLOWED)
+
+    # Assert
+    stale = sorted(set(PORT_OPEN_ALLOWED) - used)
+    assert stale == [], f"take these off PORT_OPEN_ALLOWED: {stale}"
+
+
+@pytest.mark.rule("ports-enumerated-once")
+def test_only_port_control_enumerates_ports():
+    """Nothing imports pyserial's list_ports but port_control.system_ports, so every listing is filtered."""
+    # Arrange / Act
+    violations, _ = _unallowed(_port_list_sites, PORT_LIST_ALLOWED)
+
+    # Assert
+    assert violations == [], (
+        "list ports through port_control.system_ports, which applies TERMAPY_ALLOWED_PORTS:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+@pytest.mark.rule("ports-enumerated-once")
+def test_port_enumeration_guard_fires_on_a_probe():
+    """The finder sees every spelling of the list_ports import and passes an unrelated serial.tools module."""
+    # Arrange
+    probe = (
+        "def a():\n"
+        "    from serial.tools.list_ports import comports\n"
+        "def b():\n"
+        "    from serial.tools import list_ports\n"
+        "def c():\n"
+        "    import serial.tools.list_ports\n"
+        "def d():\n"
+        "    from serial.tools.miniterm import Miniterm\n"
+    )
+
+    # Act
+    found = _port_list_sites(ast.parse(probe))
+
+    # Assert
+    assert found == [("a", 2), ("b", 4), ("c", 6)], (
+        "each import of the enumeration is found; miniterm is not"
+    )
+
+
+@pytest.mark.rule("ports-enumerated-once")
+def test_port_list_allowlist_has_no_stale_entries():
+    """The allowlisted enumerator still imports list_ports, so the list cannot rot."""
+    # Arrange / Act
+    _, used = _unallowed(_port_list_sites, PORT_LIST_ALLOWED)
+
+    # Assert
+    stale = sorted(set(PORT_LIST_ALLOWED) - used)
+    assert stale == [], f"take these off PORT_LIST_ALLOWED: {stale}"

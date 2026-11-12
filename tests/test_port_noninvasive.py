@@ -191,7 +191,7 @@ class TestEnrichmentIsSeparateFromProbing:
 
         from termapy import cli_flags
 
-        args = argparse.Namespace(ports="*", json=False, vid=None, pid=None, mfg=None, sn=None)
+        args = argparse.Namespace(ports="*", json=False)
 
         # Act
         with pytest.raises(SystemExit), redirect_stdout(io.StringIO()):

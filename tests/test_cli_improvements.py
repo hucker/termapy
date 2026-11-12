@@ -97,7 +97,7 @@ class TestCliFlagsImportDiscipline:
 
 def _ports_args(**overrides) -> argparse.Namespace:
     """Build an argparse.Namespace mirroring entry.py defaults."""
-    base = dict(ports="*", json=False, vid=None, pid=None, mfg=None, sn=None)
+    base = dict(ports="*", json=False)
     base.update(overrides)
     return argparse.Namespace(**base)
 
@@ -283,99 +283,65 @@ class TestChipsJsonShape:
 # ── Multi-axis filters ────────────────────────────────────────────────────────
 
 
-class TestMultiAxisFilters:
+class TestPortsFilter:
+    """--ports <pattern> greps every field of each row: plain text contained, a wildcard a glob, case ignored."""
+
     @pytest.fixture
     def fleet(self):
-        """Three mock ports across two manufacturers + chip types."""
-        ftdi = _make_facts(
-            device="COM3",
-            manufacturer="FTDI",
-            vid_pid="0403:6001",
-            serial="FT01",
-        )
-        cp210 = _make_facts(
-            device="COM4",
-            manufacturer="Silabs",
-            vid_pid="10C4:EA60",
-            serial="SL02",
-            model="CP2102",
-        )
-        ch340 = _make_facts(
-            device="COM5",
-            manufacturer="WCH",
-            vid_pid="1A86:7523",
-            serial="CH03",
-            model="CH340",
-        )
-        return [ftdi, cp210, ch340]
+        """Three mock ports from three makers, each with its own serial number."""
+        return [
+            _make_facts(device="COM3", manufacturer="FTDI", vid_pid="0403:6001", serial="FT01"),
+            _make_facts(
+                device="COM4",
+                manufacturer="Silabs",
+                vid_pid="10C4:EA60",
+                serial="SL02",
+                model="CP2102",
+                driver="silabser",
+            ),
+            _make_facts(
+                device="COM5",
+                manufacturer="WCH",
+                vid_pid="1A86:7523",
+                serial="CH03",
+                model="CH340",
+                driver="CH341SER",
+            ),
+        ]
 
-    def _run(self, fleet, **flags):
+    def _devices(self, fleet, pattern: str) -> list[str]:
+        """The devices --ports <pattern> --json lists against ``fleet``."""
         buf = io.StringIO()
         with pytest.raises(SystemExit), redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True, **flags), source=lambda: fleet)
-        return json.loads(buf.getvalue())
+            cli_flags.run_ports(_ports_args(ports=pattern, json=True), source=lambda: fleet)
+        return [record["device"] for record in json.loads(buf.getvalue())]
 
-    @pytest.mark.rule("number-vocabularies")
-    def test_vid_filter_hex(self, fleet):
-        """A bare-hex --vid selects only the port whose vendor ID matches."""
-        actual = self._run(fleet, vid="0403")
-        assert len(actual) == 1, "single match"
-        assert actual[0]["device"] == "COM3", "FTDI matched"
+    @pytest.mark.parametrize(
+        ("pattern", "expected"),
+        [
+            ("ftdi", ["COM3"]),
+            ("LAB", ["COM4"]),
+            ("ch03", ["COM5"]),
+            ("10C4", ["COM4"]),
+            ("com4", ["COM4"]),
+            ("COM", ["COM3", "COM4", "COM5"]),
+            ("COM[35]", ["COM3", "COM5"]),
+        ],
+    )
+    def test_any_field_may_match(self, fleet, pattern, expected):
+        """Maker, serial number, VID:PID or name: a pattern contained in any field lists the row; a glob is anchored."""
+        assert self._devices(fleet, pattern) == expected
 
-    @pytest.mark.rule("number-vocabularies")
-    def test_vid_filter_with_0x_prefix(self, fleet):
-        """A 0x-prefixed --vid value is accepted and matches like the bare hex form."""
-        actual = self._run(fleet, vid="0x10C4")
-        assert len(actual) == 1, "single match with 0x prefix"
-        assert actual[0]["device"] == "COM4", "Silabs matched"
-
-    def test_pid_filter(self, fleet):
-        """--pid matches the product half of vid_pid, picking the CH340 out of the fleet."""
-        actual = self._run(fleet, pid="7523")
-        assert len(actual) == 1, "single PID match"
-        assert actual[0]["device"] == "COM5", "CH340 matched"
-
-    def test_mfg_substring_case_insensitive(self, fleet):
-        """--mfg is a case-insensitive substring: LAB finds the Silabs adapter."""
-        actual = self._run(fleet, mfg="LAB")
-        assert len(actual) == 1, "substring match, ignoring case"
-        assert actual[0]["manufacturer"] == "Silabs", "Silabs row"
-
-    def test_sn_exact_match_case_insensitive(self, fleet):
-        """--sn compares serial numbers ignoring case: ch03 selects the CH03 port."""
-        actual = self._run(fleet, sn="ch03")
-        assert len(actual) == 1, "single SN match"
-        assert actual[0]["serial_number"] == "CH03", "WCH row"
-
-    def test_filters_and_together(self, fleet):
-        """Two filters combine with AND -- a port must satisfy both --vid and --mfg to list."""
-        # Arrange + Act -- vid AND mfg both narrow; both must match.
-        actual = self._run(fleet, vid="0403", mfg="ftdi")
-
-        # Assert
-        assert len(actual) == 1, "AND of two filters"
-        assert actual[0]["device"] == "COM3", "FTDI matched"
-
-    def test_filter_no_match_returns_empty_and_exits_1(self, fleet):
-        """A filter that matches nothing prints an empty array and exits 1, like an empty fleet."""
-        # Arrange + Act
+    def test_a_pattern_matching_nothing_lists_nothing_and_exits_1(self, fleet):
+        """A pattern no field contains prints an empty array and exits 1, like an empty fleet."""
+        # Act
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
-            cli_flags.run_ports(_ports_args(json=True, vid="dead"), source=lambda: fleet)
+            cli_flags.run_ports(_ports_args(ports="Espressif", json=True), source=lambda: fleet)
 
         # Assert
         assert exc.value.code == 1, "exit 1 on no match"
-        actual = json.loads(buf.getvalue())
-        assert actual == [], "empty array"
-
-    def test_invalid_vid_exits_2(self, fleet):
-        """A non-hex --vid exits 2, keeping bad input distinct from no match (exit 1)."""
-        # Arrange + Act
-        with pytest.raises(SystemExit) as exc:
-            cli_flags.run_ports(_ports_args(json=True, vid="not-hex"), source=lambda: fleet)
-
-        # Assert -- exit 2 distinguishes "bad input" from "no match" (1).
-        assert exc.value.code == 2, "exit 2 on invalid input"
+        assert json.loads(buf.getvalue()) == [], "an empty array"
 
 
 # ── Driver column behavior in port_format ─────────────────────────────────────

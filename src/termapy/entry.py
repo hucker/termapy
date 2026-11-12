@@ -280,9 +280,10 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="?",
         const="*",
         default=None,
-        metavar="PORT",
+        metavar="PATTERN",
         help="List serial ports one line per port and exit.  "
-        "Optional PORT name filters to a single device.",
+        "Optional PATTERN shows the ports any field of which contains it "
+        "(FTDI, Microchip, a serial number, COM4); a wildcard makes a glob.",
     )
     parser.add_argument(
         "--watch",
@@ -301,36 +302,16 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="?",
         const="*",
         default=None,
-        metavar="FILTER",
+        metavar="PATTERN",
         help="Dump the USB-serial chip lookup table and exit.  "
-        "Optional FILTER substring narrows to matching chip models.",
+        "Optional PATTERN shows the chips any column of which contains it "
+        "(ftdi, 0403, high); a wildcard makes a glob.",
     )
     parser.add_argument(
         "--json",
         action="store_true",
         help="Emit JSON instead of a column-aligned table.  "
         "Applies to --ports, --chips, and --usb.",
-    )
-    parser.add_argument(
-        "--vid",
-        default=None,
-        help="Filter --ports to USB devices matching this VID (hex, with or without 0x).",
-    )
-    parser.add_argument(
-        "--pid",
-        default=None,
-        help="Filter --ports to USB devices matching this PID (hex, with or without 0x).",
-    )
-    parser.add_argument(
-        "--mfg",
-        default=None,
-        help="Filter --ports to devices whose manufacturer string contains "
-        "this substring (case-insensitive).",
-    )
-    parser.add_argument(
-        "--sn",
-        default=None,
-        help="Filter --ports to the device with this exact serial number (case-insensitive).",
     )
     parser.add_argument(
         "--validate-profile",

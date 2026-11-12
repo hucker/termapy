@@ -2999,7 +2999,6 @@ HEX_PARSE_ALLOWED: dict[tuple[str, str], str] = {
     ): "the one hex-byte tokenizer behind parse_data, parse_data_segments and parse_pattern",
     ("symbols/address.py", "parse_number"): "the published number reader",
     ("port_format.py", "split_vid_pid"): "the USB id reader; USB ids are hex by convention",
-    ("cli_flags.py", "_parse_hex_int"): "a --ports VID/PID filter, hex by USB convention",
     ("demo.py", "FakeSerial._parse_hex_addr"): "the simulated device's own grammar",
     ("demo.py", "FakeSerial._handle_mem_native"): "the simulated device's own grammar",
     ("demo.py", "FakeSerial._handle_mem"): "the simulated device's own grammar",

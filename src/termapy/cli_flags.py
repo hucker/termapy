@@ -118,66 +118,39 @@ def _ports_row_width() -> int:
     return _PORTS_PIPED_ROW_WIDTH
 
 
-def _filter_facts(args: argparse.Namespace, facts_list: list) -> list:
-    """Apply --vid / --pid / --mfg / --sn filters.
+def _ports_matching(pattern: str, facts_list: list[ChipFacts]) -> list[ChipFacts]:
+    """The ports any of whose fields match ``pattern``: a grep across each row.
 
-    Each filter is optional; any combination AND-s.  ``--vid`` /
-    ``--pid`` accept hex (with or without 0x prefix) or decimal.
-    ``--mfg`` is a case-insensitive substring match.  ``--sn`` is an
-    exact case-insensitive match.
+    Read by ``matching.matches``, the one reader of a list filter: plain text
+    is contained (``FTDI``, ``Microchip``, a serial number, ``COM4``), a
+    wildcard makes a glob anchored at both ends, and case is ignored.  The
+    fields are the ``--json`` record's, so what the filter sees is what a
+    script would.  A simulator port (``DEMO``) named exactly is shown too:
+    it is not enumerated, and CI lists it without hardware.
     """
-    out = facts_list
-    if args.vid is not None:
-        needle = _parse_hex_int(args.vid)
-        if needle is None:
-            print(f"Invalid --vid: {args.vid!r}", file=sys.stderr)
-            sys.exit(2)
-        out = [f for f in out if _vid_of(f) == needle]
-    if args.pid is not None:
-        needle = _parse_hex_int(args.pid)
-        if needle is None:
-            print(f"Invalid --pid: {args.pid!r}", file=sys.stderr)
-            sys.exit(2)
-        out = [f for f in out if _pid_of(f) == needle]
-    if args.mfg:
-        m = args.mfg.lower()
-        out = [f for f in out if f.manufacturer and m in f.manufacturer.lower()]
-    if args.sn:
-        s = args.sn.lower()
-        out = [f for f in out if f.serial and f.serial.lower() == s]
-    return out
+    from termapy import port_control
+    from termapy.matching import matches
+    from termapy.port_format import facts_to_json_record
 
-
-def _parse_hex_int(s: str) -> int | None:
-    """Parse a VID/PID string as hex.  Accepts ``0x0403``, ``0403``, ``403``."""
-    s = s.strip().lower()
-    if s.startswith("0x"):
-        s = s[2:]
-    try:
-        return int(s, 16)
-    except ValueError:
-        return None
-
-
-def _vid_of(facts: ChipFacts) -> int | None:
-    from termapy.port_format import split_vid_pid
-
-    return split_vid_pid(facts.vid_pid)[0]
-
-
-def _pid_of(facts: ChipFacts) -> int | None:
-    from termapy.port_format import split_vid_pid
-
-    return split_vid_pid(facts.vid_pid)[1]
+    matched = [
+        fact
+        for fact in facts_list
+        if any(
+            isinstance(value, str) and matches(value, pattern)
+            for value in facts_to_json_record(fact).values()
+        )
+    ]
+    synthetic = port_control.synthetic_facts_for_reserved(pattern.upper())
+    return [*matched, synthetic] if synthetic is not None else matched
 
 
 def run_ports(args: argparse.Namespace, *, source: PortSource | None = None) -> None:
     """List serial ports one line per port and exit.
 
     With ``args.ports == "*"`` (the argparse ``const`` when the flag
-    is given bare), lists every port.  ``args.ports`` as a literal
-    name filters to that one device.  Multi-axis filters (``--vid``,
-    ``--pid``, ``--mfg``, ``--sn``) AND with the name match.
+    is given bare), lists every port.  Any other value is a pattern
+    matched against every field of each row (``_ports_matching``):
+    ``--ports FTDI``, ``--ports Microchip``, a serial number.
 
     Output is the picker table by default (PORT / MFG / DESCRIPTION /
     CHIP / SPEED / VID:PID / SN / DRIVER), or a JSON array when
@@ -204,25 +177,12 @@ def run_ports(args: argparse.Namespace, *, source: PortSource | None = None) -> 
     if note:
         print(f"termapy: ports {note}", file=sys.stderr)
 
+    facts_list = all_facts
     if args.ports and args.ports != "*":
-        all_facts = [
-            fact
-            for fact in all_facts
-            if fact.device is not None and port_control.same_port(fact.device, args.ports)
-        ]
-        # Reserved virtual ports (DEMO, DEMO_FAIL) aren't OS-enumerated
-        # but are reachable at runtime; surface a synthetic record when
-        # the user names one explicitly so CI can exercise --ports
-        # without hardware.
-        if not all_facts:
-            synthetic = port_control.synthetic_facts_for_reserved(args.ports)
-            if synthetic is not None:
-                all_facts = [synthetic]
-        if not all_facts and not args.json:
+        facts_list = _ports_matching(args.ports, all_facts)
+        if not facts_list and not args.json:
             print(f"No port matching {args.ports!r}", file=sys.stderr)
             sys.exit(1)
-
-    facts_list = _filter_facts(args, all_facts)
 
     if args.json:
         from termapy.port_format import facts_to_json_record
@@ -231,11 +191,6 @@ def run_ports(args: argparse.Namespace, *, source: PortSource | None = None) -> 
         print(json.dumps(records, indent=2))
         sys.exit(0 if records else 1)
 
-    if not facts_list:
-        if args.ports and args.ports != "*":
-            # Already printed the no-match message above.
-            sys.exit(1)
-        # Filters narrowed to empty; format_table prints a header still.
     lines = format_table(facts_list, _ports_row_width())
     for line in lines:
         print(line)
@@ -606,8 +561,8 @@ def _emit_diff(
 def run_chips(args: argparse.Namespace) -> None:
     """Dump the USB-serial chip lookup table to stdout.
 
-    An optional name pattern narrows it to the chips whose model or
-    speed matches, through the one filter ``/port.chip.list`` uses
+    An optional name pattern narrows it to the chips any column of which
+    matches (VID:PID, model, speed), through the one filter ``/port.chip.list`` uses
     (``port_format.find_chips``); the bare flag's ``*`` matches them
     all.  ``--json`` produces an array of chip records instead of the
     column-aligned table.

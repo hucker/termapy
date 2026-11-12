@@ -327,9 +327,9 @@ def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
     """Dump the USB-serial chip lookup table.
 
     Prints one row per known (VID:PID, chip model, speed, max_baud).
-    An optional name pattern narrows it to the chips whose model or
-    speed matches (``port_format.find_chips``).  Typical use:
-    ``/port.chip.list ftdi``, ``/port.chip.list high``.
+    An optional name pattern narrows it to the chips any column of which
+    matches (``port_format.find_chips``).  Typical use:
+    ``/port.chip.list ftdi``, ``/port.chip.list 0403``, ``/port.chip.list high``.
 
     ``CmdResult.value`` is the number of chips matching the filter (or
     the total when unfiltered), so a script can capture the match count
@@ -800,13 +800,14 @@ COMMAND = Command(
                     help="Dump the USB-serial chip lookup table.",
                     long_help=(
                         "Show every chip termapy recognizes.  With a pattern,\n"
-                        "only chips whose model or speed matches it: plain\n"
-                        "text is contained, a wildcard (* ? [) makes a glob,\n"
-                        "and case is ignored.\n"
+                        "only chips whose VID:PID, model or speed matches it:\n"
+                        "plain text is contained, a wildcard (* ? [) makes a\n"
+                        "glob, and case is ignored.\n"
                         "\n"
                         "Examples:\n"
                         "  {prefix}port.chip.list           -- every chip\n"
                         "  {prefix}port.chip.list ftdi      -- FTDI chips only\n"
+                        "  {prefix}port.chip.list 0403      -- vendor ID 0403\n"
                         "  {prefix}port.chip.list arduino   -- Arduino boards only\n"
                         "  {prefix}port.chip.list high      -- high-speed chips"
                     ),

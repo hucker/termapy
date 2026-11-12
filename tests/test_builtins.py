@@ -3659,6 +3659,22 @@ class TestPortChipList:
         actual = int(result.value)
         assert actual > 0, "the high-speed chips are found by their speed"
 
+    @pytest.mark.parametrize(
+        ("pattern", "vid_pid"), [("0403", "0403:"), ("10c4:ea60", "10C4:EA60")]
+    )
+    def test_a_vid_pid_finds_its_chips(self, repl_env, pattern, vid_pid):
+        """The filter reads the VID:PID column in either case, so /port.chip.list 0403 finds the FTDI chips."""
+        # Arrange
+        engine, _, _, _ = repl_env
+
+        # Act
+        result = engine.dispatch(f"port.chip.list {pattern}")
+
+        # Assert
+        records = result.data
+        assert records, "the VID:PID column is searched"
+        assert all(vid_pid in record["vid_pid"] for record in records), "and only those chips"
+
 
 class TestPortHandlerValues:
     """The ``/port`` family used to drop ``CmdResult.value`` on every

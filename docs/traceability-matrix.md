@@ -539,7 +539,6 @@ Ids: 186: 171 registry rows (guarantees 136, assumptions 35), 15 spec sections i
 
 ### `number-vocabularies` (assumption, data)
 
-- `test_cli_improvements.py`: `TestMultiAxisFilters.test_vid_filter_hex`, `TestMultiAxisFilters.test_vid_filter_with_0x_prefix`
 - `test_symbols_address.py`: `TestParseNumber` (1 functions), `TestParseAddressSymbols.test_bare_hex_is_a_name`
 
 ### `one-handler-per-command` (guarantee, structure)

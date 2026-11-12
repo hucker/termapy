@@ -233,16 +233,17 @@ def split_vid_pid(vid_pid: str | None) -> tuple[int | None, int | None]:
 
 
 def find_chips(pattern: str = "") -> list[tuple[int, int, ChipInfo]]:
-    """The known USB-serial chips whose model or speed matches ``pattern``, by VID:PID.
+    """The known USB-serial chips any column of which matches ``pattern``, by VID:PID.
 
     The one filter of ``/port.chip.list`` and ``--chips`` (registry
-    ``name-one-matcher``): ``ftdi`` finds the FTDI models, ``high`` the
-    high-speed chips, and an empty pattern every chip.
+    ``name-one-matcher``), over every column the table shows: ``ftdi``
+    finds the FTDI models, ``0403`` the chips with that vendor ID,
+    ``high`` the high-speed chips, and an empty pattern every chip.
     """
     rows = [
         (vid, pid, info)
         for (vid, pid), info in USB_SERIAL_CHIPS.items()
-        if matches(info.model, pattern) or matches(info.speed, pattern)
+        if any(matches(text, pattern) for text in (f"{vid:04X}:{pid:04X}", info.model, info.speed))
     ]
     return sorted(rows, key=lambda row: (row[0], row[1]))
 

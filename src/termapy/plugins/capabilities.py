@@ -334,6 +334,16 @@ class CapabilitySet:
         "outbound network access (TERMAPY_MCP_NET_EGRESS=1 under MCP)",
     )
 
+    # What:  Handler may describe the host machine beyond the allowed
+    #        devices: the host fingerprint (OS, hostname, terminal
+    #        environment).  The whole USB bus and the programs holding a
+    #        port follow the same flag, through env_flags.port_policy.
+    # Where: CLI, TUI.  MCP only when ``TERMAPY_MCP_HOST_INFO`` is set
+    #        (decision 2026-11-12).
+    host_info: bool = _restricted(
+        "a view of the host machine (TERMAPY_MCP_HOST_INFO=1 under MCP)",
+    )
+
     # ── Named profiles ──────────────────────────────────────────────────
     # The recurring ``needs=`` declarations, one frozen shared instance
     # each (assigned right after the class; safe because the dataclass is
@@ -586,7 +596,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
     gui = detect_gui_apps()
     # MCP host confinement is per-class opt-in from the server's shell;
     # mirror it here so /help AVAILABLE reflects the running policy.
-    from termapy.env_flags import MCP_FS_UNCONFINED, MCP_NET_EGRESS
+    from termapy.env_flags import MCP_FS_UNCONFINED, MCP_HOST_INFO, MCP_NET_EGRESS
 
     environments = {
         # TUI (Textual app): everything an interactive desktop terminal has.
@@ -602,6 +612,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
             status_bar=True,
             filesystem_unconfined=True,
             network_egress=True,
+            host_info=True,
         ),
         # CLI (interactive REPL or --run script): interactive but no Textual UI.
         # Its confirmation is the y/n prompt on stdin.
@@ -612,6 +623,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
             confirm_dialog=True,
             filesystem_unconfined=True,
             network_egress=True,
+            host_info=True,
         ),
         # MCP (stdio server): no human, no display.  Host access beyond the
         # device is sandboxed unless the operator opts in per-class.
@@ -619,6 +631,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
             session_log=True,
             filesystem_unconfined=MCP_FS_UNCONFINED,
             network_egress=MCP_NET_EGRESS,
+            host_info=MCP_HOST_INFO,
         ),
     }
     # This matrix answers "can the command EVER run there"; "is it

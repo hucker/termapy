@@ -166,6 +166,16 @@ class PortPolicy:
     allowlist: PortAllowlist | None = None
     under_mcp: bool = False
     network_egress: bool = True
+    host_info: bool = False
+
+    @property
+    def hides_host(self) -> bool:
+        """Whether what this process shows stops at the allowed devices: MCP without ``TERMAPY_MCP_HOST_INFO``.
+
+        Then ``/port.usb`` draws only the branches that lead to an allowed
+        port, and a program holding a port is not named (decision 2026-11-12).
+        """
+        return self.under_mcp and not self.host_info
 
     @property
     def in_force(self) -> bool:

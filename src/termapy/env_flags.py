@@ -34,6 +34,11 @@ The settings:
   opt-ins that lift parts of the MCP host sandbox (see the comment above
   them below).
 
+- ``TERMAPY_MCP_HOST_INFO``: when truthy, an MCP server shows the machine
+  beyond the allowed ports: the whole USB bus, the programs holding a port,
+  and ``/log.fingerprint``.  Off, an agent sees the allowed devices and the
+  path to them only (decision 2026-11-12).
+
 - ``TERMAPY_ALLOWED_PORTS``: the ports this process may open and list, one
   regex (``port_allow``).  Unset, a person's session allows every port and
   an MCP server none.  Not a boolean: a value that does not compile is the
@@ -153,6 +158,8 @@ MCP_ENV_ENABLED: bool = _read_gate("TERMAPY_MCP_ENV_ENABLED")
 #   MCP_NET_EGRESS    -> network_egress (serial-over-URL socket://, rfc2217://)
 MCP_FS_UNCONFINED: bool = _read_gate("TERMAPY_MCP_FS_UNCONFINED")
 MCP_NET_EGRESS: bool = _read_gate("TERMAPY_MCP_NET_EGRESS")
+#   MCP_HOST_INFO     -> host_info (the whole USB bus, port holders, fingerprint)
+MCP_HOST_INFO: bool = _read_gate("TERMAPY_MCP_HOST_INFO")
 
 # Not a policy gate: the GUI-apps detection override (see
 # ``plugins.capabilities.detect_gui_apps``).  Read here with the other
@@ -193,7 +200,12 @@ def port_policy() -> PortPolicy:
     Read at each use rather than frozen, because the marker is set after
     import; it only ever narrows (an MCP server with no list allows no port).
     """
-    return PortPolicy(allowlist=ALLOWED_PORTS, under_mcp=_under_mcp, network_egress=MCP_NET_EGRESS)
+    return PortPolicy(
+        allowlist=ALLOWED_PORTS,
+        under_mcp=_under_mcp,
+        network_egress=MCP_NET_EGRESS,
+        host_info=MCP_HOST_INFO,
+    )
 
 
 def env_access_blocked() -> bool:
@@ -214,6 +226,7 @@ __all__ = [
     "MCP_ENV_ENABLED",
     "MCP_FS_UNCONFINED",
     "MCP_NET_EGRESS",
+    "MCP_HOST_INFO",
     "GUI_OVERRIDE",
     "ALLOWED_PORTS",
     "port_policy",

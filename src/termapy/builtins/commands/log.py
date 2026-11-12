@@ -574,8 +574,10 @@ COMMAND = Command(
             },
             flags=_FINGERPRINT_FLAGS,
             # It writes to the session log: in the CLI, which keeps none, it
-            # said "written to log" and wrote nowhere.
-            needs=CapabilitySet.SESSION_LOG,
+            # said "written to log" and wrote nowhere.  It describes the host
+            # (OS, hostname, terminal environment), so an MCP server answers it
+            # only under TERMAPY_MCP_HOST_INFO (decision 2026-11-12).
+            needs=CapabilitySet(session_log=True, host_info=True),
         ),
         "list": Command(
             help=_LIST_HELP,

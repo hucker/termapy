@@ -594,7 +594,8 @@ def gather_usb_tree(
     node with no allowed port in it or below it loses its serial number.
     A person still sees the whole bus; an MCP server sees only the branches
     that lead to an allowed port, so an agent learns of no device the port
-    listings hide.
+    listings hide, unless ``TERMAPY_MCP_HOST_INFO`` opts it in to the whole
+    bus (``PortPolicy.hides_host``).
 
     Args:
         source: Callable returning ``UsbRecord``s, used instead of
@@ -632,8 +633,8 @@ def gather_usb_tree(
     tag_serial_ports(roots, facts_list)
     if not policy.in_force:
         return roots
-    carrying = [root for root in roots if _leave_out_hidden(root, prune=policy.under_mcp)]
-    return carrying if policy.under_mcp else roots
+    carrying = [root for root in roots if _leave_out_hidden(root, prune=policy.hides_host)]
+    return carrying if policy.hides_host else roots
 
 
 def _leave_out_hidden(node: UsbNode, *, prune: bool) -> bool:

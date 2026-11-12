@@ -1005,9 +1005,12 @@ class TestLogCommandsAvailableInMCP:
         missing = list(plugin.needs.missing_from(attainable(host.ctx.capabilities)))
         assert missing == [], f"log.dump satisfied by MCP capabilities (missing={missing})"
 
-    def test_log_fingerprint_registered_and_mcp_callable(self, host):
-        """/log.fingerprint is a builtin whose needs MCP fully satisfies."""
+    @pytest.mark.rule("mcp-host-info-opt-in")
+    def test_log_fingerprint_registered_but_gated_on_host_info(self, host):
+        """/log.fingerprint describes the host, so MCP reaches it only with host_info (TERMAPY_MCP_HOST_INFO, decision 2026-11-12)."""
         # Arrange / Act
+        from dataclasses import replace
+
         from termapy.plugins.capabilities import attainable
 
         plugin = host.repl._plugins.get("log.fingerprint")
@@ -1015,7 +1018,9 @@ class TestLogCommandsAvailableInMCP:
         # Assert
         assert plugin is not None, "log.fingerprint registered as a builtin in MCP host"
         missing = list(plugin.needs.missing_from(attainable(host.ctx.capabilities)))
-        assert missing == [], f"log.fingerprint satisfied by MCP capabilities (missing={missing})"
+        assert missing == ["host_info"], "gated on the host view by default"
+        opted_in = attainable(replace(host.ctx.capabilities, host_info=True))
+        assert list(plugin.needs.missing_from(opted_in)) == [], "and satisfied once it is granted"
 
     def test_log_show_registered_but_gated_on_gui_apps(self, host):
         """/log.show is registered but stays unavailable to MCP for lack of gui_apps."""

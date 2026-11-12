@@ -1269,10 +1269,10 @@ def _check_in_use(device: str, connected_port: str = "") -> str:
         return "yes (this session)"
     if sys.platform != "win32":
         # Non-invasive: lsof never opens the port.  Names the holder.
-        from termapy.serial_engine import _find_port_holder
+        from termapy.serial_engine import _find_port_holder, shown_holder
 
         holder = _find_port_holder(device)
-        return f"yes ({holder})" if holder else "no"
+        return f"yes ({shown_holder(holder)})" if holder else "no"
     # Windows: create closed, de-assert DTR/RTS, then open so the DCB
     # applies DTR_CONTROL_DISABLE / RTS_CONTROL_DISABLE instead of the
     # pyserial default (both ENABLE), which is what pulses auto-reset.

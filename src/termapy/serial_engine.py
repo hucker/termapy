@@ -60,6 +60,24 @@ RX_READ_MAX_BYTES = 4096
 RX_QUEUE_MAX_CHUNKS = 1024
 
 
+def shown_holder(holder: str, *, hides_host: bool | None = None) -> str:
+    """A port's holder as a page may name it: the program, or "another program" under MCP.
+
+    An MCP server without ``TERMAPY_MCP_HOST_INFO`` says a port is held but
+    not by what (decision 2026-11-12): the processes on the machine are not
+    the agent's business.  The port is still reported in use either way.
+
+    Args:
+        holder: What ``_find_port_holder`` found, ``"python (PID 8842)"``.
+        hides_host: Whether to hide it; None asks this process's policy.
+    """
+    if hides_host is None:
+        from termapy.env_flags import port_policy
+
+        hides_host = port_policy().hides_host
+    return "another program" if hides_host else holder
+
+
 def _find_port_holder(port_name: str) -> str | None:
     """Return the process holding ``port_name``, or None if unavailable.
 
@@ -160,7 +178,7 @@ def _classify_serial_error(
     def _in_use() -> str:
         base = "Permission denied -- port may be in use by another application"
         holder = _find_port_holder(port_name) if port_name else None
-        return f"{base}: held by {holder}" if holder else base
+        return f"{base}: held by {shown_holder(holder)}" if holder else base
 
     def _not_found() -> str:
         base = f"Port not found -- check the port name with {prefix}port.list"

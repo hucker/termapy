@@ -292,9 +292,20 @@ class TextLine:
     color: str = ""
 
 
-# One item of a record page: a row, a plain line, or ``None`` for a blank
-# line.  Consecutive rows align as one group.
-Item = KvRow | TextLine | None
+@dataclass(frozen=True)
+class PieceLine:
+    """A line among a record page's rows whose parts differ in style: a drawing.
+
+    Attributes:
+        pieces: The line's pieces, each text literal and in its own style.
+    """
+
+    pieces: tuple[Piece, ...]
+
+
+# One item of a record page: a row, a plain line, a line of styled pieces, or
+# ``None`` for a blank line.  Consecutive rows align as one group.
+Item = KvRow | TextLine | PieceLine | None
 
 
 @dataclass(frozen=True)
@@ -305,7 +316,8 @@ class RecordView:
         items: The page top to bottom.  Each run of consecutive rows is
             aligned on its own (``/port.info``'s settings, chip and signal
             groups), a ``TextLine`` is a plain line (``/port.chip``'s
-            device heading), and ``None`` is a blank line.
+            device heading), a ``PieceLine`` a line styled in parts
+            (``/port.usb``'s tree), and ``None`` is a blank line.
     """
 
     items: tuple[Item, ...]
@@ -324,7 +336,9 @@ class RecordView:
                 group.append(item)
                 continue
             flush()
-            if item is None or not item.text:
+            if isinstance(item, PieceLine):
+                lines.append(f"  {pieces_markup(item.pieces)}")
+            elif item is None or not item.text:
                 lines.append("")
             else:
                 body_markup = escape_markup(item.text)

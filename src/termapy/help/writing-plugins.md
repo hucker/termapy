@@ -312,8 +312,10 @@ record: the facts with real JSON types become `data`, and the
 `(label, text)` rows are what a person reads, aligned with cyan labels.
 termapy prints the rows unless the caller wants data, so a JSON answer
 carries each fact once.  A row's optional third element colors its text;
-leave a row out to omit it, put `None` between rows for a blank line, and
-a `TextLine("heading", "green")` among them for a plain line:
+leave a row out to omit it, put `None` between rows for a blank line,
+a `TextLine("heading", "green")` among them for a plain line, and a
+`PieceLine((Piece("text"), Piece("part", style="bold")))` for a line whose
+parts differ in style (each piece's text is escaped, as a row's is):
 
 ```python
 def _handler(ctx: PluginContext, args: str) -> CmdResult:

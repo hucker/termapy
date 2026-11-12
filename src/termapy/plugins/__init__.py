@@ -114,7 +114,17 @@ from termapy.plugins.output_levels import (
     format_kv_lines,
     parse_output_level,
 )
-from termapy.plugins.views import Column, Item, KvRow, Link, Piece, RecordView, TableView, TextLine
+from termapy.plugins.views import (
+    Column,
+    Item,
+    KvRow,
+    Link,
+    Piece,
+    PieceLine,
+    RecordView,
+    TableView,
+    TextLine,
+)
 
 __all__ = [
     # Capabilities
@@ -133,6 +143,7 @@ __all__ = [
     "KvRow",
     "Link",
     "Piece",
+    "PieceLine",
     "RecordView",
     "TableView",
     "TextLine",

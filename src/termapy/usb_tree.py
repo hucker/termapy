@@ -34,6 +34,8 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from termapy.plugins.views import Piece
+
 if TYPE_CHECKING:
     from types import ModuleType
 
@@ -253,8 +255,13 @@ def _describe(node: UsbNode) -> str:
     return "  ".join(bits)
 
 
+#: How ``/port.usb`` marks a node that carries a serial port, and its port name.
+PORT_ROW_STYLE = "cyan"
+PORT_NAME_STYLE = "bold green"
+
+
 def render_tree(roots: list[UsbNode], label_width: int = 0) -> list[str]:
-    """Render the forest as aligned text lines.
+    """Render the forest as aligned text lines: ``render_tree_pieces`` without its styles.
 
     Args:
         roots: Tree to draw.
@@ -264,15 +271,44 @@ def render_tree(roots: list[UsbNode], label_width: int = 0) -> list[str]:
     Returns:
         Lines without trailing newlines.
     """
+    return [
+        "".join(piece.text for piece in line) for line in render_tree_pieces(roots, label_width)
+    ]
+
+
+def render_tree_pieces(roots: list[UsbNode], label_width: int = 0) -> list[list[Piece]]:
+    """Render the forest as aligned lines of pieces, the serial ports picked out.
+
+    A node that carries a serial port is drawn in ``PORT_ROW_STYLE`` and its
+    ``-> COM7`` in ``PORT_NAME_STYLE``; every other node is unstyled.  The
+    pieces' text joined is exactly ``render_tree``'s line.
+
+    Args:
+        roots: Tree to draw.
+        label_width: Column budget for the connector+label side.  Zero
+            measures the tree and fits it.
+
+    Returns:
+        One list of pieces per line.
+    """
     if not roots:
-        return ["(no USB devices found)"]
+        return [[Piece("(no USB devices found)")]]
     if not label_width:
         label_width = max(len(prefix) + len(node.label) for prefix, node in _flatten(roots))
     lines = []
     for prefix, node in _flatten(roots):
         left = f"{prefix}{node.label}".ljust(label_width)
-        port = f"  -> {node.port_name}" if node.port_name else ""
-        lines.append(f"{left}  {_describe(node)}{port}".rstrip())
+        body = f"{left}  {_describe(node)}"
+        if node.port_name:
+            lines.append(
+                [
+                    Piece(body, style=PORT_ROW_STYLE),
+                    Piece("  "),
+                    Piece(f"-> {node.port_name}", style=PORT_NAME_STYLE),
+                ]
+            )
+        else:
+            lines.append([Piece(body.rstrip())])
     return lines
 
 

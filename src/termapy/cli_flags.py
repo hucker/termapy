@@ -51,7 +51,10 @@ if TYPE_CHECKING:
     from pathlib import Path
     from typing import NoReturn
 
+    from rich.console import Console
+
     from termapy.breadcrumbs import Crumb
+    from termapy.plugins.views import Piece
     from termapy.port_control import ChipFacts, PortSource
     from termapy.usb_tree import UsbSource
 
@@ -351,13 +354,15 @@ def run_usb(args: argparse.Namespace, *, source: UsbSource | None = None) -> Non
     that way -- a listing that included keyboards would stop being a
     port listing.
 
-    ``--json`` emits the same tree as nested records instead.
+    ``--json`` emits the same tree as nested records instead.  At a
+    terminal the serial-port rows are colored as ``/port.usb`` colors
+    them; piped, or with ``--no-color``, the text is plain.
 
     Exits 0 when at least one device was found, 1 when the bus is empty
     or the platform has no backend.
 
     Args:
-        args: Parsed CLI namespace; only ``json`` is read.
+        args: Parsed CLI namespace; ``json`` and ``no_color`` are read.
         source: Callable returning UsbRecords, used instead of
             enumerating.  Nothing on the command line sets it.
     """
@@ -365,6 +370,7 @@ def run_usb(args: argparse.Namespace, *, source: UsbSource | None = None) -> Non
         UnsupportedPlatform,
         gather_usb_tree,
         render_tree,
+        render_tree_pieces,
         to_json_records,
     )
 
@@ -378,9 +384,36 @@ def run_usb(args: argparse.Namespace, *, source: UsbSource | None = None) -> Non
         print(json.dumps(to_json_records(roots), indent=2))
         sys.exit(0 if roots else 1)
 
-    for line in render_tree(roots):
-        print(line)
+    if sys.stdout.isatty() and not getattr(args, "no_color", False):
+        print_styled(render_tree_pieces(roots))
+    else:
+        for line in render_tree(roots):
+            print(line)
     sys.exit(0 if roots else 1)
+
+
+def print_styled(lines: Iterable[list[Piece]], console: Console | None = None) -> None:
+    """Print lines of pieces in their styles to a terminal.
+
+    Rich is imported here, not at the top: a print-and-exit flag loads it
+    only when its output is a terminal it colors, so piped output stays as
+    light as before (registry ``flag-paths-light``).  Rich honors
+    ``NO_COLOR`` (dropping color, keeping bold) and an older Windows
+    console by itself.
+
+    Args:
+        lines: One list of pieces per line (``usb_tree.render_tree_pieces``).
+        console: Where to print; a new stdout console when None.
+    """
+    from rich.console import Console
+
+    from termapy.plugins.views import pieces_markup
+
+    console = Console(soft_wrap=True) if console is None else console
+    for pieces in lines:
+        # No highlighter: only the pieces' own styles, never Rich's guesses
+        # (it would bold every number in a hub path).
+        console.print(pieces_markup(pieces), highlight=False)
 
 
 def run_watch(args: argparse.Namespace, *, source: PortSource | None = None) -> None:

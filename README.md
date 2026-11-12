@@ -139,10 +139,13 @@ Termapy runs with your privileges and does whatever you — or a connected MCP c
 | Host access (refused by default on the main routes) | Opt in with |
 | --- | --- |
 | Files outside the config directory | `TERMAPY_MCP_FS_UNCONFINED=1` |
-| Network sockets (`socket://`, `rfc2217://`) | `TERMAPY_MCP_NET_EGRESS=1` |
+| Serial ports | `TERMAPY_ALLOWED_PORTS` naming them |
+| Network sockets (`socket://`, `rfc2217://`) | `TERMAPY_MCP_NET_EGRESS=1`, and `TERMAPY_ALLOWED_PORTS` naming the host exactly |
 | Environment variables (`/env`, `$(env.X)`) | `TERMAPY_MCP_ENV_ENABLED=1` |
 
-Each flag takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outside that vocabulary refuses to start, naming the variable, rather than silently meaning off.
+Each `TERMAPY_MCP_*` flag takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outside that vocabulary refuses to start, naming the variable, rather than silently meaning off.
+
+`TERMAPY_ALLOWED_PORTS` limits the ports termapy opens and lists in every frontend: one regular expression over port names and USB serial numbers (`COM7|BG03U7VTA`). Unset, the TUI and CLI may open any port and an MCP server none. Keep it where an agent can't edit it; see [Serial ports](src/termapy/help/ports.md#limiting-which-ports-termapy-may-open) and [MCP server](src/termapy/help/mcp-server.md#which-ports-it-may-open).
 
 No flag opens the rest to an MCP client: a shell (`/os`), renaming or deleting files, writing into `plugin/` or `viz/`, and replacing a file outside the config's folder. These limit termapy's own commands; a client that can write files some other way is outside them.
 

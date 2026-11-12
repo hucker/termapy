@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 182: 167 registry rows (guarantees 132, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 178. Pinned by none: 4.
+Ids: 185: 170 registry rows (guarantees 135, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 181. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -517,6 +517,10 @@ Ids: 182: 167 registry rows (guarantees 132, assumptions 35), 15 spec sections i
 - `test_sym_commands.py`: `TestDevLib.test_a_filter_matching_nothing_is_an_empty_answer`, `TestDevRegs.test_a_pattern_matches_register_or_peripheral`
 - `test_symbols_table.py`: `TestSymbolTableSearch.test_a_bracket_is_a_glob_class`, `TestSymbolTableSearch.test_a_regex_is_plain_text`
 
+### `network-port-named-exactly` (guarantee, data)
+
+- `test_port_allow.py`: `TestNetworkPorts` (10 functions)
+
 ### `no-crash-to-trace` (assumption, requirement)
 
 - `test_cli_gold.py`: `TestCliGold.test_cli_basic`
@@ -605,11 +609,22 @@ Ids: 182: 167 registry rows (guarantees 132, assumptions 35), 15 spec sections i
 - `test_hw_loopback.py`: `TestOneProcessOnePort.test_a_held_adapter_refuses_a_second_open` **guard**
 - `test_mcp_config_discovery.py`: `TestAnExclusiveOpen.test_a_second_open_of_a_held_port_fails` **guard**, `TestAnExclusiveOpen.test_a_url_port_still_opens` **guard**
 
+### `port-policy-at-opener` (guarantee, contract)
+
+- `test_architecture.py`: `test_only_open_serial_opens_a_port` **guard**, `test_port_open_allowlist_has_no_stale_entries`, `test_port_open_guard_fires_on_a_probe` **guard**
+- `test_hw_loopback.py`: `TestPortListOnTheRig` (2 functions)
+- `test_port_allow.py`: `TestIdentity` (11 functions), `TestReadingTheVariable` (5 functions), `TestTheEngine` (1 functions), `TestTheList` (5 functions), `TestTheOpener` (2 functions), `TestUnderMcp` (3 functions), `TestWhoIsRefused` (5 functions)
+
 ### `port-present-one-decider` (assumption, contract)
 
 - `test_app_pilot_targets.py`: `TestConfigPicked.test_load_by_serial_number_connects_without_asking_for_a_port`
 - `test_dialogs_config_editor.py`: `TestValueValidation.test_a_serial_number_port_that_resolves_is_green`
 - `test_port_control.py`: `TestPortPresent` (10 functions)
+
+### `ports-enumerated-once` (guarantee, structure)
+
+- `test_architecture.py`: `test_only_port_control_enumerates_ports` **guard**, `test_port_enumeration_guard_fires_on_a_probe` **guard**, `test_port_list_allowlist_has_no_stale_entries`
+- `test_port_allow.py`: `TestARealStart` (3 functions), `TestListing` (5 functions)
 
 ### `prefix-never-hardcoded` (guarantee, structure)
 

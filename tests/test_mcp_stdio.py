@@ -48,6 +48,9 @@ class _StdioClient:
         # Deterministic ports: the subprocess enumerates the demo fleet,
         # not this machine's hardware.
         env["TERMAPY_DEMO_FLEET"] = "1"
+        # An MCP server with no port list lists and opens no port (decision
+        # 2026-11-11); .* allows every device, as an operator would set it.
+        env["TERMAPY_ALLOWED_PORTS"] = ".*"
         # What finds the config is what this test sets, not what the test run inherited.
         env.pop("CLAUDE_PROJECT_DIR", None)
         env.pop("TERMAPY_CFG_DIR", None)

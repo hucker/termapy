@@ -66,6 +66,7 @@ A config is `<name>/<name>.cfg`.  Another `.cfg` in that folder does not count.
 
 - **The name is yours.**  It is the name you gave `claude mcp add` or the key in `.mcp.json`, and the agent's tool is built from it: `mcp__termapy-a__run_command`.  It selects nothing: `termapy-a` starts on a config only if its arguments name one or the rules above choose it, and two entries with the same command are two servers that follow the same rules.
 - **It starts with the session.**  Claude Code starts its own copy of each enabled server when a session starts, before any tool is used, and stops it when the session ends.
+- **It opens only the ports you allow.**  With `TERMAPY_ALLOWED_PORTS` unset, a server opens and lists no serial or network port, only the simulator and `loop://`; see [Which ports it may open](#which-ports-it-may-open).
 - **A server holds its port while it runs,** even with the agent idle, and nothing else can open that port on any OS.  So the TUI gets "port busy" on that device, and a second chat in the same project starts a second server that cannot open it either.  Disable the server in `/mcp` to get the port back.
 - **The project is where the session started:** the workspace folder in VS Code, or the folder you ran `claude` in.  From `src/`, the project is `src/`, so `./termapy_cfg` means `src/termapy_cfg`.  Claude Code passes this as `CLAUDE_PROJECT_DIR`; with another client it is the working folder that client gave the server.  A client with no project, like Claude Desktop, should name a config by its full path.
 - **Enable and Disable in `/mcp`** are remembered per project.  Enabling also starts the server in the session you are in, with no restart, and later sessions start it by themselves.  On Windows, VS Code and a terminal `claude` can count as different projects, because they spell the drive letter differently (`c:` and `C:`), so enabling in one may not carry to the other.  A server that exits, as it does on a missing named config, is marked failed; **Reconnect** in `/mcp` starts it again.
@@ -103,6 +104,29 @@ Each server starts on its config, so `termapy-left` means the left device until 
 - A second chat in the project starts more servers, which take whatever is free.
 
 Each config the chain tries is loaded before its port is, plugins included.  When an agent must know which server is which device, name the configs at launch.
+
+## Which ports it may open
+
+`TERMAPY_ALLOWED_PORTS` names the ports a server may open and list: one regular expression, `|` between ports, matched against a port's name or its USB serial number ([the rules](ports.md#limiting-which-ports-termapy-may-open)).  Unset, a server opens none but the simulator and `loop://`, so a registration that lost its environment fails closed.  `.*` allows any device name; a network port must be named exactly, and needs `TERMAPY_MCP_NET_EGRESS=1` too.  A refusal names the variable, so the agent stops rather than trying the port another way.  A port that isn't allowed is left out of `/port.list`, and `/port.usb` draws only the branches that lead to an allowed port, so the agent never learns another board's serial number, and a refusal reads `Port not allowed or not found` whether the port is plugged in or not.
+
+**Keep it where the agent can't change it.**  The list is only as good as the file that holds it, and an agent that is told "not allowed" may try to fix its own configuration.  Two places work:
+
+- **Your user environment.**  Every termapy you start then has it: the TUI, each MCP server, and a termapy an agent starts from its shell.  On Windows, in PowerShell, `[Environment]::SetEnvironmentVariable('TERMAPY_ALLOWED_PORTS', 'COM7|BG03U7VTA', 'User')`, then restart VS Code or the terminal; on macOS and Linux, an `export` in your shell profile.
+- **A user-scope registration,** for one server: `claude mcp add --scope user -e "TERMAPY_ALLOWED_PORTS=COM7|BG03U7VTA" termapy -- termapy --mcp`.  It is stored in `~/.claude.json`.
+
+Never put it in a project `.mcp.json`: that file sits in the project an agent edits, and an `env` entry there overrides your environment.  Then deny the edits in your user settings, `~/.claude/settings.json`:
+
+```json
+{
+    "permissions": {
+        "deny": ["Edit(~/.claude.json)", "Edit(~/.claude/settings.json)", "Edit(.mcp.json)"]
+    }
+}
+```
+
+An `Edit` rule also covers writes; a `Write(...)` rule matches nothing; and a bare file name such as `.mcp.json` matches it at any depth under the session's folder ([Claude Code permissions](https://code.claude.com/docs/en/permissions)).
+
+**What it does not cover.**  The list limits termapy, not the machine.  An agent with a shell can open any port with `python -c "import serial; ..."` and never ask termapy, and Claude Code's `Edit` rules don't reach a script that writes a file itself.  On macOS, Linux and WSL2, Claude Code can sandbox its shell; on native Windows it runs shell commands with no sandbox ([Claude Code sandboxing](https://code.claude.com/docs/en/sandboxing)).  So where it matters, restrict the agent's shell too.  And a USB serial number is whatever the device's firmware reports: the list keeps an agent off the wrong board, it does not authenticate one.
 
 ---
 
@@ -221,12 +245,13 @@ The MCP server runs with no interactive session, so termapy's capability gate bl
 - **A write can replace a file only inside the config's folder.**  There an agent works as a person does: `/cap.text`, `/cap.bin`, `/cap.struct`, `/cap.hex` and `/cap.poll --overwrite` start a file over, `/proto.crc.<lang> file=`, `/profile.save` and `/proto.run`'s `json_file` write over their own.  A file outside the folder is never replaced, and no flag changes that.  `/cfg.new` over an existing config still needs a person's yes, and `/firmware.copy`, `/board.firmware` and `/run.record` never overwrite for anyone.
 - **File viewers / editors / explorers** (`/show <path>`, `/edit`, `/cfg.explore`, the folder `.show`/`.explore` verbs) are unreachable -- they need a local desktop.
 - **File access is meant to stay inside the config directory, and mostly does.**  Captures (`/cap.text|bin|struct|hex`, `/cap.poll file=`), reads (`termapy://capture/<name>`, the `.dump` commands), `/profile.load|save`, `/cfg.load`, `/log.dump` and generated CRC source (`/proto.crc.<lang> file=`) refuse an absolute path or `../`, a path-valued cfg key (`log_file`) can't be pointed outside it via `/cfg.auto`, and `/proto.run` writes its results in the config's `proto/test/` wherever the script came from.  Known gaps remain while the server is a preview: some commands resolve a relative name from the folder termapy was started in, some Windows path forms (`\x`, `D:x`) pass the check, and a few file readers (`/profile.validate`, `/proto.run <path>`) are not checked.  Load profiles by *name*, and don't rely on the confinement to contain an agent.  To allow host-wide paths, set `TERMAPY_MCP_FS_UNCONFINED=1` in the server's shell.
-- **Network ports are refused at `/port.connect`.**  pyserial "URL ports" (`/port.connect socket://host:port`, `rfc2217://...`) would open an outbound TCP connection to an arbitrary host; that command refuses them unless you set `TERMAPY_MCP_NET_EGRESS=1`.  Other routes to a URL port -- `/port <url>`, `/cfg port <url>`, a config whose port is a URL -- are not checked yet, so treat this as partial.  One such URL, `spy://`, [logs traffic to a file](ports.md#logging-the-raw-traffic), which stays in `cap/`.  Physical device ports are unaffected.
+- **Ports are the ones you allow.**  `TERMAPY_ALLOWED_PORTS` decides which ports a server may open and list, and with it unset it opens none but the simulator and `loop://` ([Which ports it may open](#which-ports-it-may-open)).  The check is where every port opens, so `/port.connect`, `/port <x>`, `/cfg port`, a config load and the server's first connect all meet it.
+- **A network port needs two permissions.**  pyserial "URL ports" (`socket://host:port`, `rfc2217://...`) open an outbound TCP connection, so one opens only when `TERMAPY_ALLOWED_PORTS` names its endpoint exactly *and* you set `TERMAPY_MCP_NET_EGRESS=1`, whatever route sent it.  A refused host is never looked up.  `spy://` [logs traffic to a file](ports.md#logging-the-raw-traffic), which stays in `cap/`, and is judged by the port it wraps.
 - **Environment commands are off under MCP by default.**  `/env` (which would dump every variable) and the `$(env.NAME)` expansion in a command are refused unless you opt in with `TERMAPY_MCP_ENV_ENABLED=1` in the server's shell -- env vars routinely hold secrets, and an MCP peer is remote/automated.  A config's own `$(env.NAME)` values still expand when it loads.
 - **Destructive device commands** -- those a profile marks `safety: destructive`, and `/mem.write` -- refuse to run without an explicit `confirm=true`, which a well-behaved client elicits from the user.  The check covers the command you send; a destructive command run inside another (`/repeat`, `/run`, a capture's `cmd=`) is not checked yet.  The catalog carries the `safety` tier of every command that declares one.
 - **Peripheral read gates need a device file.**  `/mem.dump` refuses a sweep over registers and `/mem.read` refuses a write-only one only for registers a loaded [device file](devices.md) describes (`/dev.use`); with none loaded, peripheral space is ungated memory.  Load the part before pointing an agent at `/mem.*` (see [Memory](memory.md)).
 
-Wire-level device control (send bytes, read responses, run profiled commands) is of course available -- that's the point.  The gates above are about *host* access, not device access.  The three `TERMAPY_MCP_*` opt-in flags live in the server's shell, not the cfg, so a shared or device-fetched config cannot turn them on (the same rationale as `/os`'s `TERMAPY_OS_CMD_ENABLED`).  It can still reach the gaps above, so until they close, the MCP client's own permissions are the real boundary: run termapy under a client that asks before it acts, and don't point an agent at configs you didn't write.  Each takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outside that vocabulary refuses to start, naming the variable, rather than silently meaning off.
+Wire-level device control (send bytes, read responses, run profiled commands) is of course available -- that's the point.  The gates above are about *host* access, not device access.  The three `TERMAPY_MCP_*` opt-in flags live in the server's shell, not the cfg, so a shared or device-fetched config cannot turn them on (the same rationale as `/os`'s `TERMAPY_OS_CMD_ENABLED`).  It can still reach the gaps above, so until they close, the MCP client's own permissions are the real boundary: run termapy under a client that asks before it acts, and don't point an agent at configs you didn't write.  Each takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outside that vocabulary refuses to start, naming the variable, rather than silently meaning off.  `TERMAPY_ALLOWED_PORTS` lives there too, and a value that is not a valid regular expression refuses to start the same way.
 
 ---
 
@@ -240,7 +265,7 @@ The MCP client is the program the user talks to (Claude Code, Claude Desktop, VS
 claude mcp add --scope user termapy -- termapy --mcp
 ```
 
-With no config named, it finds the one in whichever project you enable it for in `/mcp` ([How it finds its config](#how-it-finds-its-config)).  Enabling records a per-project on or off; the project's folder comes from Claude Code.  To tie an entry to one device, name its config: `-- termapy --mcp mydevice`.
+With no config named, it finds the one in whichever project you enable it for in `/mcp` ([How it finds its config](#how-it-finds-its-config)).  Enabling records a per-project on or off; the project's folder comes from Claude Code.  To tie an entry to one device, name its config: `-- termapy --mcp mydevice`.  The server opens no port until [`TERMAPY_ALLOWED_PORTS`](#which-ports-it-may-open) names it, in your environment or with `-e` on this command.
 
 Use `--scope user` (or `--scope project` for a team-shared `.mcp.json`).  The default `local` scope registers the server for the current directory only and it silently stops loading after some restarts -- if the tool vanishes, re-add with an explicit scope.
 

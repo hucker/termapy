@@ -796,14 +796,14 @@ class CLITerminal(TerminalHost):
         self.write("")
 
     def _first_available_port(self) -> str:
-        """Return the first device name from ``comports()``, or ``""``.
+        """Return the first device name from ``system_ports()``, or ``""``.
 
         Used only for the zero-config welcome banner's "Try:" hint.
         """
         try:
-            from serial.tools.list_ports import comports
+            from termapy.port_control import system_ports
 
-            ports = sorted(comports(), key=lambda p: p.device)
+            ports = sorted(system_ports(), key=lambda p: p.device)
             return ports[0].device if ports else ""
         except Exception:
             # A hint, not a feature: an enumeration failure leaves it out.

@@ -470,6 +470,7 @@ class SerialEngine:
         self.stop_reader()
         import serial as _serial
 
+        from termapy.port_allow import PortNotAllowedError
         from termapy.port_control import AmbiguousSerialNumberError
 
         # pyserial open() can raise SerialException (typical: port in
@@ -478,10 +479,14 @@ class SerialEngine:
         # AmbiguousSerialNumberError comes from resolve_port() when a
         # user's SN spec matches 2+ connected devices.
         # _classify_serial_error normalizes each into a friendly
-        # message for the user.
+        # message for the user.  A port policy refusal is already worded
+        # for the reader (it names TERMAPY_ALLOWED_PORTS) and stays as is.
         try:
             self._port_obj = self._open_fn(self._cfg)
             self.last_error = ""
+        except PortNotAllowedError as e:
+            self.last_error = str(e)
+            return False
         except AmbiguousSerialNumberError as e:
             matches = ", ".join(e.matches)
             self.last_error = (

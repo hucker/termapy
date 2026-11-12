@@ -64,9 +64,9 @@ def show_port_picker(app: SerialTerminal) -> None:
     Args:
         app: The SerialTerminal instance.
     """
-    from serial.tools.list_ports import comports
+    from termapy.port_control import system_ports
 
-    ports = sorted(comports(), key=lambda p: p.device)
+    ports = sorted(system_ports(), key=lambda p: p.device)
     if len(ports) == 1:
         app._on_port_picked(ports[0].device)
         return

@@ -622,3 +622,33 @@ The logging itself is pyserial's, and it behaves as pyserial does:
 - **Name the port itself.** A USB serial number is not looked up inside the URL, and `DEMO` cannot be wrapped: both answer `Port not found`.
 - **Always give `file=`.** Without it the log goes to stderr, into your terminal.
 - **Leave out pyserial's `raw` option.** With it, every send fails with `write() argument must be str, not bytes`.
+
+## Limiting which ports termapy may open
+
+`TERMAPY_ALLOWED_PORTS` names the ports termapy may open and list on this machine. Set it in the environment termapy starts from, as one regular expression with `|` between the ports:
+
+```text
+TERMAPY_ALLOWED_PORTS=COM7|BG03U7VTA|/dev/ttyACM[0-9]
+```
+
+- **A port matches whole, ignoring case.** `COM1` allows `COM1` and never `COM10`.
+- **Name or serial number, either way round.** An entry matches a port's name as the system lists it, or its USB serial number. With `COM7` allowed, the serial number that belongs to COM7 opens it too; with a serial number allowed, its COM name opens it.
+- **Copy the serial number from `/port.list` or `termapy --ports`.** `/port.usb` reads the USB device, whose serial number can differ: on Windows an FTDI adapter's port adds a channel letter (`BG03U7VTA`) to its device's (`BG03U7VT`).
+- **The spelling you type is not what is judged.** On Windows, `com7` and `\\.\COM7` are COM7, and a spelling with a path, a drive or a colon (`COM5:`, `COM2\..\COM5`) is refused. On Linux and macOS a link is judged as the device it points to.
+- **A port allowed only by its serial number must be plugged in.** Unplugged, its name has no serial number to check, so termapy answers `Port not found` until it is back.
+- **What isn't allowed isn't shown.** `/port.list`, `termapy --ports`, the port picker, `--info`, `--watch` and `/port.chip` leave it out; `/port.list` and `--ports` say the list is limited. `/port.usb` draws the bus with no serial number for a device it leaves out, and to an MCP client only the branches that lead to an allowed port.
+- **A refusal says why, and names the variable.** In the TUI and CLI it says which it is: a refused port that is plugged in, or a port that is not found. An MCP client gets one answer for both, `Port not allowed or not found`, so a hidden port and an absent one look the same.
+- **The simulator and `loop://` are always allowed.** They reach no device and no network.
+- **`hwgrep://` is refused** while the variable is set: pyserial picks its port after termapy has checked it. Name the port instead.
+- **A network port must be named exactly.** `socket://` and `rfc2217://` open only when an entry spells the endpoint out, `scheme://host:port`, with no wildcard. `.*` allows any device name and no network host:
+
+  ```text
+  TERMAPY_ALLOWED_PORTS=.*|rfc2217://10.0.0.5:2217
+  ```
+
+  An entry matches the host as written. A host name is trusted to resolve where you expect, so name the IP address to pin it.
+- **Read once, at start.** A change takes effect the next time termapy starts. A value that is not a valid regular expression, or that holds a space (`COM7 | COM5`), stops termapy at startup with a message naming the variable. A comma is not a separator: `COM7,COM5` is one name, and matches nothing.
+
+Unset or blank, termapy in the TUI or CLI may open any port. Under `--mcp` it allows no serial or network port, only the simulator and `loop://`; see [MCP server](mcp-server.md) for where to set it so an agent cannot change it.
+
+The list limits termapy's own commands, not the machine. Another program, a script or an agent's shell can still open any port the operating system lets it. A USB serial number is whatever the device's firmware reports, so the list keeps termapy off the wrong board; it does not authenticate one.

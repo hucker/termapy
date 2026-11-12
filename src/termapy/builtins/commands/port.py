@@ -102,8 +102,11 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     ``port_control.list_port_records``, the same records ``--ports --json``
     prints; the columns are ``port_format.PORT_TABLE_COLUMNS``, whose drop
     ranks let a narrow screen lose SPEED and CHIP before the port names.
+    Under ``TERMAPY_ALLOWED_PORTS`` the title says the list is limited.
     """
-    return CmdResult.table("Ports", "port", PORT_TABLE_COLUMNS, port_control.list_port_records())
+    return CmdResult.table(
+        port_control.ports_title(), "port", PORT_TABLE_COLUMNS, port_control.list_port_records()
+    )
 
 
 def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
@@ -182,7 +185,7 @@ def _wait_options(args: str) -> tuple[str, float, str]:
 
 
 def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
-    """Open the named port (or the config's), applying any baud, frame, line-ending and echo settings first; URL ports need network egress.
+    """Open the named port (or the config's), applying any baud, frame, line-ending and echo settings first; TERMAPY_ALLOWED_PORTS decides which ports may open.
 
     With ``timeout=`` a port that does not open is tried again until it
     does or the time runs out: one plugged in, enumerating, or let go by
@@ -196,17 +199,9 @@ def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
     port, baud, mode, line_ending, echo, custom, err = port_control.parse_open_args(args)
     if err:
         return CmdResult.fail(msg=err)
-    # Network egress: a serial-over-URL "port" (socket://, rfc2217://)
-    # opens an outbound TCP connection.  Refuse under the MCP sandbox so
-    # an automated peer can't reach arbitrary hosts; physical ports are
-    # unaffected.  Checked before any cfg mutation.
-    if port and "://" in port and not ctx.capabilities.network_egress:
-        msg = (
-            "Network ports (socket://, rfc2217://) are disabled under the MCP "
-            "sandbox. Set TERMAPY_MCP_NET_EGRESS=1 in the server's shell to "
-            "allow them."
-        )
-        return CmdResult.fail(msg=msg)
+    # Which ports may open, network ports under MCP included, is decided where
+    # every route opens one, config.open_serial (registry port-policy-at-opener);
+    # a refusal comes back as the connect's failure.
     # Apply all optional settings to config before connecting so the
     # port opens with the requested settings.  Each branch is a no-op
     # when the user didn't supply that field.  custom=true asked for a rate

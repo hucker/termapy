@@ -72,9 +72,9 @@ def _list_ports() -> str:
     # ImportError covers a pyserial install without list_ports support
     # on this platform.
     try:
-        from serial.tools.list_ports import comports
+        from termapy.port_control import system_ports
 
-        ports = sorted(port.device for port in comports())
+        ports = sorted(port.device for port in system_ports())
         return "Available: " + (", ".join(ports) if ports else "(no ports found)")
     except (OSError, ImportError):
         return "(cannot list ports)"

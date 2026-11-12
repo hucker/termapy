@@ -1,12 +1,12 @@
 """Security-policy env-var gates, read once at process start.
 
-Two policy flags live outside the cfg file because the cfg is exactly
+The policy settings live outside the cfg file because the cfg is exactly
 what the policy needs to defend against -- a hostile cfg cannot flip
 its own gates if the gates live in the process environment.  This
 mirrors npm's ``--ignore-scripts`` / ``NPM_CONFIG_IGNORE_SCRIPTS``
 shape and Python's own ``PYTHONNOUSERSITE``.
 
-The two flags:
+The settings:
 
 - ``TERMAPY_TRUSTED_PLUGINS_ONLY``: when truthy, the plugin loader
   skips the two filesystem-discovery passes (global plugin folder and
@@ -30,13 +30,22 @@ The two flags:
   Same env-var-not-cfg rationale as ``/os``: a hostile cfg must not be
   able to grant itself the read.
 
-The ``*_ENABLED`` / ``*_ONLY`` policy flags are evaluated **once at
+- ``TERMAPY_MCP_FS_UNCONFINED`` / ``TERMAPY_MCP_NET_EGRESS``: per-class
+  opt-ins that lift parts of the MCP host sandbox (see the comment above
+  them below).
+
+- ``TERMAPY_ALLOWED_PORTS``: the ports this process may open and list, one
+  regex (``port_allow``).  Unset, a person's session allows every port and
+  an MCP server none.  Not a boolean: a value that does not compile is the
+  startup error.
+
+The policy settings are evaluated **once at
 import time** and cached as module-level constants.  Plugin code
 mutating ``os.environ`` at runtime cannot retroactively flip a decision
 the loader already made -- the result has been captured in a local
 Python variable.
 
-Every variable here is a boolean a user typed, so it is read through
+Every variable here but the port list is a boolean a user typed, so it is read through
 ``scripting.parse_bool`` (registry ``bool-one-vocabulary``): any token of
 the one vocabulary, case-insensitive.  Unset or blank is the declared
 default -- off for a gate, "no override" for ``TERMAPY_GUI``.  A present
@@ -51,6 +60,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 
+from termapy.port_allow import VARIABLE as ALLOWED_PORTS_VARIABLE, PortAllowlist, PortPolicy
 from termapy.scripting import parse_bool
 
 # Errors found while reading the environment at import, one message per
@@ -99,6 +109,30 @@ def _read_override(
         return None
 
 
+def _read_port_allowlist(
+    name: str,
+    *,
+    environ: Mapping[str, str] | None = None,
+    errors: list[str] | None = None,
+) -> PortAllowlist | None:
+    """Read the port list: unset or blank is no list; a bad regex is recorded and allows nothing.
+
+    The entry point refuses to start on the recorded error; code that
+    imports termapy without it gets a list that matches nothing, never
+    every port (fail closed).
+    """
+    source = os.environ if environ is None else environ
+    sink = STARTUP_ERRORS if errors is None else errors
+    text = (source.get(name) or "").strip()
+    if not text:
+        return None
+    try:
+        return PortAllowlist.parse(text)
+    except ValueError as e:
+        sink.append(str(e))
+        return PortAllowlist.matching_nothing(text)
+
+
 def startup_error() -> str | None:
     """The first environment error, or None.  The entry point refuses to start on one."""
     return STARTUP_ERRORS[0] if STARTUP_ERRORS else None
@@ -127,6 +161,11 @@ MCP_NET_EGRESS: bool = _read_gate("TERMAPY_MCP_NET_EGRESS")
 # means "no override, use the heuristic".
 GUI_OVERRIDE: bool | None = _read_override("TERMAPY_GUI")
 
+# The operator's port list (registry ``port-policy-at-opener``).  Read here,
+# frozen like the gates, so nothing a session runs can widen it: ``/env.set``
+# writes its own snapshot, never ``os.environ``, and this is never re-read.
+ALLOWED_PORTS: PortAllowlist | None = _read_port_allowlist(ALLOWED_PORTS_VARIABLE)
+
 
 # Runtime marker (NOT a frozen policy constant): set once by the MCP
 # server entry point so ctx-less code -- specifically the $(env.NAME)
@@ -148,6 +187,15 @@ def mark_under_mcp() -> None:
     _under_mcp = True
 
 
+def port_policy() -> PortPolicy:
+    """The ports this process may open and list, from the frozen list and the MCP marker.
+
+    Read at each use rather than frozen, because the marker is set after
+    import; it only ever narrows (an MCP server with no list allows no port).
+    """
+    return PortPolicy(allowlist=ALLOWED_PORTS, under_mcp=_under_mcp, network_egress=MCP_NET_EGRESS)
+
+
 def env_access_blocked() -> bool:
     """True when process-environment access must be refused right now.
 
@@ -167,6 +215,8 @@ __all__ = [
     "MCP_FS_UNCONFINED",
     "MCP_NET_EGRESS",
     "GUI_OVERRIDE",
+    "ALLOWED_PORTS",
+    "port_policy",
     "STARTUP_ERRORS",
     "startup_error",
     "mark_under_mcp",

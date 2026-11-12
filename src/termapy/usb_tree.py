@@ -37,6 +37,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from types import ModuleType
 
+    from termapy.port_allow import PortPolicy
+
 # ── Records ───────────────────────────────────────────────────────────────
 
 
@@ -545,9 +547,18 @@ class UnsupportedPlatform(Exception):
 
 
 def gather_usb_tree(
-    source: UsbSource | None = None, facts_list: list | None = None
+    source: UsbSource | None = None,
+    facts_list: list | None = None,
+    *,
+    policy: PortPolicy | None = None,
 ) -> list[UsbNode]:
     """Return the USB tree for this machine, ports tagged.
+
+    Under ``TERMAPY_ALLOWED_PORTS`` only allowed ports are tagged, and a
+    node with no allowed port in it or below it loses its serial number.
+    A person still sees the whole bus; an MCP server sees only the branches
+    that lead to an allowed port, so an agent learns of no device the port
+    listings hide.
 
     Args:
         source: Callable returning ``UsbRecord``s, used instead of
@@ -556,6 +567,7 @@ def gather_usb_tree(
             can drive the tree against a known bus.
         facts_list: ChipFacts used to tag nodes that carry a serial port.
             None gathers them.
+        policy: The port policy; None is this process's.
 
     Returns:
         Root nodes.
@@ -574,9 +586,30 @@ def gather_usb_tree(
             f"USB tree is not available on {sys.platform} (Windows and Linux only)"
         )
     roots = build_tree(records)
+    from termapy.env_flags import port_policy
+
+    policy = port_policy() if policy is None else policy
     if facts_list is None:
         from termapy.port_control import _gather_all_chip_facts
 
-        facts_list = _gather_all_chip_facts(fast=True, enrich=True)
+        facts_list = _gather_all_chip_facts(fast=True, enrich=True, policy=policy)
     tag_serial_ports(roots, facts_list)
-    return roots
+    if not policy.in_force:
+        return roots
+    carrying = [root for root in roots if _leave_out_hidden(root, prune=policy.under_mcp)]
+    return carrying if policy.under_mcp else roots
+
+
+def _leave_out_hidden(node: UsbNode, *, prune: bool) -> bool:
+    """Blank the serial number of every node with no tagged port in or below it; with ``prune``, drop it.
+
+    Returns:
+        Whether ``node`` or a descendant carries a tagged port.
+    """
+    kept = [child for child in node.children if _leave_out_hidden(child, prune=prune)]
+    if prune:
+        node.children = kept
+    carries = node.port_name is not None or bool(kept)
+    if not carries:
+        node.serial = None
+    return carries

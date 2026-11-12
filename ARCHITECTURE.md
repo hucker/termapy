@@ -184,6 +184,7 @@ src/termapy/
 ├── migration.py            # (880 lines)  Config schema versioning and migration chain
 ├── palette_provider.py     #              Textual command-provider that surfaces termapy's PALETTE_CMDS
 ├── pickers.py              #              Modal-picker callbacks for the TUI
+├── port_allow.py           #              Which ports this process may open and list: `TERMAPY_ALLOWED_PORTS`, read once
 ├── port_control.py         # (2408 lines) Pure functions for serial port control - no Textual, no pyserial imports
 ├── port_format.py          #              One-line-per-port formatting for serial-port tables
 ├── proto_debug.py          # (1420 lines) Interactive protocol debug screen
@@ -218,8 +219,7 @@ expands on the dispatch path, while `builtins/commands/var.py` is just `/var` an
 the symbol table, its file format, the address grammar and the auto-load rule are core
 (`ReplEngine.fire_lifecycle` loads the sidecar), and `/sym.*` is the thin command surface.
 `memory.py` <- `builtins/commands/mem.py` is the fourth: the wire dialect, chunking and
-continuity are core, `/mem.*` wires them to `ctx.serial` and renders.
-Infrastructure core needs does not live under `builtins/`, however natural the matching
+continuity are core, `/mem.*` wires them to `ctx.serial` and renders.Infrastructure core needs does not live under `builtins/`, however natural the matching
 command feels.
 
 `usb/` is a different kind of thing: a dependency-free table package kept separable for a
@@ -1051,6 +1051,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_ping.py                        | /ping on the CLI DEMO rig: the value is the mean reply time, the data every round trip, the level what prints                                                                       |
 | test_plugin_resolve.py              | Tests for ReplEngine.resolve_plugins -- the one plugin-resolution step                                                                                                              |
 | test_plugins.py                     | Tests for plugin loading, COMMAND dataclass, and PluginContext                                                                                                                      |
+| test_port_allow.py                  | TERMAPY_ALLOWED_PORTS: which ports termapy may open and list, however a port is named                                                                                               |
 | test_port_commands.py               | The /port command family driven through the dispatcher on the CLI DEMO rig                                                                                                          |
 | test_port_connect_cli.py            | End-to-end tests for the extended /port.connect command                                                                                                                             |
 | test_port_control.py                | Tests for port_control.py - pure serial port control functions                                                                                                                      |

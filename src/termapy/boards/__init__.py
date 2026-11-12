@@ -229,13 +229,10 @@ def attached(
 
 def _without_runtime(board: Board, usb_source: UsbSource | None) -> bool:
     """Whether any USB device is the board without its runtime; False where the tree is unreadable."""
-    from termapy.port_allow import PortPolicy
     from termapy.usb_tree import UnsupportedPlatform, gather_usb_tree
 
     try:
-        # The whole bus, past TERMAPY_ALLOWED_PORTS: a board in its
-        # bootloader is matched by VID:PID and is not a serial port.
-        pending = list(gather_usb_tree(usb_source, facts_list=[], policy=PortPolicy()))
+        pending = list(gather_usb_tree(usb_source, facts_list=[]))
     except (UnsupportedPlatform, OSError):
         return False
     while pending:

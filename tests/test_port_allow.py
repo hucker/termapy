@@ -409,26 +409,6 @@ class TestListing:
         assert actual["1-1"] == ("AAA", "COM3"), "the allowed port is tagged and keeps its serial"
         assert actual["1-2"] == (None, None), "the hidden adapter is drawn, unnamed and untagged"
 
-    def test_mcp_sees_only_the_branches_to_an_allowed_port(self):
-        """Under MCP the USB tree keeps the path to the allowed port and drops every other device."""
-        # Arrange
-        records = [
-            UsbRecord("1"),
-            UsbRecord("1-1", description="FTDI", vid_pid="0403:6001", serial="AAA"),
-            UsbRecord("1-2", description="FTDI", vid_pid="0403:6015", serial="BBB"),
-            UsbRecord("2"),
-            UsbRecord("2-1", description="Keyboard", vid_pid="045E:001D"),
-        ]
-        allowed = [ChipFacts(device="COM3", serial="AAA", location="1-1")]
-        policy = _listed("COM3", under_mcp=True)
-
-        # Act
-        roots = gather_usb_tree(source=lambda: records, facts_list=allowed, policy=policy)
-
-        # Assert
-        actual = [node.path for root in roots for node in root.walk()]
-        assert actual == ["1", "1-1"], "only the branch that leads to COM3 is drawn"
-
 
 @pytest.mark.rule("network-port-named-exactly")
 class TestNetworkPorts:

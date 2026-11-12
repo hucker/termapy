@@ -758,6 +758,23 @@ A command that works in the config's folder declares
 `CapabilitySet.CONFIG_LOADED` the same way, and the dispatcher answers
 `No config loaded.` when there is none.
 
+**What an MCP server keeps back.** The TUI and CLI are the operator on
+their own machine; an MCP server answers an agent, so some capabilities
+it holds only when the operator opts in from the server's environment. A
+command that reaches past the device declares the one it needs:
+
+- `host_info`, for a command that describes the machine beyond the
+  allowed devices: its USB bus, other programs, the OS or the hostname
+  (`TERMAPY_MCP_HOST_INFO`). `/port.usb`, `/app.running` and
+  `/log.fingerprint` declare `needs=CapabilitySet(host_info=True)`.
+- `filesystem_unconfined`, for a path outside the config's folder
+  (`TERMAPY_MCP_FS_UNCONFINED`). You rarely declare it: `ctx.fs.resolve`
+  and its guards apply it for you.
+
+Which ports a command may open is not a capability: every open goes
+through the one opener, which applies `TERMAPY_ALLOWED_PORTS` (see
+[Serial ports](ports.md#limiting-which-ports-termapy-may-open)).
+
 ## Bytes and hex
 
 Read bytes the user typed with `termapy.protocol.parse_data` when the

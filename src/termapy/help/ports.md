@@ -415,7 +415,9 @@ auto-reset.  So termapy never opens a port you didn't ask about:
   kernel's open-file table without opening the port, so it is always
   safe *and* it names the holder (e.g. `yes (python (PID 8842))`, i.e.
   that MCP server).  It appears in `/port.info`, `/port.chip.in_use`,
-  `termapy --ports --json`, and live in `termapy --watch`.
+  `termapy --ports --json`, and live in `termapy --watch`.  An MCP client
+  is told `yes (another program)` unless the server has
+  `TERMAPY_MCP_HOST_INFO=1`.
 - **Windows:** there is no non-invasive equivalent, so in-use is shown
   only on explicit request (`/port.info`, `/port.chip.in_use`,
   `--ports --json`) and the probe opens the port briefly with DTR/RTS
@@ -638,7 +640,7 @@ TERMAPY_ALLOWED_PORTS=COM7|BG03U7VTA|/dev/ttyACM[0-9]
 - **Copy the serial number from `/port.list` or `termapy --ports`.** `/port.usb` reads the USB device, whose serial number can differ: on Windows an FTDI adapter's port adds a channel letter (`BG03U7VTA`) to its device's (`BG03U7VT`).
 - **The spelling you type is not what is judged.** On Windows, `com7` and `\\.\COM7` are COM7, and a spelling with a path, a drive or a colon (`COM5:`, `COM2\..\COM5`) is refused. On Linux and macOS a link is judged as the device it points to.
 - **A port allowed only by its serial number must be plugged in.** Unplugged, its name has no serial number to check, so termapy answers `Port not found` until it is back.
-- **What isn't allowed isn't shown.** `/port.list`, `termapy --ports`, the port picker, `--info`, `--watch` and `/port.chip` leave it out; `/port.list` and `--ports` say the list is limited. `/port.usb` draws the bus with no serial number for a device it leaves out, and to an MCP client only the branches that lead to an allowed port.
+- **What isn't allowed isn't shown.** `/port.list`, `termapy --ports`, the port picker, `--info`, `--watch` and `/port.chip` leave it out; `/port.list` and `--ports` say the list is limited. `/port.usb` draws the bus with no serial number for a device it leaves out, and answers an MCP client only when the server has `TERMAPY_MCP_HOST_INFO=1`.
 - **A refusal says why, and names the variable.** In the TUI and CLI it says which it is: a refused port that is plugged in, or a port that is not found. An MCP client gets one answer for both, `Port not allowed or not found`, so a hidden port and an absent one look the same.
 - **The simulator and `loop://` are always allowed.** They reach no device and no network.
 - **`hwgrep://` is refused** while the variable is set: pyserial picks its port after termapy has checked it. Name the port instead.

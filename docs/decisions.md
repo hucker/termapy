@@ -1515,3 +1515,29 @@ device's firmware says.
 **Where:** `port_allow.py`, `env_flags.ALLOWED_PORTS`, `port_control.system_ports` and
 `resolve_port_for_open`, `config.open_serial`; registry `port-policy-at-opener`,
 `ports-enumerated-once`, `network-port-named-exactly`; `help/ports.md`, `help/mcp-server.md`.
+
+## 2026-11-12 — Under MCP termapy shows the allowed devices; the machine beyond them is opt-in
+
+Chuck: code that shows the makeup of a machine is a problem under MCP; `/port.usb` lists every
+device, which can point at vulnerabilities. Against that, the usual user is a developer getting a
+board working, the facts help an agent troubleshoot, and a shell has them anyway (`lsusb`,
+`Get-PnpDevice`, `hostname`, `ps`). The line: an MCP client sees everything about the devices
+`TERMAPY_ALLOWED_PORTS` allows (`/port.list`, `/port.info` and `/port.chip` on those ports, with
+each one's location and USB interface); the whole USB bus (`/port.usb`), the programs holding a
+port, the host fingerprint and the other termapy sessions (`/app.running`: PIDs, configs, ports)
+only with `TERMAPY_MCP_HOST_INFO=1`. A person's TUI or CLI always has the view. This replaces
+2026-11-11's pruned `/port.usb` under MCP: `/port.list` already gives an allowed port's location,
+so the hubs above it were all the pruned tree added, and they describe the machine.
+
+**Why:** the shell argument holds only where the agent has an approved shell. The gate matters
+where it does not: termapy's one tool, `run_command`, is usually approved once while each shell
+command still prompts, so without the gate an approved tool would show what the shell would have
+asked about; a client with no shell (Claude Desktop, a restricted Claude Code) sees the machine
+only through termapy; and a hostile device or profile could have an agent read the host and write
+it back down the serial line. A flag, not a refusal: read-only exposure already opts in that way
+(`TERMAPY_MCP_ENV_ENABLED`); "no flag widens MCP" (2026-11-03) covers what destroys or runs code.
+`/log.fingerprint` also read terminal variables straight from the process, past the `/env` gate;
+the capability closes that too.
+**Where:** `env_flags.MCP_HOST_INFO`, `CapabilitySet.host_info` (`needs=` on `/port.usb`,
+`/log.fingerprint` and `/app.running`), `PortPolicy.hides_host` (`serial_engine.shown_holder`); registry
+`mcp-host-info-opt-in`; `help/mcp-server.md`, README's Security table.

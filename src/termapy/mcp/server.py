@@ -445,7 +445,7 @@ class MCPHost(TerminalHost):
         # unless the operator opts in per-class from the server's shell
         # (secure default, power by opt-in -- same shape as the /env and
         # /os gates).
-        from termapy.env_flags import MCP_FS_UNCONFINED, MCP_NET_EGRESS
+        from termapy.env_flags import MCP_FS_UNCONFINED, MCP_HOST_INFO, MCP_NET_EGRESS
 
         self.ctx.capabilities = CapabilitySet(
             block_until=True,
@@ -453,6 +453,7 @@ class MCPHost(TerminalHost):
             session_log=True,
             filesystem_unconfined=MCP_FS_UNCONFINED,
             network_egress=MCP_NET_EGRESS,
+            host_info=MCP_HOST_INFO,
         )
         self.ctx.environment = "MCP"  # ENVIRONMENTS column; /help marks it (current)
         # The MCP consumer is an agent: it reads ``CmdResult.data``

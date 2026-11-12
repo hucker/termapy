@@ -425,6 +425,10 @@ COMMAND = Command(
             handler=_handler_running,
             shows=True,
             state=True,
+            # Other programs on the machine, with their PIDs, configs and
+            # ports: an MCP server answers it only under TERMAPY_MCP_HOST_INFO
+            # (decision 2026-11-12).
+            needs=CapabilitySet(host_info=True),
         ),
         "kill": Command(
             help="Stop termapy sessions: others, all, a port or a config (asks first).",

@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 185: 170 registry rows (guarantees 135, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 181. Pinned by none: 4.
+Ids: 186: 171 registry rows (guarantees 136, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 182. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -484,6 +484,11 @@ Ids: 185: 170 registry rows (guarantees 135, assumptions 35), 15 spec sections i
 - `test_mcp_config_discovery.py`: `TestAnAgentCanLoadAnyConfig.test_a_reload_picks_up_an_edit` **guard**, `TestAnAgentCanLoadAnyConfig.test_an_agent_can_load_another` **guard**, `TestItsOwnProfileLoads.test_loading_by_name_loads_its_profile`, `TestLoadingByName.test_a_path_to_another_folder_is_not_a_config`, `TestLoadingByName.test_a_stray_file_in_the_working_folder_is_not_a_config` **guard**, `TestLoadingByName.test_any_config_in_the_folder_loads_by_name`, `TestTheAgentIsTold.test_no_config_loaded_lists_the_choices`, `TestTheChain.test_a_failed_open_moves_on` **guard**, `TestTheChain.test_all_failing_lands_on_the_first_not_connected`, `TestTheChain.test_the_first_that_opens_ends_the_walk`, `TestWhichConfig.test_the_rules_in_order` **guard**, `TestWhichFolder.test_no_folder_is_none_and_never_the_os_folder`, `TestWhichFolder.test_the_first_folder_found_wins`
 - `test_mcp_stdio.py`: `TestFindsItsConfig.test_a_config_named_at_launch_wins` **guard**, `TestFindsItsConfig.test_a_config_named_by_path_brings_its_folder` **guard**, `TestFindsItsConfig.test_a_missing_named_config_stops_there` **guard**, `TestFindsItsConfig.test_a_project_with_no_folder_stays_out_of_the_os_folder` **guard**, `TestFindsItsConfig.test_enabled_in_a_project_it_finds_the_config_there` **guard**, `TestFindsItsConfig.test_several_with_no_mcp_name_starts_with_none_and_lists_them` **guard**, `TestFindsItsConfig.test_two_bare_servers_are_two_free_slots` **guard**
 
+### `mcp-host-info-opt-in` (guarantee, contract)
+
+- `test_mcp_boundary.py`: `TestHostView` (6 functions)
+- `test_mcp_server.py`: `TestLogCommandsAvailableInMCP.test_log_fingerprint_registered_but_gated_on_host_info`
+
 ### `mcp-no-code-writes` (assumption, contract)
 
 - `test_mcp_boundary.py`: `TestDemoTraffic.test_a_hexdump_cannot_reach_a_code_folder`, `TestDemoTraffic.test_a_hexdump_replaces_inside_the_folder`, `TestNoCodeWritten.test_a_person_still_can`, `TestNoCodeWritten.test_a_saved_profile_cannot_land_in_a_code_folder`, `TestNoCodeWritten.test_a_spelling_windows_folds_is_refused_with_the_folder_absent`, `TestNoCodeWritten.test_a_writer_cannot_land_in_a_code_folder`, `TestNoCodeWritten.test_the_sandbox_flag_does_not_lift_it`, `TestProtoRunResults.test_a_fixed_name_runs_twice`, `TestProtoRunResults.test_a_run_replaces_an_earlier_results_file`, `TestProtoRunResults.test_results_beside_an_outside_script_are_not_replaced`, `TestProtoRunResults.test_the_sandbox_flag_does_not_open_a_code_folder`, `TestReplacing.test_a_capture_may_still_append`, `TestReplacing.test_a_capture_replaces_inside_the_folder`, `TestReplacing.test_a_file_outside_the_folder_is_not_replaced`, `TestReplacing.test_a_saved_profile_replaces_inside_the_folder`, `TestReplacing.test_another_configs_file_is_outside_too`, `TestReplacing.test_generated_code_replaces_inside_the_folder`, `TestTheGuards.test_a_folder_below_a_code_folder_is_refused`, `TestTheGuards.test_with_no_config_nothing_is_inside`
@@ -624,7 +629,7 @@ Ids: 185: 170 registry rows (guarantees 135, assumptions 35), 15 spec sections i
 ### `ports-enumerated-once` (guarantee, structure)
 
 - `test_architecture.py`: `test_only_port_control_enumerates_ports` **guard**, `test_port_enumeration_guard_fires_on_a_probe` **guard**, `test_port_list_allowlist_has_no_stale_entries`
-- `test_port_allow.py`: `TestARealStart` (3 functions), `TestListing` (5 functions)
+- `test_port_allow.py`: `TestARealStart` (3 functions), `TestListing` (4 functions)
 
 ### `prefix-never-hardcoded` (guarantee, structure)
 

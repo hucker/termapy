@@ -820,3 +820,103 @@ class TestTheGuards:
         # Act / Assert
         handle.guard_code_folder(tmp_path / "firmware")
         handle.guard_replace(tmp_path / "firmware" / "new.c")
+
+
+# Runs in its own process: TERMAPY_MCP_HOST_INFO is read at import, as at a
+# real --mcp start.  Prints the capability and the fingerprint's answer.
+_HOST_INFO_PROBE = r"""
+import asyncio, json, sys
+from pathlib import Path
+from termapy.defaults import DEFAULT_CFG
+from termapy.mcp.server import MCPHost
+
+root = Path(sys.argv[1])
+path = root / "termapy_cfg" / "c" / "c.cfg"
+path.parent.mkdir(parents=True)
+cfg = {**DEFAULT_CFG, "serial": {**DEFAULT_CFG["serial"], "port": "DEMO"}, "echo": False}
+path.write_text(json.dumps(cfg))
+host = MCPHost(cfg, str(path), verbose=False)
+host.repl.global_root = root
+host._fire_app_start()
+errors = {
+    line: asyncio.run(host.run_command_async(line, "normal", 8.0))["error"]
+    for line in ("/log.fingerprint", "/app.running", "/port.usb")
+}
+print(json.dumps({"host_info": host.ctx.capabilities.host_info, "errors": errors}))
+"""
+
+
+@pytest.mark.rule("mcp-host-info-opt-in")
+class TestHostView:
+    """Under MCP the agent sees the allowed devices; the machine beyond them only with TERMAPY_MCP_HOST_INFO."""
+
+    def test_the_fingerprint_is_refused_by_default(self, host):
+        """/log.fingerprint describes the host, so an MCP server without the flag refuses it at the gate."""
+        # Act
+        answer = _call(host, "/log.fingerprint --show")
+
+        # Assert
+        assert host.ctx.capabilities.host_info is False, "the MCP host has no host view by default"
+        assert "requires: host_info" in answer["error"], "the capability gate refuses it"
+        assert "Hostname" not in json.dumps(answer), "and nothing about the host comes back"
+
+    def test_the_running_sessions_are_refused_by_default(self, host):
+        """/app.running names other termapy processes, their PIDs, configs and ports, so MCP without the flag refuses it."""
+        # Act
+        answer = _call(host, "/app.running")
+
+        # Assert
+        assert "requires: host_info" in answer["error"], "the capability gate refuses it"
+        assert answer["data"] is None, "no session record comes back"
+
+    def test_a_person_always_has_the_host_view(self):
+        """The TUI and CLI are the operator on their own machine: the host view is theirs whatever the flag."""
+        actual = {name: ENVIRONMENTS[name].host_info for name in ("TUI", "CLI", "MCP")}
+        assert actual == {"TUI": True, "CLI": True, "MCP": False}, "MCP only with the flag"
+
+    @pytest.mark.slow  # fresh interpreter: the flag is read at import
+    @pytest.mark.parametrize(("flag", "expected_view"), [(None, False), ("1", True)])
+    def test_the_flag_opens_the_host_view(self, tmp_path, flag, expected_view):
+        """TERMAPY_MCP_HOST_INFO=1 at start gives an MCP server the host view and the fingerprint answers; unset, it refuses."""
+        # Arrange
+        probe = tmp_path / "probe.py"
+        probe.write_text(_HOST_INFO_PROBE, encoding="utf-8")
+        env = {k: v for k, v in os.environ.items() if k != "TERMAPY_MCP_HOST_INFO"}
+        if flag is not None:
+            env["TERMAPY_MCP_HOST_INFO"] = flag
+
+        # Act
+        result = subprocess.run(
+            [sys.executable, str(probe), str(tmp_path)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        # Assert
+        assert result.returncode == 0, result.stderr
+        actual = json.loads(result.stdout.splitlines()[-1])
+        assert actual["host_info"] is expected_view, "the flag decides the capability"
+        gated = {line: "requires: host_info" in error for line, error in actual["errors"].items()}
+        expected = dict.fromkeys(gated, not expected_view)
+        assert gated == expected, "and whether each machine view is refused at the gate"
+
+    def test_the_usb_tree_is_refused_by_default(self, host):
+        """/port.usb draws the machine's whole bus, so an MCP server without the flag refuses it at the gate."""
+        # Act
+        answer = _call(host, "/port.usb")
+
+        # Assert
+        assert "requires: host_info" in answer["error"], "the capability gate refuses it"
+        assert answer["data"] is None, "no node of the bus comes back"
+
+    @pytest.mark.parametrize(
+        ("hides_host", "expected"), [(True, "another program"), (False, "python (PID 8842)")]
+    )
+    def test_a_holder_is_named_only_with_the_host_view(self, hides_host, expected):
+        """A program holding a port is "another program" to an MCP server without the flag; the port still reads in use."""
+        from termapy.serial_engine import shown_holder
+
+        assert shown_holder("python (PID 8842)", hides_host=hides_host) == expected

@@ -142,6 +142,7 @@ Termapy runs with your privileges and does whatever you — or a connected MCP c
 | Serial ports | `TERMAPY_ALLOWED_PORTS` naming them |
 | Network sockets (`socket://`, `rfc2217://`) | `TERMAPY_MCP_NET_EGRESS=1`, and `TERMAPY_ALLOWED_PORTS` naming the host exactly |
 | Environment variables (`/env`, `$(env.X)`) | `TERMAPY_MCP_ENV_ENABLED=1` |
+| The machine beyond the allowed devices (whole USB bus, programs holding a port, `/log.fingerprint`, `/app.running`) | `TERMAPY_MCP_HOST_INFO=1` |
 
 Each `TERMAPY_MCP_*` flag takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outside that vocabulary refuses to start, naming the variable, rather than silently meaning off.
 

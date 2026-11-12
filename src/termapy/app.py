@@ -1258,6 +1258,7 @@ class SerialTerminal(TerminalHost, App):
             # The operator is the caller on their own machine: no sandbox.
             filesystem_unconfined=True,
             network_egress=True,
+            host_info=True,
         )
         ctx.environment = "TUI"  # ENVIRONMENTS column; /help marks it (current)
         ctx.sync_capabilities()  # push caps into fs/ui handle snapshots

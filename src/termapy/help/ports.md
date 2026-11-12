@@ -87,7 +87,9 @@ every FTDI port on Windows shows a blank location.
 `/port.list` shows serial ports and nothing else, on purpose -- a listing
 that included keyboards and webcams would stop being a port listing.
 When you need the other view, `/port.usb` (or `termapy --usb`) draws the
-entire USB tree and marks the nodes that carry a serial port:
+entire USB tree and marks the nodes that carry a serial port, `-> COM7`.
+In the TUI those rows are cyan and their port name bold green; `--usb`
+prints plain text, for piping:
 
 ```text
 1                       USB Root Hub (USB 3.0)  USBHUB3

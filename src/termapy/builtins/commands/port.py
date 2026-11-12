@@ -9,7 +9,15 @@ from typing import TYPE_CHECKING
 from termapy import port_control
 from termapy.defaults import STANDARD_BAUD_RATES, cfg_value
 from termapy.help_dynamic import compose, port_status
-from termapy.plugins import CapabilitySet, CmdResult, Column, Command, TextLine, UsageError
+from termapy.plugins import (
+    CapabilitySet,
+    CmdResult,
+    Column,
+    Command,
+    PieceLine,
+    TextLine,
+    UsageError,
+)
 from termapy.plugins.waiting import wait
 from termapy.port_format import PORT_TABLE_COLUMNS, find_chips
 from termapy.scripting import format_duration, parse_duration
@@ -115,7 +123,7 @@ def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
         UnsupportedPlatform,
         count_ports,
         gather_usb_tree,
-        render_tree,
+        render_tree_pieces,
         to_json_records,
     )
 
@@ -127,7 +135,7 @@ def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
     # the page dispatch prints for a person (registry record-one-format).
     return CmdResult.record(
         to_json_records(roots),
-        [TextLine(line) for line in render_tree(roots)],
+        [PieceLine(tuple(line)) for line in render_tree_pieces(roots)],
         value=count_ports(roots),
     )
 

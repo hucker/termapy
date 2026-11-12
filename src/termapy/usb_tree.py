@@ -73,6 +73,8 @@ class UsbNode:
     driver: str | None = None
     # Serial port carried by this node, filled in by ``tag_serial_ports``.
     port_name: str | None = None
+    # The termapy session holding that port, when a listing asked.
+    port_session: str | None = None
     children: list[UsbNode] = field(default_factory=list)
 
     @property
@@ -216,19 +218,18 @@ def tag_serial_ports(roots: list[UsbNode], facts_list: list) -> None:
         facts_list: ChipFacts for the ports currently enumerated.
     """
     by_key = {
-        (facts.location, facts.interface_number): facts.device
-        for facts in facts_list
-        if facts.location
+        (facts.location, facts.interface_number): facts for facts in facts_list if facts.location
     }
     for root in roots:
         for node in root.walk():
-            name = by_key.get((node.path, node.interface_number))
-            if name is None and node.interface_number is None:
+            facts = by_key.get((node.path, node.interface_number))
+            if facts is None and node.interface_number is None:
                 # A single-function device carries its port on the device
                 # node itself, so an unqualified match belongs here.
-                name = by_key.get((node.path, None))
-            if name:
-                node.port_name = name
+                facts = by_key.get((node.path, None))
+            if facts is not None and facts.device:
+                node.port_name = facts.device
+                node.port_session = facts.session
 
 
 # ── Rendering (pure) ──────────────────────────────────────────────────────
@@ -256,8 +257,18 @@ def _describe(node: UsbNode) -> str:
 
 
 #: How ``/port.usb`` marks a node that carries a serial port, and its port name.
+#: The name also takes the port's state color (``port_control.port_state_style``):
+#: green held by this session, yellow by another termapy session.
 PORT_ROW_STYLE = "cyan"
-PORT_NAME_STYLE = "bold green"
+PORT_NAME_STYLE = "bold"
+
+
+def _port_name_style(session: str | None) -> str:
+    """A port name's style in the tree: bold, in its state color when it has one."""
+    from termapy.port_control import port_state_style
+
+    color = port_state_style(session)
+    return f"{PORT_NAME_STYLE} {color}" if color else PORT_NAME_STYLE
 
 
 def render_tree(roots: list[UsbNode], label_width: int = 0) -> list[str]:
@@ -304,7 +315,7 @@ def render_tree_pieces(roots: list[UsbNode], label_width: int = 0) -> list[list[
                 [
                     Piece(body, style=PORT_ROW_STYLE),
                     Piece("  "),
-                    Piece(f"-> {node.port_name}", style=PORT_NAME_STYLE),
+                    Piece(f"-> {node.port_name}", style=_port_name_style(node.port_session)),
                 ]
             )
         else:
@@ -628,7 +639,7 @@ def gather_usb_tree(
     if facts_list is None:
         from termapy.port_control import _gather_all_chip_facts
 
-        facts_list = _gather_all_chip_facts(fast=True, enrich=True, policy=policy)
+        facts_list = _gather_all_chip_facts(fast=True, enrich=True, policy=policy, sessions=True)
     tag_serial_ports(roots, facts_list)
     if policy.in_force:
         for root in roots:

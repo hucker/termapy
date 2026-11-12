@@ -1838,6 +1838,7 @@ class TestListPortRecords:
             "vid_pid",
             "serial_number",
             "in_use",
+            "session",
             "driver",
             "location",
             "interface_number",

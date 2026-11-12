@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING
 
 from termapy.matching import matches
 from termapy.plugins.views import Column
-from termapy.port_control import CHIP_FIELD_LABELS
+from termapy.port_control import CHIP_FIELD_LABELS, port_state_style
 from termapy.usb import USB_SERIAL_CHIPS, ChipInfo, mfg as _mfg_alias
 from termapy.usb_tree import ascii_fold
 
@@ -248,6 +248,11 @@ def find_chips(pattern: str = "") -> list[tuple[int, int, ChipInfo]]:
     return sorted(rows, key=lambda row: (row[0], row[1]))
 
 
+def _checked_in_use(in_use: str | None) -> bool | None:
+    """``ChipFacts.in_use`` as a record's ``in_use``: True or False when a probe checked, None when none did."""
+    return None if in_use is None else in_use.startswith("yes")
+
+
 def facts_to_json_record(facts: ChipFacts) -> dict:
     """Build a stable JSON record from a ChipFacts.
 
@@ -292,7 +297,14 @@ def facts_to_json_record(facts: ChipFacts) -> dict:
         "pid": pid,
         "vid_pid": facts.vid_pid.upper() if facts.vid_pid and ":" in facts.vid_pid else None,
         "serial_number": facts.serial,
-        "in_use": (facts.in_use or "").startswith("yes"),
+        # True or False only when something checked: a probe (--ports
+        # --json, /port.info) or a termapy session's breadcrumb.  A listing
+        # does not check every port, so None means not checked, never "free".
+        "in_use": True if facts.session else _checked_in_use(facts.in_use),
+        # The termapy session holding it, when a listing asked
+        # (``port_control.fill_sessions``): "this session" or "termapy mcp,
+        # PID 17140".  Other programs are not seen here.
+        "session": facts.session,
         "driver": facts.driver,
         # Physical bus location, "1-2.3" -- bus, then one hop per hub
         # tier.  Disambiguates two devices with the same VID/PID and
@@ -384,6 +396,8 @@ def _port_column(name: str) -> Column:
         # A click puts the connect in the input line rather than running it:
         # opening a port toggles DTR, which resets an auto-reset board.
         prefill=(lambda record: f"port.connect {record['device']}") if name == "port" else None,
+        # The port's name is colored by who holds it (port_state_style).
+        style=(lambda record: port_state_style(record["session"])) if name == "port" else None,
         drop=(len(DROP_ORDER) - DROP_ORDER.index(name)) if name in DROP_ORDER else 0,
         hide_empty=name in OPTIONAL_COLUMNS,
     )

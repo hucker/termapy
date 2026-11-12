@@ -144,6 +144,27 @@ def _ports_matching(pattern: str, facts_list: list[ChipFacts]) -> list[ChipFacts
     return [*matched, synthetic] if synthetic is not None else matched
 
 
+def port_rows_styled(lines: list[str], facts_list: list[ChipFacts]) -> list[list[Piece]]:
+    """``format_table``'s lines as pieces, each row's port name in its state color.
+
+    The table is the header, the rule, then one row per port in
+    ``facts_list``'s order, each starting with the port's name; that
+    name takes ``port_control.port_state_style``.  The text is unchanged.
+    """
+    from termapy.plugins.views import Piece
+    from termapy.port_control import port_state_style
+
+    styled: list[list[Piece]] = [[Piece(line)] for line in lines[:2]]
+    for line, fact in zip(lines[2:], facts_list, strict=True):
+        name = fact.device or ""
+        color = port_state_style(fact.session)
+        if color and name and line.startswith(name):
+            styled.append([Piece(name, style=color), Piece(line[len(name) :])])
+        else:
+            styled.append([Piece(line)])
+    return styled
+
+
 def run_ports(args: argparse.Namespace, *, source: PortSource | None = None) -> None:
     """List serial ports one line per port and exit.
 
@@ -170,7 +191,7 @@ def run_ports(args: argparse.Namespace, *, source: PortSource | None = None) -> 
     # It does show LOCATION and DRIVER though, so it asks for enrichment --
     # sysfs / registry reads, no port opened.
     all_facts = port_control._gather_all_chip_facts(
-        fast=not getattr(args, "json", False), enrich=True, source=source
+        fast=not getattr(args, "json", False), enrich=True, source=source, sessions=True
     )
     # On stderr, so --json stays one JSON document.
     note = port_control.ports_note()
@@ -192,8 +213,11 @@ def run_ports(args: argparse.Namespace, *, source: PortSource | None = None) -> 
         sys.exit(0 if records else 1)
 
     lines = format_table(facts_list, _ports_row_width())
-    for line in lines:
-        print(line)
+    if facts_list and sys.stdout.isatty() and not getattr(args, "no_color", False):
+        print_styled(port_rows_styled(lines, facts_list))
+    else:
+        for line in lines:
+            print(line)
 
     # format_table returns a single "(no ports found)" line for empty
     # input; treat that as failure for script-friendly exit codes.

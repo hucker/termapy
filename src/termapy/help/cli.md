@@ -43,13 +43,19 @@ terminals, columns drop in this order until the row fits: speed, chip,
 VID:PID, driver, vendor, PRODUCT, SERIAL #, IF, location.  PORT, MFG and
 DESCRIPTION always stay.
 
-Filter to a single port by name:
+Give a pattern to show only the ports with any field that contains it:
+the maker, a serial number, the chip, VID:PID or the port name.  Case is
+ignored, and a wildcard (`*`, `?`, `[`) makes a glob that must match a
+whole field:
 
 ```sh
-termapy --ports=COM4
+termapy --ports FTDI            # every FTDI adapter
+termapy --ports Microchip
+termapy --ports BG03U7VTA       # which COM is this adapter?
+termapy --ports "COM[1]"        # COM1 alone; plain COM1 also finds COM10-COM19
 ```
 
-Exits 0 on match, 1 on "not found" or "no ports" (script-friendly).
+Exits 0 on match, 1 on no match or no ports (script-friendly).
 
 `--ports` lists physical ports only — the ones the OS reports via
 pyserial's `comports()`.  Termapy also accepts pyserial URL handlers
@@ -170,22 +176,13 @@ you to open an issue so the lookup table can grow.
 Exits 0 if at least one port was printed, 1 if the named port wasn't
 found or no ports are connected.
 
-## Filtering and JSON output
+## JSON output
 
-`--ports` accepts these script-friendly filters (AND together):
-
-| Flag        | Effect                                                              |
-| ----------- | ------------------------------------------------------------------- |
-| `--vid HEX` | Only USB devices matching this VID. Hex with or without `0x`.       |
-| `--pid HEX` | Only USB devices matching this PID.                                 |
-| `--mfg STR` | Manufacturer substring match (case-insensitive).                    |
-| `--sn STR`  | Exact serial-number match (case-insensitive).                       |
-| `--json`    | Emit a JSON array instead of the column table; also for `--chips` and `--usb`. |
-
-Example:
+`--json` emits a JSON array instead of the column table, for `--ports`,
+`--chips` and `--usb`.  Filter it with the tool you script in:
 
 ```sh
-termapy --ports --vid 0403 --json | jq '.[].device'
+termapy --ports --json | jq -r '.[] | select(.vid_pid == "0403:6001") | .device'
 ```
 
 Each `--ports --json` record has a stable schema:
@@ -287,7 +284,7 @@ existed is not listed: end that one from Task Manager or `kill`, once.
 | Flag              | What it does                                                  |
 | ----------------- | ------------------------------------------------------------- |
 | `--chips`         | Dump the full USB-serial chip lookup table (VID:PID → model). |
-| `--chips=ftdi`    | Filter the table (case-insensitive substring match).          |
+| `--chips=ftdi`    | Only the chips any column of which contains it (`ftdi`, `0403`, `high`); a wildcard makes a glob. |
 | `--usb`           | Whole USB tree with serial ports marked, in color at a terminal (Windows and Linux); pairs with `--json`. |
 | `--check`         | Validate your config, print JSON status, exit.                |
 | `--version`       | Print the installed version and exit.                         |

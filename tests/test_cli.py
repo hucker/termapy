@@ -1640,7 +1640,7 @@ class TestPortsFlag:
 
         from termapy import cli_flags
 
-        args = argparse.Namespace(ports="*", json=False, vid=None, pid=None, mfg=None, sn=None)
+        args = argparse.Namespace(ports="*", json=False)
 
         # Act
         with pytest.raises(SystemExit) as exc:
@@ -1682,7 +1682,7 @@ class TestPortsFlag:
         from termapy import cli_flags
         from termapy.port_control import _build_demo_fleet
 
-        args = argparse.Namespace(ports="com4", json=False, vid=None, pid=None, mfg=None, sn=None)
+        args = argparse.Namespace(ports="com4", json=False)
         with pytest.raises(SystemExit) as exc:
             cli_flags.run_ports(args, source=_build_demo_fleet)
         rows = [line for line in capsys.readouterr().out.splitlines() if line.startswith("COM")]

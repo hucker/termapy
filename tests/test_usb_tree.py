@@ -293,6 +293,30 @@ class TestRenderTree:
         # Assert
         assert joined == render_tree(roots)
 
+    @pytest.mark.parametrize(("no_color", "expected_codes"), [(False, True), (True, False)])
+    def test_usb_colors_a_terminal_and_nothing_else(self, no_color, expected_codes):
+        """--usb's styled print colors the port row and name at a terminal, and drops the color under NO_COLOR."""
+        # Arrange
+        from rich.console import Console
+
+        from termapy.cli_flags import print_styled
+
+        roots = build_tree(_bus())
+        tag_serial_ports(roots, [_Facts("COM3", "1-8.4", "1")])
+        out = io.StringIO()
+        console = Console(
+            file=out, force_terminal=True, no_color=no_color, width=200, soft_wrap=True
+        )
+
+        # Act
+        print_styled(render_tree_pieces(roots), console=console)
+
+        # Assert
+        text = out.getvalue()
+        assert ("[36m" in text) is expected_codes, "the row's cyan only when color is on"
+        assert "[1m1[0m" not in text, "no number is bolded by a highlighter"
+        assert "-> COM3" in text, "the drawing itself is there either way"
+
     def test_the_page_escapes_each_piece(self):
         """A record page draws a line of pieces as markup with every piece's text escaped and its style kept."""
         # Arrange

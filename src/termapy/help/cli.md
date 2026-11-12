@@ -288,7 +288,7 @@ existed is not listed: end that one from Task Manager or `kill`, once.
 | ----------------- | ------------------------------------------------------------- |
 | `--chips`         | Dump the full USB-serial chip lookup table (VID:PID → model). |
 | `--chips=ftdi`    | Filter the table (case-insensitive substring match).          |
-| `--usb`           | Whole USB tree with serial ports marked (Windows and Linux); pairs with `--json`. |
+| `--usb`           | Whole USB tree with serial ports marked, in color at a terminal (Windows and Linux); pairs with `--json`. |
 | `--check`         | Validate your config, print JSON status, exit.                |
 | `--version`       | Print the installed version and exit.                         |
 | `--demo`          | Set up (if needed) and start the demo device config.          |

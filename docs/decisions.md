@@ -1522,10 +1522,12 @@ Chuck: code that shows the makeup of a machine is a problem under MCP; `/port.us
 device, which can point at vulnerabilities. Against that, the usual user is a developer getting a
 board working, the facts help an agent troubleshoot, and a shell has them anyway (`lsusb`,
 `Get-PnpDevice`, `hostname`, `ps`). The line: an MCP client sees everything about the devices
-`TERMAPY_ALLOWED_PORTS` allows and the path to them (`/port.list`, `/port.info` and `/port.chip`
-on those ports, `/port.usb` along their branches); the whole USB bus, the programs holding a
-port, and the host fingerprint only with `TERMAPY_MCP_HOST_INFO=1`. A person's TUI or CLI always
-has the view.
+`TERMAPY_ALLOWED_PORTS` allows (`/port.list`, `/port.info` and `/port.chip` on those ports, with
+each one's location and USB interface); the whole USB bus (`/port.usb`), the programs holding a
+port, the host fingerprint and the other termapy sessions (`/app.running`: PIDs, configs, ports)
+only with `TERMAPY_MCP_HOST_INFO=1`. A person's TUI or CLI always has the view. This replaces
+2026-11-11's pruned `/port.usb` under MCP: `/port.list` already gives an allowed port's location,
+so the hubs above it were all the pruned tree added, and they describe the machine.
 
 **Why:** the shell argument holds only where the agent has an approved shell. The gate matters
 where it does not: termapy's one tool, `run_command`, is usually approved once while each shell
@@ -1536,6 +1538,6 @@ it back down the serial line. A flag, not a refusal: read-only exposure already 
 (`TERMAPY_MCP_ENV_ENABLED`); "no flag widens MCP" (2026-11-03) covers what destroys or runs code.
 `/log.fingerprint` also read terminal variables straight from the process, past the `/env` gate;
 the capability closes that too.
-**Where:** `env_flags.MCP_HOST_INFO`, `CapabilitySet.host_info` (`/log.fingerprint`'s `needs=`),
-`PortPolicy.hides_host` (`usb_tree.gather_usb_tree`, `serial_engine.shown_holder`); registry
+**Where:** `env_flags.MCP_HOST_INFO`, `CapabilitySet.host_info` (`needs=` on `/port.usb`,
+`/log.fingerprint` and `/app.running`), `PortPolicy.hides_host` (`serial_engine.shown_holder`); registry
 `mcp-host-info-opt-in`; `help/mcp-server.md`, README's Security table.

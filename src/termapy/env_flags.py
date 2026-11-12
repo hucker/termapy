@@ -35,9 +35,9 @@ The settings:
   them below).
 
 - ``TERMAPY_MCP_HOST_INFO``: when truthy, an MCP server shows the machine
-  beyond the allowed ports: the whole USB bus, the programs holding a port,
-  and ``/log.fingerprint``.  Off, an agent sees the allowed devices and the
-  path to them only (decision 2026-11-12).
+  beyond the allowed ports: ``/port.usb``, the programs holding a port,
+  ``/log.fingerprint`` and ``/app.running``.  Off, an agent sees the
+  allowed devices only (decision 2026-11-12).
 
 - ``TERMAPY_ALLOWED_PORTS``: the ports this process may open and list, one
   regex (``port_allow``).  Unset, a person's session allows every port and

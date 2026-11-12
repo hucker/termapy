@@ -569,6 +569,9 @@ COMMAND = Command(
                 "Windows and Linux only.\n"
             ),
             handler=_handler_usb,
+            # The machine's whole bus: an MCP server answers it only under
+            # TERMAPY_MCP_HOST_INFO (decision 2026-11-12).
+            needs=CapabilitySet(host_info=True),
         ),
         "help": Command(
             help="Show {prefix}port help.",

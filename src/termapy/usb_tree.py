@@ -591,11 +591,10 @@ def gather_usb_tree(
     """Return the USB tree for this machine, ports tagged.
 
     Under ``TERMAPY_ALLOWED_PORTS`` only allowed ports are tagged, and a
-    node with no allowed port in it or below it loses its serial number.
-    A person still sees the whole bus; an MCP server sees only the branches
-    that lead to an allowed port, so an agent learns of no device the port
-    listings hide, unless ``TERMAPY_MCP_HOST_INFO`` opts it in to the whole
-    bus (``PortPolicy.hides_host``).
+    node with no allowed port in it or below it loses its serial number,
+    so the tree names no device the port listings hide.  The bus is the
+    machine's, so an MCP server shows it only under ``TERMAPY_MCP_HOST_INFO``
+    (``/port.usb`` needs ``host_info``).
 
     Args:
         source: Callable returning ``UsbRecord``s, used instead of
@@ -631,22 +630,21 @@ def gather_usb_tree(
 
         facts_list = _gather_all_chip_facts(fast=True, enrich=True, policy=policy)
     tag_serial_ports(roots, facts_list)
-    if not policy.in_force:
-        return roots
-    carrying = [root for root in roots if _leave_out_hidden(root, prune=policy.hides_host)]
-    return carrying if policy.hides_host else roots
+    if policy.in_force:
+        for root in roots:
+            _hide_serial_numbers_without_ports(root)
+    return roots
 
 
-def _leave_out_hidden(node: UsbNode, *, prune: bool) -> bool:
-    """Blank the serial number of every node with no tagged port in or below it; with ``prune``, drop it.
+def _hide_serial_numbers_without_ports(node: UsbNode) -> bool:
+    """Blank the serial number of every node with no tagged port in it or below it.
 
     Returns:
         Whether ``node`` or a descendant carries a tagged port.
     """
-    kept = [child for child in node.children if _leave_out_hidden(child, prune=prune)]
-    if prune:
-        node.children = kept
-    carries = node.port_name is not None or bool(kept)
+    carries = node.port_name is not None
+    for child in node.children:
+        carries = _hide_serial_numbers_without_ports(child) or carries
     if not carries:
         node.serial = None
     return carries

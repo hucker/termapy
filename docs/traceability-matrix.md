@@ -486,7 +486,7 @@ Ids: 186: 171 registry rows (guarantees 136, assumptions 35), 15 spec sections i
 
 ### `mcp-host-info-opt-in` (guarantee, contract)
 
-- `test_mcp_boundary.py`: `TestHostView` (5 functions)
+- `test_mcp_boundary.py`: `TestHostView` (6 functions)
 - `test_mcp_server.py`: `TestLogCommandsAvailableInMCP.test_log_fingerprint_registered_but_gated_on_host_info`
 
 ### `mcp-no-code-writes` (assumption, contract)
@@ -629,7 +629,7 @@ Ids: 186: 171 registry rows (guarantees 136, assumptions 35), 15 spec sections i
 ### `ports-enumerated-once` (guarantee, structure)
 
 - `test_architecture.py`: `test_only_port_control_enumerates_ports` **guard**, `test_port_enumeration_guard_fires_on_a_probe` **guard**, `test_port_list_allowlist_has_no_stale_entries`
-- `test_port_allow.py`: `TestARealStart` (3 functions), `TestListing` (5 functions)
+- `test_port_allow.py`: `TestARealStart` (3 functions), `TestListing` (4 functions)
 
 ### `prefix-never-hardcoded` (guarantee, structure)
 

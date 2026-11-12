@@ -838,8 +838,11 @@ path.write_text(json.dumps(cfg))
 host = MCPHost(cfg, str(path), verbose=False)
 host.repl.global_root = root
 host._fire_app_start()
-answer = asyncio.run(host.run_command_async("/log.fingerprint", "normal", 8.0))
-print(json.dumps({"host_info": host.ctx.capabilities.host_info, "error": answer["error"]}))
+errors = {
+    line: asyncio.run(host.run_command_async(line, "normal", 8.0))["error"]
+    for line in ("/log.fingerprint", "/app.running", "/port.usb")
+}
+print(json.dumps({"host_info": host.ctx.capabilities.host_info, "errors": errors}))
 """
 
 
@@ -856,6 +859,15 @@ class TestHostView:
         assert host.ctx.capabilities.host_info is False, "the MCP host has no host view by default"
         assert "requires: host_info" in answer["error"], "the capability gate refuses it"
         assert "Hostname" not in json.dumps(answer), "and nothing about the host comes back"
+
+    def test_the_running_sessions_are_refused_by_default(self, host):
+        """/app.running names other termapy processes, their PIDs, configs and ports, so MCP without the flag refuses it."""
+        # Act
+        answer = _call(host, "/app.running")
+
+        # Assert
+        assert "requires: host_info" in answer["error"], "the capability gate refuses it"
+        assert answer["data"] is None, "no session record comes back"
 
     def test_a_person_always_has_the_host_view(self):
         """The TUI and CLI are the operator on their own machine: the host view is theirs whatever the flag."""
@@ -887,37 +899,18 @@ class TestHostView:
         assert result.returncode == 0, result.stderr
         actual = json.loads(result.stdout.splitlines()[-1])
         assert actual["host_info"] is expected_view, "the flag decides the capability"
-        assert (actual["error"] == "") is expected_view, "and whether the fingerprint answers"
+        gated = {line: "requires: host_info" in error for line, error in actual["errors"].items()}
+        expected = dict.fromkeys(gated, not expected_view)
+        assert gated == expected, "and whether each machine view is refused at the gate"
 
-    @pytest.mark.parametrize(
-        ("host_info", "expected"), [(False, ["1", "1-1"]), (True, ["1", "1-1", "1-2", "2"])]
-    )
-    def test_the_usb_tree_stops_at_the_allowed_devices(self, host_info, expected):
-        """Without the flag an MCP server draws only the branch to the allowed port; with it, the whole bus."""
-        # Arrange
-        from termapy.port_allow import PortAllowlist, PortPolicy
-        from termapy.port_control import ChipFacts
-        from termapy.usb_tree import UsbRecord, gather_usb_tree
-
-        records = [
-            UsbRecord("1"),
-            UsbRecord("1-1", description="FTDI", vid_pid="0403:6001", serial="AAA"),
-            UsbRecord("1-2", description="FTDI", vid_pid="0403:6015", serial="BBB"),
-            UsbRecord("2"),
-        ]
-        allowed = [ChipFacts(device="COM3", serial="AAA", location="1-1")]
-        policy = PortPolicy(
-            allowlist=PortAllowlist.parse("COM3"), under_mcp=True, host_info=host_info
-        )
-
+    def test_the_usb_tree_is_refused_by_default(self, host):
+        """/port.usb draws the machine's whole bus, so an MCP server without the flag refuses it at the gate."""
         # Act
-        roots = gather_usb_tree(source=lambda: records, facts_list=allowed, policy=policy)
+        answer = _call(host, "/port.usb")
 
         # Assert
-        actual = [node.path for root in roots for node in root.walk()]
-        assert actual == expected
-        hidden = [node.serial for root in roots for node in root.walk() if node.path == "1-2"]
-        assert hidden in ([], [None]), "a hidden port's serial number stays blank either way"
+        assert "requires: host_info" in answer["error"], "the capability gate refuses it"
+        assert answer["data"] is None, "no node of the bus comes back"
 
     @pytest.mark.parametrize(
         ("hides_host", "expected"), [(True, "another program"), (False, "python (PID 8842)")]

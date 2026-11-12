@@ -172,8 +172,8 @@ class PortPolicy:
     def hides_host(self) -> bool:
         """Whether what this process shows stops at the allowed devices: MCP without ``TERMAPY_MCP_HOST_INFO``.
 
-        Then ``/port.usb`` draws only the branches that lead to an allowed
-        port, and a program holding a port is not named (decision 2026-11-12).
+        Then a program holding a port is not named (decision 2026-11-12);
+        the commands that show the machine need the ``host_info`` capability.
         """
         return self.under_mcp and not self.host_info
 

@@ -257,22 +257,28 @@ Bare `--ports` (no filter) does NOT include `DEMO` in the listing --
 it only appears when you specifically ask for it, the same way
 pyserial's `loop://` URL handler is reachable but not enumerated.
 
-## `--kill`: stop leftover sessions
+## `--alive` and `--kill`: see and stop sessions
 
 Every running termapy -- a TUI, a CLI, an MCP server an editor started, a
 `--web` server -- leaves a breadcrumb in the app state folder
 (`%LOCALAPPDATA%\termapy\running\` on Windows) naming its config and the
-port it has open.  `--kill` reads them:
+port it has open.  `--alive` lists them:
 
 ```text
-$ termapy --kill
-PID    MODE  CONFIG  PORT  STARTED
------  ----  ------  ----  -------------------
-21552  mcp   m3_bin  COM4  2026-10-27 16:38:45
-28172  cli   demo    DEMO  2026-10-31 08:56:24
+$ termapy --alive
+running termapys - 2 sessions
+PID    MODE  CONFIG  PORT  SETTINGS    VERSION  STARTED              STARTED BY
+-----  ----  ------  ----  ----------  -------  -------------------  --------------------
+21552  mcp   m3_bin  COM4  115200 8N1  0.80.0   2026-10-27 16:38:45  pwsh.exe 20112
+28172  tui   demo    DEMO  115200 8N1  0.80.0   2026-10-31 08:56:24  powershell.exe 17604
 ```
 
-Bare `--kill` only lists.  Give it a target to stop sessions, after a yes:
+SETTINGS is the open port's baud and frame.  STARTED BY is the program
+that started the session, past python, termapy and uv.  A one-shot (`-e`,
+`--run`) records no version or starter, which take a tenth of a second to
+read.  A narrow terminal drops STARTED BY first.
+
+`--kill` stops them, after a yes; bare, it lists them as `--alive` does:
 
 ```sh
 termapy --kill all      # every termapy, say before an update
@@ -280,11 +286,13 @@ termapy --kill COM4     # whichever session holds COM4
 termapy --kill m3_bin   # the sessions on that config (m3* picks several)
 ```
 
-Inside termapy, `/app.running` lists the same sessions and
-`/app.kill <target>` stops them: `/app.kill others` every session but the
-one you type it in, `/app.kill all` that one too.  When a target picks the
-session you type it in, that one goes last, through `/exit`, so it saves its
-history.
+Inside termapy the same two are `/app.alive` and `/app.kill <target>`:
+`/app.kill others` stops every session but the one you type it in,
+`/app.kill all` that one too.  When a target picks the session you type it
+in, that one goes last, through `/exit`, so it saves its history.
+`/app.alive.json` adds what does not fit a row: the config, the Python
+executable, the folder the session started in and its session log, each
+an absolute path, and the open port's serial number.
 
 With no terminal to answer on (a pipe), the answer is no.  A stopped session
 writes no `Session End` to its log.  A session started before breadcrumbs

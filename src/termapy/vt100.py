@@ -339,12 +339,18 @@ def run_vt100_mode(args: argparse.Namespace) -> str | None:
         sys.exit(1)
     port = session.engine.port_obj
     from termapy import breadcrumbs
+    from termapy.config import port_settings
+    from termapy.port_control import serial_number
 
     breadcrumbs.leave(
         "vt100",
         config=config_path or "",
         port=str(cfg_value(cfg, "serial.port") or ""),
         open_port=session.engine.open_device,
+        settings=port_settings(cfg),
+        port_serial=serial_number(session.engine.open_device),
+        log=str(session.session_log_path() or ""),
+        detailed=True,
     )
 
     # miniterm's Windows Console swaps sys.stdout/sys.stderr for UTF-8 wrappers

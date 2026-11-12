@@ -98,24 +98,24 @@ def run_info(args: argparse.Namespace, *, source: PortSource | None = None) -> N
 
 
 # Fallback row width when stdout isn't a TTY (piped to a file or
-# through grep).  The drop-cascade in port_format shouldn't kick in
-# for piped output -- scripts expect all columns -- so we give it
-# enough budget that natural widths always win.
-_PORTS_PIPED_ROW_WIDTH = 200
+# through grep).  A table's drop-cascade shouldn't kick in for piped
+# output -- scripts expect all columns -- so we give it enough budget
+# that natural widths always win.
+_PIPED_ROW_WIDTH = 200
 
 
-def _ports_row_width() -> int:
-    """Return the row budget for the --ports table.
+def _table_row_width() -> int:
+    """Return the row budget for a table a flag prints (--ports, --alive).
 
     Uses the real terminal width when stdout is a TTY so the
-    drop-cascade can hide less-important columns (speed, chip,
-    vid_pid, in that priority order) when the user's terminal is
+    drop-cascade can hide less-important columns (for --ports: speed,
+    chip, vid_pid, in that priority order) when the user's terminal is
     narrower than the natural row width.  Falls back to a wide
     budget when output is piped -- scripts expect every column.
     """
     if sys.stdout.isatty():
         return shutil.get_terminal_size((80, 24)).columns
-    return _PORTS_PIPED_ROW_WIDTH
+    return _PIPED_ROW_WIDTH
 
 
 def _ports_matching(pattern: str, facts_list: list[ChipFacts]) -> list[ChipFacts]:
@@ -212,7 +212,7 @@ def run_ports(args: argparse.Namespace, *, source: PortSource | None = None) -> 
         print(json.dumps(records, indent=2))
         sys.exit(0 if records else 1)
 
-    lines = format_table(facts_list, _ports_row_width())
+    lines = format_table(facts_list, _table_row_width())
     if facts_list and sys.stdout.isatty() and not getattr(args, "no_color", False):
         print_styled(port_rows_styled(lines, facts_list))
     else:
@@ -697,31 +697,35 @@ def run_check(args: argparse.Namespace) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-# The columns of the --kill listing.
-_KILL_COLUMNS = ("PID", "MODE", "CONFIG", "PORT", "STARTED")
+def _print_sessions(crumbs: Iterable[Crumb]) -> None:
+    """Print running termapys as ``/app.alive`` shows them: one table, ``breadcrumbs``'."""
+    from termapy import breadcrumbs
+    from termapy.plugins.views import TableView
+
+    records = tuple(breadcrumbs.session_record(crumb) for crumb in crumbs)
+    view = TableView(breadcrumbs.SESSIONS_TITLE, "session", breadcrumbs.session_columns(), records)
+    for text, _color in view.lines(_table_row_width()):
+        print(text)
 
 
-def _print_crumbs(crumbs: Iterable[Crumb]) -> None:
-    """Print running termapys as a table, each column as wide as its widest cell."""
-    rows = [
-        [
-            str(crumb.pid),
-            crumb.frontend,
-            crumb.config_name or "-",
-            crumb.open_port or "-",
-            crumb.started.replace("T", " "),
-        ]
-        for crumb in crumbs
-    ]
-    widths = [
-        max([len(header)] + [len(row[i]) for row in rows]) for i, header in enumerate(_KILL_COLUMNS)
-    ]
-    for cells in [list(_KILL_COLUMNS), ["-" * width for width in widths], *rows]:
-        print("  ".join(cell.ljust(width) for cell, width in zip(cells, widths)).rstrip())
+def run_alive() -> NoReturn:
+    """``--alive``: list the termapys running on this machine, as ``/app.alive`` does, and exit 0.
+
+    A running termapy is found by the breadcrumb it leaves, so one started
+    before breadcrumbs existed is not seen.
+    """
+    from termapy import breadcrumbs
+
+    running = breadcrumbs.read_running()
+    if not running:
+        print("No termapy is running.")
+    else:
+        _print_sessions(running)
+    sys.exit(0)
 
 
 def run_kill(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> None:
-    """``--kill``: list the termapys running on this machine, or stop the ones a target picks.
+    """``--kill``: stop the termapys a target picks, or, bare, list them as ``--alive`` does.
 
     Bare ``--kill`` lists them and changes nothing.  ``--kill all``, a port
     (``COM3``) or a config name lists the ones it picks, asks, and stops
@@ -737,13 +741,12 @@ def run_kill(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> Non
     """
     from termapy import breadcrumbs
 
+    target = args.kill
+    if not target:
+        run_alive()
     running = breadcrumbs.read_running()
     if not running:
         print("No termapy is running.")
-        sys.exit(0)
-    target = args.kill
-    if not target:
-        _print_crumbs(running)
         sys.exit(0)
     breadcrumbs.prune_stale()
     picked = breadcrumbs.select(running, target)
@@ -753,7 +756,7 @@ def run_kill(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> Non
             file=sys.stderr,
         )
         sys.exit(1)
-    _print_crumbs(picked)
+    _print_sessions(picked)
     noun = "process" if len(picked) == 1 else "processes"
     if not confirm(f"Stop {len(picked)} termapy {noun}?"):
         print("Nothing stopped.")

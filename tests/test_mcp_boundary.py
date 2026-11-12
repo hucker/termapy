@@ -840,7 +840,7 @@ host.repl.global_root = root
 host._fire_app_start()
 errors = {
     line: asyncio.run(host.run_command_async(line, "normal", 8.0))["error"]
-    for line in ("/log.fingerprint", "/app.running", "/port.usb")
+    for line in ("/log.fingerprint", "/app.alive", "/port.usb")
 }
 print(json.dumps({"host_info": host.ctx.capabilities.host_info, "errors": errors}))
 """
@@ -860,10 +860,10 @@ class TestHostView:
         assert "requires: host_info" in answer["error"], "the capability gate refuses it"
         assert "Hostname" not in json.dumps(answer), "and nothing about the host comes back"
 
-    def test_the_running_sessions_are_refused_by_default(self, host):
-        """/app.running names other termapy processes, their PIDs, configs and ports, so MCP without the flag refuses it."""
+    def test_the_live_sessions_are_refused_by_default(self, host):
+        """/app.alive names other termapy processes, their PIDs, configs and ports, so MCP without the flag refuses it."""
         # Act
-        answer = _call(host, "/app.running")
+        answer = _call(host, "/app.alive")
 
         # Assert
         assert "requires: host_info" in answer["error"], "the capability gate refuses it"

@@ -4221,7 +4221,7 @@ def _run_web_mode(args: argparse.Namespace) -> None:
     # process with its own breadcrumb); this one lets --kill find it.
     from termapy import breadcrumbs
 
-    breadcrumbs.leave("web", config=args.config or "")
+    breadcrumbs.leave("web", config=args.config or "", detailed=True)
     server = Server(
         " ".join(cmd_parts),
         host="localhost",

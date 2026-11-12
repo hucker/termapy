@@ -1515,6 +1515,20 @@ def gather_chip_facts(
     return synthetic_facts_for_reserved(port_name)
 
 
+def serial_number(port_name: str, *, source: PortSource | None = None) -> str:
+    """The named port's USB serial number, or "" when it reports none or is not found.
+
+    One enumeration and nothing opened: no in-use probe (``gather_chip_facts``
+    with ``fast=True``).
+
+    Args:
+        port_name: Device name, matched as the OS opens it.
+        source: Callable returning a substitute port list.
+    """
+    facts = gather_chip_facts(port_name, fast=True, source=source)
+    return (facts.serial or "") if facts is not None else ""
+
+
 # ─ Where ports come from ──────────────────────────────────────────────────
 # Three layers, in order: an explicitly injected source, then the
 # environment, then real hardware.  Sibling hooks: cfg["serial"]["port"] =

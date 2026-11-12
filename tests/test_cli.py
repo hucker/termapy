@@ -2041,9 +2041,9 @@ class TestPathsStayLight:
     frist via ``scripting``'s tables, metadata via ``entry``'s parser.
     """
 
-    @pytest.mark.parametrize("flag", ["--ports", "--chips", "--usb", "--kill"])
+    @pytest.mark.parametrize("flag", ["--ports", "--chips", "--usb", "--alive", "--kill"])
     def test_print_and_exit_flags_load_nothing_heavy(self, tmp_path, flag):
-        """--ports, --chips, --usb and --kill load no UI framework, no metadata and no frist."""
+        """--ports, --chips, --usb, --alive and --kill load no UI framework, no metadata and no frist."""
         # Act
         actual = _loaded_after(flag, cwd=tmp_path)
 

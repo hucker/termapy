@@ -15,8 +15,8 @@ Command surface:
 - ``/app.config``       print ``config.json``'s path
 - ``/app.config.dump``  print ``config.json`` contents to the terminal
 - ``/app.config.edit``  open ``config.json`` in the system editor
-- ``/app.running``      list the termapys running on this machine
-- ``/app.kill``         stop the termapys a target picks, after a yes
+- ``/app.alive``        list the termapys running on this machine
+- ``/app.kill``         stop the termapys a target picks, after a yes; bare, list them
 
 There is no bare ``/app`` -- every action is a subcommand.  Both
 ``state.json`` and ``config.json`` expose ``.edit`` for symmetry,
@@ -111,7 +111,7 @@ def _running_record() -> dict | None:
         "bytes": None,
         "folder": str(folder.parent),
         "sessions": len(breadcrumbs.read_running()),
-        "open": "app.running",
+        "open": "app.alive",
     }
 
 
@@ -123,7 +123,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     every platform) and ``open`` (the command a click on its name runs:
     its ``.dump``, or the folder).  Ahead of them the ``running/`` folder of
     session breadcrumbs, sized by how many sessions run, opening
-    ``/app.running``.  Windows and macOS keep state and config in one
+    ``/app.alive``.  Windows and macOS keep state and config in one
     folder, which is the table's title; Linux splits them (XDG_STATE_HOME
     vs XDG_CONFIG_HOME), and then a FOLDER column shows it.  A folder that
     does not exist yet lists as empty: listing creates nothing.
@@ -295,7 +295,7 @@ def _handler_ver_info(ctx: PluginContext, args: str) -> CmdResult:
 
 
 _APP_LONG_HELP = """\
-Sessions: {prefix}app.running lists them; {prefix}app.kill others stops every
+Sessions: {prefix}app.alive lists them; {prefix}app.kill others stops every
 one but this, {prefix}app.kill all this one too (last, through {prefix}exit).
 
 Files: {prefix}app.state and {prefix}app.config print a path; add .dump to print
@@ -305,39 +305,19 @@ preferences, though no feature reads it yet.  {prefix}app.ver.latest and
 {prefix}app.ver.info compare with PyPI."""
 
 
-# ── /app.running, /app.kill ───────────────────────────────────────────────────
+# ── /app.alive, /app.kill ─────────────────────────────────────────────────────
 
 
-def _session_record(crumb: breadcrumbs.Crumb) -> dict:
-    """One running termapy as a record: the table's row and the JSON answer."""
-    return {
-        "pid": crumb.pid,
-        "frontend": crumb.frontend,
-        "config": crumb.config_name,
-        "config_path": crumb.config,
-        "port": crumb.port,
-        "open_port": crumb.open_port,
-        "started": crumb.started,
-        "this_session": crumb.pid == os.getpid(),
-    }
+def _handler_alive(ctx: PluginContext, args: str) -> CmdResult:
+    """List the termapys running on this machine, from their breadcrumbs (``breadcrumbs``).
 
-
-_SESSION_COLUMNS = (
-    Column("PID", lambda record: str(record["pid"]), right=True),
-    Column(
-        "MODE",
-        lambda record: record["frontend"] + (" (this)" if record["this_session"] else ""),
-    ),
-    Column("CONFIG", lambda record: record["config"] or "-"),
-    Column("PORT", lambda record: record["open_port"] or "-"),
-    Column("STARTED", lambda record: record["started"].replace("T", " ")),
-)
-
-
-def _handler_running(ctx: PluginContext, args: str) -> CmdResult:
-    """List the termapys running on this machine, from their breadcrumbs (``breadcrumbs``)."""
-    records = [_session_record(crumb) for crumb in breadcrumbs.read_running()]
-    return CmdResult.table("running termapys", "session", _SESSION_COLUMNS, records)
+    The table and the records are ``breadcrumbs``', so ``termapy --alive``
+    prints the same one.
+    """
+    records = [breadcrumbs.session_record(crumb) for crumb in breadcrumbs.read_running()]
+    return CmdResult.table(
+        breadcrumbs.SESSIONS_TITLE, "session", breadcrumbs.session_columns(), records
+    )
 
 
 def _handler_kill(ctx: PluginContext, args: str) -> CmdResult:
@@ -347,9 +327,12 @@ def _handler_kill(ctx: PluginContext, args: str) -> CmdResult:
     ``all`` and any target that picks this session include it.  This
     session is never killed: it goes last, through ``exit``, so it saves
     its history and ends its log like any exit.  If another session would
-    not stop, this one stays open to show why.
+    not stop, this one stays open to show why.  Bare, it stops nothing and
+    answers with ``/app.alive``'s list, as bare ``termapy --kill`` does.
     """
-    target = ctx.arg("target")
+    target = ctx.arg("target") or ""
+    if not target:
+        return ctx.internal.dispatch("app.alive")
     running = breadcrumbs.read_running()
     picked = breadcrumbs.select(running, target)
     if target.casefold() == "others":
@@ -381,7 +364,7 @@ def _handler_kill(ctx: PluginContext, args: str) -> CmdResult:
         return ctx.internal.dispatch("exit")
     return CmdResult.ok(
         value="\n".join(str(crumb.pid) for crumb in stopped),
-        data=[_session_record(crumb) for crumb in stopped],
+        data=[breadcrumbs.session_record(crumb) for crumb in stopped],
     )
 
 
@@ -397,8 +380,8 @@ _KILL_LONG_HELP = (
     "through {prefix}exit, so it saves its history and ends its log.  Use it\n"
     "for a clean system, say before an update, when a forgotten MCP server\n"
     "still holds a port.  Not over MCP: an agent cannot end your sessions.\n"
-    "{prefix}app.running lists the sessions; termapy --kill does the same\n"
-    "from the command line."
+    "Bare, it stops nothing and lists the sessions, as {prefix}app.alive does.\n"
+    "From the command line: termapy --alive and termapy --kill <target>."
 )
 
 
@@ -415,14 +398,19 @@ COMMAND = Command(
     long_help=_APP_LONG_HELP,
     handler=None,
     sub_commands={
-        "running": Command(
+        "alive": Command(
             help="List the termapy sessions running on this machine.",
             long_help=(
                 "Every running termapy -- a TUI, a CLI, an MCP server, a web or\n"
-                "VT100 session -- with its mode, config and the port it has open.\n"
-                "This session is marked (this).  {prefix}app.kill stops them."
+                "VT100 session -- with its mode, config, the port it has open and\n"
+                "its settings, its version and the program that started it (past\n"
+                "python, termapy and uv).  A one-shot (-e, --run) records no\n"
+                "version or starter.  --json adds the paths: config, Python, the\n"
+                "folder it started in, its session log, and the port's serial\n"
+                "number.  This session is marked (this).  {prefix}app.kill stops them;\n"
+                "termapy --alive prints the same list from the command line."
             ),
-            handler=_handler_running,
+            handler=_handler_alive,
             shows=True,
             state=True,
             # Other programs on the machine, with their PIDs, configs and
@@ -431,7 +419,7 @@ COMMAND = Command(
             needs=CapabilitySet(host_info=True),
         ),
         "kill": Command(
-            help="Stop termapy sessions: others, all, a port or a config (asks first).",
+            help="Stop termapy sessions: others, all, a port or a config (asks first); bare lists.",
             long_help=_KILL_LONG_HELP,
             handler=_handler_kill,
             params=[
@@ -439,9 +427,8 @@ COMMAND = Command(
                     "target",
                     "str",
                     positional=True,
-                    required=True,
                     hint="<target>",
-                    help="others, all, a port such as COM3, or a config name",
+                    help="others, all, a port such as COM3, or a config name; none lists",
                 )
             ],
             needs=CapabilitySet(interactive=True, confirm_dialog=True),

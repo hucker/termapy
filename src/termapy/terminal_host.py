@@ -244,20 +244,34 @@ class TerminalHost:
         self.repl.fire_lifecycle("on_app_start")
 
     def _leave_breadcrumb(self) -> None:
-        """Tell ``termapy --kill`` what this session holds: frontend, config and open port.
+        """Tell ``/app.alive`` and ``termapy --alive`` what this session holds.
 
         Called when the session starts, connects, disconnects, loses its
-        port and switches config, so the breadcrumb always names the port
-        this process has open (``breadcrumbs``).
+        port, switches config and changes the open port's settings, so the
+        breadcrumb always names the port this process has open and how
+        (``breadcrumbs``).  A one-shot (``--run``, ``-e``) skips what costs
+        time to read: the version, who started it, the port's serial number.
         """
         from termapy import breadcrumbs
+        from termapy.config import port_settings
 
+        detailed = not getattr(self, "is_oneshot", False)
         serial_cfg = self.cfg.get("serial") or {}
+        open_port = (self.engine.open_device or "") if self.engine.is_connected else ""
+        port_serial = ""
+        if open_port and detailed:
+            from termapy.port_control import serial_number
+
+            port_serial = serial_number(open_port)
         breadcrumbs.leave(
             self.front_end,
             config=self.config_path or "",
             port=str(serial_cfg.get("port") or ""),
-            open_port=(self.engine.open_device or "") if self.engine.is_connected else "",
+            open_port=open_port,
+            settings=port_settings(self.cfg) if open_port else "",
+            port_serial=port_serial,
+            log=str(self.session_log_path() or ""),
+            detailed=detailed,
         )
 
     def _register_vars(self) -> None:
@@ -874,8 +888,13 @@ class TerminalHost:
         port_control producers don't need to know the cfg shape;
         ``ReplEngine.store_cfg`` routes each one.
         """
-        for key, val in effects.get("cfg_update", {}).items():
+        from termapy.port_control import SERIAL_KEYS
+
+        changed = effects.get("cfg_update", {})
+        for key, val in changed.items():
             self.repl.store_cfg(key, val)
+        if self.engine.is_connected and SERIAL_KEYS.intersection(changed):
+            self._leave_breadcrumb()
 
     # -- Port switching ---------------------------------------------------------
 

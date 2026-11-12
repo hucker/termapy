@@ -1,8 +1,9 @@
-"""breadcrumbs: the file each running termapy leaves, and how --kill reads, picks and stops them."""
+"""breadcrumbs: the file each running termapy leaves, how --alive lists them, and how --kill picks and stops them."""
 
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import os
 import subprocess
@@ -64,17 +65,16 @@ def _child_session(state_dir, *, config: str = "rig.cfg", open_port: str = "COM9
 
 def _crumb(**fields) -> Crumb:
     """A breadcrumb for this test process, with any field replaced."""
-    base = {
-        "pid": os.getpid(),
-        "token": breadcrumbs.process_token(os.getpid()) or "",
-        "started": "2026-10-31T09:00:00",
-        "frontend": "cli",
-        "config": "C:/proj/termapy_cfg/rig/rig.cfg",
-        "port": "COM7",
-        "open_port": "COM7",
-    }
-    base.update(fields)
-    return Crumb(**base)
+    base = Crumb(
+        pid=os.getpid(),
+        token=breadcrumbs.process_token(os.getpid()) or "",
+        started="2026-10-31T09:00:00",
+        frontend="cli",
+        config="C:/proj/termapy_cfg/rig/rig.cfg",
+        port="COM7",
+        open_port="COM7",
+    )
+    return dataclasses.replace(base, **fields)
 
 
 class TestProcessToken:
@@ -103,6 +103,76 @@ class TestProcessToken:
         assert actual is None, "an exited process is not running"
 
 
+# The chain ``uv run termapy`` builds on Windows: the shell starts uv, uv the
+# termapy console script, that the venv's python launcher, and that the
+# interpreter running termapy.
+_UV_CHAIN = {
+    17604: (900, "powershell.exe"),
+    15876: (17604, "uv.exe"),
+    27136: (15876, "termapy.exe"),
+    18488: (27136, "python.exe"),
+    22056: (18488, "python.exe"),
+}
+
+
+class TestWhoStartedIt:
+    """The program that started a termapy is its first ancestor that is not python, termapy or uv."""
+
+    def test_the_starter_is_past_the_launchers(self):
+        """uv run termapy on Windows: python, python, termapy.exe and uv.exe are skipped to reach the shell."""
+        assert breadcrumbs.starting_process(22056, _UV_CHAIN) == (17604, "powershell.exe")
+
+    def test_a_starter_that_is_no_launcher_is_the_parent(self):
+        """An MCP server an editor starts directly names the editor."""
+        table = {50: (1, "Code.exe"), 60: (50, "termapy")}
+        assert breadcrumbs.starting_process(60, table) == (50, "Code.exe")
+
+    @pytest.mark.parametrize(
+        "table",
+        [
+            {10: (11, "python.exe"), 11: (10, "uv.exe")},
+            {10: (11, "python.exe"), 11: (99, "uv.exe")},
+            {10: (0, "python.exe")},
+            {},
+        ],
+        ids=["a loop", "a parent that has exited", "no parent", "not in the table"],
+    )
+    def test_no_starter_found_is_none(self, table):
+        """A walk that loops or runs out of processes gives None, never a launcher."""
+        assert breadcrumbs.starting_process(10, table) is None
+
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            ("python.exe", True),
+            ("Python.EXE", True),
+            ("pythonw.exe", True),
+            ("python3", True),
+            ("python3.14", True),
+            ("/usr/bin/python3.14", True),
+            ("termapy.exe", True),
+            ("uv", True),
+            ("uvx.exe", True),
+            ("powershell.exe", False),
+            ("bash", False),
+            ("Code.exe", False),
+            ("pythonista", False),
+            ("termapy-web", False),
+        ],
+    )
+    def test_launcher_names(self, name, expected):
+        """Python by pattern, termapy and uv by name, case and .exe ignored; anything else is a starter."""
+        assert breadcrumbs.is_launcher(name) is expected
+
+    def test_the_process_table_holds_this_process(self):
+        """The real snapshot finds this process under the parent the OS reports for it."""
+        # Act
+        table = breadcrumbs.process_table()
+
+        # Assert
+        assert table[os.getpid()][0] == os.getppid(), "one snapshot, the OS's own parent link"
+
+
 class TestBreadcrumb:
     """This process's breadcrumb: written, rewritten, removed."""
 
@@ -120,11 +190,24 @@ class TestBreadcrumb:
             "pid": os.getpid(),
             "token": breadcrumbs.process_token(os.getpid()),
             "frontend": "mcp",
-            "config": "rig.cfg",
+            "config": os.path.abspath("rig.cfg"),
             "port": "SN:BG03U7VTA",
             "open_port": "COM7",
         }
         assert {key: actual[key] for key in expected} == expected
+
+    def test_every_path_is_absolute(self, state_dir):
+        """A relative config or log is written absolute, so a reader in another folder finds the right file."""
+        # Act
+        Breadcrumb().write("cli", config="rig/rig.cfg", log="rig/log/rig.log")
+
+        # Assert
+        actual = breadcrumbs.read_running()[0]
+        paths = (actual.config, actual.log, actual.python, actual.cwd)
+        assert [os.path.isabs(path) for path in paths] == [True] * 4, paths
+        assert actual.config == os.path.join(os.getcwd(), "rig", "rig.cfg"), (
+            "against its own folder"
+        )
 
     def test_a_second_write_replaces_the_first(self, state_dir):
         """Twice in a row: a disconnect rewrites the one file, so --kill sees the port released."""
@@ -139,6 +222,43 @@ class TestBreadcrumb:
         files = list((state_dir / "running").glob("*.json"))
         assert len(files) == 1, "one process, one breadcrumb"
         assert breadcrumbs.read_running()[0].open_port == "", "the latest write is what is read"
+
+    def test_a_plain_write_reads_nothing_costly(self, state_dir):
+        """Without detailed, no version and no starter, so a one-shot stays fast; the free facts are there."""
+        # Act
+        Breadcrumb().write("cli")
+
+        # Assert
+        actual = breadcrumbs.read_running()[0]
+        assert (actual.version, actual.parent_pid, actual.parent_name) == ("", 0, "")
+        assert (actual.python, actual.cwd) == (os.path.abspath(sys.executable), os.getcwd())
+
+    def test_a_detailed_write_records_the_version_and_starter(self, state_dir):
+        """A long-lived session's breadcrumb names the termapy version and the program that started it."""
+        # Arrange
+        expected_starter = breadcrumbs.starting_process(os.getpid(), breadcrumbs.process_table())
+
+        # Act
+        Breadcrumb().write("tui", detailed=True)
+
+        # Assert
+        actual = breadcrumbs.read_running()[0]
+        assert actual.version == breadcrumbs.installed_version() != "", "the installed version"
+        assert (actual.parent_pid, actual.parent_name) == (expected_starter or (0, ""))
+
+    def test_the_port_details_round_trip(self, state_dir):
+        """Settings, the port's serial number and the session log are read back as written."""
+        # Arrange
+        log = str(state_dir / "rig.mcp.log")
+
+        # Act
+        Breadcrumb().write(
+            "mcp", open_port="COM7", settings="115200 8N1", port_serial="BG03U7VTA", log=log
+        )
+
+        # Assert
+        actual = breadcrumbs.read_running()[0]
+        assert (actual.settings, actual.port_serial, actual.log) == ("115200 8N1", "BG03U7VTA", log)
 
     def test_remove_deletes_it(self, state_dir):
         """At exit the breadcrumb goes, so a cleanly closed session leaves nothing behind."""
@@ -187,6 +307,22 @@ class TestReadRunning:
 
         # Assert
         assert actual == [], "the PID is alive but belongs to a different process"
+
+    def test_an_older_breadcrumb_still_reads(self, state_dir):
+        """A session started by an older termapy, with none of the newer fields, is listed with them blank."""
+        # Arrange
+        old_keys = ("pid", "token", "started", "frontend", "config", "port", "open_port")
+        old = {key: getattr(_crumb(), key) for key in old_keys}
+        folder = state_dir / "running"
+        folder.mkdir(parents=True)
+        (folder / f"{os.getpid()}.json").write_text(json.dumps(old), encoding="utf-8")
+
+        # Act
+        actual = breadcrumbs.read_running()
+
+        # Assert
+        assert [crumb.open_port for crumb in actual] == ["COM7"], "still listed"
+        assert (actual[0].version, actual[0].parent_pid, actual[0].settings) == ("", 0, "")
 
     def test_an_unreadable_file_is_skipped(self, state_dir):
         """A half-written or foreign file in the folder is ignored, not an error."""
@@ -294,8 +430,35 @@ class TestStop:
             )
 
 
+class TestAliveFlag:
+    """termapy --alive: the sessions, in /app.alive's table, and nothing stopped."""
+
+    def test_alive_prints_the_app_alive_table(self, state_dir, capsys):
+        """--alive prints the table /app.alive answers with, columns and title alike, and exits 0."""
+        # Arrange
+        from termapy.cli_flags import run_alive
+        from termapy.plugins.views import TableView
+
+        Breadcrumb().write(
+            "mcp", config="a/rig.cfg", port="COM7", open_port="COM7", settings="9600 8N1"
+        )
+        records = tuple(breadcrumbs.session_record(crumb) for crumb in breadcrumbs.read_running())
+        view = TableView(
+            breadcrumbs.SESSIONS_TITLE, "session", breadcrumbs.session_columns(), records
+        )
+
+        # Act
+        with pytest.raises(SystemExit) as exit_info:
+            run_alive()
+
+        # Assert -- captured output is not a terminal, so the table gets its full width
+        expected = [text for text, _color in view.lines(200)]
+        assert (exit_info.value.code, capsys.readouterr().out.splitlines()) == (0, expected)
+        assert breadcrumbs.read_running(), "a listing stops nothing"
+
+
 class TestKillFlag:
-    """termapy --kill: bare lists, a target asks and stops."""
+    """termapy --kill: bare lists as --alive does, a target asks and stops."""
 
     @staticmethod
     def _run(target: str, *, answer: bool = False) -> int:
@@ -381,17 +544,84 @@ class TestSessionTrail:
         assert at_start == "", "nothing is open at start"
         assert steps == ["DEMO", "", "DEMO", ""], "connect names the port, disconnect clears it"
 
+    def test_the_breadcrumb_carries_the_open_ports_settings(self, cli_demo, state_dir):
+        """Connect records the settings and serial number, a baud change rewrites them, disconnect clears them."""
+        # Arrange
+        own = state_dir / "running" / f"{os.getpid()}.json"
+
+        def port_fields() -> tuple[str, str]:
+            record = json.loads(own.read_text(encoding="utf-8"))
+            return record["settings"], record["port_serial"]
+
+        cli_demo._fire_app_start()
+
+        # Act
+        cli_demo._connect()
+        connected = port_fields()
+        changed = cli_demo.repl.dispatch_full("/port.baud_rate 9600")
+        after_baud = port_fields()
+        cli_demo._disconnect()
+        disconnected = port_fields()
+
+        # Assert
+        assert changed.success, changed.error
+        assert connected == ("115200 8N1", "TERMAPY-DEMO"), "the simulator's settings and serial"
+        assert after_baud == ("9600 8N1", "TERMAPY-DEMO"), "a settings change is rewritten"
+        assert disconnected == ("", ""), "no port, no settings"
+
+    def test_an_interactive_session_records_its_version(self, cli_demo, state_dir):
+        """A CLI at its prompt is long-lived, so its breadcrumb carries the version."""
+        # Act
+        cli_demo._fire_app_start()
+
+        # Assert
+        record = json.loads((state_dir / "running" / f"{os.getpid()}.json").read_text("utf-8"))
+        assert record["version"] == breadcrumbs.installed_version()
+
+    @pytest.mark.slow  # a fresh interpreter, so the breadcrumb is its own
+    def test_a_one_shot_records_no_version_or_starter(self, tmp_path):
+        """termapy -e answers fast: its breadcrumb skips the version and the process walk."""
+        # Arrange
+        cfg_root = tmp_path / "cfg"
+        cfg_root.mkdir()
+
+        # Act
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "termapy",
+                "--cli",
+                "--demo",
+                "--cfg-dir",
+                str(cfg_root),
+                "-e",
+                "/app.alive.json",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=tmp_path,
+            env={**os.environ, "TERMAPY_STATE_DIR": str(tmp_path / "state")},
+        )
+
+        # Assert
+        envelope = json.loads(result.stdout)
+        own = [record for record in envelope["data"] if record["this_session"]]
+        assert [(record["version"], record["parent_pid"]) for record in own] == [("", None)]
+        assert own[0]["settings"] == "115200 8N1", "the free facts are still there"
+
 
 class TestAppCommands:
-    """/app.running and /app.kill: the same breadcrumbs, from inside a session."""
+    """/app.alive and /app.kill: the same breadcrumbs, from inside a session."""
 
-    def test_running_lists_this_session_marked(self, cli_demo, state_dir):
-        """/app.running answers a record per session and marks the one that ran it."""
+    def test_alive_lists_this_session_marked(self, cli_demo, state_dir):
+        """/app.alive answers a record per session and marks the one that ran it."""
         # Arrange
         cli_demo._fire_app_start()
 
         # Act
-        result = cli_demo.repl.dispatch_full("/app.running")
+        result = cli_demo.repl.dispatch_full("/app.alive")
 
         # Assert
         assert result.success, result.error
@@ -400,6 +630,62 @@ class TestAppCommands:
             for record in result.data
         ]
         assert actual == [(os.getpid(), "cli", "rig", True)]
+
+    def test_alive_json_carries_what_the_table_leaves_out(self, cli_demo, state_dir):
+        """The paths and the port's serial number are in the record; the table has no room for them."""
+        # Arrange
+        cli_demo._fire_app_start()
+        cli_demo._connect()
+
+        # Act
+        result = cli_demo.repl.dispatch_full("/app.alive")
+
+        # Assert
+        record = result.data[0]
+        actual = {key: record[key] for key in ("python", "cwd", "port_serial", "settings")}
+        assert actual == {
+            "python": os.path.abspath(sys.executable),
+            "cwd": os.getcwd(),
+            "port_serial": "TERMAPY-DEMO",
+            "settings": "115200 8N1",
+        }
+
+    def test_alive_table_drops_the_starter_first(self):
+        """A narrow frontend loses STARTED BY first; the session's identity columns never go."""
+        # Arrange
+        from termapy.plugins.views import TableView
+
+        crumb = _crumb(
+            settings="115200 8N1", version="0.80.0", parent_pid=17604, parent_name="pwsh.exe"
+        )
+        view = TableView(
+            breadcrumbs.SESSIONS_TITLE,
+            "session",
+            breadcrumbs.session_columns(),
+            (breadcrumbs.session_record(crumb),),
+        )
+
+        def headers(width: int) -> list[str]:
+            return next(text for text, _ in view.lines(width) if text.startswith("PID")).split()
+
+        # Act
+        wide = headers(200)
+        narrow = headers(70)
+
+        # Assert
+        assert wide == [
+            "PID",
+            "MODE",
+            "CONFIG",
+            "PORT",
+            "SETTINGS",
+            "VERSION",
+            "STARTED",
+            "STARTED",
+            "BY",
+        ], "every column at full width"
+        assert narrow[:4] == ["PID", "MODE", "CONFIG", "PORT"], "identity stays"
+        assert "BY" not in narrow, "the starter goes first"
 
     def test_kill_ends_this_session_through_exit(self, cli_demo, state_dir):
         """Picked by its own target, the session is not killed: after a yes it leaves through /exit."""
@@ -451,6 +737,20 @@ class TestAppCommands:
         # Assert
         assert (result.success, result.error) == (False, "Nothing stopped.")
         assert cli_demo._exit_requested is False, "no exit was asked for"
+
+    def test_bare_kill_lists_and_stops_nothing(self, cli_demo, state_dir):
+        """Bare /app.kill is a query, as bare --kill is: /app.alive's answer, no question, no exit."""
+        # Arrange
+        cli_demo._fire_app_start()
+
+        # Act
+        with patch("builtins.input", side_effect=AssertionError("nothing to confirm")):
+            bare = cli_demo.repl.dispatch_full("/app.kill")
+        alive = cli_demo.repl.dispatch_full("/app.alive")
+
+        # Assert
+        assert (bare.success, bare.data) == (True, alive.data), "the same answer as /app.alive"
+        assert cli_demo._exit_requested is False, "a listing ends nothing"
 
     def test_kill_is_out_of_an_agents_reach(self, cli_demo):
         """/app.kill needs a person and a yes, which MCP has neither of, so an agent cannot end sessions."""

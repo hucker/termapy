@@ -222,14 +222,22 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Port for web server (default: 8000)",
     )
     parser.add_argument(
+        "--alive",
+        action="store_true",
+        help=(
+            "List the termapys running on this machine: mode, config, port and its "
+            "settings, version and what started each (/app.alive)"
+        ),
+    )
+    parser.add_argument(
         "--kill",
         nargs="?",
         const="",
         default=None,
         metavar="TARGET",
         help=(
-            "List the termapys running on this machine. With a TARGET -- all, a "
-            "port (COM3) or a config name -- stop the ones it picks, after a yes"
+            "Stop the termapys a TARGET picks -- all, a port (COM3) or a config "
+            "name -- after a yes (/app.kill).  Bare, list them as --alive does"
         ),
     )
     parser.add_argument(
@@ -458,6 +466,10 @@ def main() -> None:
         from termapy.cli_flags import run_chips
 
         run_chips(args)
+    if args.alive:
+        from termapy.cli_flags import run_alive
+
+        run_alive()
     if args.kill is not None:
         from termapy.cli_flags import confirm_on_stdin, run_kill
 

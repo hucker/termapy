@@ -2489,7 +2489,7 @@ NOT_IN_GOLD: dict[str, str] = {
     "app.explore": _OPENS_APP,
     "app.kill": "ends other termapy processes on this machine, after a yes; tests/test_breadcrumbs.py drives it",
     "app.list": "lists the user's app folder, which differs per machine",
-    "app.running": "lists the termapy processes on this machine, by PID and start time",
+    "app.alive": "lists the termapy processes on this machine, by PID and start time",
     "app.state": _PATH,
     "app.state.dump": "prints the user's app state (update-check times), which differs per machine",
     "app.state.edit": _OPENS_APP,

@@ -787,6 +787,21 @@ def delete_config(config_path: str | Path) -> int:
     return len(files)
 
 
+def _baud_and_frame(serial: Mapping) -> str:
+    """``115200 8N1``: the baud rate, then data bits, parity and stop bits."""
+    stop_bits = serial["stop_bits"]
+    stop_text = str(int(stop_bits)) if stop_bits == int(stop_bits) else str(stop_bits)
+    return f"{serial['baud_rate']} {serial['byte_size']}{serial['parity']}{stop_text}"
+
+
+def port_settings(cfg: Mapping) -> str:
+    """The serial settings without the port: ``115200 8N1``, then the flow control unless none."""
+    serial = cfg["serial"]
+    flow = serial["flow_control"]
+    frame = _baud_and_frame(serial)
+    return frame if flow == "none" else f"{frame} {flow}"
+
+
 def connection_string(cfg: Mapping, level: str = "medium", actual_port: str = "") -> str:
     """Format connection info from config at different detail levels.
 
@@ -805,18 +820,9 @@ def connection_string(cfg: Mapping, level: str = "medium", actual_port: str = ""
     """
     serial = cfg["serial"]
     port = actual_port or serial["port"] or "?"
-    baud = serial["baud_rate"]
-    bits = serial["byte_size"]
-    parity = serial["parity"]
-    sb = serial["stop_bits"]
-    sb_str = str(int(sb)) if sb == int(sb) else str(sb)
-    fc = serial["flow_control"]
-
-    base = f"{port} {baud} {bits}{parity}{sb_str}"
     if level == "short":
-        return base
-    if fc != "none":
-        base += f" {fc}"
+        return f"{port} {_baud_and_frame(serial)}"
+    base = f"{port} {port_settings(cfg)}"
     if level == "medium":
         return base
     enc = cfg_value(cfg, "encoding")

@@ -337,7 +337,7 @@ class CapabilitySet:
     # What:  Handler may describe the host machine beyond the allowed
     #        devices: the whole USB bus (``/port.usb``), the host fingerprint
     #        (OS, hostname, terminal environment) and the other termapy
-    #        sessions (``/app.running``).  The programs holding a port follow
+    #        sessions (``/app.alive``).  The programs holding a port follow
     #        the same flag, through env_flags.port_policy.
     # Where: CLI, TUI.  MCP only when ``TERMAPY_MCP_HOST_INFO`` is set
     #        (decision 2026-11-12).

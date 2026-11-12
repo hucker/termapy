@@ -134,7 +134,7 @@ class TestAppList:
         assert not config_dir.exists(), "nor the config folder"
 
     def test_running_sessions_list_first_as_a_folder(self, pin_app_dirs, ctx):
-        """running/ lists first, sized by its live sessions, and a click opens /app.running; a file opens its .dump."""
+        """running/ lists first, sized by its live sessions, and a click opens /app.alive; a file opens its .dump."""
         # Arrange
         from termapy.app_dirs import save_app_state
         from termapy.breadcrumbs import Breadcrumb
@@ -149,7 +149,7 @@ class TestAppList:
         actual = [
             (record["name"], record.get("sessions"), record["open"]) for record in result.data
         ]
-        expected = [("running/", 1, "app.running"), ("state.json", None, "app.state.dump")]
+        expected = [("running/", 1, "app.alive"), ("state.json", None, "app.state.dump")]
         assert actual == expected
 
     def test_list_is_the_file_table_with_a_folder_column(self, pin_app_dirs, ctx):

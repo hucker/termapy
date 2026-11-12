@@ -151,7 +151,7 @@ src/termapy/
 ├── app.py                  # (4344 lines) Textual TUI frontend: the app, its panes and buttons, and the wiring around the engines
 ├── app_dirs.py             #              User-level application directories and files for termapy
 ├── app_hooks.py            #              TUI-specific REPL hooks registered against the app's ReplEngine
-├── breadcrumbs.py          #              Breadcrumbs: every running termapy leaves a file saying what it holds, so `--kill` can find it
+├── breadcrumbs.py          #              Breadcrumbs: every running termapy leaves a file saying what it holds, so `--alive` and `--kill` can find it
 ├── capture.py              # (475 lines)  Capture engine - file capture state machine (no UI dependency)
 ├── capture_view.py         #              TUI capture-progress view: start/stop, status bar, and progress widget
 ├── cli.py                  # (908 lines)  CLI serial terminal - no Textual dependency
@@ -940,7 +940,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_bare_forms.py                  | A bare call's behavior is a declaration the dispatcher honors                                                                                                                       |
 | test_boards.py                      | Dev-board starter projects: the `/board` table, finding a board, its config, its firmware                                                                                           |
 | test_bom_files.py                   | A file a person writes, saved with a UTF-8 byte-order mark, reads as if it had none                                                                                                 |
-| test_breadcrumbs.py                 | breadcrumbs: the file each running termapy leaves, and how --kill reads, picks and stops them                                                                                       |
+| test_breadcrumbs.py                 | breadcrumbs: the file each running termapy leaves, how --alive lists them, and how --kill picks and stops them                                                                      |
 | test_builtins.py                    | Tests for built-in REPL commands dispatched through ReplEngine                                                                                                                      |
 | test_cap_poll.py                    | `/cap.poll`: the scheduled polling loop, its files, its validation, and its stop                                                                                                    |
 | test_capture.py                     | Tests for CaptureEngine - file capture state machine                                                                                                                                |

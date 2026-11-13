@@ -388,6 +388,18 @@ class TestReadRunning:
 class TestSelect:
     """--kill's target: all, a PID, a port, or a config name."""
 
+    @pytest.mark.parametrize(("target", "expected"), [("other", "others"), ("al", "all")])
+    def test_a_mistyped_target_word_suggests_it(self, target, expected):
+        """The target words are offered like names: other is answered with others."""
+        # Arrange
+        crumbs = [_crumb(pid=22056, config="a/rig.cfg")]
+
+        # Act
+        actual = breadcrumbs.suggest(crumbs, target)
+
+        # Assert
+        assert actual == f" -- did you mean {expected}?"
+
     def test_a_mistyped_pid_suggests_the_running_one(self):
         """A PID one digit off is answered with the PID that is running."""
         # Arrange
@@ -622,7 +634,7 @@ class TestStopSessions:
         # Arrange
         left = _crumb(pid=1)
         stayed = _crumb(pid=2)
-        expected_command = "taskkill /PID 2 /F" if sys.platform == "win32" else "kill 2"
+        expected_command = "taskkill -PID 2 -F" if sys.platform == "win32" else "kill -9 2"
 
         # Act
         outcome = breadcrumbs.StopOutcome(left=(left,), refused=(stayed,))

@@ -452,7 +452,7 @@ COMMAND = Command(
     sub_commands={
         "list": Command(
             args="{name}",
-            help="Explicit alias for bare {prefix}var.",
+            help="List the variables; the same as bare {prefix}var.",
             long_help=_var_state_line,
             handler=_handler_list,
             shows=True,

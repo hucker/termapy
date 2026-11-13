@@ -325,7 +325,7 @@ class TestTheLinks:
 
         # Assert
         tooltip, screen = asyncio.run(scenario())
-        assert tooltip == f"{IDIOM_TOKENS['cycle'].summary}\n\nClick to run: /help cycle"
+        assert tooltip == f"{IDIOM_TOKENS['cycle'].summary}\n\nClick to show: /help cycle"
         assert "TAKEN BY" in screen, "the page lists what takes it"
 
 
@@ -415,6 +415,25 @@ class TestALinkExplainsItself:
         # Assert
         assert actual == device.help
 
+    @pytest.mark.rule("link-explains-itself")
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            ("cfg.load demo", "load"),
+            ("run welcome", "run"),
+            ("ss.show", "open"),
+            ("help cycle", "show"),
+            ("help gui_apps", "show"),
+            ("cfg", "open"),
+            ("term.echo", "show"),
+            ("log.diag", "open"),
+            ("nosuchname", "run"),
+        ],
+    )
+    def test_the_click_line_uses_the_commands_own_verb(self, cli, command, expected):
+        """A click on a link loads, opens or shows, in the command's own word: a picker opens, a state command shows, a bare form borrows its subcommand's, the rest read their help line."""
+        assert cli.repl.link_verb(command) == expected
+
     def test_a_hint_that_is_a_function_stays_out(self, cli):
         """A tooltip runs as the mouse moves, so a key whose valid values come from looking is not asked."""
         actual = [
@@ -483,7 +502,7 @@ class TestALinkExplainsItself:
         # Assert
         assert actual.startswith("How loud commands are"), actual
         assert "Valid: silent" in actual, "the values save the trip"
-        assert actual.endswith("Click to run: /help output_level"), (
+        assert actual.endswith("Click to show: /help output_level"), (
             "and the click still offers more"
         )
 

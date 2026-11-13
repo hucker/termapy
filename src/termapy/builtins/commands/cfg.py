@@ -60,7 +60,7 @@ from termapy.plugins import (
     requires_text,
 )
 from termapy.plugins.params import ParamSpec
-from termapy.scripting import BOOL_TOKENS_HELP, coerce_to_type
+from termapy.scripting import coerce_to_type
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -748,24 +748,22 @@ def on_app_stop(ctx: PluginContext) -> None:
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────
 
-_CFG_PROSE = f"""\
+_CFG_PROSE = """\
 Three modes:
-  {{prefix}}cfg                  - TUI: open Cfg picker.  CLI: list configs.
-  {{prefix}}cfg baud_rate        - show current value of 'baud_rate'
-  {{prefix}}cfg baud_rate 115200 - change it (the TUI asks first)
+  {prefix}cfg                  - TUI: open Cfg picker.  CLI: list configs.
+  {prefix}cfg baud_rate        - show current value of 'baud_rate'
+  {prefix}cfg baud_rate 115200 - change it (the TUI asks first)
 
-The value is read as the key's current type (int, float, bool,
-string). Bool accepts:
-  {BOOL_TOKENS_HELP}
-A key with a fixed set of values (parity, json_fmt.indent,
-custom_buttons_side, ...) takes one of them in any case.
+The value is read as the key's type: a number, text, a boolean word
+({prefix}help boolean), or one of a key's fixed values in any case
+(parity, json_fmt.indent, custom_buttons_side, ...).
 A key inside a section is named by its path (json_fmt.indent) or,
 when no other section has one, its own name (baud_rate).
 A change lasts for this session; to keep it, set it in the
 config editor.
 
-Use {{prefix}}cfg.dump to print every key/value pair as JSON.
-Use {{prefix}}cfg.auto to set values without confirmation (for scripts)."""
+Use {prefix}cfg.dump to print every key/value pair as JSON.
+Use {prefix}cfg.auto to set values without confirmation (for scripts)."""
 
 
 def _cfg_long_help(ctx: PluginContext) -> str:

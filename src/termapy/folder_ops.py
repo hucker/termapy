@@ -717,9 +717,11 @@ def build_folder_subcommands(
 # TUI's own editor for the config, a .run or a .pro file (over SSH too),
 # the system editor otherwise.
 
-# Extensions the TUI opens in its own editor (``app._edit_file``); the rest
-# go to the system editor.
-_TERMAPY_EDITS = frozenset({FOLDER_EXTS[RUN], FOLDER_EXTS[PROTO]})
+# Extensions the TUI opens in its own editor (``app._edit_file``), in a
+# browser tab too; the rest go to the system editor, which needs a desktop
+# the user sees (``gui_apps``).  Published: ``/edit <name>`` reads it to
+# check that capability for the file it found.
+TERMAPY_EDITS = frozenset({FOLDER_EXTS[RUN], FOLDER_EXTS[PROTO]})
 
 # The word ``folder_line`` counts files in, where "file" would read wrong.
 _NOUNS = {"run": "script", "proto": "script"}
@@ -815,7 +817,7 @@ def edit_command(folder: str) -> Command:
         if picker
         else f"Bare lists {folder}/."
     )
-    own_editor = spec.ext in _TERMAPY_EDITS
+    own_editor = spec.ext in TERMAPY_EDITS
     where = (
         "termapy's editor in the TUI, the system editor in the CLI"
         if own_editor

@@ -82,6 +82,9 @@ $(BAUD) <- /port.baud_rate
 /help cycle
 /help json
 /help.idioms
+# A capability has a page too: every one, then one with the commands needing it.
+/help capability
+/help gui_apps
 # A page shows what is about the command; --verbose shows the rest.
 /help term.hex
 /help term.hex --verbose

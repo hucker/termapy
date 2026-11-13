@@ -247,13 +247,16 @@ boolean token (`1`, `0`, `on`, `off`, ...) to override it.
 
 ### Browser (`termapy --web`)
 
-Served in a browser tab, the TUI is the same app with two things missing:
-the terminal it runs in, so `/cli` and `/vt100` have nothing to switch to,
-and a desktop you can see, so `/help.open`, the `.show` and `.explore`
-commands and the pickers' folder links are disabled as over SSH.  The
-server's own desktop never counts; `TERMAPY_GUI=1` in the server's shell
-says you are sitting at it.  `/help <command>` says so under AVAILABLE,
-in a WEB column, for a command that needs either.
+Served in a browser tab, the TUI is the same app without the terminal it
+runs in, so `/cli` and `/vt100` have nothing to switch to.  Served on this
+machine (`termapy --web`, which listens on `localhost`), the browser is on
+the desktop the TUI runs on, so `/help.open`, the `.show` and `.explore`
+commands and the pickers' folder links open things here as on a terminal.
+Served on a network address (`--web 192.168.1.50`), a remote viewer cannot
+see this desktop, so those are disabled as over SSH; `TERMAPY_GUI=1` in the
+server's shell says the viewer is sitting at it after all.  `/help
+<command>` says so under AVAILABLE, in a WEB column, for a command that
+needs either.
 
 ### WSL (Windows Subsystem for Linux)
 

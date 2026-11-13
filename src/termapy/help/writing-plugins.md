@@ -236,6 +236,8 @@ COMMAND = Command(
 
 The dispatcher refuses to invoke a handler whose `needs` aren't satisfied,
 so most capability mismatches fail loudly *before* the handler runs.
+`/help capability` lists the vocabulary, and `/help <capability>` names the
+commands declaring one.
 
 Gated methods today:
 

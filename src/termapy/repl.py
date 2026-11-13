@@ -73,10 +73,15 @@ from termapy.plugins import (
     format_usage,
     load_plugins_from_dir,
 )
-from termapy.plugins.capabilities import STATE_MESSAGES, requires_text, state_message
+from termapy.plugins.capabilities import (
+    REQUIREMENT_HINTS,
+    STATE_MESSAGES,
+    refusal_text,
+    state_message,
+)
 from termapy.plugins.command import has_required_arg, interpolate_help
 from termapy.plugins.params import parse_params
-from termapy.plugins.views import error_pieces
+from termapy.plugins.views import ERROR_COLOR, error_pieces
 from termapy.scripting import (
     expand_template,
     format_duration,
@@ -1039,7 +1044,7 @@ class ReplEngine:
             except RuntimeError as e:
                 # A bundled (read-only) cfg has no data folder to scan;
                 # cfg_data_dir refuses it with the remedy spelled out.
-                self.write(f"Plugin error: {e}", "red")
+                self.write(f"Plugin error: {e}", ERROR_COLOR)
                 records.append(
                     load_report.load_record(load_report.PLUGIN, layer=cfg_name, error=str(e))
                 )
@@ -1120,7 +1125,7 @@ class ReplEngine:
             if module.error:
                 self.write(
                     f"Plugin error: {module.file}: {module.error}{diag_log.traceback_note()}",
-                    "red",
+                    ERROR_COLOR,
                 )
             elif not module.exported:
                 self.write(
@@ -1353,8 +1358,9 @@ class ReplEngine:
 
         Every definition already exists, written once: a command's ``help=``, a
         device command's from its profile, a config key's ``CfgKey.help`` and
-        ``hint``, an idiom's ``summary``.  A hint that is a function is left out:
-        it may look at the ports, and this runs as the mouse moves.
+        ``hint``, a capability's ``_restricted`` hint, an idiom's ``summary``.
+        A hint that is a function is left out: it may look at the ports, and
+        this runs as the mouse moves.
 
         Args:
             name: What ``/help`` would be given (``output_level``, ``term.hex``).
@@ -1376,6 +1382,8 @@ class ReplEngine:
             text, hint = CFG_HELP[path.rpartition(".")[2]][:2]
             if hint and not callable(hint):
                 text = f"{text}\nValid: {hint}"
+        elif name in REQUIREMENT_HINTS:
+            text = REQUIREMENT_HINTS[name]
         elif idiom is not None:
             text = idiom.summary
         else:
@@ -1399,6 +1407,32 @@ class ReplEngine:
             return self.help_summary(words[1])
         plugin = self.plugin_for(command)
         return interpolate_help(plugin.help, self.prefix) if plugin is not None else ""
+
+    def link_verb(self, command: str) -> str:
+        """What a click on a link does, in one word: ``load`` for ``cfg.load demo`` (registry ``link-explains-itself``).
+
+        The command's own verb, declared or written once: ``open`` for a
+        command whose bare form opens a picker, ``show`` for one whose bare
+        form reports state, a bare form's own subcommand's verb, else the
+        first word of the command's ``help=`` line, which opens with its
+        verb ("Load a different config...").  ``run`` for a command that
+        is not registered.
+
+        Args:
+            command: The link's command, without the prefix.
+        """
+        plugin = self.plugin_for(command)
+        if plugin is None:
+            return "run"
+        bare = len(command.split()) == 1
+        if bare and plugin.picker:
+            return "open"
+        if bare and plugin.state:
+            return "show"
+        if bare and plugin.bare_sub:
+            return self.link_verb(f"{command.split()[0]}.{plugin.bare_sub}")
+        first = plugin.help.split()[0] if plugin.help else ""
+        return first.rstrip(":,.").lower() or "run"
 
     def plugin_for(self, repl_cmd: str) -> PluginInfo | None:
         """The registered command a prefix-stripped line names, or None.
@@ -1502,9 +1536,9 @@ class ReplEngine:
                 click_runs=self._click_runs,
             )
             if pieces is not None:
-                write_segments(pieces, "red")
+                write_segments(pieces, ERROR_COLOR)
                 return
-        self.write(text, "red")
+        self.write(text, ERROR_COLOR)
 
     def _click_runs(self, command_line: str) -> bool:
         """Whether a click on a link to ``command_line`` may run it at once.
@@ -1739,7 +1773,7 @@ class ReplEngine:
                 else raw_plugin.handler(self.ctx, raw_text)
             )
             if report and not result.success:
-                self.write(result.err_msg, "red")
+                self.write(result.err_msg, ERROR_COLOR)
             return result
 
         # 2. Pre-dispatch directives (e.g. $(VAR) = value -> /var.set)
@@ -1760,7 +1794,7 @@ class ReplEngine:
             _log(">", cmd)
             if echo_repl_on:
                 _announce(cmd)
-            _fail_status(f"Error: {result.payload}", "red")
+            _fail_status(f"Error: {result.payload}", ERROR_COLOR)
             return CmdResult.fail(msg=result.payload)
 
         # 3. REPL command (starts with prefix)
@@ -1774,7 +1808,7 @@ class ReplEngine:
                     try:
                         repl_cmd = self.transform_repl(repl_cmd)
                     except ValueError as e:
-                        _fail_status(str(e), "red")
+                        _fail_status(str(e), ERROR_COLOR)
                         return CmdResult.fail(msg=str(e))
             return self.dispatch(repl_cmd, report=report)
 
@@ -1799,7 +1833,7 @@ class ReplEngine:
             try:
                 cmd = self.transform_serial(cmd)
             except ValueError as e:
-                _fail_status(str(e), "red")
+                _fail_status(str(e), ERROR_COLOR)
                 return CmdResult.fail(msg=str(e))
 
         # Skip the legacy plain-text echo when request_mode is on -- the
@@ -1817,7 +1851,7 @@ class ReplEngine:
             _announce(cmd, eol=eol_label)
 
         if is_connected and not is_connected():
-            _fail_status(state_message("serial_connected", self.prefix), "red")
+            _fail_status(state_message("serial_connected", self.prefix), ERROR_COLOR)
             return CmdResult.fail(msg=state_message("serial_connected", self.prefix))
 
         # Opt-in typed-arg validation against the active profile.  Off by
@@ -1830,7 +1864,7 @@ class ReplEngine:
             fail = self._validate_bare_typed_args(cmd)
             if fail is not None:
                 # Shown as if the device had replied with the error.
-                _fail_status(fail.error, "red")
+                _fail_status(fail.error, ERROR_COLOR)
                 return fail
 
         # Bridge dispatch_full's serial_write callback into ctx for the
@@ -1871,7 +1905,7 @@ class ReplEngine:
                     try:
                         self.ctx.serial.send("")
                     except (OSError, UnicodeError, LookupError) as e:
-                        _fail_status(f"Send error: {e}", "red")
+                        _fail_status(f"Send error: {e}", ERROR_COLOR)
                         return CmdResult.fail(msg=f"Send error: {e}")
                 return CmdResult.ok(value="")
             return self.dispatch(f"term.send {cmd}", report=report)
@@ -1979,7 +2013,7 @@ class ReplEngine:
                     diag_log.exception("post-dispatch observer %r raised", post_dispatch_observer)
                     self.write(
                         f"Observer error: {type(e).__name__}: {e}{diag_log.traceback_note()}",
-                        "red",
+                        ERROR_COLOR,
                     )
         return result
 
@@ -2522,7 +2556,7 @@ class ReplEngine:
                 result.elapsed_s = time.perf_counter() - t0
                 # Display errors here (same as dispatch does for normal commands)
                 if not result.success and result.error:
-                    sctx.w(result.err_msg, "red")
+                    sctx.w(result.err_msg, ERROR_COLOR)
                 return result
         # Normal dispatch (REPL commands and serial)
         t0 = time.perf_counter()
@@ -2591,7 +2625,7 @@ class ReplEngine:
             # utf-8-sig: an editor that saves a byte-order mark must not break line 1.
             all_lines = path.read_text(encoding="utf-8-sig").splitlines()
         except OSError as e:
-            w(f"Script error: {e}", "red")
+            w(f"Script error: {e}", ERROR_COLOR)
             self._script_depth -= 1
             if self._script_stack:
                 self._script_stack.pop()
@@ -2623,7 +2657,7 @@ class ReplEngine:
             yield sctx
         except BoundaryException as e:
             diag_log.exception("script raised: %s", path)
-            w(f"Script error: {type(e).__name__}: {e}{diag_log.traceback_note()}", "red")
+            w(f"Script error: {type(e).__name__}: {e}{diag_log.traceback_note()}", ERROR_COLOR)
         finally:
             diag_log.info(
                 "script end: %s (%.1f s)", path.name, time.perf_counter() - sctx.script_t0
@@ -2697,7 +2731,7 @@ class ReplEngine:
                 sctx.finish(path.name)
                 if not profile and self._script_depth <= 1:
                     if self._script_stop.is_set():
-                        w("Script aborted.", "red")
+                        w("Script aborted.", ERROR_COLOR)
                     elif self.ctx.output_level == "verbose":
                         w("Script finished.")
 
@@ -2792,12 +2826,8 @@ class ReplEngine:
             )
         if missing:
             # Names the kind of thing and, for one, what it stands for; the
-            # phrasing is capabilities.requires_text, shared with an option
-            # that checks a capability itself (/cfg.info --display).
-            return (
-                f"{self.prefix}{name} requires {requires_text(missing, self.prefix)}; "
-                "not available in this environment"
-            )
+            # sentence is capabilities.refusal_text.
+            return refusal_text(name, missing, self.prefix)
         return None
 
     def _effective_capabilities(self) -> CapabilitySet:

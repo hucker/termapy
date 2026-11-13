@@ -40,7 +40,7 @@ from termapy.plugins import (
     synopsis_markup,
     synopsis_pieces,
 )
-from termapy.plugins.capabilities import STATE_MESSAGES, state_message
+from termapy.plugins.capabilities import ATTAINABLE, STATE_MESSAGES, provided_by, state_message
 from termapy.plugins.command import SYNOPSIS_OPTIONAL_STYLE, SYNOPSIS_REQUIRED_STYLE
 from termapy.plugins.params import render_parameters_block
 from termapy.plugins.views import Column, Link, Piece, RecordView, TableView, pieces_markup
@@ -358,6 +358,84 @@ def _required_capability_rows(needs: CapabilitySet) -> list[tuple[str, str]]:
     return [(name, REQUIREMENT_HINTS[name]) for name in needs.missing_from(_BASELINE_CAPS)]
 
 
+# ── Capability pages ─────────────────────────────────────────────────────────
+# Every fact is the field's (registry capability-declared-once): the hint,
+# whether it is session state, which frontends provide it.  The commands
+# needing one are read from the registry, as an idiom's TAKEN BY list is.
+
+
+def _capability_link(name: str) -> Link:
+    """A click on a capability's name opens its page; the hover adds who provides it."""
+    return Link(f"help {name}", tip=f"Provided by: {' '.join(provided_by(name))}")
+
+
+def _commands_needing(plugins: Mapping, name: str) -> list[str]:
+    """The commands declaring capability ``name``, from the registry, never a claim."""
+    return sorted(cmd for cmd, plugin in plugins.items() if getattr(plugin.needs, name))
+
+
+def _session_state_text(ctx: PluginContext, name: str) -> str | None:
+    """``session state: No config loaded.`` for a capability any frontend can reach, else None."""
+    if name not in ATTAINABLE:
+        return None
+    state = STATE_MESSAGES.get(name)
+    return f"session state: {state_message(name, ctx.prefix)}" if state else "session state"
+
+
+def _render_capability_list(ctx: PluginContext) -> None:
+    """The CAPABILITIES section of ``/help capability``: every one, its hint and who provides it, each a link."""
+    ctx.io.output_markup("")
+    ctx.io.output_markup(_section_markup("CAPABILITIES"))
+    width = max(len(name) for name in REQUIREMENT_HINTS)
+    for name, hint in REQUIREMENT_HINTS.items():
+        where = _session_state_text(ctx, name) or " ".join(provided_by(name))
+        ctx.io.output_markup_segments(
+            [
+                Piece("  "),
+                Piece(name, _capability_link(name), _OPT),
+                Piece(" " * (width - len(name)) + " - "),
+                Piece(interpolate_help(hint, ctx.prefix)),
+                Piece(f"  [{where}]", None, _SEP),
+            ]
+        )
+
+
+def _render_capability_page(ctx: PluginContext, name: str) -> None:
+    """``/help gui_apps``: the hint, who provides it, whether this session has it, and the commands needing it."""
+    prefix = ctx.prefix
+    hint = interpolate_help(REQUIREMENT_HINTS[name], prefix)
+    ctx.io.output_markup(_section_markup("NAME"))
+    ctx.io.output_markup_segments([Piece("  "), Piece(name, None, _CMD), Piece(f" - {hint}")])
+    ctx.io.output_markup("")
+    ctx.io.output_markup(_section_markup("DESCRIPTION"))
+    ctx.io.output_markup_segments(
+        [
+            Piece("  A capability: what a command needs from where it runs ("),
+            Piece(f"{prefix}help capability", _help_link("capability"), _CMD),
+            Piece(")."),
+        ]
+    )
+    if name in ATTAINABLE:
+        ctx.io.output_markup("  Provided by: any frontend, as session state")
+        if name in STATE_MESSAGES:
+            ctx.io.output_markup(f"  Until then: {escape_markup(state_message(name, prefix))}")
+    else:
+        provided = "  ".join(
+            f"{env} (current)" if env == ctx.environment else env for env in provided_by(name)
+        )
+        ctx.io.output_markup(f"  Provided by: {escape_markup(provided)}")
+    answer = "yes" if getattr(_effective_capabilities(ctx), name) else "no"
+    ctx.io.output_markup_segments([Piece("  This session: "), Piece(answer)])
+    needing = _commands_needing(ctx.internal.plugins, name)
+    if needing:
+        _write_refs(ctx, "NEEDED BY", needing)
+    ctx.io.output_markup("")
+    ctx.io.output_markup(_section_markup("SEE ALSO"))
+    ctx.io.output_markup_segments(
+        [Piece("  "), Piece(f"{prefix}help capability", _help_link("capability"), _CMD)]
+    )
+
+
 # ── Forgiving /help search ───────────────────────────────────────────────────
 
 
@@ -662,6 +740,9 @@ def _render_man_page(
     # requirement the session can't meet right now renders yellow with a
     # "(missing)" marker.  The marker is text, not just color, so MCP and
     # no-color output carry the status too.
+    # A met row is for the plugin writer, not the person at the device, so
+    # it waits behind --verbose; a missing one explains a refusal and stays
+    # (registry help-page-specific).
     effective = _effective_capabilities(ctx)
     required = [
         row
@@ -670,16 +751,23 @@ def _render_man_page(
     ]
     if required:
         ctx.io.output_markup("")
-        ctx.io.output_markup(_section_markup("REQUIRED CAPABILITIES"))
+        # The title is a link to the idea (/help capability); each name a
+        # link to that capability's page: who provides it, the other
+        # commands needing it.
+        ctx.io.output_markup_segments(
+            [Piece("REQUIRED CAPABILITIES", _help_link("capability"), "bold")]
+        )
         for cap_name, hint in required:
-            cap_markup = escape_markup(cap_name)
-            hint_markup = escape_markup(interpolate_help(hint, ctx.prefix))
-            if getattr(effective, cap_name):
-                ctx.io.output_markup(f"  [{_OPT}]{cap_markup}[/] - [{_SEP}]{hint_markup}[/]")
-            else:
-                ctx.io.output_markup(
-                    f"  [{_REQ}]{cap_markup}[/] - [{_SEP}]{hint_markup}[/] [{_REQ}](missing)[/]"
-                )
+            met = getattr(effective, cap_name)
+            pieces = [
+                Piece("  "),
+                Piece(cap_name, _capability_link(cap_name), _OPT if met else _REQ),
+                Piece(" - "),
+                Piece(interpolate_help(hint, ctx.prefix), None, _SEP),
+            ]
+            if not met:
+                pieces += [Piece(" "), Piece("(missing)", None, _REQ)]
+            ctx.io.output_markup_segments(pieces)
 
     # AVAILABLE ───────────────────────────────────────────────────────────────
     # Symmetric "where does this run" matrix across all known environments.
@@ -716,15 +804,21 @@ def _render_man_page(
         groups: dict[frozenset[str], list[str]] = {}
         for env_name, missing in missing_by_env.items():
             groups.setdefault(frozenset(missing), []).append(env_name)
-        notes: list[str] = []
-        for missing_set, env_names in groups.items():
-            envs = "/".join(env_names)
-            caps = ", ".join(sorted(missing_set))
-            # Phrasing: the COMMAND requires the capability; the
-            # environment doesn't supply it.  "MCP does not provide:
-            # gui_apps" reads correctly either way.
-            notes.append(f"{envs} does not provide: {caps}")
-        ctx.io.output_markup(f"  [{_SEP}]({escape_markup('; '.join(notes))})[/]")
+        # Phrasing: the COMMAND requires the capability; the environment
+        # doesn't supply it.  "MCP does not provide: gui_apps" reads
+        # correctly either way.  Each capability's name is a link to its
+        # page: this note is where a person at the device meets the word.
+        note = [Piece("  (", None, _SEP)]
+        for index, (missing_set, env_names) in enumerate(groups.items()):
+            if index:
+                note.append(Piece("; ", None, _SEP))
+            note.append(Piece(f"{'/'.join(env_names)} does not provide: ", None, _SEP))
+            for cap_index, cap_name in enumerate(sorted(missing_set)):
+                if cap_index:
+                    note.append(Piece(", ", None, _SEP))
+                note.append(Piece(cap_name, _capability_link(cap_name), _SEP))
+        note.append(Piece(")", None, _SEP))
+        ctx.io.output_markup_segments(note)
 
     # SUBCOMMANDS ─────────────────────────────────────────────────────────────
     # Clean name + one-liner, no args column. This is the fix for the
@@ -747,6 +841,19 @@ def _render_man_page(
     if plugin.source not in ("built-in", "app"):
         ctx.io.output_markup("")
         ctx.io.output_markup(f"  [{_SRC}](source: {escape_markup(plugin.source)})[/]")
+
+    # What the default page left out is one click away: the verbose form
+    # (registry help-page-specific).  Before the help_list table, which
+    # ends the page.
+    if not full:
+        ctx.io.output_markup("")
+        ctx.io.output_markup_segments(
+            [
+                Piece("  "),
+                Piece(f"{prefix}help {name} --verbose", Link(f"help {name} --verbose"), _CMD),
+                Piece(" shows the rest: status, where it runs, see also.", None, _SEP),
+            ]
+        )
 
     _render_help_list(ctx, name, plugin)
 
@@ -920,6 +1027,10 @@ def _render_idiom_page(ctx: PluginContext, idiom: Idiom) -> None:
     ctx.io.output_markup(_section_markup("DESCRIPTION"))
     for line in interpolate_help(idiom.page, prefix).strip().splitlines():
         ctx.io.output_markup(f"  {escape_markup(line)}")
+    # The one idiom whose page ends in a table: the capabilities, read from
+    # the fields, each a link to its own page.
+    if idiom.name == "capability":
+        _render_capability_list(ctx)
     takers = _commands_taking(ctx.internal.plugins, idiom)
     if takers:
         _write_refs(ctx, "TAKEN BY", takers)
@@ -978,10 +1089,12 @@ def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) ->
       2. Target-device command -> render its brief one-line form.
       3. A config key          -> its page: meaning, value, the commands
                                   that use it (`value` = the key path).
-      4. A global idiom        -> its page (`value` = the idiom's name).
-      5. Candidate list        -> name+help substring match, CmdResult.ok
+      4. A capability          -> its page: hint, who provides it, the
+                                  commands needing it (`value` = its name).
+      5. A global idiom        -> its page (`value` = the idiom's name).
+      6. Candidate list        -> name+help substring match, CmdResult.ok
                                   with `value` = newline-joined names.
-      6. Zero matches          -> fail with hint to try /search.
+      7. Zero matches          -> fail with hint to try /search.
 
     ``dev_mode`` routes exact matches to the developer docstring view
     instead of the normal DESCRIPTION.
@@ -1010,23 +1123,30 @@ def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) ->
         _render_cfg_key_page(ctx, path)
         return CmdResult.ok(value=path)
 
-    # 4. A global idiom, after the commands and keys so it can shadow neither.
+    # 4. A capability, after the keys so a key keeps its name: /help gui_apps.
+    if name in REQUIREMENT_HINTS:
+        _render_capability_page(ctx, name)
+        return CmdResult.ok(value=name)
+
+    # 5. A global idiom, after the commands and keys so it can shadow neither.
     idiom = idiom_for(name)
     if idiom is not None:
         _render_idiom_page(ctx, idiom)
         return CmdResult.ok(value=idiom.name)
 
-    # 5. Forgiving candidate list (name + short help only -- args, long_help,
+    # 6. Forgiving candidate list (name + short help only -- args, long_help,
     #    and flags live in /search's territory).
     candidates = _find_candidates(name, plugins, ctx.prefix)
     if candidates:
         _render_candidates(ctx, name, candidates)
         return CmdResult.ok(value="\n".join(candidates))
 
-    # 6. No hits anywhere -- hint at the deeper tool.
+    # 7. No hits anywhere -- hint at the deeper tool.
     p = ctx.prefix
     # Bare names: what /help takes, so a click fills in /help <name>.
-    hint = did_you_mean(closest(name, [*plugins, *cfg_key_paths(), *IDIOM_WORDS]))
+    hint = did_you_mean(
+        closest(name, [*plugins, *cfg_key_paths(), *REQUIREMENT_HINTS, *IDIOM_WORDS])
+    )
     if hint:
         return CmdResult.fail(msg=f"No command matches '{name}'{hint}")
     return CmdResult.fail(
@@ -1467,7 +1587,7 @@ COMMAND = Command(
     flags={
         "--mcp": "Show only commands visible to the MCP catalog.",
     },
-    help="Print the command landscape or look up a specific command.",
+    help="Show the command landscape, or one command's page.",
     intro=(
         "Find your way around termapy: every command by group, the connected device's"
         " commands, scripts, plugins, and the full help pages."

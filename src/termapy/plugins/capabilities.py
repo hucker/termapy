@@ -539,6 +539,23 @@ def requires_text(missing: list[str], prefix: str) -> str:
     return f"the {', '.join(missing)} capabilities"
 
 
+def refusal_text(command: str, missing: list[str], prefix: str) -> str:
+    """The gate's whole refusal of ``command``, in one place.
+
+    ``/cfg.show requires the gui_apps capability, a local desktop that can
+    open apps the user sees; not available in this environment``.
+
+    Args:
+        command: The dotted command name, without its prefix.
+        missing: The capability field names it lacks, in declaration order.
+        prefix: The REPL prefix, put before the name and into a hint.
+    """
+    return (
+        f"{prefix}{command} requires {requires_text(missing, prefix)}; "
+        "not available in this environment"
+    )
+
+
 def state_message(need: str, prefix: str) -> str:
     """``STATE_MESSAGES[need]`` with the REPL prefix filled in.
 
@@ -626,7 +643,13 @@ def _build_environments() -> dict[str, CapabilitySet]:
     gui = detect_gui_apps()
     # MCP host confinement is per-class opt-in from the server's shell;
     # mirror it here so /help AVAILABLE reflects the running policy.
-    from termapy.env_flags import GUI_OVERRIDE, MCP_FS_UNCONFINED, MCP_HOST_INFO, MCP_NET_EGRESS
+    from termapy.env_flags import (
+        GUI_OVERRIDE,
+        MCP_FS_UNCONFINED,
+        MCP_HOST_INFO,
+        MCP_NET_EGRESS,
+        web_served_locally,
+    )
 
     # TUI (Textual app) on a terminal: everything an interactive desktop
     # terminal has.  block_until is not here: the script runner provides it
@@ -650,11 +673,16 @@ def _build_environments() -> dict[str, CapabilitySet]:
         "TUI": tui,
         # The same TUI served in a browser (--web; Textual's App.is_web):
         # the screen is a web page, so there is no terminal to hand to /cli
-        # or /vt100, and the desktop this process runs on is not the
-        # viewer's, so nothing it "opened" would be seen.  Only an explicit
-        # TERMAPY_GUI=1 says otherwise (the operator viewing their own
-        # server); detection never does, since it looks at the server.
-        "WEB": replace(tui, console=False, gui_apps=GUI_OVERRIDE is True),
+        # or /vt100.  Served on a loopback address the browser is on this
+        # machine, so the desktop the TUI runs on is the viewer's and the
+        # detection applies; served to the network (or not served at all,
+        # as /help's column in any other frontend) the desktop is not the
+        # viewer's, and only an explicit TERMAPY_GUI=1 says otherwise.
+        "WEB": replace(
+            tui,
+            console=False,
+            gui_apps=gui if web_served_locally() else GUI_OVERRIDE is True,
+        ),
         # CLI (interactive REPL or --run script): interactive but no Textual UI.
         # Its confirmation is the y/n prompt on stdin; its only file editor
         # is the system's, so it needs the desktop.
@@ -713,17 +741,28 @@ def environment_capabilities(name: str) -> CapabilitySet:
     return _build_environments()[name]
 
 
+def provided_by(name: str) -> list[str]:
+    """The frontends that can ever provide capability ``name``, in ``ENVIRONMENTS`` order.
+
+    A dynamic capability (session state) is every frontend's, since
+    ``ENVIRONMENTS`` grants the attainable ones.
+    """
+    return [env for env, caps in ENVIRONMENTS.items() if getattr(caps, name)]
+
+
 def hints_lacking(environment: str, versus: str) -> list[str]:
     """The ``/help`` hints of what ``versus`` provides and ``environment`` does not.
 
-    In declaration order.  The web banner reads it: what a browser tab lacks
-    that the same TUI on this machine's terminal has.
+    In declaration order, from rows built when asked (as a host's are), so
+    the web banner reads the rows as its address makes them: what a browser
+    tab lacks that the same TUI on this machine's terminal has.
 
     Args:
         environment: The row with less, a key of ``BASE_ENVIRONMENTS``.
         versus: The row compared against.
     """
-    have, lack = BASE_ENVIRONMENTS[versus], BASE_ENVIRONMENTS[environment]
+    rows = _build_environments()
+    have, lack = rows[versus], rows[environment]
     return [
         hint
         for name, hint in REQUIREMENT_HINTS.items()

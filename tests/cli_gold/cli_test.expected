@@ -171,15 +171,70 @@ DESCRIPTION
 SEE ALSO
   /help.idioms
 demo> /help.idioms
-  idioms - 6 idioms
-  NAME     MEANING
+  idioms - 7 idioms
+  NAME        MEANING
   -- --
-  boolean  A yes or no, in any of these words: on/off/true/false/yes/no/1/0/y/n/t/f.
-  toggle   Flip a yes or no setting to its other value; made for a custom button.
-  cycle    Move a setting to its next value, wrapping at the end; made for a custom button.
-  bare     A setting with no argument shows its value and changes nothing.
-  json     Answer this one call as a JSON object, for a script or an agent.
-  level    How much one call prints, from nothing to all its detail.
+  boolean     A yes or no, in any of these words: on/off/true/false/yes/no/1/0/y/n/t/f.
+  toggle      Flip a yes or no setting to its other value; made for a custom button.
+  cycle       Move a setting to its next value, wrapping at the end; made for a custom button.
+  bare        A setting with no argument shows its value and changes nothing.
+  json        Answer this one call as a JSON object, for a script or an agent.
+  level       How much one call prints, from nothing to all its detail.
+  capability  What a command needs from where it runs; a frontend that lacks it refuses the command.
+demo> /help capability
+NAME
+  capability - What a command needs from where it runs; a frontend that lacks it refuses the command.
+
+DESCRIPTION
+  A command declares what it needs from the frontend it runs in: a desktop to
+  open a file on, the terminal it runs in, a dialog to ask with, a loaded config,
+  an open port. Its page lists them under REQUIRED CAPABILITIES, and a frontend
+  that cannot provide one refuses the command, naming the capability and what
+  it stands for, instead of half-running it.
+
+  Some are what a frontend is: the TUI has a screen to capture, an MCP server has
+  no person to ask. Some are session state any frontend can reach, and then the
+  gate answers with the state (/cfg.load for "No config loaded."). The
+  list below links each to its page, with the commands that need it.
+
+CAPABILITIES
+  block_until           - a thread that may block (.run scripts only)  [session state]
+  confirm_dialog        - a Yes/Cancel prompt (the TUI's dialog, the CLI's y/n)  [TUI WEB CLI]
+  ui_notify             - the TUI's toast notifications  [TUI WEB]
+  status_bar            - the TUI's status line  [TUI WEB]
+  screen_capture        - the TUI's render surface (screenshots, screen text)  [TUI WEB]
+  tui_mode              - the TUI (switch with /tui)  [TUI WEB]
+  console               - the terminal this process runs in; a browser tab has none  [TUI CLI]
+  config_loaded         - a loaded config  [session state: No config loaded.]
+  serial_connected      - an open serial port  [session state: Not connected.]
+  profile_loaded        - a loaded device profile  [session state: No profile loaded.]
+  symbols_loaded        - a loaded symbol table  [session state: No symbols loaded.]
+  capture_idle          - no capture already running  [session state: Capture already active - use /cap.stop first.]
+  script_idle           - no script running  [session state: Not available in a script.]
+  interactive           - an interactive session (a human at a terminal; not MCP)  [TUI WEB CLI]
+  gui_apps              - a local desktop that can open apps the user sees  [TUI WEB CLI]
+  file_editor           - an editor for project files (the TUI's own, or a desktop's)  [TUI WEB CLI]
+  session_log           - a session log (the TUI's or the MCP server's; the CLI keeps none)  [TUI WEB MCP]
+  filesystem_unconfined - host-wide file access (TERMAPY_MCP_FS_UNCONFINED=1 under MCP)  [TUI WEB CLI]
+  network_egress        - outbound network access (TERMAPY_MCP_NET_EGRESS=1 under MCP)  [TUI WEB CLI]
+  host_info             - a view of the host machine (TERMAPY_MCP_HOST_INFO=1 under MCP)  [TUI WEB CLI]
+
+SEE ALSO
+  /help.idioms
+demo> /help gui_apps
+NAME
+  gui_apps - a local desktop that can open apps the user sees
+
+DESCRIPTION
+  A capability: what a command needs from where it runs (/help capability).
+  Provided by: TUI  WEB  CLI (current)
+  This session: yes
+
+NEEDED BY
+  /app.config.edit, /app.explore, /app.state.edit, /cap.explore, /cap.show, /cfg.explore, /cfg.icon, /cfg.icon.list, /cfg.icon.remove, /cfg.show, /edit.info, /edit.log, /edit.plugin, /edit.plugin.explore, /edit.proto.explore, /edit.run.explore, /firmware.show, /help.open, /log.diag.show, /log.show, /plugin.edit, /plugin.explore, /plugin.show, /proto.explore, /proto.show, /run.explore, /run.profile.explore, /run.profile.show, /run.show, /show, /show.cfg, /ss.explore, /ss.show
+
+SEE ALSO
+  /help capability
 demo> /help term.hex
 NAME
   /term.hex - Toggle hex display of incoming bytes.
@@ -203,6 +258,8 @@ DESCRIPTION
 
 CONFIG
   hex = false  the value a load starts from
+
+  /help term.hex --verbose shows the rest: status, where it runs, see also.
 demo> /help term.hex --verbose
 NAME
   /term.hex - Toggle hex display of incoming bytes.
@@ -389,6 +446,8 @@ CURRENT STATE
 
 DESCRIPTION
   The table every config load reports, at startup and on a switch: one row per plugin file, symbol table and device file the load read, from the global layer and the config's own, with what each registered.  A file that failed is a row with its error.  It goes to the session log, and to the screen too when quiet_start is off.  Under MCP the profile auto-loaded on connect is a row too.  Later imports and loads (/sym.import, /dev.import, /profile.load) answer for themselves and are not added.
+
+  /help cfg.loaded --verbose shows the rest: status, where it runs, see also.
 demo> /print === section: config new ===
   === section: config new ===
 demo> /cfg.new gold_new loop:// 9600 E71
@@ -555,6 +614,8 @@ SUBCOMMANDS
   /port.rts             Show or set RTS line (hardware only).
   /port.stop_bits       Show or set stop bits.
   /port.usb             Show the whole USB tree, with serial ports marked.
+
+  /help port --verbose shows the rest: status, where it runs, see also.
 demo> /print === section: line endings ===
   === section: line endings ===
 demo> /term.eol.markers on
@@ -912,6 +973,8 @@ SUBCOMMANDS
   /port.rts             Show or set RTS line (hardware only).
   /port.stop_bits       Show or set stop bits.
   /port.usb             Show the whole USB tree, with serial ports marked.
+
+  /help port --verbose shows the rest: status, where it runs, see also.
 demo> /help cfg
 NAME
   /cfg - Show or set config values.
@@ -932,11 +995,9 @@ DESCRIPTION
     /cfg baud_rate        - show current value of 'baud_rate'
     /cfg baud_rate 115200 - change it (the TUI asks first)
 
-  The value is read as the key's current type (int, float, bool,
-  string). Bool accepts:
-    on/off/true/false/yes/no/1/0/y/n/t/f
-  A key with a fixed set of values (parity, json_fmt.indent,
-  custom_buttons_side, ...) takes one of them in any case.
+  The value is read as the key's type: a number, text, a boolean word
+  (/help boolean), or one of a key's fixed values in any case
+  (parity, json_fmt.indent, custom_buttons_side, ...).
   A key inside a section is named by its path (json_fmt.indent) or,
   when no other section has one, its own name (baud_rate).
   A change lasts for this session; to keep it, set it in the
@@ -961,6 +1022,8 @@ SUBCOMMANDS
   /cfg.new        Create a config for a port; /cfg.load <name> switches to it.
   /cfg.rename     Rename a config, folder and file together.
   /cfg.show       Open the current config file in the system viewer.
+
+  /help cfg --verbose shows the rest: status, where it runs, see also.
 
 CONFIGS
   termapy_cfg/ - 2 configs
@@ -1065,8 +1128,10 @@ DESCRIPTION
 SUBCOMMANDS
   /var.capture    Capture command output into a user variable.
   /var.clear      Clear all user variables.
-  /var.list       Explicit alias for bare /var.
+  /var.list       List the variables; the same as bare /var.
   /var.set        Set a user variable to a literal value.
+
+  /help var --verbose shows the rest: status, where it runs, see also.
 demo> /help cap
 NAME
   /cap - Data capture tools.
@@ -1094,6 +1159,8 @@ SUBCOMMANDS
   /cap.struct     Capture raw bytes, decode with format spec to CSV.
   /cap.text       Capture serial text to a file for a timed duration.
   /cap.wire       Run a command and show TX/RX bytes as inline hex + repr.
+
+  /help cap --verbose shows the rest: status, where it runs, see also.
 demo> /help ss
 NAME
   /ss - Screenshot tools: save SVG/text, manage folder.
@@ -1115,6 +1182,8 @@ SUBCOMMANDS
   /ss.show       Open the newest (or named) file in ss/ with the system viewer.
   /ss.svg        Save an SVG screenshot of the terminal.
   /ss.txt        Save a text screenshot (optionally last/first N lines).
+
+  /help ss --verbose shows the rest: status, where it runs, see also.
 demo> /help proto
 NAME
   /proto - Binary protocol tools: send, run, debug, hex, crc, info.
@@ -1170,6 +1239,8 @@ SUBCOMMANDS
   /proto.send       Send raw bytes (with optional CRC), show response.
   /proto.show       Open the newest (or named) file in proto/ with the system viewer.
 
+  /help proto --verbose shows the rest: status, where it runs, see also.
+
 SCRIPTS
   proto/ - 3 scripts
   NAME SIZE UPDATED TITLE
@@ -1193,6 +1264,8 @@ SUBCOMMANDS
   /plugin.list       List files in plugin/, newest first, with size and age.
   /plugin.rename     Rename a file in plugin/ (extension kept; never overwrites).
   /plugin.show       Open the newest (or named) file in plugin/ with the system viewer.
+
+  /help plugin --verbose shows the rest: status, where it runs, see also.
 demo> /help traffic
 NAME
   /traffic - Inspect serial-port byte traffic (count, hexdump, rate, snoop).
@@ -1227,6 +1300,8 @@ SUBCOMMANDS
   /traffic.snoop      Block until a byte pattern (hex or "text") appears in the RX stream.
 
   (source: demo)
+
+  /help traffic --verbose shows the rest: status, where it runs, see also.
 demo> /help sym
 NAME
   /sym - Symbol table: name -> address, or address -> name+offset.
@@ -1278,6 +1353,8 @@ SUBCOMMANDS
   /sym.load      Load a symbol table (default: sym/<cfg>.symbols.json, the file /sym.import writes).
   /sym.search    Search symbols by name: the exact name, else contains (gpio) or a glob (Mon*).
   /sym.unload    Clear the loaded symbol table.
+
+  /help sym --verbose shows the rest: status, where it runs, see also.
 demo> /help mem
 NAME
   /mem - Device memory: dump, typed reads, writes and bit ops via /sym names.
@@ -1343,6 +1420,8 @@ SUBCOMMANDS
   /mem.str      Read a NUL-terminated string at an address or symbol.
   /mem.write    Write a value to a named symbol, register or field, or hex bytes at an address (audited).
   /mem.xor      XOR a mask into one word (always read + write-back).
+
+  /help mem --verbose shows the rest: status, where it runs, see also.
 demo> /help run
 NAME
   /run - Run a script file, or list available scripts.
@@ -1371,6 +1450,8 @@ SUBCOMMANDS
   /run.record     Record commands to a .run script (bare /run.record stops).
   /run.rename     Rename a file in run/ (extension kept; never overwrites).
   /run.show       Open the newest (or named) file in run/ with the system viewer.
+
+  /help run --verbose shows the rest: status, where it runs, see also.
 
 SCRIPTS
   run/ - 9 scripts
@@ -1417,6 +1498,8 @@ CONFIG
 AVAILABLE
   TUI: yes   WEB: yes   CLI: yes (current)   MCP: no
   (MCP does not provide: interactive)
+
+  /help grep --verbose shows the rest: status, where it runs, see also.
 demo> /help max_grep_lines
 NAME
   max_grep_lines - Most lines /grep shows for one search.
@@ -1467,6 +1550,8 @@ CONFIG
 SUBCOMMANDS
   /term.eol.markers    Toggle dim visible \r \n markers in received output.
   /term.eol.rx         Show or set how received output is split into lines (auto/cr/lf/crlf).
+
+  /help term.eol --verbose shows the rest: status, where it runs, see also.
 demo> /help term.info
 NAME
   /term.info - Snapshot every /term.* toggle, and the bytes sent and received since the port opened.
@@ -1497,6 +1582,8 @@ CONFIG
   send_bare_enter = false  in the snapshot
   control_keys = true      in the snapshot
   encoding = "utf-8"       in the snapshot
+
+  /help term.info --verbose shows the rest: status, where it runs, see also.
 demo> /help port.baud_rate
 NAME
   /port.baud_rate - Show or set baud rate: a standard one, or any from 300 with custom=true.
@@ -1523,6 +1610,8 @@ DESCRIPTION
 CONFIG
   serial.baud_rate = 115200   set for the session; bare shows it
   serial.custom_baud = false  set true for the session by custom=true; bare says (custom)
+
+  /help port.baud_rate --verbose shows the rest: status, where it runs, see also.
 demo> /help port.dtr
 NAME
   /port.dtr - Show or set DTR line (hardware only).
@@ -1532,6 +1621,8 @@ CURRENT STATE
 
 SYNOPSIS
   /port.dtr {on|off}
+
+  /help port.dtr --verbose shows the rest: status, where it runs, see also.
 demo> /xfer
   Move files between the host and the device over the serial link, using
   XMODEM or YMODEM.
@@ -1560,6 +1651,8 @@ DESCRIPTION
 
 REQUIRED CAPABILITIES
   profile_loaded - a loaded device profile (missing)
+
+  /help profile.save --verbose shows the rest: status, where it runs, see also.
 demo> /help sym.search
 NAME
   /sym.search - Search symbols by name: the exact name, else contains (gpio) or a glob (Mon*).
@@ -1569,6 +1662,8 @@ STATUS
 
 SYNOPSIS
   /sym.search <pattern>
+
+  /help sym.search --verbose shows the rest: status, where it runs, see also.
 demo> /help cap.text
 NAME
   /cap.text - Capture serial text to a file for a timed duration.
@@ -1588,6 +1683,8 @@ PARAMETERS
   mode=new|append  file mode (default: new)
   echo=on|off      also print captured text to the terminal (default: off)
   cmd=<command>    command to send after capture starts (must be last, default: )
+
+  /help cap.text --verbose shows the rest: status, where it runs, see also.
 demo> /profile.save
   Error: No profile loaded.
 demo> /print === section: help.run ===
@@ -1627,7 +1724,7 @@ demo> /help.plugin
   /find         Navigate scrollback matches with an interactive find bar.
   /firmware     Device-side sources termapy ships: list, copy, show, dump.
   /grep         Search the scrollback for lines matching a pattern (case-insensitive regex).
-  /help         Print the command landscape or look up a specific command.
+  /help         Show the command landscape, or one command's page.
   /log          Session log: start, stop, print, fingerprint, or open it.
   /mcp          MCP catalog and status (Model Context Protocol).
   /mem          Device memory: dump, typed reads, writes and bit ops via /sym names.
@@ -2185,6 +2282,8 @@ SYNOPSIS
 
 DESCRIPTION
   Puts the session where a fresh start on that config would: what this session changed is gone, including settings, user variables, /env.set values, counters and the device profile.  A capture or a recording stops.  The port opens only if the config says auto_connect.  What you asked for at launch, such as --no-color or --quiet, still holds.
+
+  /help cfg.load --verbose shows the rest: status, where it runs, see also.
 demo> /var.set GOLD_LOAD_VAR 1
   $(GOLD_LOAD_VAR) = 1
 demo> /env.set GOLD_LOAD_ENV 1
@@ -2214,6 +2313,8 @@ PARAMETERS
 AVAILABLE
   TUI: yes   WEB: yes   CLI: yes (current)   MCP: no
   (MCP does not provide: interactive)
+
+  /help cap.rename --verbose shows the rest: status, where it runs, see also.
   === section: spy log stays in cap ===
 Disconnected: DEMO
   Cannot open spy://NO-SUCH-PORT?file=../traffic.txt: Invalid spy file: ../traffic.txt (use a path relative to cap/)

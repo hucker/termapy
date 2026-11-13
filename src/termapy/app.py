@@ -3134,7 +3134,12 @@ class SerialTerminal(TerminalHost, App):
         if link is None:
             return Text(self._EXPIRED_LINK_MSG)
         command = f"{cmd_prefix(self.cfg)}{link.command}".rstrip()
-        click = f"Click to run: {command}" if link.run else f"Click to fill the input: {command}"
+        # The verb is the command's own (load, open, show), never "run".
+        click = (
+            f"Click to {self.repl.link_verb(link.command)}: {command}"
+            if link.run
+            else f"Click to fill the input: {command}"
+        )
         head, newline, rest = self.repl.link_summary(link.command).partition("\n")
         tip = (Piece(link.tip),) if isinstance(link.tip, str) else link.tip
         parts = (
@@ -4185,18 +4190,25 @@ def _run_web_mode(args: argparse.Namespace) -> None:
         print("  uv tool install termapy[web]")
         sys.exit(1)
 
+    import os
+
+    from termapy import env_flags
     from termapy.plugins import hints_lacking
 
+    host, port = args.web
+    # The TUI this serves reads the address to know whether its browser is
+    # on this machine (registry web-is-an-environment): on a loopback
+    # address the desktop it runs on is the viewer's, so a file can open in
+    # the local editor; on a network address it cannot.  The child inherits
+    # the environment, and the banner below reads the same row.
+    os.environ[env_flags.WEB_HOST_VARIABLE] = host
     print("=" * 60)
     print("  EXPERIMENTAL: Web mode via textual-serve")
-    # What a browser tab lacks that the TUI on this machine's terminal has,
-    # from the capability table (registry web-is-an-environment).
     print("  Served in a browser, the TUI lacks:")
     for hint in hints_lacking("WEB", "TUI"):
         print(f"    - {hint}")
     print(f"  {DEFAULT_CMD_PREFIX}help <command> says under AVAILABLE when a command needs them.")
-    host, port = args.web
-    if host not in ("localhost", "127.0.0.1", "::1"):
+    if host not in env_flags.LOOPBACK_HOSTS:
         print(f"  Open to the network at {host}. There is no login:")
         print("  anyone who can reach this address can drive the port.")
     print("=" * 60)
@@ -4211,9 +4223,8 @@ def _run_web_mode(args: argparse.Namespace) -> None:
     if args.cfg_dir:
         cmd_parts.extend(["--cfg-dir", args.cfg_dir])
 
-    # The served TUI runs on THIS machine while the viewer sits in a browser
-    # somewhere else; the child knows (Textual's App.is_web) and publishes
-    # the WEB row, so no environment variable has to tell it.
+    # The child knows it is served (Textual's App.is_web) and publishes the
+    # WEB row; the address above is the one thing it cannot see for itself.
     # The server holds no serial port (each browser session is a TUI
     # process with its own breadcrumb); this one lets --kill find it.
     from termapy import breadcrumbs

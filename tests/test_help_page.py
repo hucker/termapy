@@ -87,16 +87,39 @@ class TestADefaultPage:
 
     @pytest.mark.rule("help-page-specific")
     def test_only_a_missing_requirement_shows(self, cli, capsys):
-        """The row answers why a command will not run now, so a met one stays out."""
+        """A row explains why a command will not run now; a met one is the plugin writer's and waits behind --verbose."""
         # Act
         closed = _page(cli, capsys, "/help port.dtr")
         cli.repl.dispatch("port.connect")
         opened = _page(cli, capsys, "/help port.dtr")
+        verbose = _page(cli, capsys, "/help port.dtr --verbose")
 
         # Assert
-        assert "REQUIRED CAPABILITIES" in closed
-        assert "(missing)" in closed
-        assert "REQUIRED CAPABILITIES" not in opened, "met, so nothing to say"
+        assert "serial_connected - an open serial port (missing)" in closed
+        assert "REQUIRED CAPABILITIES" not in opened, "met, so nothing to say to the person typing"
+        assert "serial_connected - an open serial port" in verbose, "met, shown on the full page"
+        assert "(missing)" not in verbose
+
+    @pytest.mark.rule("help-page-specific")
+    def test_the_default_page_links_its_verbose_form(self, cli):
+        """What a default page leaves out is one click away, and the full page offers no such click."""
+        # Act
+        default = _links(cli, "help term.hex")
+        full = _links(cli, "help term.hex --verbose")
+
+        # Assert
+        link = default["/help term.hex --verbose"]
+        assert (link.command, link.run) == ("help term.hex --verbose", True)
+        assert "/help term.hex --verbose" not in full, "the full page has nothing more to show"
+
+    @pytest.mark.rule("links-are-data")
+    def test_the_available_note_links_the_capability(self, cli):
+        """The note naming what a frontend lacks links each capability to its page."""
+        # Act -- /find needs interactive, which MCP lacks
+        links = _links(cli, "help find")
+
+        # Assert
+        assert links["interactive"].command == "help interactive"
 
     def test_a_family_keeps_its_subcommands(self, cli, capsys):
         """A family's list is what its page is for, so it stays."""

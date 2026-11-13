@@ -1,4 +1,5 @@
-# GPS/NMEA Demo -- Query simulated GPS receiver
+# GPS Demo
+# Queries the simulated GPS receiver for NMEA sentences.
 
 /print ─── GPS Demo ───
 

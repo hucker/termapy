@@ -479,20 +479,22 @@ class TestLoadConfig:
 
 
 class TestScriptTemplate:
-    def test_has_placeholder(self):
-        """The new-script template substitutes the script name."""
-        actual = SCRIPT_TEMPLATE.format(name="test_script", prefix="/")
-        assert "test_script" in actual, "name placeholder expanded"
+    def test_opens_with_a_title_line(self):
+        """The template's first line is a Title Case title to replace, the shape every shipped script has."""
+        actual = SCRIPT_TEMPLATE.format(prefix="/")
+        assert actual.splitlines()[0] == "# Untitled Script", (
+            "a title, never a 'Script: name' label"
+        )
 
     def test_has_comments(self):
         """Every non-blank template line is a comment, so a fresh script sends nothing."""
-        actual = SCRIPT_TEMPLATE.format(name="x", prefix="/")
+        actual = SCRIPT_TEMPLATE.format(prefix="/")
         lines = actual.strip().splitlines()
         assert all(line.startswith("#") for line in lines if line.strip()), "all lines are comments"
 
     def test_has_example_commands(self):
         """The template shows a REPL command example (/delay) for the user to copy."""
-        actual = SCRIPT_TEMPLATE.format(name="x", prefix="/")
+        actual = SCRIPT_TEMPLATE.format(prefix="/")
         assert "/delay" in actual, "contains REPL example"
 
 

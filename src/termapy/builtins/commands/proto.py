@@ -865,6 +865,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         files,
         extra=((title, script_name, "title"),),
         run=lambda record: f"proto.run {record['name']}",
+        edit=lambda record: f"proto.edit {record['name']}",
     )
 
 
@@ -2448,7 +2449,7 @@ def _build_crc_lang_commands() -> dict[str, Command]:
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 _FOLDER_SUBS = build_folder_subcommands("proto", noun="script")
 # Override .list with the title-aware version, as /run.list adds the
-# docstring summary; the other folder subs keep the generic behavior.
+# docstring's title; the other folder subs keep the generic behavior.
 _FOLDER_SUBS["list"] = Command(
     args="",
     help="List .pro scripts, newest first, with size, age, and the name each declares.",

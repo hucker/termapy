@@ -23,7 +23,7 @@ Typing the bare command (`/cfg`, `/run`, `/proto`, or `/port` for the
 port name) is equivalent to clicking the button; in the CLI, which has
 no pickers, it runs the matching `.list` instead.  The Cfg, Run, and
 Proto pickers list files newest first with size and age columns under a
-header row; Run adds the script's docstring summary, Cfg the port,
+header row; Run adds the script's title, Cfg the port,
 baud, and title.
 
 Hover over any of the config, port, or status buttons to see a detailed

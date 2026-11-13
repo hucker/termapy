@@ -132,7 +132,7 @@ class ProtoPicker(ModalScreen[tuple | None]):
                     opener=self._opener if self.gui_apps else None,
                 )
             # The name each script declares, as the Run picker shows a
-            # docstring summary; the dialog widens to fit it.
+            # docstring's title; the dialog widens to fit it.
             ol = FileOptionList(
                 protos,
                 detail=script_name,

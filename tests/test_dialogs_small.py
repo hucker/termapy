@@ -122,7 +122,7 @@ class TestProtoPicker:
         _run(scenario)
 
     def test_rows_show_the_name_each_script_declares(self, tmp_path):
-        """A TITLE column holds each script's declared name, as the Run picker holds a summary."""
+        """A TITLE column holds each script's declared name, as the Run picker holds a docstring's title."""
 
         async def scenario():
             # Arrange
@@ -632,7 +632,7 @@ _EDITORS = [
         "sed",
         ".run",
         "New Script",
-        SCRIPT_TEMPLATE.format(name="untitled", prefix="/"),
+        SCRIPT_TEMPLATE.format(prefix="/"),
         id="script",
     ),
 ]

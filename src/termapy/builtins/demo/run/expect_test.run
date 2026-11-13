@@ -1,4 +1,5 @@
-# Expect command test
+# Expect Test
+# Exercises /expect against the demo device: matches, misses and timeouts.
 
 # Test 1: AT returns OK -- should match
 AT

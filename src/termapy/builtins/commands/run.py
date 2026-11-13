@@ -114,20 +114,23 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
-    """``/run.list`` -- list .run scripts with their docstring summaries.
+    """``/run.list`` -- list .run scripts with their titles.
 
-    The generic folder listing plus a SUMMARY column (and a ``summary``
-    key in each data record).  Scripts without a docstring still appear
-    with an empty summary, so the listing is never silently filtered.
+    The generic folder listing plus a TITLE column (and a ``title`` key in
+    each data record), the first line of the docstring, as ``/proto.list``
+    shows a ``.pro`` file's declared name.  Scripts without a docstring
+    still appear with an empty title, so the listing is never silently
+    filtered.
     """
     files = list_entries(ctx.fs.scripts_dir, FOLDER_PATTERNS[RUN])
-    summary = Column("SUMMARY", lambda record: record["summary"])
+    title = Column("TITLE", lambda record: record["title"])
     return file_table(
         "run/",
         "script",
         files,
-        extra=((summary, lambda file: extract_docstring(file)[0], "summary"),),
+        extra=((title, lambda file: extract_docstring(file)[0], "title"),),
         run=lambda record: f"run {record['name']}",
+        edit=lambda record: f"run.edit {record['name']}",
     )
 
 
@@ -333,7 +336,7 @@ _FOLDER_SUBS = build_folder_subcommands("run")
 # operate on file content, not metadata.
 _FOLDER_SUBS["list"] = Command(
     args="",
-    help="List .run scripts, newest first, with size, age, and docstring summary.",
+    help="List .run scripts, newest first, with size, age, and title.",
     handler=_handler_list,
     shows=True,
     state=True,

@@ -11,9 +11,9 @@ the same records, every table reads the same way, and a view never leaves
 dispatch::
 
     run/ - 7 scripts
-    NAME          SIZE    UPDATED    SUMMARY
-    ------------  ------  ---------  ------------------
-    crc_tour.run  2.3 KB  3 min ago  the /proto.crc API
+    NAME          SIZE    UPDATED    TITLE
+    ------------  ------  ---------  --------
+    crc_tour.run  2.3 KB  3 min ago  CRC Tour
 
 Registry ``list-one-format``.  Pure: no I/O, no Textual, no pyserial.
 

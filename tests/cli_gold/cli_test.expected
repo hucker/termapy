@@ -468,24 +468,24 @@ demo> /print === section: config folders ===
   === section: config folders ===
 demo> /run.list
   run/ - 9 scripts
-  NAME SIZE UPDATED SUMMARY
-  -- -- -- --
-  at_demo.run  <SIZE>  just now  AT Command Demo -- Walks through all demo device commands
-  crc_tour.run  <SIZE>  just now  the whole /proto.crc.* API in one screen
-  doc_screenshots.run  <SIZE>  just now  Generate documentation images -- now scripts/doc_shots.py
-  expect_test.run  <SIZE>  just now  Expect command test
-  gps_demo.run  <SIZE>  just now  GPS/NMEA Demo -- Query simulated GPS receiver
-  smoke_test.run  <SIZE>  just now  Smoke test for demo device
-  status_check.run  <SIZE>  just now  Quick status check
-  var_demo.run  <SIZE>  just now  Variable Demo -- Set variables and use them in commands
-  welcome.run  <SIZE>  just now  Welcome script -- Runs on connect via on_connect_cmd config
+  NAME EDIT SIZE UPDATED TITLE
+  -- -- -- -- --
+  at_demo.run          edit  <SIZE>  just now  AT Command Demo
+  crc_tour.run         edit  <SIZE>  just now  CRC Tour
+  doc_screenshots.run  edit  <SIZE>  just now  Documentation Screenshots
+  expect_test.run      edit  <SIZE>  just now  Expect Test
+  gps_demo.run         edit  <SIZE>  just now  GPS Demo
+  smoke_test.run       edit  <SIZE>  just now  Smoke Test
+  status_check.run     edit  <SIZE>  just now  Status Check
+  var_demo.run         edit  <SIZE>  just now  Variable Demo
+  welcome.run          edit  <SIZE>  just now  Welcome
 demo> /proto.list
   proto/ - 3 scripts
-  NAME SIZE UPDATED TITLE
-  -- -- -- --
-  at_test.pro  <SIZE>  just now  Demo AT Command Test
-  bitfield_inline.pro  <SIZE>  just now  Demo Bitfield Inline Format
-  modbus_inline.pro  <SIZE>  just now  Demo Modbus Inline Format
+  NAME EDIT SIZE UPDATED TITLE
+  -- -- -- -- --
+  at_test.pro          edit  <SIZE>  just now  Demo AT Command Test
+  bitfield_inline.pro  edit  <SIZE>  just now  Demo Bitfield Inline Format
+  modbus_inline.pro    edit  <SIZE>  just now  Demo Modbus Inline Format
 demo> /cap.list
   cap/ - empty
 demo> /print === section: port read ===
@@ -1243,11 +1243,11 @@ SUBCOMMANDS
 
 SCRIPTS
   proto/ - 3 scripts
-  NAME SIZE UPDATED TITLE
-  -- -- -- --
-  at_test.pro  <SIZE>  just now  Demo AT Command Test
-  bitfield_inline.pro  <SIZE>  just now  Demo Bitfield Inline Format
-  modbus_inline.pro  <SIZE>  just now  Demo Modbus Inline Format
+  NAME EDIT SIZE UPDATED TITLE
+  -- -- -- -- --
+  at_test.pro          edit  <SIZE>  just now  Demo AT Command Test
+  bitfield_inline.pro  edit  <SIZE>  just now  Demo Bitfield Inline Format
+  modbus_inline.pro    edit  <SIZE>  just now  Demo Modbus Inline Format
 demo> /help plugin
 NAME
   /plugin - Plugin-folder tools: list, explore, show, dump, edit.
@@ -1445,7 +1445,7 @@ SUBCOMMANDS
   /run.explore    Open run/ in the system file explorer.
   /run.help       Show /run help, or print a script's docstring.
   /run.last       Replay the last <count> commands typed (bare /run.last lists them).
-  /run.list       List .run scripts, newest first, with size, age, and docstring summary.
+  /run.list       List .run scripts, newest first, with size, age, and title.
   /run.profile    Run a script with per-line timing (CSV to prof/).
   /run.record     Record commands to a .run script (bare /run.record stops).
   /run.rename     Rename a file in run/ (extension kept; never overwrites).
@@ -1455,17 +1455,17 @@ SUBCOMMANDS
 
 SCRIPTS
   run/ - 9 scripts
-  NAME SIZE UPDATED SUMMARY
-  -- -- -- --
-  at_demo.run  <SIZE>  just now  AT Command Demo -- Walks through all demo device commands
-  crc_tour.run  <SIZE>  just now  the whole /proto.crc.* API in one screen
-  doc_screenshots.run  <SIZE>  just now  Generate documentation images -- now scripts/doc_shots.py
-  expect_test.run  <SIZE>  just now  Expect command test
-  gps_demo.run  <SIZE>  just now  GPS/NMEA Demo -- Query simulated GPS receiver
-  smoke_test.run  <SIZE>  just now  Smoke test for demo device
-  status_check.run  <SIZE>  just now  Quick status check
-  var_demo.run  <SIZE>  just now  Variable Demo -- Set variables and use them in commands
-  welcome.run  <SIZE>  just now  Welcome script -- Runs on connect via on_connect_cmd config
+  NAME EDIT SIZE UPDATED TITLE
+  -- -- -- -- --
+  at_demo.run          edit  <SIZE>  just now  AT Command Demo
+  crc_tour.run         edit  <SIZE>  just now  CRC Tour
+  doc_screenshots.run  edit  <SIZE>  just now  Documentation Screenshots
+  expect_test.run      edit  <SIZE>  just now  Expect Test
+  gps_demo.run         edit  <SIZE>  just now  GPS Demo
+  smoke_test.run       edit  <SIZE>  just now  Smoke Test
+  status_check.run     edit  <SIZE>  just now  Status Check
+  var_demo.run         edit  <SIZE>  just now  Variable Demo
+  welcome.run          edit  <SIZE>  just now  Welcome
 demo> /help grep
 NAME
   /grep - Search the scrollback for lines matching a pattern (case-insensitive regex).
@@ -1690,17 +1690,18 @@ demo> /profile.save
 demo> /print === section: help.run ===
   === section: help.run ===
 demo> /help.run
--- Scripts --
-  /run at_demo                  AT Command Demo -- Walks through all demo device commands
-  /run crc_tour                 the whole /proto.crc.* API in one screen
-  /run doc_screenshots          Generate documentation images -- now scripts/doc_shots.py
-  /run expect_test              Expect command test
-  /run gps_demo                 GPS/NMEA Demo -- Query simulated GPS receiver
-  /run smoke_test               Smoke test for demo device
-  /run status_check             Quick status check
-  /run var_demo                 Variable Demo -- Set variables and use them in commands
-  /run welcome                  Welcome script -- Runs on connect via on_connect_cmd config
-  9 scripts.
+  run/ - 9 scripts
+  NAME EDIT SIZE UPDATED TITLE
+  -- -- -- -- --
+  at_demo.run          edit  <SIZE>  just now  AT Command Demo
+  crc_tour.run         edit  <SIZE>  just now  CRC Tour
+  doc_screenshots.run  edit  <SIZE>  just now  Documentation Screenshots
+  expect_test.run      edit  <SIZE>  just now  Expect Test
+  gps_demo.run         edit  <SIZE>  just now  GPS Demo
+  smoke_test.run       edit  <SIZE>  just now  Smoke Test
+  status_check.run     edit  <SIZE>  just now  Status Check
+  var_demo.run         edit  <SIZE>  just now  Variable Demo
+  welcome.run          edit  <SIZE>  just now  Welcome
 demo> /print === section: help.plugin ===
   === section: help.plugin ===
 demo> /help.plugin
@@ -1979,22 +1980,24 @@ demo> +PROD-ID
 demo> /print === section: coverage: folders ===
   === section: coverage: folders ===
 demo> /run.help at_demo
-  AT Command Demo -- Walks through all demo device commands
+  AT Command Demo
+  Walks through all demo device commands.
 demo> /edit.run.list
   run/ - 9 scripts
-  NAME SIZE UPDATED SUMMARY
-  -- -- -- --
-  at_demo.run  <SIZE>  just now  AT Command Demo -- Walks through all demo device commands
-  crc_tour.run  <SIZE>  just now  the whole /proto.crc.* API in one screen
-  doc_screenshots.run  <SIZE>  just now  Generate documentation images -- now scripts/doc_shots.py
-  expect_test.run  <SIZE>  just now  Expect command test
-  gps_demo.run  <SIZE>  just now  GPS/NMEA Demo -- Query simulated GPS receiver
-  smoke_test.run  <SIZE>  just now  Smoke test for demo device
-  status_check.run  <SIZE>  just now  Quick status check
-  var_demo.run  <SIZE>  just now  Variable Demo -- Set variables and use them in commands
-  welcome.run  <SIZE>  just now  Welcome script -- Runs on connect via on_connect_cmd config
+  NAME EDIT SIZE UPDATED TITLE
+  -- -- -- -- --
+  at_demo.run          edit  <SIZE>  just now  AT Command Demo
+  crc_tour.run         edit  <SIZE>  just now  CRC Tour
+  doc_screenshots.run  edit  <SIZE>  just now  Documentation Screenshots
+  expect_test.run      edit  <SIZE>  just now  Expect Test
+  gps_demo.run         edit  <SIZE>  just now  GPS Demo
+  smoke_test.run       edit  <SIZE>  just now  Smoke Test
+  status_check.run     edit  <SIZE>  just now  Status Check
+  var_demo.run         edit  <SIZE>  just now  Variable Demo
+  welcome.run          edit  <SIZE>  just now  Welcome
 demo> /run.dump status_check
-  # Quick status check
+  # Status Check
+  # A quick look at the demo device: AT+STATUS, then AT+TEMP.
 
   AT+STATUS
   /delay 300ms
@@ -2002,11 +2005,11 @@ demo> /run.dump status_check
   /delay 300ms
 demo> /proto
   proto/ - 3 scripts
-  NAME SIZE UPDATED TITLE
-  -- -- -- --
-  at_test.pro  <SIZE>  just now  Demo AT Command Test
-  bitfield_inline.pro  <SIZE>  just now  Demo Bitfield Inline Format
-  modbus_inline.pro  <SIZE>  just now  Demo Modbus Inline Format
+  NAME EDIT SIZE UPDATED TITLE
+  -- -- -- -- --
+  at_test.pro          edit  <SIZE>  just now  Demo AT Command Test
+  bitfield_inline.pro  edit  <SIZE>  just now  Demo Bitfield Inline Format
+  modbus_inline.pro    edit  <SIZE>  just now  Demo Modbus Inline Format
 demo> /proto.info
   Hex Mode : off
   Connected: yes

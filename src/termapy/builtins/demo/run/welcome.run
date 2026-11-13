@@ -1,4 +1,5 @@
-# Welcome script -- Runs on connect via on_connect_cmd config
+# Welcome
+# Runs on connect, named by the config's on_connect_cmd.
 
 /term.echo.silent off
 /print

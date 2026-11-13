@@ -200,6 +200,60 @@ def test_every_command_a_click_can_run_has_a_verb(tmp_path):
 
 
 @pytest.mark.rule("links-are-data")
+def test_the_landscape_lists_the_scripts_as_help_run_does(tmp_path):
+    """The scripts on /help are /run.list's table, each name a link that runs it; /help.run is the same table."""
+    # Arrange
+    eng = _engine(tmp_path)
+    eng.scripts_dir.mkdir()
+    (eng.scripts_dir / "hello.run").write_text("# Say hello\n/print hi\n", encoding="utf-8")
+
+    # Act
+    landscape = {link.command: link for link in _links_of(eng, "help")}
+    help_run = {link.command: link for link in _links_of(eng, "help.run")}
+
+    # Assert
+    assert landscape["run hello.run"].run is True, "a click runs the script, as the Run picker does"
+    assert landscape["run.edit hello.run"].run is True, "the row's EDIT cell opens it in the editor"
+    assert help_run["run hello.run"].run is True, "/help.run hands out the same rows"
+    assert eng.dispatch("help.run").value == 1, "and the same answer: the count"
+
+
+@pytest.mark.rule("links-are-data")
+def test_a_file_rows_edit_cell_is_a_link_and_not_a_field(tmp_path):
+    """A run or proto row carries an EDIT cell that opens the file, a link beside the name, and the records stay as they were."""
+    # Arrange
+    eng = _engine(tmp_path)
+    eng.scripts_dir.mkdir()
+    (eng.scripts_dir / "hello.run").write_text("# Say hello\n/print hi\n", encoding="utf-8")
+    eng.proto_dir.mkdir()
+    (eng.proto_dir / "ping.pro").write_text(
+        'name = "ping"\n[[test]]\nname = "t"\nsend = "AT"\n', encoding="utf-8"
+    )
+
+    # Act -- the handlers' own answers keep their views; dispatch prints and drops them
+    run_list = eng._plugins["run.list"].handler(eng.ctx, "")
+    proto_list = eng._plugins["proto.list"].handler(eng.ctx, "")
+    links = {link.command: link for link in _links_of(eng, "proto.list")}
+
+    # Assert
+    assert [column.title for column in run_list.view.columns] == [
+        "NAME",
+        "EDIT",
+        "SIZE",
+        "UPDATED",
+        "TITLE",
+    ]
+    assert "edit" not in run_list.data[0], "the word is a cell, not a record field"
+    assert links["proto.edit ping.pro"].run is True, "proto rows edit the same way"
+    assert links["proto.run ping.pro"].run is True, "and still run on the name"
+    assert [column.title for column in proto_list.view.columns][:2] == ["NAME", "EDIT"]
+    # The cell's hover: what the command it names does, and the verb (registry link-explains-itself).
+    assert eng.link_summary("run.edit hello.run") == "Open a .run file for editing."
+    assert eng.link_verb("run.edit hello.run") == "open"
+    assert eng.link_summary("proto.edit ping.pro") == "Open a .pro file for editing."
+
+
+@pytest.mark.rule("links-are-data")
 def test_a_page_runs_nothing_but_pages_and_bare_forms(tmp_path):
     """On every command's page a click runs only /help <name>, a declared bare form or its list's own rows."""
     # Arrange

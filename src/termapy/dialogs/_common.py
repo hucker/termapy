@@ -116,7 +116,7 @@ class FileOptionList(OptionList):
 
         Args:
             files: Files in display order.
-            detail: Optional per-file trailing text (a docstring summary,
+            detail: Optional per-file trailing text (a script's title,
                 a config's port).  Called once per file, here, not on
                 every resize.
             detail_header: Header text for the detail column.

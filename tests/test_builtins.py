@@ -308,7 +308,7 @@ class TestRunDocstring:
         engine.ctx.fs.scripts_dir = scripts_dir
         return scripts_dir
 
-    def test_run_list_shows_summary_alongside_filename(
+    def test_run_list_shows_title_alongside_filename(
         self,
         repl_env,
         tmp_path,
@@ -330,11 +330,11 @@ class TestRunDocstring:
         texts = [text for text, _ in output]
         # A header labels the columns (the size/age pair reads as noise without one).
         assert any(
-            text.strip().startswith("NAME") and text.rstrip().endswith("SUMMARY") for text in texts
-        ), f"header row NAME ... SUMMARY above the listing, got: {texts}"
-        # Documented script: summary appears after the filename.
+            text.strip().startswith("NAME") and text.rstrip().endswith("TITLE") for text in texts
+        ), f"header row NAME ... TITLE above the listing, got: {texts}"
+        # Documented script: its title appears after the filename.
         assert any("documented.run" in text and "Short summary" in text for text in texts), (
-            f"summary should appear next to documented.run, got: {texts}"
+            f"the title should appear next to documented.run, got: {texts}"
         )
         # Undocumented script: still listed, its line ends at the age column.
         assert any(
@@ -343,7 +343,7 @@ class TestRunDocstring:
             or "undocumented.run" in text
             and text.rstrip().endswith("just now")
             for text in texts
-        ), "undocumented script listed with no summary and no trailing padding"
+        ), "undocumented script listed with no title and no trailing padding"
 
     def test_run_list_newest_first_with_size_and_age(self, repl_env, tmp_path):
         """Order is by mtime, not name, in both the listing and the scriptable value."""
@@ -445,9 +445,9 @@ class TestRunDocstring:
             "the dispatcher renders usage from the declared params"
         )
 
-    def test_landscape_and_run_list_agree_on_the_summary(self, repl_env, tmp_path):
+    def test_landscape_and_run_list_agree_on_the_title(self, repl_env, tmp_path):
         """One extractor for both: a docstring whose second line is a ``#``
-        continuation (crc_tour.run's shape) showed a summary in /run.list
+        continuation (crc_tour.run's shape) showed a title in /run.list
         and nothing in /help.run.  A leading ``<name> -- `` is dropped in
         both, since the name already has its own column."""
         # Arrange
@@ -466,10 +466,10 @@ class TestRunDocstring:
 
         # Assert
         assert landscape and "the whole API in one screen" in landscape[0], (
-            f"/help.run shows the summary: {landscape}"
+            f"/help.run shows the title: {landscape}"
         )
         assert listing and listing[0].rstrip().endswith("  the whole API in one screen"), (
-            f"/run.list shows the same summary without the filename prefix: {listing}"
+            f"/run.list shows the same title without the filename prefix: {listing}"
         )
 
     @pytest.mark.rule("data-structured-twin")
@@ -488,7 +488,9 @@ class TestRunDocstring:
         record = result.data[0]
         assert record["name"] == "documented.run"
         assert record["bytes"] == 29, "raw byte count, not a humanized string"
-        assert record["summary"] == "Short summary."
+        assert record["title"] == "Short summary.", (
+            "the docstring's first line, under the column's key"
+        )
         assert record["mtime"] and record["age_s"] >= 0, "recency fields present"
         assert not any(".run" in text for text, _ in output), (
             "structured consumers get records only, never the listing prose"

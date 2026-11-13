@@ -52,7 +52,8 @@ def extract_docstring(path: Path) -> tuple[str, str]:
 
     Returns:
         Tuple of ``(summary, full)``.  ``summary`` is the first
-        comment line (stripped, minus a leading ``<filename> -- ``);
+        comment line, the script's title as ``/run.list`` and the Run
+        picker show it (stripped, minus a leading ``<filename> -- ``);
         ``full`` is the whole block joined
         with newlines, ``#`` and one leading space stripped from each
         line.  Both are ``""`` when the file has no leading docstring

@@ -1,4 +1,5 @@
-# crc_tour.run -- the whole /proto.crc.* API in one screen
+# CRC Tour
+# The whole /proto.crc.* API in one screen.
 #
 # Runs against the bundled demo device.  Three threads:
 #   * Tool-use (calc / verify / codegen / send-with-CRC) -- the daily

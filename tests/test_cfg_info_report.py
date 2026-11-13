@@ -15,11 +15,19 @@ import pytest
 
 from termapy.config import cfg_history_path, cfg_log_path, rename_config, session_log_file
 from termapy.folders import INFO_REPORT_SUFFIX
-from termapy.plugins import CapabilitySet, InternalHandle, IOHandle, PluginContext
+from termapy.plugins import (
+    CapabilitySet,
+    InternalHandle,
+    IOHandle,
+    PluginContext,
+    requires_text,
+)
 from termapy.repl import ReplEngine
 
 
-def _build(tmp_path: Path, *, interactive: bool = True, oneshot: bool = False):
+def _build(
+    tmp_path: Path, *, interactive: bool = True, oneshot: bool = False, gui_apps: bool = False
+):
     """Engine, config path and captured output over ``<tmp>/rig/rig.cfg``."""
     cfg = {
         "serial": {
@@ -57,7 +65,9 @@ def _build(tmp_path: Path, *, interactive: bool = True, oneshot: bool = False):
         config_path=str(config_path),
         internal=internal,
         io=IOHandle(_write=write, _write_markup=lambda text: output.append((text, "markup"))),
-        capabilities=CapabilitySet(interactive=interactive, filesystem_unconfined=True),
+        capabilities=CapabilitySet(
+            interactive=interactive, filesystem_unconfined=True, gui_apps=gui_apps
+        ),
         dispatch=engine.dispatch,
         is_oneshot=lambda: oneshot,
     )
@@ -80,6 +90,41 @@ def _lines(n: int, prefix: str) -> str:
 @pytest.fixture
 def rig(tmp_path):
     return _build(tmp_path)
+
+
+class TestDisplay:
+    """``--display`` needs a desktop: the option, not the command, so the handler checks it."""
+
+    @pytest.mark.rule("gated-call-declares-need")
+    def test_refused_without_a_desktop_before_writing(self, rig):
+        """Without gui_apps, --display fails naming the need and writes no report."""
+        # Arrange
+        engine, config_path, _ = rig
+
+        # Act
+        result = engine.dispatch("cfg.info --display")
+
+        # Assert
+        assert result.success is False, "--display is refused"
+        assert result.error == f"--display requires {requires_text(['gui_apps'], engine.prefix)}", (
+            "the gate's own phrasing names the capability and its hint"
+        )
+        assert not _report(config_path).exists(), "nothing was written first"
+
+    @pytest.mark.rule("gated-call-declares-need")
+    def test_opens_the_report_through_the_gated_opener(self, tmp_path):
+        """With gui_apps, --display writes the report and hands it to ctx.fs.open_file."""
+        # Arrange
+        engine, config_path, _ = _build(tmp_path, gui_apps=True)
+        opened: list[str] = []
+        engine.ctx.fs._open_file_impl = lambda path: opened.append(str(path))
+
+        # Act
+        result = engine.dispatch("cfg.info --display")
+
+        # Assert
+        assert result.success, result.error
+        assert opened == [str(_report(config_path))], "the report, through the gated opener"
 
 
 class TestReportContents:

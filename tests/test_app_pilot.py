@@ -143,6 +143,21 @@ class TestAppBoots:
 
         _run(scenario)
 
+    @pytest.mark.rule("web-is-an-environment")
+    def test_a_tui_on_a_terminal_publishes_the_tui_row(self, app_factory):
+        """Not served in a browser, the TUI's ctx.capabilities is the TUI row of the one table and /help marks TUI current."""
+
+        async def scenario():
+            from termapy.plugins import environment_capabilities
+
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert app.repl.ctx.environment == "TUI", "run_test is a terminal, not a browser"
+                assert app.repl.ctx.capabilities == environment_capabilities("TUI"), "one owner"
+
+        _run(scenario)
+
     @pytest.mark.parametrize("command", ["/cli", "/vt100", "/demo.vt100"])
     def test_without_a_console_the_mode_switches_are_refused(self, app_factory, command):
         """In a browser tab (no console) the switches fail at the gate and the TUI stays."""

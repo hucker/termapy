@@ -31,9 +31,9 @@ Add a capability by:
      explaining *what* it means and *where* it's provided.  Session
      state the user can change adds ``state=`` (the gate's answer) and
      ``attainable=True``.
-  2. The environments that provide it set the field to True when they
-     build ``ctx.capabilities`` (typically in ``app.py`` / ``cli.py`` /
-     the script runner in ``repl.py``).
+  2. The environments that provide it set the field to True in their row
+     of ``_build_environments`` below, the one table every host reads
+     (a per-dispatch one is the script runner's, in ``repl.py``).
   3. Commands that require it set the field in their ``Command.needs``.
 """
 
@@ -501,8 +501,8 @@ REQUIREMENT_HINTS: dict[str, str] = {
 
 # The dynamic fields that are session STATE the user can change, not limits
 # of the environment.  When they are all a command lacks, dispatch answers
-# with the state rather than "requires: ... (not available in this
-# environment)".  Declaration order is the gate's order: with neither, load a
+# with the state rather than "requires the ... capability; not available in
+# this environment".  Declaration order is the gate's order: with neither, load a
 # config first (it may open the port too), so ``config_loaded`` is declared
 # before ``serial_connected``.  Registries ``state-answered-by-gate`` and
 # ``state-messages-one-owner``.
@@ -518,6 +518,25 @@ STATE_MESSAGES: dict[str, str] = {
 # (``ReplEngine._effective_capabilities``); whatever answers "can this
 # command EVER run here" -- /help's AVAILABLE row, ``/help --mcp``, the MCP
 # catalog -- grants them through ``attainable``.
+
+
+def requires_text(missing: list[str], prefix: str) -> str:
+    """What a refusal says a command needs: ``the gui_apps capability, <hint>`` or ``the a, b capabilities``.
+
+    The one phrasing for the dispatch gate and for an option that checks a
+    capability itself (``/cfg.info --display``), so a reader learns what kind
+    of thing the name is and, for one capability, what it stands for: the
+    field's ``_restricted`` hint with the REPL prefix filled in.
+
+    Args:
+        missing: The capability field names, in declaration order.
+        prefix: The REPL prefix a hint's ``{prefix}`` becomes.
+    """
+    if len(missing) == 1:
+        name = missing[0]
+        hint = REQUIREMENT_HINTS.get(name, "").replace("{prefix}", prefix)
+        return f"the {name} capability" + (f", {hint}" if hint else "")
+    return f"the {', '.join(missing)} capabilities"
 
 
 def state_message(need: str, prefix: str) -> str:
@@ -591,12 +610,14 @@ def detect_gui_apps() -> bool:
 
 
 def _build_environments() -> dict[str, CapabilitySet]:
-    """Build the per-environment capability sets used by ``/help`` rendering.
+    """Build each frontend's capability set: what it publishes on ``ctx.capabilities``.
 
-    The single source of truth for "where can this command run."  The
-    ``AVAILABLE`` row in the man page and ``/help --mcp`` both derive from
-    this map.  Adding a new host (web preview, CI runner, ...) means adding
-    a row here.
+    The one table of "what a frontend provides" (registry
+    ``web-is-an-environment``).  A host reads its row through
+    :func:`environment_capabilities` when it builds its context; ``/help``'s
+    AVAILABLE matrix and ``/help --mcp`` read the same rows through
+    ``ENVIRONMENTS``.  Adding a new host (a CI runner, ...) is adding a row
+    here and nowhere else.
 
     ``gui_apps`` is computed once at import time via :func:`detect_gui_apps`.
     Long-running servers don't change desktop state mid-process; users who
@@ -605,27 +626,38 @@ def _build_environments() -> dict[str, CapabilitySet]:
     gui = detect_gui_apps()
     # MCP host confinement is per-class opt-in from the server's shell;
     # mirror it here so /help AVAILABLE reflects the running policy.
-    from termapy.env_flags import MCP_FS_UNCONFINED, MCP_HOST_INFO, MCP_NET_EGRESS
+    from termapy.env_flags import GUI_OVERRIDE, MCP_FS_UNCONFINED, MCP_HOST_INFO, MCP_NET_EGRESS
 
-    environments = {
-        # TUI (Textual app): everything an interactive desktop terminal has.
-        "TUI": CapabilitySet(
-            interactive=True,
-            console=True,
-            gui_apps=gui,
-            file_editor=True,
-            session_log=True,
-            tui_mode=True,
-            screen_capture=True,
-            confirm_dialog=True,
-            ui_notify=True,
-            status_bar=True,
-            filesystem_unconfined=True,
-            network_egress=True,
-            host_info=True,
-        ),
+    # TUI (Textual app) on a terminal: everything an interactive desktop
+    # terminal has.  block_until is not here: the script runner provides it
+    # per dispatch (ReplEngine._effective_capabilities).
+    tui = CapabilitySet(
+        interactive=True,
+        console=True,
+        gui_apps=gui,
+        file_editor=True,
+        session_log=True,
+        tui_mode=True,
+        screen_capture=True,
+        confirm_dialog=True,
+        ui_notify=True,
+        status_bar=True,
+        filesystem_unconfined=True,
+        network_egress=True,
+        host_info=True,
+    )
+    return {
+        "TUI": tui,
+        # The same TUI served in a browser (--web; Textual's App.is_web):
+        # the screen is a web page, so there is no terminal to hand to /cli
+        # or /vt100, and the desktop this process runs on is not the
+        # viewer's, so nothing it "opened" would be seen.  Only an explicit
+        # TERMAPY_GUI=1 says otherwise (the operator viewing their own
+        # server); detection never does, since it looks at the server.
+        "WEB": replace(tui, console=False, gui_apps=GUI_OVERRIDE is True),
         # CLI (interactive REPL or --run script): interactive but no Textual UI.
-        # Its confirmation is the y/n prompt on stdin.
+        # Its confirmation is the y/n prompt on stdin; its only file editor
+        # is the system's, so it needs the desktop.
         "CLI": CapabilitySet(
             interactive=True,
             console=True,
@@ -636,20 +668,64 @@ def _build_environments() -> dict[str, CapabilitySet]:
             network_egress=True,
             host_info=True,
         ),
-        # MCP (stdio server): no human, no display.  Host access beyond the
-        # device is sandboxed unless the operator opts in per-class.
+        # MCP (stdio server): no human, no display.  Each call runs on a
+        # worker the asyncio lock serializes, so /expect may block.  Host
+        # access beyond the device is sandboxed unless the operator opts in
+        # per-class from the server's shell.
         "MCP": CapabilitySet(
+            block_until=True,
             session_log=True,
             filesystem_unconfined=MCP_FS_UNCONFINED,
             network_egress=MCP_NET_EGRESS,
             host_info=MCP_HOST_INFO,
         ),
     }
-    # This matrix answers "can the command EVER run there"; "is it
-    # available RIGHT NOW" is the REQUIRED CAPABILITIES section's job (its
-    # "(missing)" marker).  Without the dynamic capabilities every serial
-    # command rendered "TUI: no  CLI: no  MCP: no" -- statically wrong.
-    return {name: attainable(caps) for name, caps in environments.items()}
 
 
-ENVIRONMENTS: dict[str, CapabilitySet] = _build_environments()
+# What each frontend publishes: the rows as a host reads them.
+BASE_ENVIRONMENTS: dict[str, CapabilitySet] = _build_environments()
+
+# The rows as "can the command EVER run there" readers (/help's AVAILABLE
+# row, /help --mcp, the MCP catalog) read them; "is it available RIGHT NOW"
+# is the REQUIRED CAPABILITIES section's job (its "(missing)" marker).
+# Without the dynamic capabilities every serial command rendered
+# "TUI: no  CLI: no  MCP: no" -- statically wrong.
+ENVIRONMENTS: dict[str, CapabilitySet] = {
+    name: attainable(caps) for name, caps in BASE_ENVIRONMENTS.items()
+}
+
+
+def environment_capabilities(name: str) -> CapabilitySet:
+    """The capabilities frontend ``name`` publishes: its row of the one table.
+
+    Every host assigns this to ``ctx.capabilities`` (then
+    ``ctx.sync_capabilities()``), so the set the dispatch gate reads and the
+    set ``/help`` describes are the same row (registry
+    ``web-is-an-environment``).  Built when asked, so the row reads the
+    environment as it stands when the host is constructed: the same as at
+    import in a running termapy (the flags are import-time constants), and
+    what a test that sets a flag before building a host relies on.
+
+    Args:
+        name: A key of ``BASE_ENVIRONMENTS``: ``"TUI"``, ``"WEB"``, ``"CLI"``
+            or ``"MCP"``.
+    """
+    return _build_environments()[name]
+
+
+def hints_lacking(environment: str, versus: str) -> list[str]:
+    """The ``/help`` hints of what ``versus`` provides and ``environment`` does not.
+
+    In declaration order.  The web banner reads it: what a browser tab lacks
+    that the same TUI on this machine's terminal has.
+
+    Args:
+        environment: The row with less, a key of ``BASE_ENVIRONMENTS``.
+        versus: The row compared against.
+    """
+    have, lack = BASE_ENVIRONMENTS[versus], BASE_ENVIRONMENTS[environment]
+    return [
+        hint
+        for name, hint in REQUIREMENT_HINTS.items()
+        if getattr(have, name) and not getattr(lack, name)
+    ]

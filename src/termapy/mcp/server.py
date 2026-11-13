@@ -55,7 +55,6 @@ from termapy.mcp.catalog import (
     device_state_json,
 )
 from termapy.plugins import (
-    CapabilitySet,
     CmdResult,
     PluginContext,
 )
@@ -467,23 +466,16 @@ class MCPHost(TerminalHost):
         # run_command runs in a worker thread (asyncio executor); the
         # asyncio lock serializes them, so the engine's single-active-
         # predicate model is honored.
-        # Capabilities: baseline + block_until (for /expect).  Keeps
-        # tui_mode/confirm_dialog/etc. off so commands that need a
-        # screen still fail-fast.  Host access beyond the device is
-        # sandboxed: filesystem_unconfined / network_egress stay off
-        # unless the operator opts in per-class from the server's shell
-        # (secure default, power by opt-in -- same shape as the /env and
-        # /os gates).
-        from termapy.env_flags import MCP_FS_UNCONFINED, MCP_HOST_INFO, MCP_NET_EGRESS
+        # Capabilities: the MCP row of the one table (registry
+        # web-is-an-environment): block_until for /expect, its own session
+        # log (<cfg>.mcp.log, config.mcp_log_path), no screen or dialog so
+        # commands that need one fail fast, and host access beyond the
+        # device only where the operator opted in per-class from the
+        # server's shell (env_flags; the same shape as the /env and /os
+        # gates).
+        from termapy.plugins import environment_capabilities
 
-        self.ctx.capabilities = CapabilitySet(
-            block_until=True,
-            # <cfg>.mcp.log, the agent's own (config.mcp_log_path).
-            session_log=True,
-            filesystem_unconfined=MCP_FS_UNCONFINED,
-            network_egress=MCP_NET_EGRESS,
-            host_info=MCP_HOST_INFO,
-        )
+        self.ctx.capabilities = environment_capabilities("MCP")
         self.ctx.environment = "MCP"  # ENVIRONMENTS column; /help marks it (current)
         # The MCP consumer is an agent: it reads ``CmdResult.data``
         # structure, not rendered prose.  Handlers that branch on this

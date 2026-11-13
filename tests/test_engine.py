@@ -1578,7 +1578,8 @@ class TestDispatchCapabilities:
 
         # Assert
         expected = (
-            "/xfer requires: serial_connected, interactive (not available in this environment)"
+            "/xfer requires the serial_connected, interactive capabilities; "
+            "not available in this environment"
         )
         assert result.error == expected
 

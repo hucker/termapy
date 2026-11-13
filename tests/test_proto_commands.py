@@ -412,4 +412,7 @@ class TestDebug:
     def test_debug_is_refused_outside_the_tui(self, cli):
         """/proto.debug needs the TUI: the CLI refuses it by capability before the handler runs."""
         result = cli.repl.dispatch_full("/proto.debug anything")
-        assert result.error == "/proto.debug requires: tui_mode (not available in this environment)"
+        assert result.error == (
+            "/proto.debug requires the tui_mode capability, the TUI (switch with /tui); "
+            "not available in this environment"
+        )

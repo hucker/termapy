@@ -73,7 +73,7 @@ from termapy.plugins import (
     format_usage,
     load_plugins_from_dir,
 )
-from termapy.plugins.capabilities import STATE_MESSAGES, state_message
+from termapy.plugins.capabilities import STATE_MESSAGES, requires_text, state_message
 from termapy.plugins.command import has_required_arg, interpolate_help
 from termapy.plugins.params import parse_params
 from termapy.plugins.views import error_pieces
@@ -2791,9 +2791,12 @@ class ReplEngine:
                 next(need for need in STATE_MESSAGES if need in missing), self.prefix
             )
         if missing:
+            # Names the kind of thing and, for one, what it stands for; the
+            # phrasing is capabilities.requires_text, shared with an option
+            # that checks a capability itself (/cfg.info --display).
             return (
-                f"{self.prefix}{name} requires: {', '.join(missing)} "
-                f"(not available in this environment)"
+                f"{self.prefix}{name} requires {requires_text(missing, self.prefix)}; "
+                "not available in this environment"
             )
         return None
 

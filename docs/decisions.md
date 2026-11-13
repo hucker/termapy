@@ -1599,3 +1599,45 @@ The capability names what is missing, as `gui_apps` does, rather than naming the
 over, and a command that cannot run should say so, not take the session down.
 **Where:** `entry._web_address`, `CapabilitySet.console`, the three hooks in `app_hooks`;
 `help/cli.md`. Serving to another computer is not yet tried from a second machine.
+
+## 2026-11-13 — A frontend is a row of one table, WEB is the TUI in a browser, and nothing sneaks around a capability
+
+Each frontend's capabilities are one row of `capabilities.BASE_ENVIRONMENTS`, read by its host
+through `environment_capabilities` and by `/help` through `ENVIRONMENTS`; until now the TUI, the
+CLI and the MCP server each built their own set beside the table `/help` read. The TUI served in a
+browser (`--web`, Textual's `App.is_web`) is the WEB row: the TUI without `console` and without
+`gui_apps` unless `TERMAPY_GUI=1` says the viewer sits at the serving machine, detection never
+counting because it looks at the server. `/help` gains a WEB column, the web banner lists what the
+row lacks (`hints_lacking`), and the pickers take the session's `gui_apps` and a gated opener
+instead of a `web=` flag. Behavior removed: the config picker hid its Explore button under `--web`;
+it is now disabled with the `TERMAPY_GUI` tooltip, like any session without a desktop, and the web
+server no longer sets `TERMAPY_GUI=0` for its child.
+
+The audit Chuck asked for (2026-11-12) found five places that reached the desktop around the gate:
+`/cfg.info --display` (declared only a loaded config), the palette's two "show newest" entries, the
+Help button and palette entry, and the proto-debug Log button, all opening a file on the machine
+serving a `--web` session, unseen. `/log.show`, `/log.diag.show` and `/cfg.explore` were declared
+but called the raw opener. Now every one goes through `ctx.fs.open_file` or dispatches the command
+that does, `/cfg.info --display` refuses when the session has no desktop, `ctx.fs.reveal_file` is
+the pickers' gated "show in file manager", and `ctx.internal.edit_file` refuses at run time without
+`file_editor`, as the other doors do. Two guards keep it so: a raw primitive (`subprocess`,
+`webbrowser`, `platform`, `socket`; `open_with_system`, `reveal_in_file_manager`, `os.startfile`,
+`input()`, `breadcrumbs.read_running`) is referenced only in its listed homes, and a registered
+handler that calls a gated door declares the capability or checks it first.
+
+The gate's refusal says what kind of thing it lacks and what that stands for: `/cfg.show requires
+the gui_apps capability, a local desktop that can open apps the user sees; not available in this
+environment` (one phrasing, `capabilities.requires_text`, which `/cfg.info --display` uses too).
+Before, `requires: gui_apps` named a bare field (Chuck: the word capability belongs in it). Next
+branch: `/help capability` lists them all, `/help <capability>` explains one and names the commands
+that need it, and a REQUIRED CAPABILITIES row links there.
+
+**Why:** a frontend is an environment lacking capabilities; commands declare needs; the gate,
+`/help` AVAILABLE and the web banner read the same facts. Nothing tests "am I in a browser" except
+where the session's capabilities are set (Chuck: the architecture paying off). The holes were all
+TUI affordances or option branches that skipped dispatch, which is why the guards look at the raw
+primitives and at the handlers rather than at any one frontend.
+**Where:** `capabilities.BASE_ENVIRONMENTS` / `environment_capabilities` / `hints_lacking`;
+`FilesystemHandle.reveal_file`, `InternalHandle.edit_file`; `RAW_MODULE_HOMES`, `RAW_NAME_HOMES`,
+`GATED_CALLS` in `tests/test_architecture.py`; registries `web-is-an-environment`,
+`raw-primitive-one-home`, `gated-call-declares-need`; `help/cli.md`, `help/environment.md`.

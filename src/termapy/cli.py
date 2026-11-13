@@ -270,31 +270,15 @@ class CLITerminal(TerminalHost):
         self.ctx.io.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
         self.ctx.ui._exit_app_impl = self._request_exit
         self.ctx.ui._get_screen_text_impl = lambda: ""
-        # CLI provides interactive (a human at a terminal -- including
-        # over SSH) and gui_apps when a local desktop is available.  No
-        # TUI features (dialogs, screen capture, status bar, toast
-        # notifications).  block_until is added dynamically by the script
-        # runner when running a .run file in CLI mode -- see
+        # The CLI's capabilities are its row of the one table (registry
+        # web-is-an-environment).  block_until is added dynamically by the
+        # script runner when running a .run file in CLI mode -- see
         # ReplEngine._effective_capabilities.
-        from termapy.plugins import detect_gui_apps
+        from termapy.plugins import environment_capabilities
 
-        gui = detect_gui_apps()
-        self.ctx.capabilities = CapabilitySet(
-            interactive=True,
-            console=True,
-            gui_apps=gui,
-            # The CLI's only editor is the system one: it needs a desktop.
-            file_editor=gui,
-            # ctx.ui.confirm is the y/n prompt on stdin (_confirm): /confirm
-            # works in a CLI script, and a piped run reads No and stops.
-            confirm_dialog=True,
-            # The operator is the caller on their own machine: no sandbox.
-            filesystem_unconfined=True,
-            network_egress=True,
-            host_info=True,
-        )
         self.ctx.environment = "CLI"  # ENVIRONMENTS column; /help marks it (current)
-        self.ctx.sync_capabilities()  # push caps into fs/ui handle snapshots
+        self.ctx.capabilities = environment_capabilities("CLI")
+        self.ctx.sync_capabilities()  # push caps into the handles' snapshots
 
         self.repl.set_context(self.ctx)
         # CLI: REPL echo off by default -- the OS terminal already shows the
@@ -333,7 +317,8 @@ class CLITerminal(TerminalHost):
             self._hook_tui,
             source="app",
             group="terminal",
-            needs=CapabilitySet.INTERACTIVE,
+            # The TUI takes over this terminal, as /cli does the other way.
+            needs=CapabilitySet(interactive=True, console=True),
         )
         self.repl.register_hook(
             "cli",

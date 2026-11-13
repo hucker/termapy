@@ -51,7 +51,6 @@ from termapy.config import (
     cfg_history_path,
     load_config,
     on_connect_commands,
-    open_with_system,
     rename_config,
     session_log_file,
 )
@@ -90,7 +89,6 @@ from termapy.markup import escape_markup, markup_to_plain, received_json_markup
 from termapy.palette_provider import PaletteProvider
 from termapy.plugins import (
     BoundaryException,
-    CapabilitySet,
     CmdResult,
     cfg_users,
 )
@@ -1239,32 +1237,16 @@ class SerialTerminal(TerminalHost, App):
         )
         ctx.ui._get_screen_text_impl = lambda: self._on_main(self._get_screen_text)
         ctx.ui._exit_app_impl = lambda: self._on_main(self.exit)
-        # TUI environment capabilities.  See CapabilitySet for the full
-        # vocabulary.  block_until is NOT set here -- it's provided
-        # dynamically by the script runner (see _effective_capabilities).
-        from termapy.plugins import detect_gui_apps
+        # The TUI's capabilities are its row of the one table, or the WEB
+        # row when Textual says the screen is a browser page (registry
+        # web-is-an-environment); nothing else asks "am I in a browser".
+        # block_until is in neither: the script runner provides it per
+        # dispatch (see _effective_capabilities).
+        from termapy.plugins import environment_capabilities
 
-        ctx.capabilities = CapabilitySet(
-            confirm_dialog=True,
-            ui_notify=True,
-            status_bar=True,
-            screen_capture=True,
-            tui_mode=True,
-            interactive=True,
-            # Served in a browser (--web) the screen is a web page: no
-            # terminal for /cli or /vt100 to take over.
-            console=not self.is_web,
-            gui_apps=detect_gui_apps(),
-            # Its own config and script editors work over SSH too.
-            file_editor=True,
-            session_log=True,
-            # The operator is the caller on their own machine: no sandbox.
-            filesystem_unconfined=True,
-            network_egress=True,
-            host_info=True,
-        )
-        ctx.environment = "TUI"  # ENVIRONMENTS column; /help marks it (current)
-        ctx.sync_capabilities()  # push caps into fs/ui handle snapshots
+        ctx.environment = "WEB" if self.is_web else "TUI"  # /help marks it (current)
+        ctx.capabilities = environment_capabilities(ctx.environment)
+        ctx.sync_capabilities()  # push caps into the handles' snapshots
 
         self.repl.set_context(ctx)
         # The refresh redraws the title, border and hardware buttons, and
@@ -2127,7 +2109,7 @@ class SerialTerminal(TerminalHost, App):
                 self.repl.scripts_dir,
                 read_only=cfg_value(self.cfg, "config_read_only"),
                 gui_apps=self.repl.ctx.capabilities.gui_apps,
-                web=self.is_web,
+                opener=self.repl.ctx.fs.reveal_file,
                 file_action=partial(file_action, self, "run"),
             ),
             callback=self._on_script_picked,
@@ -2143,7 +2125,7 @@ class SerialTerminal(TerminalHost, App):
                 self.repl.proto_dir,
                 read_only=cfg_value(self.cfg, "config_read_only"),
                 gui_apps=self.repl.ctx.capabilities.gui_apps,
-                web=self.is_web,
+                opener=self.repl.ctx.fs.reveal_file,
                 file_action=partial(file_action, self, "proto"),
             ),
             callback=self._on_proto_picked,
@@ -2159,9 +2141,9 @@ class SerialTerminal(TerminalHost, App):
 
         One place for the five push sites.  ``read_only`` comes from the cfg
         unless the caller says otherwise (after deleting the active config
-        the old cfg's flag has nothing left to protect); the GUI flag is
-        the SSH-aware capability, and ``web`` is Textual's own signal, so
-        the dialog stays pure in its inputs and testable.
+        the old cfg's flag has nothing left to protect); the GUI flag is the
+        session's capability (SSH- and browser-aware) and the opener the
+        gated one, so the dialog stays pure in its inputs and testable.
         """
         if read_only is None:
             read_only = cfg_value(self.cfg, "config_read_only")
@@ -2169,7 +2151,7 @@ class SerialTerminal(TerminalHost, App):
             current_path,
             read_only=read_only,
             gui_apps=self.repl.ctx.capabilities.gui_apps,
-            web=self.is_web,
+            opener=self.repl.ctx.fs.open_file,
             open_device=self.engine.open_device if self.engine.is_connected else "",
         )
 
@@ -2215,7 +2197,9 @@ class SerialTerminal(TerminalHost, App):
     }
 
     def _btn_help(self) -> None:
-        self._hook_help_open(None, "")
+        # Through dispatch, as every affordance: the gate answers when this
+        # session has no desktop to open a browser on (a --web tab).
+        self._dispatch_on_thread(self._repl_line("help.open"))
 
     def _btn_log(self) -> None:
         self._dispatch_on_thread(f"{cmd_prefix(self.cfg)}log.show")
@@ -2667,7 +2651,7 @@ class SerialTerminal(TerminalHost, App):
         self.call_after_refresh(self.repl.dispatch, "ss.txt")
 
     def _palette_help(self) -> None:
-        self._hook_help_open(None, "")
+        self._dispatch_quiet(self._repl_line("help.open"))
 
     def _palette_find(self) -> None:
         """Prompt for a pattern, then dispatch ``/find <pattern>``."""
@@ -2705,19 +2689,14 @@ class SerialTerminal(TerminalHost, App):
             callback=_on_submit,
         )
 
+    # The folder's own .show command picks the newest file and opens it
+    # through the gated opener, so a session without a desktop (a --web
+    # tab) is answered instead of a viewer opening on the serving machine.
     def _palette_show_newest_ss(self) -> None:
-        path = self._newest_file(self.repl.ss_dir)
-        if path:
-            open_with_system(str(path))
-        else:
-            self.notify("No screenshots found.", severity="warning")
+        self._dispatch_quiet(self._repl_line("ss.show"))
 
     def _palette_show_newest_cap(self) -> None:
-        path = self._newest_file(self.repl.cap_dir)
-        if path:
-            open_with_system(str(path))
-        else:
-            self.notify("No captures found.", severity="warning")
+        self._dispatch_quiet(self._repl_line("cap.show"))
 
     @staticmethod
     def _newest_file(directory: Path) -> Path | None:
@@ -4206,13 +4185,16 @@ def _run_web_mode(args: argparse.Namespace) -> None:
         print("  uv tool install termapy[web]")
         sys.exit(1)
 
+    from termapy.plugins import hints_lacking
+
     print("=" * 60)
     print("  EXPERIMENTAL: Web mode via textual-serve")
-    print(
-        f"  {DEFAULT_CMD_PREFIX}cli and {DEFAULT_CMD_PREFIX}vt100 are not available: a browser "
-        "has no terminal to switch to."
-    )
-    print(f"  {DEFAULT_CMD_PREFIX}help.open may not work in the browser.")
+    # What a browser tab lacks that the TUI on this machine's terminal has,
+    # from the capability table (registry web-is-an-environment).
+    print("  Served in a browser, the TUI lacks:")
+    for hint in hints_lacking("WEB", "TUI"):
+        print(f"    - {hint}")
+    print(f"  {DEFAULT_CMD_PREFIX}help <command> says under AVAILABLE when a command needs them.")
     host, port = args.web
     if host not in ("localhost", "127.0.0.1", "::1"):
         print(f"  Open to the network at {host}. There is no login:")
@@ -4230,13 +4212,8 @@ def _run_web_mode(args: argparse.Namespace) -> None:
         cmd_parts.extend(["--cfg-dir", args.cfg_dir])
 
     # The served TUI runs on THIS machine while the viewer sits in a browser
-    # somewhere else, so the child's GUI detection must not see this
-    # machine's display: anything it "opened" would open here, unseen.
-    # The child inherits the environment; setdefault keeps an explicit
-    # TERMAPY_GUI=1 from an operator who knows better.
-    import os
-
-    os.environ.setdefault("TERMAPY_GUI", "0")
+    # somewhere else; the child knows (Textual's App.is_web) and publishes
+    # the WEB row, so no environment variable has to tell it.
     # The server holds no serial port (each browser session is a TUI
     # process with its own breadcrumb); this one lets --kill find it.
     from termapy import breadcrumbs

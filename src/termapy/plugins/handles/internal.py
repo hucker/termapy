@@ -17,7 +17,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
+
+from termapy.plugins.capabilities import CapabilitySet, MissingCapability
 
 
 @dataclass
@@ -186,11 +189,32 @@ class InternalHandle:
     start_session_log: Callable = lambda: False
     stop_session_log: Callable = lambda: False
 
-    # edit_file(path) -> None: open a project file for editing, this
-    # frontend's way: the TUI's own editor for a config, .run or .pro file,
-    # else the system editor.  /edit decides WHICH file, the frontend HOW
-    # (review 2026-10-15, D5); gated by the file_editor capability.
-    edit_file: Callable = lambda path: None
+    # _edit_file_impl(path) -> None: how THIS frontend opens a project file
+    # for editing: the TUI's own editor for a config, .run or .pro file,
+    # else the system editor through ctx.fs.open_file.  /edit decides WHICH
+    # file, the frontend HOW (review 2026-10-15, D5).  Reached through
+    # ``edit_file`` below, which gates it on file_editor.
+    _edit_file_impl: Callable = lambda path: None
+
+    # Capability snapshot for the edit_file gate; PluginContext sets it in
+    # sync_capabilities, as for the fs and ui handles.
+    capabilities: CapabilitySet = field(default_factory=CapabilitySet)
+
+    def edit_file(self, path: Path) -> None:
+        """Open a project file for editing, this frontend's way.
+
+        Raises:
+            MissingCapability: if the environment doesn't provide
+                ``file_editor``.  Declare ``needs=CapabilitySet.FILE_EDITOR``
+                (or ``GUI_APPS``, for a file only the system editor opens) on
+                your Command to gate dispatch instead.
+        """
+        if not self.capabilities.file_editor:
+            raise MissingCapability(
+                "ctx.internal.edit_file requires file_editor capability; "
+                "declare needs=CapabilitySet.FILE_EDITOR on your Command"
+            )
+        self._edit_file_impl(path)
 
     # folder_changed(folder) -> None: a command just removed files from a
     # data folder (a folder's /<name>.delete).  The TUI refreshes the file

@@ -21,6 +21,7 @@ from termapy.config import (
     mcp_log_path,
     open_serial,
     open_with_system,
+    reveal_in_file_manager,
     session_log_file,
 )
 from termapy.config_resolve import resolve_config
@@ -583,8 +584,9 @@ class TerminalHost:
             session_log_paths=lambda: self.session_log_paths(),
             start_session_log=lambda: self._start_session_log(),
             stop_session_log=lambda: self._stop_session_log(),
-            # How this frontend opens a file for editing (/edit decides which).
-            edit_file=lambda path: self._edit_file(path),
+            # How this frontend opens a file for editing (/edit decides which);
+            # the handle's edit_file gates it on file_editor.
+            _edit_file_impl=lambda path: self._edit_file(path),
             # What this frontend refreshes when a command deletes files.
             folder_changed=lambda folder: self._folder_changed(folder),
             # Post-dispatch observer pair, shared by all hosts.  /run.record
@@ -656,7 +658,11 @@ class TerminalHost:
             proto_dir=self.repl.proto_dir,
             cap_dir=self.repl.cap_dir,
             prof_dir=self.repl.prof_dir,
+            # The desktop's opener, behind the handle's gui_apps gates: the
+            # one place either raw launcher is wired (registry
+            # raw-primitive-one-home).
             _open_file_impl=lambda path: open_with_system(str(path)),
+            _reveal_file_impl=lambda path: reveal_in_file_manager(str(path)),
         )
 
         ui = UIHandle(

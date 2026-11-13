@@ -223,7 +223,7 @@ sends to the device) waits in the input line for Enter.
 | `/proto.edit {file}`      | Edit a .pro file (same as `/edit.proto`)                                    |
 | `/proto.help`             | Show `/proto` help (alias for `/help proto`)                                |
 | `/proto.hex {on\|off\|toggle}`    | Same flag as `/term.hex`                                                    |
-| `/proto.list`             | List .pro files in proto/, newest first, with size, age and each one's `name` |
+| `/proto.list`             | List .pro files in proto/, newest first, with size, age and each one's `name`; a name runs, its edit cell opens the editor |
 | `/proto.run <file>`       | Run a binary protocol test script (.pro); TUI bare: the Proto picker        |
 | `/proto.send <hex>`       | Send raw hex bytes and display response                                     |
 | `/proto.info`             | Print current protocol mode state                                           |
@@ -232,7 +232,7 @@ sends to the device) waits in the input line for Enter.
 | `/run {file}`             | TUI bare: open Run picker. CLI bare: list scripts. With file: run it.       |
 | `/run.edit {file}`        | Edit a .run script (same as `/edit.run`)                                    |
 | `/run.help`               | Show `/run` help (alias for `/help run`)                                    |
-| `/run.list`               | List .run files in run/, newest first, with size, age, and summary          |
+| `/run.list`               | List .run files in run/, newest first, with size, age and title; a name runs, its edit cell opens the editor |
 | `/search <term>`          | Deep search: name, help, args, flags, long help (multi-term, `-exclude`, regex) |
 | `/seq`                    | Show sequence counters                                                      |
 | `/seq.reset`              | Reset all sequence counters to zero                                         |
@@ -319,7 +319,7 @@ family of file subcommands:
 
 Examples:
 
-- `/run.list`: list scripts with size, age, and docstring summary
+- `/run.list`: list scripts with size, age and title; in the TUI a name runs the script and its edit cell opens it in the editor
 - `/run.dump`: print the newest script to the terminal
 - `/proto.show`: open the newest .pro file in the system viewer
 - `/run.show welcome`: open `run/welcome.run` (the extension is optional where the folder has one; `ss/` and `cap/` take the full name)

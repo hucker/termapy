@@ -1600,6 +1600,44 @@ over, and a command that cannot run should say so, not take the session down.
 **Where:** `entry._web_address`, `CapabilitySet.console`, the three hooks in `app_hooks`;
 `help/cli.md`. Serving to another computer is not yet tried from a second machine.
 
+## 2026-11-13 — The landscape's scripts are `/run.list`'s table
+
+The scripts on the `/help` landscape were a hand-formatted list, plain text, while `/help run`
+ended with `/run.list`'s table: names that run on a click, size, when saved, the docstring
+summary. The landscape now draws that same table, through the same `_render_help_list`, and
+`/help.run` forwards to `/run.list` (Chuck: "`/help run` already does exactly what we want, can't we
+just replicate that?"). Behavior changed: `/help.run` answers with the count, as every list does,
+where it answered a newline-joined list of stems. I had started a per-link file tooltip
+(`file_summary`) instead; that was a second way to say what the table's columns already say.
+
+A file one runs or opens also wants editing, so a run or proto row now carries an EDIT cell beside
+the name: the word, dim, a second link that opens the file in the editor (`file_table(edit=)`;
+`/run.edit <name>`, `/proto.edit <name>`). Chuck chose it over a modifier click, "crude but works
+everywhere": Shift-click is every terminal's own text selection, right-click its menu or paste,
+Ctrl-click a secondary click on Mac Terminal, and a modifier is invisible until a tooltip teaches
+it, while a second underlined cell clicks in every terminal and prints as a word in the CLI. It is
+not a field of the record, so `--json` is unchanged. `/cfg.list` has no EDIT cell yet: `/cfg.edit`
+edits the loaded config only, and editing another is the picker's alone.
+
+With the title now shown in three places, the demo files were made to carry one: every `.run` and
+`.pro` under `builtins/demo` opens with a Title Case title on its first comment line and its
+description on the lines after (`# AT Command Demo -- Walks through...` became two lines;
+`# crc_tour.run -- the whole...` became `# CRC Tour`), and the configs already had `title`. That
+is the convention for a shipped file (CLAUDE.md), and `help/scripting.md` and the README's sample
+say it.
+
+The same first line went under two names: `/proto.list` and the Proto picker said TITLE, `/run.list`
+and the Run picker said SUMMARY, with a `summary` key in each `--json` record. It is one thing, the
+file's title, so `/run.list`'s column and record key are `TITLE` and `title` too. Behavior changed: a
+consumer reading `summary` from `/run.list --json` reads `title`. The editor's new-script template
+opened with `# Script: untitled`, which the listing would have shown as the title; it opens with
+`# Untitled Script` and a line saying what the first line is.
+
+**Where:** `help._handler` (landscape), `help._handler_run`, `folder_ops.file_table`,
+`run._handler_list`, `dialogs/script_picker.py`, `defaults.SCRIPT_TEMPLATE`,
+`builtins/demo/run/*.run`, `builtins/demo/proto/*.pro`; registries `list-one-format`,
+`links-are-data`.
+
 ## 2026-11-13 — A frontend is a row of one table, WEB is the TUI in a browser, and nothing sneaks around a capability
 
 Each frontend's capabilities are one row of `capabilities.BASE_ENVIRONMENTS`, read by its host

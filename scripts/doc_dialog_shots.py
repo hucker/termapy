@@ -7,8 +7,8 @@ are shot here instead: boot the real ``SerialTerminal`` headless
 dialog the way a click would, and save the SVG.  Same 116x35 frame as
 the rest of the doc set.
 
-Everything is staged in a throwaway ``termapy_cfg`` so the shots are
-reproducible: the demo scripts (real docstring summaries), three extra
+Everything is staged in ``doc_shots.py``'s neutral ``termapy_cfg`` so the
+shots are reproducible: the demo scripts (real titles), three extra
 configs with a macOS-length port and titles, and back-dated mtimes so
 the UPDATED column shows more than "just now".
 
@@ -27,13 +27,10 @@ import asyncio
 import json
 import os
 import sys
-import tempfile
 import time
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-IMG_DIR = REPO_ROOT / "src" / "termapy" / "help" / "img"
-SIZE = (116, 35)
+from doc_shots import IMG_DIR, SIZE, staged_cfg_root
 
 # Config picker rows: (name, port, baud, title, age in seconds).  A blank
 # title shows the "name-only config" case; the macOS port shows the PORT
@@ -104,11 +101,9 @@ async def _shoot(config_path: str) -> None:
 
 
 def main() -> int:
-    with tempfile.TemporaryDirectory(prefix="termapy_docshots_") as tmp:
-        cfg_root = Path(tmp) / "termapy_cfg"
-        cfg_root.mkdir()
-        # ConfigPicker lists cfg_dir(), which honors this variable.
-        os.environ["TERMAPY_CFG_DIR"] = str(cfg_root)
+    # ConfigPicker lists cfg_dir(), which honors the TERMAPY_CFG_DIR the
+    # staging sets.
+    with staged_cfg_root() as cfg_root:
         config_path = _stage(cfg_root)
         asyncio.run(_shoot(config_path))
     for name in ("doc_21_script_picker.svg", "doc_37_config_picker.svg"):

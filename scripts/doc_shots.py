@@ -36,10 +36,13 @@ import asyncio
 import os
 import shutil
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
+
     from textual.pilot import Pilot
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -150,27 +153,40 @@ async def _shoot(config_path: str, wanted: list[str]) -> list[str]:
     return written
 
 
-def main() -> int:
-    from termapy.config import setup_demo_config
+@contextmanager
+def staged_cfg_root() -> Generator[Path]:
+    """The config root the shots are taken over: made empty, pointed at by ``TERMAPY_CFG_DIR``, removed after.
 
-    wanted = sys.argv[1:]
-    os.environ["TERMAPY_DEMO_FLEET"] = DEMO_FLEET
-    # /var, /cfg.info and the load report print the config's full path, so
-    # the staging folder is IN the shot.  It is a fixed, neutral location
-    # rather than a temp dir or the repo: a published image should not
-    # carry the username of whoever regenerated it, and two people
-    # regenerating should get the same SVG.  Removed again at the end.
+    /var, /cfg.info, the load report and a picker's path link print the
+    config's full path, so the staging folder is IN the shot.  It is a
+    fixed, neutral location rather than a temp dir or the repo: a published
+    image should not carry the username of whoever regenerated it, and two
+    people regenerating should get the same SVG.  The diagnostic log the
+    app opened in it is closed first, or Windows keeps the folder.
+    """
+    from termapy import diag_log
+
     home = Path(STAGE_ROOT)
     if home.exists():
         shutil.rmtree(home)
     cfg_root = home / "termapy_cfg"
     cfg_root.mkdir(parents=True)
+    os.environ["TERMAPY_CFG_DIR"] = str(cfg_root)
     try:
-        os.environ["TERMAPY_CFG_DIR"] = str(cfg_root)
+        yield cfg_root
+    finally:
+        diag_log.close()
+        shutil.rmtree(home)
+
+
+def main() -> int:
+    from termapy.config import setup_demo_config
+
+    wanted = sys.argv[1:]
+    os.environ["TERMAPY_DEMO_FLEET"] = DEMO_FLEET
+    with staged_cfg_root() as cfg_root:
         config_path = str(setup_demo_config(cfg_root))
         written = asyncio.run(_shoot(config_path, wanted))
-    finally:
-        shutil.rmtree(home, ignore_errors=True)
     for name in written:
         print(f"wrote {IMG_DIR / name}.svg")
     if not wanted:

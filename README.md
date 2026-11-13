@@ -248,7 +248,7 @@ The most common ones:
 | `/ss.explore`                        | Open the screenshot folder in the system file explorer                        |
 | `/cls`                               | Clear the terminal screen                                                     |
 | `/run {filename}`                    | Open Run picker (bare TUI), list scripts (bare CLI), or run; nests 5 deep; `--echo` shows each command line as it runs |
-| `/run.list`                          | List .run files in run/, newest first, with size, age, and summary            |
+| `/run.list`                          | List .run files in run/, newest first, with size, age and title; a name runs, its edit cell opens the editor |
 | `/run.rename <old> <new>`            | Rename a script (`.run` kept; never overwrites)                               |
 | `/run.help`                          | Same as `/help run`                                                           |
 | `/delay <duration>`                  | Wait for a duration (e.g. `500ms`, `1.5s`); Escape or Ctrl+C cancels          |
@@ -284,7 +284,7 @@ The most common ones:
 | `/proto.help`                        | Same as `/help proto`                                                         |
 | `/proto.send <hex>`                  | Send raw hex bytes and/or quoted text, display response as hex (see below)    |
 | `/proto.run <file>`                  | Run a binary protocol test script (.pro) with pass/fail                       |
-| `/proto.list`                        | List .pro files in proto/, newest first, with size, age and each one's `name`  |
+| `/proto.list`                        | List .pro files in proto/, newest first, with size, age and each one's `name`; a name runs, its edit cell opens the editor |
 | `/proto.rename <old> <new>`          | Rename a protocol script (`.pro` kept; never overwrites)                      |
 | `/proto.hex {on\|off\|toggle}`        | Same flag as `/term.hex`                                                      |
 | `/proto.crc.list {pat}`              | List available CRC algorithms (optional name pattern: `modbus`, `crc16*`)     |
@@ -659,12 +659,13 @@ See the **[config field reference](src/termapy/help/config.md#config-field-refer
 <details>
 <summary><strong>Scripting</strong> - automate command sequences with text files</summary>
 
-![Run picker: newest first, with size, updated, and docstring summary](src/termapy/help/img/doc_21_script_picker.svg)
+![Run picker: newest first, with size, updated, and title](src/termapy/help/img/doc_21_script_picker.svg)
 
-Create text files with one command per line and run them from the **Run** button or with `/run`. In the file, lines starting with `/` are REPL commands, lines starting with `#` are comments and everything else is sent to the device.
+Create text files with one command per line and run them from the **Run** button or with `/run`. In the file, lines starting with `/` are REPL commands, lines starting with `#` are comments and everything else is sent to the device. The first comment line is the script's title, which the Run picker and `/run.list` show beside its name; the comment lines after it describe it.
 
 ```text
-# Quick status check
+# Status Check
+# A quick look at the device.
 AT+STATUS
 /delay 300ms
 AT+TEMP

@@ -252,11 +252,11 @@ Ids: 190: 175 registry rows (guarantees 140, assumptions 35), 15 spec sections i
 
 ### `diag-log-folder` (guarantee, contract)
 
-- `test_diag_log.py`: the module (18 functions) **guard**
+- `test_diag_log.py`: the module (19 functions) **guard**
 
 ### `diag-log-per-process` (guarantee, concurrency)
 
-- `test_diag_log.py`: `test_a_session_records_its_start_failures_and_exit` **guard**, `test_prune_keeps_the_newest_and_any_running_process` **guard**
+- `test_diag_log.py`: `test_a_session_records_its_start_failures_and_exit` **guard**, `test_close_frees_the_folder_and_drops_later_records`, `test_prune_keeps_the_newest_and_any_running_process` **guard**
 
 ### `did-you-mean-one` (guarantee, data)
 
@@ -461,7 +461,7 @@ Ids: 190: 175 registry rows (guarantees 140, assumptions 35), 15 spec sections i
 - `test_did_you_mean.py`: `test_a_bare_reference_to_a_list_runs`, `test_a_bare_reference_to_a_search_waits`, `test_an_acting_command_waits_for_enter`, `test_an_error_with_nothing_to_click_stays_plain`, `test_an_errors_fixes_are_links`, `test_shows_is_for_commands_that_change_nothing`, `test_the_pieces_are_the_line_unchanged`
 - `test_help_capabilities.py`: `TestTheRows.test_a_required_capability_row_links_to_its_page`, `TestTheRows.test_the_section_title_links_to_the_idiom`
 - `test_help_idioms.py`: `TestAPluginGetsAllOfIt.test_a_tables_column_declares_the_click`, `TestTheList.test_a_row_opens_its_page`
-- `test_help_links.py`: `test_a_bare_form_only_opens_or_shows`, `test_a_page_runs_nothing_but_pages_and_bare_forms`, `test_a_row_draws_the_same_characters_in_the_same_styles`, `test_every_help_link_names_a_command_that_exists`, `test_the_page_lines_draw_the_same_characters_in_the_same_styles`
+- `test_help_links.py`: `test_a_bare_form_only_opens_or_shows`, `test_a_file_rows_edit_cell_is_a_link_and_not_a_field`, `test_a_page_runs_nothing_but_pages_and_bare_forms`, `test_a_row_draws_the_same_characters_in_the_same_styles`, `test_every_help_link_names_a_command_that_exists`, `test_the_landscape_lists_the_scripts_as_help_run_does`, `test_the_page_lines_draw_the_same_characters_in_the_same_styles`
 - `test_help_page.py`: `TestADefaultPage.test_the_available_note_links_the_capability`
 - `test_port_commands.py`: `TestPortList.test_the_port_cell_prefills_a_connect`
 - `test_views.py`: `test_segments_join_to_exactly_the_plain_lines`, `test_the_three_lists_reach_a_clicking_frontend_with_their_links`

@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.defaults import CFG_HELP, cfg_key_path, cfg_key_paths, cfg_value
-from termapy.folders import FOLDER_PATTERNS, RUN
 from termapy.help_dynamic import green, is_state_line
 from termapy.idioms import (
     ANY_COMMAND_FLAGS,
@@ -44,7 +43,6 @@ from termapy.plugins.capabilities import ATTAINABLE, STATE_MESSAGES, provided_by
 from termapy.plugins.command import SYNOPSIS_OPTIONAL_STYLE, SYNOPSIS_REQUIRED_STYLE
 from termapy.plugins.params import render_parameters_block
 from termapy.plugins.views import Column, Link, Piece, RecordView, TableView, pieces_markup
-from termapy.run_docstring import extract_docstring
 from termapy.scripting import value_text
 
 if TYPE_CHECKING:
@@ -1272,12 +1270,11 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         for cmd_name, plugin in sorted(script_only, key=lambda x: x[0]):
             ctx.io.output_markup_segments(_landscape_row(prefix, cmd_name, plugin, cmd_w))
 
-    scripts_dir = ctx.fs.scripts_dir
-    if scripts_dir.is_dir():
-        scripts = sorted(scripts_dir.glob(FOLDER_PATTERNS[RUN]))
-        if scripts:
-            ctx.io.output_markup("")
-            _render_scripts(ctx, scripts, prefix, cmd_w)
+    # The scripts, as /help run ends: /run.list's own table, each name a
+    # link that runs it (registry list-one-format, links-are-data).
+    run_plugin = all_plugins.get("run")
+    if run_plugin is not None:
+        _render_help_list(ctx, "run", run_plugin)
 
     from termapy.profile import profile_command_view
 
@@ -1347,41 +1344,9 @@ def _render_target(ctx: PluginContext, cmd_w: int | None = None) -> None:
         ctx.io.output_markup(f"{cmd_markup}{args_markup}  {escape_markup(tc.help)}")
 
 
-def _script_description(path: Path) -> str:
-    """The script's docstring summary -- the same one ``/run.list`` shows.
-
-    One extractor (``run_docstring.extract_docstring``) for both listings, so
-    they never disagree on what a script's summary is.
-    """
-    return extract_docstring(path)[0]
-
-
-def _render_scripts(
-    ctx: PluginContext, scripts: list, prefix: str, cmd_w: int = _MAX_CMD_COL
-) -> None:
-    """Render the scripts table with matched column width."""
-    ctx.io.output_markup(f"[{_SEP}]-- Scripts --[/]")
-    for path in scripts:
-        cmd_markup = _pad_markup(
-            f"  [{_CMD}]{escape_markup(f'{prefix}run {path.stem}')}[/]", cmd_w + 2
-        )
-        ctx.io.output_markup(f"{cmd_markup}  {escape_markup(_script_description(path))}")
-
-
 def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
-    """List available .run scripts with descriptions."""
-    scripts_dir = ctx.fs.scripts_dir
-    if not scripts_dir.is_dir():
-        ctx.io.result("No scripts directory.")
-        return CmdResult.ok(value="")
-    scripts = sorted(scripts_dir.glob(FOLDER_PATTERNS[RUN]))
-    if not scripts:
-        ctx.io.result("No .run scripts found.")
-        return CmdResult.ok(value="")
-    prefix = ctx.prefix
-    _render_scripts(ctx, scripts, prefix)
-    ctx.io.result(f"{len(scripts)} scripts.")
-    return CmdResult.ok(value="\n".join(script.stem for script in scripts))
+    """``/help.run`` is ``/run.list``: one listing of the scripts, its names links that run them."""
+    return ctx.internal.dispatch("run.list")
 
 
 def _handler_plugin(ctx: PluginContext, args: str) -> CmdResult:

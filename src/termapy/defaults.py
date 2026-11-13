@@ -970,7 +970,10 @@ def quiet_start(cfg: Mapping) -> bool:
 
 
 SCRIPT_TEMPLATE = """\
-# Script: {name}
+# Untitled Script
+# What this script does, in a line or two.  The first comment line is its
+# title, shown beside the name by {prefix}run.list and the Run picker.
+#
 # Lines starting with # are comments
 # Lines starting with {prefix} are REPL commands
 # All other lines are sent to the serial device

@@ -3,7 +3,7 @@
 Click the **Run** button in the title bar or use `/run <filename>` to work
 with scripts (bare `/run` in the CLI lists them).  The picker lists
 scripts newest first with size, last-updated age, and each script's
-docstring summary, and has six actions:
+title, and has six actions:
 
 - **Run:** execute the highlighted script
 - **Edit:** open the highlighted script in the editor
@@ -34,9 +34,11 @@ and a name field. Scripts are saved with a `.run` extension in the per-config
 - Sequence counters with `{seqN+}` for auto-incrementing values
 
 A leading `#` comment block (lines 1..N, ending at the first blank or
-non-comment line) is the script's docstring: the first line is the
-summary shown by `/run.list`; the full block is what `/run.help <script>`
-prints.
+non-comment line) is the script's docstring: the first line is its title
+(`# Status Check`), shown beside the name by `/run.list` and the Run picker;
+the lines after it describe the script, and the whole block is what
+`/run.help <script>` prints. A `.pro` file opens the same way, and declares
+its title again as `name = "..."` for `/proto.run`.
 
 ## Watching a run: `/run --echo`
 

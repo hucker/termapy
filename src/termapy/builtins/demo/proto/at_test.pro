@@ -1,4 +1,5 @@
-# AT command protocol test — deterministic responses only
+# Demo AT Command Test
+# Deterministic responses only.
 name = "Demo AT Command Test"
 frame_gap = "50ms"
 quiet = false

@@ -1,4 +1,5 @@
-# Bitfield format spec demo — uses Modbus writes + reads to exercise bit fields
+# Demo Bitfield Inline Format
+# Modbus writes and reads that exercise bit-field format specs.
 #
 # Demonstrates:
 #   B4-5.0-2   — multi-byte bit range as integer (Mode)

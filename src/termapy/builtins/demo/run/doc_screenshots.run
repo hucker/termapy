@@ -1,4 +1,5 @@
-# Generate documentation images -- now scripts/doc_shots.py
+# Documentation Screenshots
+# Generates the documentation images; now scripts/doc_shots.py does it.
 
 # The doc screenshots are taken headlessly:
 #

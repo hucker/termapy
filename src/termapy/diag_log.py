@@ -147,6 +147,27 @@ def log_path() -> Path | None:
     return Path(handler.baseFilename) if handler is not None else None
 
 
+def close() -> None:
+    """Close this process's diagnostic log, so the folder holding it can be removed.
+
+    For a process that removes its own config root while it runs
+    (``scripts/doc_shots.py`` stages one for the screenshots): Windows
+    refuses to delete a file a handler holds open.  After it, a record goes
+    nowhere, as one before :func:`start` does, and the exit line is not
+    written; the next :func:`start` opens a new file.
+    """
+    if "logging" not in sys.modules:
+        return
+    import logging
+
+    handler = _find_handler(_logger())
+    if handler is None:
+        return
+    for name in (LOGGER_NAME, *VENDORED_LOGGERS):
+        logging.getLogger(name).removeHandler(handler)
+    handler.close()
+
+
 def traceback_note() -> str:
     """The suffix a failure's one-line message carries: `` (traceback in <path>)``, or ``""`` with no log.
 

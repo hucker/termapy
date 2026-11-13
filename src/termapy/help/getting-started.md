@@ -201,7 +201,7 @@ The title bar buttons (left to right):
 
 - **Help** opens this help guide.
 - **Cfg** opens the config picker (Load / Edit / Explorer / New / Rename / Delete / Cancel; the Explorer button reads Finder on macOS and Files on Linux), listed newest first with size, age, port, baud, and title.
-- **Run** opens the script picker (Run / Edit / New / Rename / Delete / Cancel) with each script's docstring summary.
+- **Run** opens the script picker (Run / Edit / New / Rename / Delete / Cancel) with each script's title.
 - **Proto** opens the protocol test picker (Run / Debug / Edit / New / Rename / Delete / Cancel) with each script's `name` as its title.
   In the Run and Proto pickers the highlighted file's full path shows at
   the top right; click it to show the file in Explorer (Finder on macOS,
@@ -233,7 +233,8 @@ path to open it in your default application.
 
 **Clickable lists and help.** In the TUI, underlined names are links. In
 `/cfg.list`, `/run.list` and `/proto.list`, click a config to load it or a
-script or test to run it. In help, click any command name -- in `/help`,
+script or test to run it; a script's or test's `edit` cell opens it in the
+editor. In help, click any command name -- in `/help`,
 SUBCOMMANDS, SEE ALSO or a `/help <term>` list -- to open its help page, so
 you can browse the commands without remembering them. On a command's own
 page, click its name to put it in the input line (Enter runs it), or a

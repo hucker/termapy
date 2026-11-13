@@ -142,7 +142,7 @@ class ScriptPicker(ModalScreen[tuple | None]):
             ol = FileOptionList(
                 scripts,
                 detail=lambda script: extract_docstring(script)[0],
-                detail_header="SUMMARY",
+                detail_header="TITLE",
                 id="script-list",
             )
             if scripts:

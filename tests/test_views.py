@@ -561,7 +561,7 @@ def test_output_segments_follows_the_output_level():
 
 @pytest.mark.rule("links-are-data")
 def test_the_three_lists_reach_a_clicking_frontend_with_their_links(tmp_path, monkeypatch):
-    """/cfg.list loads, /run.list and /proto.list run: each name arrives as a link through dispatch."""
+    """/cfg.list loads, /run.list and /proto.list run and edit: each name arrives as a link through dispatch."""
     # Arrange -- a host whose frontend can click, with one config, script and test
     monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
     eng = _cli_engine(tmp_path)
@@ -580,8 +580,16 @@ def test_the_three_lists_reach_a_clicking_frontend_with_their_links(tmp_path, mo
         eng.dispatch(command)
 
     # Assert
-    expected = ["cfg.load c", "run hello.run", "proto.run smoke.pro"]
-    assert links == expected, "each list's names are the commands a click runs"
+    expected = [
+        "cfg.load c",
+        "run hello.run",
+        "run.edit hello.run",
+        "proto.run smoke.pro",
+        "proto.edit smoke.pro",
+    ]
+    assert links == expected, (
+        "each list's names are the commands a click runs, then the EDIT cell's"
+    )
 
 
 def test_a_folder_list_opens_each_file_through_its_own_show(tmp_path):

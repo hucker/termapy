@@ -143,6 +143,29 @@ def test_a_session_records_its_start_failures_and_exit(tmp_path):
 
 
 @pytest.mark.rule("diag-log-per-process")
+@pytest.mark.slow
+def test_close_frees_the_folder_and_drops_later_records(tmp_path):
+    """After close() the folder holding the log can be removed, and a later record and the exit line go nowhere."""
+    # Arrange
+    code = (
+        "import shutil\n"
+        "from termapy import diag_log\n"
+        "path = diag_log.start('cli')\n"
+        "diag_log.close()\n"
+        "diag_log.info('after close')\n"
+        "shutil.rmtree(path.parent)\n"
+        "print(path.parent.exists(), diag_log.log_path())\n"
+    )
+
+    # Act
+    (line,) = _run(code, tmp_path, TERMAPY_DIAG_DIR=str(tmp_path / "log"))
+
+    # Assert
+    assert line == "False None", "the folder is gone, Windows included, and no log is open"
+    assert not (tmp_path / "log").exists(), "the later record and the exit line opened no new file"
+
+
+@pytest.mark.rule("diag-log-per-process")
 def test_prune_keeps_the_newest_and_any_running_process(tmp_path):
     """A start leaves KEEP_FILES logs, and never deletes one whose process is running."""
     # Arrange -- pids this large are no running process on any platform

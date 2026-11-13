@@ -1,4 +1,5 @@
-# Modbus RTU protocol test — using inline format specs
+# Demo Modbus Inline Format
+# Modbus RTU with inline format specs.
 name = "Demo Modbus Inline Format"
 frame_gap = "20ms"
 quiet = false

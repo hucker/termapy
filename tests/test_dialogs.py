@@ -225,7 +225,7 @@ class TestFilenameDialog:
 class TestScriptPicker:
     """The file pickers list newest first and show size, age, and a detail column."""
 
-    def test_rows_show_newest_first_with_size_age_and_summary(self, tmp_path):
+    def test_rows_show_newest_first_with_size_age_and_title(self, tmp_path):
         """Only .run files, newest first, under an aligned header; Enter runs the newest."""
 
         async def scenario():
@@ -255,7 +255,7 @@ class TestScriptPicker:
                     f"only .run files are listed: {rows}"
                 )
                 header, *rows = rows
-                assert header.startswith("NAME") and header.endswith("SUMMARY"), (
+                assert header.startswith("NAME") and header.endswith("TITLE"), (
                     f"a header row names the columns: {header!r}"
                 )
                 assert options[0].disabled and options[0].id is None, (
@@ -272,7 +272,7 @@ class TestScriptPicker:
                 )
                 assert "10  B" in rows[0] and "just now" in rows[0], "size and age columns"
                 assert "1 hr ago" in rows[1] and rows[1].endswith("Old summary."), (
-                    "age plus the docstring summary as the detail column"
+                    "age plus the docstring's title as the detail column"
                 )
                 assert options[1].id == str(newer), "option id is the path the app runs"
                 assert ol.highlighted == 1, "initial highlight is the first FILE, not the header"

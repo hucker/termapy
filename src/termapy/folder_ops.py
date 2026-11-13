@@ -130,7 +130,7 @@ def _age_cell(record: dict[str, Any]) -> str:
 
 
 # The listing columns over ``file_record``: every file list starts with
-# these three and may append its own (``/run.list`` adds SUMMARY).
+# these three and may append its own (``/run.list`` adds TITLE).
 FILE_COLUMNS: tuple[Column, ...] = (
     Column("NAME", lambda record: record["name"]),
     Column("SIZE", _size_cell, right=True),
@@ -145,7 +145,7 @@ class FileColumns:
     ``name`` and ``age`` are padded to the widest in the batch and ``size``
     is right-aligned to the widest size, so a consumer that joins the three
     with two spaces gets aligned columns -- and anything appended after
-    ``age`` (a docstring summary, a config's port) lines up too.  A
+    ``age`` (a script's title, a config's port) lines up too.  A
     consumer that styles them (the TUI pickers dim the metadata) keeps the
     same alignment.
     """
@@ -203,7 +203,7 @@ def format_file_lines(files: list[Path]) -> list[str]:
     """``name  size  age`` listing lines, one per file, columns aligned.
 
     The age pad is kept so a caller that appends a trailing column
-    (``/run.list`` adds the docstring summary) gets it aligned; a caller
+    (``/run.list`` adds the script's title) gets it aligned; a caller
     that prints the line as-is should ``rstrip()`` it.  Print
     ``format_file_header`` above them so the columns are labeled.
     """
@@ -285,8 +285,9 @@ def file_table(
     files: list[Path],
     extra: tuple[tuple[Column, Callable[[Path], Any], str], ...] = (),
     run: Callable[[dict[str, Any]], str] | None = None,
+    edit: Callable[[dict[str, Any]], str] | None = None,
 ) -> CmdResult:
-    """A file list answer (``CmdResult.table``): NAME, SIZE, UPDATED, then ``extra``.
+    """A file list answer (``CmdResult.table``): NAME, [EDIT,] SIZE, UPDATED, then ``extra``.
 
     ``data`` is one ``file_record`` per file, the value their count, and
     dispatch prints the table from the records unless the caller wants
@@ -298,9 +299,15 @@ def file_table(
         files: The files, newest first.
         extra: ``(column, value_of, key)`` for each column after UPDATED:
             ``value_of(path)`` is stored under ``key`` in that file's
-            record, and the column shows it (``/run.list``'s SUMMARY).
+            record, and the column shows it (``/run.list``'s TITLE).
         run: The command a click on a file's NAME runs, from its record
             (``run <name>``); None leaves the names plain text.
+        edit: The command a click on the row's EDIT cell runs, from its
+            record (``run.edit <name>``), for a folder whose files one
+            runs or opens in an editor: the cell is the word, dim, a
+            second link beside the name that works in every terminal
+            where a modifier click would not (decision 2026-11-13); it is
+            not a field of the record.  None leaves the column off.
     """
     records = []
     for file in files:
@@ -309,8 +316,16 @@ def file_table(
             record[key] = value_of(file)
         records.append(record)
     name = FILE_COLUMNS[0] if run is None else replace(FILE_COLUMNS[0], run=run)
-    columns = (name, *FILE_COLUMNS[1:], *(column for column, _, _ in extra))
+    edit_column = (
+        () if edit is None else (Column("EDIT", lambda record: "edit", run=edit, style=_dim),)
+    )
+    columns = (name, *edit_column, *FILE_COLUMNS[1:], *(column for column, _, _ in extra))
     return CmdResult.table(title, noun, columns, records)
+
+
+def _dim(record: dict[str, Any]) -> str:
+    """The EDIT cell's style: it recedes beside the name, underlined where it clicks."""
+    return "dim"
 
 
 def dump_text_slice(ctx: PluginContext, path: Path, args: str) -> CmdResult:
@@ -772,7 +787,7 @@ def _make_forward_list_handler(folder: str) -> Callable[[PluginContext, str], Cm
     """``/edit.<folder>.list`` is ``/<folder>.list``: one listing per folder.
 
     Forwarded through the engine, so the listing (format, order, data
-    records, ``/run.list``'s SUMMARY) is the folder command's own.
+    records, ``/run.list``'s TITLE) is the folder command's own.
     """
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:

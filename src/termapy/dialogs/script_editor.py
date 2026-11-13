@@ -97,7 +97,7 @@ class ScriptEditor(ModalScreen[str | None]):
             title = f"Edit: {Path(self.edit_path).name}"
         else:
             name = ""
-            content = SCRIPT_TEMPLATE.format(name="untitled", prefix=self.prefix)
+            content = SCRIPT_TEMPLATE.format(prefix=self.prefix)
             title = "New Script"
 
         with Vertical(id="sed-dialog"):

@@ -196,6 +196,14 @@ class CapabilitySet:
     #        features at runtime.
     tui_mode: bool = _restricted("the TUI (switch with {prefix}tui)")
 
+    # What:  The process runs in a terminal it can hand to another mode:
+    #        ``/cli`` turns the session into the CLI REPL and ``/vt100``
+    #        into passthrough, both on that terminal.
+    # Where: The TUI on a terminal and the CLI.  NOT a TUI served in a
+    #        browser (``--web``): its screen is a web page, with no
+    #        terminal to switch to (Textual's ``App.is_web``).  Not MCP.
+    console: bool = _restricted("the terminal this process runs in; a browser tab has none")
+
     # What:  A config is loaded: ``ctx.config_path`` names its file, so
     #        the config's folder and the data folders under it are
     #        there to read and write.
@@ -603,6 +611,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
         # TUI (Textual app): everything an interactive desktop terminal has.
         "TUI": CapabilitySet(
             interactive=True,
+            console=True,
             gui_apps=gui,
             file_editor=True,
             session_log=True,
@@ -619,6 +628,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
         # Its confirmation is the y/n prompt on stdin.
         "CLI": CapabilitySet(
             interactive=True,
+            console=True,
             gui_apps=gui,
             file_editor=gui,
             confirm_dialog=True,

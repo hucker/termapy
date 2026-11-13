@@ -325,6 +325,7 @@ from Task Manager or `kill`, once.
 | `--new NAME PORT [SETTING ...]` | Create config NAME for PORT and start it connected (see [Quick setup](getting-started.md#quick-setup)). |
 | `PORT [SETTING ...]` | Not a flag: a port where the config goes opens the port with its own config, kept in your user folder (see [Quick open](getting-started.md#quick-open-just-a-port)). |
 | `--vt100`         | Start in VT100 passthrough mode (see [VT100 mode](vt100.md)). |
+| `--web [[HOST:]PORT]` | Serve the TUI in a browser: `http://localhost:8000`, this machine only, unless `9000`, `192.168.1.50` or `192.168.1.50:9000` says otherwise. A network address opens it to other computers, with no login; `/cli` and `/vt100` are not available in the browser. |
 | `-y`, `--yes`     | Answer yes to the command line's questions: `--kill`, `--new`'s overwrite, a CLI session's. Not the TUI's dialogs; never under `--mcp`. |
 | `--no-color`      | Plain output without ANSI color (implied by `-e`).            |
 | `--cfg-dir PATH`  | Override the default config directory for this run.           |

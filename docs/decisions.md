@@ -1579,3 +1579,23 @@ flight. Handling SIGTERM in every frontend, for `kill <pid>` and `docker stop`, 
 **Where:** `breadcrumbs.request_stop` / `StopWatch` / `on_stop_request` / `stop_sessions`,
 `TerminalHost._watch_for_stop` and each frontend's `_leave_on_request`; registry `kill-asks-first`;
 `help/cli.md`.
+
+## 2026-11-12 — `--web [[HOST:]PORT]` is the one web flag; `/cli` and `/vt100` need a console
+
+`--web` takes where to serve as one optional value: bare is `localhost:8000`, digits alone are a
+port, anything else is a host with an optional `:PORT` (`[fe80::1]:9000` for IPv6), read by
+`entry._web_address`. A wildcard (`0.0.0.0`, `::`) is refused, because textual-serve builds the
+page's links from the address it listens on. Behavior removed: `--web-port` and `--web-host`
+(Chuck: "why isn't WEB_PORT just optional for --web?"); `--web 9000` and `--web 192.168.1.50`
+replace them.
+
+A new capability, `console` (the terminal the process runs in), is what `/cli`, `/vt100` and
+`/demo.vt100` need: the TUI has it unless Textual says it is served in a browser (`App.is_web`), the
+CLI always, MCP never. In a browser tab those switches ended the page; now they fail at the gate.
+The capability names what is missing, as `gui_apps` does, rather than naming the web frontend.
+
+**Why:** the other flags that take an optional value already have this shape (`--kill [TARGET]`,
+`--info [PORT]`), and three web flags were two too many. A browser tab has no terminal to hand
+over, and a command that cannot run should say so, not take the session down.
+**Where:** `entry._web_address`, `CapabilitySet.console`, the three hooks in `app_hooks`;
+`help/cli.md`. Serving to another computer is not yet tried from a second machine.

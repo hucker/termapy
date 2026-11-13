@@ -625,7 +625,10 @@ def select(crumbs: Iterable[Crumb], target: str) -> list[Crumb]:
 
 
 def suggest(crumbs: Iterable[Crumb], target: str) -> str:
-    """The did-you-mean for a target that picked nothing, from the configs, ports and PIDs running.
+    """The did-you-mean for a target that picked nothing: the configs, ports and PIDs running, or a word.
+
+    The words are the targets ``select`` reads itself, ``all`` and
+    ``others``, so ``other`` is answered with ``others``.
 
     Returns:
         `` -- did you mean a, b?``, or ``""`` when nothing is close.
@@ -636,6 +639,7 @@ def suggest(crumbs: Iterable[Crumb], target: str) -> str:
     names = {crumb.config_name for crumb in crumbs if crumb.config_name}
     names |= {crumb.open_port for crumb in crumbs if crumb.open_port}
     names |= {str(crumb.pid) for crumb in crumbs}
+    names |= {"all", "others"}
     return did_you_mean(closest(target, sorted(names)))
 
 
@@ -825,15 +829,19 @@ class StopOutcome:
 
 
 def kill_command(pid: int) -> str:
-    """The command a person types to end process ``pid``: ``taskkill /PID 22056 /F`` or ``kill 22056``.
+    """The command a person types to end process ``pid``: ``taskkill -PID 22056 -F`` or ``kill -9 22056``.
 
     termapy never runs it.  A session that did not leave when asked may be
     hung, or partway through a firmware write or a transfer, so ending it
-    is the person's call, made knowing that.
+    is the person's call, made knowing that.  Both force the end, since the
+    session has already ignored a polite request: an MCP server catches
+    SIGTERM and could hang in its unwind as it does on Windows.  The dashed
+    ``taskkill`` spelling works the same in cmd, PowerShell and Git Bash,
+    which rewrites a ``/PID`` argument as a file path.
     """
     if sys.platform == "win32":
-        return f"taskkill /PID {pid} /F"
-    return f"kill {pid}"
+        return f"taskkill -PID {pid} -F"
+    return f"kill -9 {pid}"
 
 
 def stop_sessions(

@@ -1552,7 +1552,8 @@ the way `/exit` makes it leave: the TUI exits through `on_unmount` (history, por
 and restores its terminal, the CLI ends its prompt as Ctrl+D does or stops its script, vt100 leaves
 as a lost port does, the web server as Ctrl+C. A session still running when the wait is over, hung,
 partway through a firmware write or started by an older termapy, keeps running, and the reply names
-the command that ends it (`breadcrumbs.kill_command`: `taskkill /PID <pid> /F`, `kill <pid>`). The
+the command that ends it (`breadcrumbs.kill_command`: `taskkill -PID <pid> -F`, the one spelling
+cmd, PowerShell and Git Bash all accept, or `kill -9 <pid>`, a forced end like `-F`). The
 asker leaves last, through `/exit`, when it picked itself, and stays open while any session it picked
 is still running. Behavior removed: until this entry `--kill` ended every picked session outright
 (TerminateProcess on Windows, SIGTERM then SIGKILL elsewhere); termapy now signals no process.

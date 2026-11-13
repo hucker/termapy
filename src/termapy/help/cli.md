@@ -284,8 +284,8 @@ restored, its port closed, its history saved, its session log ended.
 termapy never ends a session itself.  One still running when `timeout=`
 is up (3 s unless you give one), hung, partway through a firmware write,
 or started by an older termapy, keeps running, and the reply names the
-command that ends it (`taskkill /PID 22056 /F` on Windows, `kill 22056`
-elsewhere):
+command that ends it (`taskkill -PID 22056 -F` on Windows, which works in
+cmd, PowerShell and Git Bash alike, `kill -9 22056` elsewhere):
 
 ```sh
 termapy --kill all      # every termapy, say before an update

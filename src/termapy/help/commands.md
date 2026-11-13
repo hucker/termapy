@@ -45,6 +45,8 @@ takes `--json` for a JSON answer to that one call, and `--silent`, `--quiet`,
 `--normal` or `--verbose` for how much that call prints; each also works as a
 suffix on the name (`/port.list.json`, `/port.list.quiet`).  `/help.idioms` lists
 these words, and `/help cycle` opens a page on one, with the commands that take it.
+`/help capability` lists what a command may need from where it runs (a desktop, a
+terminal, an open port), and `/help gui_apps` opens one with the commands that need it.
 
 A command that opens a file of a known type takes the name with or without
 its extension: `/run hex_view` runs `run/hex_view.run`. The same holds for

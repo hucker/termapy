@@ -12,10 +12,12 @@ both spellings are one declaration.
 
 These handlers decide WHICH file; ``ctx.internal.edit_file`` is how the
 frontend opens it: the TUI's own editor for the config, a .run or a .pro
-file (over SSH too), the system editor otherwise.  Until 2026-10-16 the
-TUI registered its own /edit commands over these, with its own file
-lookup, so ``/edit foo.py`` worked in the CLI and failed in the TUI
-(review 2026-10-15, D5).
+file (over SSH and in a browser tab too), the system editor otherwise,
+which needs ``gui_apps``: ``/edit <name>`` checks that itself for a file of
+a type termapy has no editor for, since its declared need is only
+``file_editor``.  Until 2026-10-16 the TUI registered its own /edit
+commands over these, with its own file lookup, so ``/edit foo.py`` worked
+in the CLI and failed in the TUI (review 2026-10-15, D5).
 """
 
 from __future__ import annotations
@@ -23,9 +25,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.folder_ops import edit_cfg_command, edit_folder_command
+from termapy.folder_ops import TERMAPY_EDITS, edit_cfg_command, edit_folder_command
 from termapy.folders import EXT_TO_FOLDER, file_suggestion
-from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
+from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, refusal_text
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -77,6 +79,15 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
         place = _search_place(ctx, name)
         hint = file_suggestion(place[0], name) if place else ""
         return CmdResult.fail(msg=f"File not found: {name}{hint}")
+    # A type termapy has no editor of its own for (a plugin's .py) opens in
+    # the system editor, which needs a desktop the user sees; a browser tab
+    # and SSH without a display have none.  The need depends on the file, so
+    # the handler checks it here (registry gated-call-declares-need).
+    if path.suffix.lower() not in TERMAPY_EDITS and not ctx.capabilities.gui_apps:
+        return CmdResult.fail(
+            msg=f"{path.name} opens only in the system editor: "
+            + refusal_text("edit", ["gui_apps"], ctx.prefix)
+        )
     ctx.internal.edit_file(path)
     return CmdResult.ok(value=path)
 

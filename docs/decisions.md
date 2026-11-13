@@ -1605,9 +1605,12 @@ over, and a command that cannot run should say so, not take the session down.
 Each frontend's capabilities are one row of `capabilities.BASE_ENVIRONMENTS`, read by its host
 through `environment_capabilities` and by `/help` through `ENVIRONMENTS`; until now the TUI, the
 CLI and the MCP server each built their own set beside the table `/help` read. The TUI served in a
-browser (`--web`, Textual's `App.is_web`) is the WEB row: the TUI without `console` and without
-`gui_apps` unless `TERMAPY_GUI=1` says the viewer sits at the serving machine, detection never
-counting because it looks at the server. `/help` gains a WEB column, the web banner lists what the
+browser (`--web`, Textual's `App.is_web`) is the WEB row: the TUI without `console`, and with
+`gui_apps` by the usual detection when served on a loopback address, where the browser is on the
+desktop the TUI runs on (a file opens in the local editor, as Chuck expects), but only with an
+explicit `TERMAPY_GUI=1` when served to the network, since detection looks at the server and a
+remote viewer sees none of it. The TUI learns the address from `TERMAPY_WEB_HOST`, which `--web`
+sets for the TUI it spawns (`env_flags.web_served_locally`). `/help` gains a WEB column, the web banner lists what the
 row lacks (`hints_lacking`), and the pickers take the session's `gui_apps` and a gated opener
 instead of a `web=` flag. Behavior removed: the config picker hid its Explore button under `--web`;
 it is now disabled with the `TERMAPY_GUI` tooltip, like any session without a desktop, and the web
@@ -1628,9 +1631,30 @@ handler that calls a gated door declares the capability or checks it first.
 The gate's refusal says what kind of thing it lacks and what that stands for: `/cfg.show requires
 the gui_apps capability, a local desktop that can open apps the user sees; not available in this
 environment` (one phrasing, `capabilities.requires_text`, which `/cfg.info --display` uses too).
-Before, `requires: gui_apps` named a bare field (Chuck: the word capability belongs in it). Next
-branch: `/help capability` lists them all, `/help <capability>` explains one and names the commands
-that need it, and a REQUIRED CAPABILITIES row links there.
+Before, `requires: gui_apps` named a bare field (Chuck: the word capability belongs in it). The
+vocabulary has pages (same day, `feat/help-capability`): `capability` is an idiom row, so
+`/help capability` explains the idea and lists every restrictive capability from the fields, each a
+link; `/help <capability>` shows its hint, who provides it (the frontends from the table, or the
+session state it is), whether this session has it, and NEEDED BY, the commands whose `needs`
+declare it, read from the registry as an idiom's TAKEN BY is; a REQUIRED CAPABILITIES row on a
+command page links there and hovers with the hint, and its title links to the idiom. The gate's
+sentence is `refusal_text`; the page describes it in prose rather than quoting it (a quoted example
+needed a wrap, an import and a color convention for one sentence; Chuck: "getting a bit
+ridiculous"). The 2026-11-03 rule stands for the rows
+themselves: a met REQUIRED CAPABILITIES row is the plugin writer's, not the device engineer's
+(Chuck: "what user cares about required capabilities?"), so it waits behind `--verbose`, and a
+missing one stays because it explains a refusal. What changed is that the words are now links
+wherever a person meets them: the section title, a `(missing)` row and the capability names in the
+AVAILABLE note (`WEB/MCP does not provide: gui_apps`) open the pages, and a default page ends with
+one dim line that runs its `--verbose` form, so nothing it left out is further than a click. A link's tooltip
+closed with "Click to run: /cfg.load hw_loopback" whatever the click did (Chuck: it should say load);
+the verb is now the command's own, `ReplEngine.link_verb`: `open` for a picker's bare form, `show`
+for a state command's, a bare form's subcommand's, else the first word of the command's help line,
+which is why a help line opens with its verb (`env.list` and `var.list` no longer start "Explicit
+alias", `/help`'s line starts "Show"). Also found by his look at the table: `/edit <name>` declares only `file_editor`, which the
+TUI has in a browser tab too (its own editors are Textual screens), so a `.py` it found went to the
+system editor's backstop message; the handler now checks `gui_apps` for a type termapy has no editor
+for (`folder_ops.TERMAPY_EDITS`) and refuses with the gate's wording.
 
 **Why:** a frontend is an environment lacking capabilities; commands declare needs; the gate,
 `/help` AVAILABLE and the web banner read the same facts. Nothing tests "am I in a browser" except

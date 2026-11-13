@@ -129,6 +129,24 @@ output, and verbose adds its detail: on a help page, the whole page. {{prefix}}t
 session. The flag is taken off the line wherever it appears, so a command's
 text cannot carry it.""",
     ),
+    Idiom(
+        name="capability",
+        aliases=("capabilities",),
+        summary=(
+            "What a command needs from where it runs; a frontend that lacks it refuses the command."
+        ),
+        page="""\
+A command declares what it needs from the frontend it runs in: a desktop to
+open a file on, the terminal it runs in, a dialog to ask with, a loaded config,
+an open port. Its page lists them under REQUIRED CAPABILITIES, and a frontend
+that cannot provide one refuses the command, naming the capability and what
+it stands for, instead of half-running it.
+
+Some are what a frontend is: the TUI has a screen to capture, an MCP server has
+no person to ask. Some are session state any frontend can reach, and then the
+gate answers with the state ({prefix}cfg.load for "No config loaded."). The
+list below links each to its page, with the commands that need it.""",
+    ),
 )
 
 # The flags any command takes, as the names they are typed with.

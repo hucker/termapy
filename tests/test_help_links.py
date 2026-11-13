@@ -144,9 +144,20 @@ def _named(link: Link) -> str:
 
 @pytest.mark.rule("links-are-data")
 def test_every_help_link_names_a_command_that_exists(tmp_path):
-    """Each link /help and a man page hand out opens, runs or fills a registered command."""
+    """Each link /help and a man page hand out opens, runs or fills a registered command, or opens a page /help has: a key, a capability, an idiom."""
+    from termapy.defaults import cfg_key_path
+    from termapy.idioms import idiom_for
+    from termapy.plugins.capabilities import REQUIREMENT_HINTS
+
     # Arrange
     eng = _engine(tmp_path)
+
+    def is_page(name: str) -> bool:
+        return (
+            cfg_key_path(name) is not None
+            or name in REQUIREMENT_HINTS
+            or idiom_for(name) is not None
+        )
 
     # Act
     links = (
@@ -154,12 +165,38 @@ def test_every_help_link_names_a_command_that_exists(tmp_path):
         + _links_of(eng, "help cfg")
         + _links_of(eng, "help cfg.load")
         + _links_of(eng, "help run")
+        + _links_of(eng, "help cfg.show")
     )
 
     # Assert
     assert links, "the pages carry links"
-    bad = [link for link in links if _named(link) not in eng._plugins]
-    assert bad == [], "no link points at a command that is not there"
+    bad = [link for link in links if _named(link) not in eng._plugins and not is_page(_named(link))]
+    assert bad == [], "no link points at a command or page that is not there"
+
+
+@pytest.mark.rule("link-explains-itself")
+def test_every_command_a_click_can_run_has_a_verb(tmp_path):
+    """The click line reads a command's verb from its help line, so every command a link can run opens its help with one."""
+    # Arrange
+    eng = _engine(tmp_path)
+    plugins = eng._plugins
+    runnable = {
+        name
+        for name, plugin in plugins.items()
+        if plugin.shows or plugin.state or plugin.picker or plugin.bare_sub or plugin.help_list
+    }
+    not_verbs = {"the", "a", "an", "already", "explicit", "local", "device", "same", ""}
+
+    # Act
+    verbs = {name: eng.link_verb(name) for name in sorted(runnable)}
+
+    # Assert
+    bad = {
+        name: verb
+        for name, verb in verbs.items()
+        if verb in not_verbs or not verb.replace("-", "").isalpha()
+    }
+    assert bad == {}, "a help line opens with its verb (Load, Open, List, ...)"
 
 
 @pytest.mark.rule("links-are-data")

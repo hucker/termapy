@@ -210,7 +210,7 @@ COMMAND = Command(
     sub_commands={
         "list": Command(
             args="{pattern}",
-            help="Explicit alias for bare {prefix}env.",
+            help="List the environment variables; the same as bare {prefix}env.",
             long_help=_env_state_line,
             handler=_handler_list,
             shows=True,

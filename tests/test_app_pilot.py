@@ -3544,6 +3544,42 @@ class TestEditHooks:
 
         _run(scenario)
 
+    @pytest.mark.rule("gated-call-declares-need")
+    def test_edit_refuses_a_plugin_file_without_a_desktop(self, app_factory):
+        """Without gui_apps (a browser tab, SSH with no display) /edit foo.py is refused naming the capability; a .run still opens in the TUI's own editor."""
+
+        async def scenario():
+            from dataclasses import replace
+
+            app, _, path = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- no desktop the user sees, and an opener that records
+                app.repl.ctx.capabilities = replace(app.repl.ctx.capabilities, gui_apps=False)
+                app.repl.ctx.sync_capabilities()
+                opened: list[str] = []
+                app.repl.ctx.fs._open_file_impl = lambda target: opened.append(str(target))
+                plugin = Path(path).parent / "plugin" / "probe.py"
+                plugin.parent.mkdir(exist_ok=True)
+                plugin.write_text("# probe\n", encoding="utf-8")
+                script = Path(path).parent / "run" / "probe.run"
+                script.parent.mkdir(exist_ok=True)
+                script.write_text("/print hi\n", encoding="utf-8")
+
+                # Act
+                refused = app.repl.dispatch("edit probe.py")
+                allowed = app.repl.dispatch("edit probe.run")
+                await pilot.pause()
+
+                # Assert
+                assert refused.success is False, "the system editor needs a desktop"
+                assert "requires the gui_apps capability" in refused.error, refused.error
+                assert opened == [], "nothing was launched on the serving machine"
+                assert allowed.success, allowed.error
+                assert app.screen.__class__.__name__ == "ScriptEditor", "the TUI's own editor"
+
+        _run(scenario)
+
 
 class TestSymbolsAutoload:
     """The symbol sidecar loads on mount, before the startup auto-connect.

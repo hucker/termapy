@@ -101,6 +101,7 @@ Ids: 190: 175 registry rows (guarantees 140, assumptions 35), 15 spec sections i
 
 ### `capability-declared-once` (guarantee, structure)
 
+- `test_help_capabilities.py`: the module (13 functions)
 - `test_plugins.py`: `TestRequirementHints.test_every_restrictive_field_has_a_hint` **guard**, `TestRequirementHints.test_hints_fit_the_requires_stem` **guard**
 
 ### `capture-owns-claim` (guarantee, concurrency)
@@ -365,6 +366,7 @@ Ids: 190: 175 registry rows (guarantees 140, assumptions 35), 15 spec sections i
 
 ### `gated-call-declares-need` (guarantee, structure)
 
+- `test_app_pilot.py`: `TestEditHooks.test_edit_refuses_a_plugin_file_without_a_desktop`
 - `test_architecture.py`: `test_a_handler_calling_a_gated_method_declares_the_capability` **guard**, `test_gated_call_guard_fires_on_a_probe` **guard**
 - `test_cfg_info_report.py`: `TestDisplay.test_opens_the_report_through_the_gated_opener`, `TestDisplay.test_refused_without_a_desktop_before_writing`
 
@@ -389,7 +391,7 @@ Ids: 190: 175 registry rows (guarantees 140, assumptions 35), 15 spec sections i
 
 ### `help-page-specific` (guarantee, requirement)
 
-- `test_help_page.py`: the module (12 functions) **guard**
+- `test_help_page.py`: the module (14 functions) **guard**
 
 ### `hex-capture-refuses-non-hex` (guarantee, requirement)
 
@@ -423,7 +425,7 @@ Ids: 190: 175 registry rows (guarantees 140, assumptions 35), 15 spec sections i
 
 ### `idioms-one-table` (guarantee, requirement)
 
-- `test_help_idioms.py`: the module (27 functions) **guard**
+- `test_help_idioms.py`: the module (28 functions) **guard**
 
 ### `infra-not-under-builtins` (assumption, structure)
 
@@ -448,15 +450,19 @@ Ids: 190: 175 registry rows (guarantees 140, assumptions 35), 15 spec sections i
 
 ### `link-explains-itself` (guarantee, requirement)
 
-- `test_help_idioms.py`: the module (27 functions) **guard**
+- `test_help_capabilities.py`: the module (13 functions)
+- `test_help_idioms.py`: the module (28 functions) **guard**
+- `test_help_links.py`: `test_every_command_a_click_can_run_has_a_verb`
 
 ### `links-are-data` (assumption, contract)
 
 - `test_app_pilot_targets.py`: `TestClickableOutput` (17 functions)
 - `test_cfg_declared.py`: `TestRowLinks.test_a_link_covers_only_the_name_never_the_padding`
 - `test_did_you_mean.py`: `test_a_bare_reference_to_a_list_runs`, `test_a_bare_reference_to_a_search_waits`, `test_an_acting_command_waits_for_enter`, `test_an_error_with_nothing_to_click_stays_plain`, `test_an_errors_fixes_are_links`, `test_shows_is_for_commands_that_change_nothing`, `test_the_pieces_are_the_line_unchanged`
+- `test_help_capabilities.py`: `TestTheRows.test_a_required_capability_row_links_to_its_page`, `TestTheRows.test_the_section_title_links_to_the_idiom`
 - `test_help_idioms.py`: `TestAPluginGetsAllOfIt.test_a_tables_column_declares_the_click`, `TestTheList.test_a_row_opens_its_page`
 - `test_help_links.py`: `test_a_bare_form_only_opens_or_shows`, `test_a_page_runs_nothing_but_pages_and_bare_forms`, `test_a_row_draws_the_same_characters_in_the_same_styles`, `test_every_help_link_names_a_command_that_exists`, `test_the_page_lines_draw_the_same_characters_in_the_same_styles`
+- `test_help_page.py`: `TestADefaultPage.test_the_available_note_links_the_capability`
 - `test_port_commands.py`: `TestPortList.test_the_port_cell_prefills_a_connect`
 - `test_views.py`: `test_segments_join_to_exactly_the_plain_lines`, `test_the_three_lists_reach_a_clicking_frontend_with_their_links`
 
@@ -945,7 +951,7 @@ Ids: 190: 175 registry rows (guarantees 140, assumptions 35), 15 spec sections i
 
 - `test_app_pilot.py`: `TestAppBoots.test_a_tui_on_a_terminal_publishes_the_tui_row` **guard**
 - `test_cli.py`: `test_the_cli_publishes_its_row` **guard**
-- `test_environments.py`: the module (3 functions)
+- `test_environments.py`: the module (6 functions)
 - `test_mcp_boundary.py`: `TestNoShell.test_the_host_publishes_the_mcp_row` **guard**
 
 ### `widget-text-literal` (guarantee, data)

@@ -28,14 +28,48 @@ from termapy.plugins.capabilities import (
 pytestmark = pytest.mark.rule("web-is-an-environment")
 
 
-def test_web_is_the_tui_without_its_terminal_and_desktop():
+def test_web_is_the_tui_without_its_terminal_and_desktop(monkeypatch):
     """WEB equals TUI except console, never, and gui_apps, only when TERMAPY_GUI says the viewer sits at the server."""
+    monkeypatch.delenv(env_flags.WEB_HOST_VARIABLE, raising=False)
     tui, web = environment_capabilities("TUI"), environment_capabilities("WEB")
     assert web.console is False, "a browser tab has no terminal to hand to /cli or /vt100"
     assert web.gui_apps is (env_flags.GUI_OVERRIDE is True), (
-        "detection looks at the server, so only the override counts"
+        "not served by --web, the desktop is not the viewer's: only the override counts"
     )
     assert replace(web, console=tui.console, gui_apps=tui.gui_apps) == tui, "nothing else differs"
+
+
+@pytest.mark.parametrize("host", sorted(env_flags.LOOPBACK_HOSTS))
+def test_served_on_this_machine_the_desktop_is_the_viewers(monkeypatch, host):
+    """--web on a loopback address: the browser is here, so WEB has gui_apps exactly as the TUI does."""
+    # Arrange -- what --web sets for the TUI it spawns
+    monkeypatch.setenv(env_flags.WEB_HOST_VARIABLE, host)
+
+    # Act
+    web = environment_capabilities("WEB")
+
+    # Assert
+    assert env_flags.web_served_locally() is True
+    assert web.gui_apps is environment_capabilities("TUI").gui_apps, "the detection applies"
+    assert REQUIREMENT_HINTS["gui_apps"] not in hints_lacking("WEB", "TUI"), "the banner agrees"
+
+
+def test_served_to_the_network_the_desktop_is_not_the_viewers(monkeypatch):
+    """--web on a network address: a remote browser cannot see this desktop, so only TERMAPY_GUI=1 grants gui_apps."""
+    # Arrange
+    monkeypatch.setenv(env_flags.WEB_HOST_VARIABLE, "192.168.1.50")
+
+    # Act
+    web = environment_capabilities("WEB")
+
+    # Assert
+    assert env_flags.web_served_locally() is False
+    assert web.gui_apps is (env_flags.GUI_OVERRIDE is True), "the override alone"
+
+
+def test_not_served_by_web_says_so():
+    """Without --web's variable the question has no answer, which the row treats as not local."""
+    assert env_flags.web_served_locally() is None
 
 
 def test_every_row_is_what_help_reads():

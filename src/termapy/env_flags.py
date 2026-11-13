@@ -44,6 +44,10 @@ The settings:
   an MCP server none.  Not a boolean: a value that does not compile is the
   startup error.
 
+- ``TERMAPY_WEB_HOST``: not a policy a user sets; ``--web`` sets it to the
+  address it listens on for the TUI it spawns, so that TUI knows whether its
+  browser is on this machine (``web_served_locally``).
+
 The policy settings are evaluated **once at
 import time** and cached as module-level constants.  Plugin code
 mutating ``os.environ`` at runtime cannot retroactively flip a decision
@@ -174,6 +178,24 @@ GUI_OVERRIDE: bool | None = _read_override("TERMAPY_GUI")
 ALLOWED_PORTS: PortAllowlist | None = _read_port_allowlist(ALLOWED_PORTS_VARIABLE)
 
 
+# The address --web listens on, handed to the TUI it spawns (not a policy a
+# user sets).  On a loopback address the browser is on this machine, so the
+# desktop the TUI runs on is the viewer's and the GUI detection applies;
+# anywhere else only an explicit TERMAPY_GUI says the viewer sits here.
+WEB_HOST_VARIABLE = "TERMAPY_WEB_HOST"
+LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
+def web_served_locally() -> bool | None:
+    """Whether a ``--web`` session's browser is on this machine; None when not served by ``--web``.
+
+    Read at each use, not frozen: the server sets the variable in its own
+    process before printing its banner and spawning the TUI.
+    """
+    host = os.environ.get(WEB_HOST_VARIABLE)
+    return None if host is None else host in LOOPBACK_HOSTS
+
+
 # Runtime marker (NOT a frozen policy constant): set once by the MCP
 # server entry point so ctx-less code -- specifically the $(env.NAME)
 # transform, a pure string function with no PluginContext -- can tell it
@@ -229,6 +251,9 @@ __all__ = [
     "MCP_HOST_INFO",
     "GUI_OVERRIDE",
     "ALLOWED_PORTS",
+    "WEB_HOST_VARIABLE",
+    "LOOPBACK_HOSTS",
+    "web_served_locally",
     "port_policy",
     "STARTUP_ERRORS",
     "startup_error",

@@ -60,6 +60,8 @@ from termapy.plugins.capabilities import (
     detect_gui_apps,
     environment_capabilities,
     hints_lacking,
+    provided_by,
+    refusal_text,
     requires_text,
     state_message,
 )
@@ -138,6 +140,8 @@ __all__ = [
     "detect_gui_apps",
     "environment_capabilities",
     "hints_lacking",
+    "provided_by",
+    "refusal_text",
     "requires_text",
     "state_message",
     # Command + return types + helpers

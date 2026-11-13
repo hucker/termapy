@@ -55,6 +55,11 @@ KvRow = tuple[str, str] | tuple[str, str, str]
 Line = tuple[str, str]
 
 
+# The color an error line prints in, everywhere one does: dispatch's
+# ``Error: ...`` lines and a help page's example of one.
+ERROR_COLOR = "red"
+
+
 @dataclass(frozen=True)
 class Link:
     """What clicking a piece of output does, in a frontend that can click.

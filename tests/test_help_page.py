@@ -155,7 +155,7 @@ class TestAHoverHoldsTheRest:
 
         # Assert
         assert "Status: stable" in tip
-        assert "Runs in: TUI CLI MCP" in tip
+        assert "Runs in: TUI WEB CLI MCP" in tip
         assert "--json" in tip, "and what any command also takes"
         assert "--verbose" in tip, "and the flag that prints the whole page"
 

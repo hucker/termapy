@@ -21,6 +21,8 @@ These tests verify that:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from termapy.plugins import (
@@ -271,6 +273,61 @@ class TestFilesystemHandle:
         actual = opened
         expected = ["/tmp/foo"]
         assert actual == expected, "gated method called the underlying impl"
+
+    def test_reveal_file_raises_without_gui_apps(self):
+        """Without gui_apps, reveal_file raises MissingCapability naming it and never calls the impl."""
+        revealed = []
+        ctx = PluginContext(
+            fs=FilesystemHandle(_reveal_file_impl=lambda path: revealed.append(path)),
+            capabilities=CapabilitySet(),  # no gui_apps
+        )
+        with pytest.raises(MissingCapability) as excinfo:
+            ctx.fs.reveal_file("/tmp/foo")
+        assert "reveal_file requires gui_apps" in str(excinfo.value), "names method and capability"
+        assert revealed == [], "underlying reveal was not called"
+
+    def test_reveal_file_works_with_gui_apps(self):
+        """With gui_apps granted, reveal_file reaches the host impl with the path."""
+        revealed = []
+        ctx = PluginContext(
+            fs=FilesystemHandle(_reveal_file_impl=lambda path: revealed.append(path)),
+            capabilities=CapabilitySet(gui_apps=True),
+        )
+        ctx.fs.reveal_file("/tmp/foo")
+        assert revealed == ["/tmp/foo"], "gated method called the underlying impl"
+
+
+class TestInternalHandleGating:
+    """``ctx.internal.edit_file`` refuses at run time without file_editor, as the fs and ui doors do."""
+
+    def test_edit_file_raises_without_file_editor(self):
+        """Without file_editor, edit_file raises MissingCapability naming it and never calls the impl."""
+        edited = []
+        ctx = PluginContext(
+            internal=InternalHandle(_edit_file_impl=lambda path: edited.append(path)),
+            capabilities=CapabilitySet(gui_apps=True),  # a desktop alone is not an editor
+        )
+        with pytest.raises(MissingCapability) as excinfo:
+            ctx.internal.edit_file(Path("/tmp/foo.run"))
+        assert "edit_file requires file_editor" in str(excinfo.value), "names method and capability"
+        assert edited == [], "underlying editor was not called"
+
+    def test_edit_file_works_with_file_editor(self):
+        """With file_editor granted, edit_file reaches the host impl with the path."""
+        edited = []
+        ctx = PluginContext(
+            internal=InternalHandle(_edit_file_impl=lambda path: edited.append(path)),
+            capabilities=CapabilitySet(file_editor=True),
+        )
+        ctx.internal.edit_file(Path("/tmp/foo.run"))
+        assert edited == [Path("/tmp/foo.run")], "gated method called the underlying impl"
+
+    def test_sync_reaches_the_internal_handle(self):
+        """A host that assigns ctx.capabilities later and syncs moves the edit_file gate with it."""
+        ctx = PluginContext(internal=InternalHandle(_edit_file_impl=lambda path: None))
+        ctx.capabilities = CapabilitySet(file_editor=True)
+        ctx.sync_capabilities()
+        assert ctx.internal.capabilities.file_editor is True, "the snapshot followed the assignment"
 
 
 class TestUIHandleGating:

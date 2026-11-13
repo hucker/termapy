@@ -565,12 +565,14 @@ class PortOptionList(OptionList):
         self._fill()
 
 
-# Why a link to the file manager does nothing: the detection found no
-# display this process can reach.  The override is named because the
-# guess can be wrong (mosh, tmux inside SSH, WSLg).
+# Why a link to the file manager does nothing: this session has no desktop
+# the user sees (the detection found no display, or the TUI is served in a
+# browser).  The override is named because the guess can be wrong (mosh,
+# tmux inside SSH, WSLg) and because it is how a viewer at the serving
+# machine turns the links on.
 _NO_DISPLAY_TIP = (
-    "Not available in this environment: no display this process "
-    "can reach.  Set TERMAPY_GUI=1 to override the detection."
+    "Not available in this environment: no desktop you can see from here "
+    "(no display, or a browser tab).  Set TERMAPY_GUI=1 to override."
 )
 
 
@@ -624,7 +626,7 @@ class PathLink(Static):
 
     With no opener the link is inert: the path still shows, without the
     underline, and a click does nothing.  The pickers make it inert where
-    a file manager would not reach the user (no display, or ``--web``).
+    the session has no desktop the user sees (``gui_apps``).
     """
 
     DEFAULT_CSS = """
@@ -680,16 +682,13 @@ class PathLink(Static):
             self._opener(str(self.path))
 
 
-def _path_link_tooltip(*, live: bool, gui_apps: bool, action: str) -> str | None:
+def _path_link_tooltip(*, gui_apps: bool, action: str) -> str:
     """What a picker's ``PathLink`` says on hover.
 
-    A live link says what a click does (``action``).  An inert one says why
-    when the reason is fixable (no display found, ``_NO_DISPLAY_TIP``) and
-    nothing under ``--web``, where it is inert by design.
+    A live link says what a click does (``action``); an inert one says why
+    and names the override (``_NO_DISPLAY_TIP``).
     """
-    if live:
-        return action
-    return None if gui_apps else _NO_DISPLAY_TIP
+    return action if gui_apps else _NO_DISPLAY_TIP
 
 
 def _title_row_width(title: str, paths: Iterable[Path]) -> int:

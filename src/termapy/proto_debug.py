@@ -30,10 +30,10 @@ from textual.widgets import (
 )
 
 from termapy import diag_log
-from termapy.config import cfg_data_dir, open_with_system
+from termapy.config import cfg_data_dir
 from termapy.defaults import cfg_value
 from termapy.folders import ensure_folder
-from termapy.plugins import BoundaryException
+from termapy.plugins import REQUIREMENT_HINTS, BoundaryException
 from termapy.protocol import (
     DIFF_STYLES,
     ProtoScript,
@@ -380,7 +380,16 @@ class ProtoDebugScreen(ModalScreen[None]):
                     "Run teardown commands" if script.teardown else "No teardown commands in script"
                 )
                 yield td_btn
-                log_btn = Button("Log", id="btn-dbg-log")
+                # The log opens in the system viewer, which needs a desktop
+                # the user sees: disabled, saying so, in a session without
+                # one (SSH without X11, a --web tab).
+                gui_apps = self._ctx.capabilities.gui_apps
+                log_btn = Button("Log", id="btn-dbg-log", disabled=not gui_apps)
+                log_btn.tooltip = (
+                    "Open the debug log in the system viewer."
+                    if gui_apps
+                    else f"Needs {REQUIREMENT_HINTS['gui_apps']}."
+                )
                 log_btn.styles.background = "dodgerblue"
                 yield log_btn
                 help_btn = Button("Help", id="btn-dbg-help")
@@ -956,8 +965,8 @@ class ProtoDebugScreen(ModalScreen[None]):
 
     @on(Button.Pressed, "#btn-dbg-log")
     def _on_log(self) -> None:
-        """Open the debug log with the system default application."""
-        open_with_system(str(self._log_path))
+        """Open the debug log with the system default application, through the gated opener."""
+        self._ctx.fs.open_file(self._log_path)
 
     @on(Button.Pressed, "#btn-dbg-help")
     def _on_help(self) -> None:

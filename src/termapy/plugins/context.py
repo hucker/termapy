@@ -205,8 +205,8 @@ class PluginContext:
     capabilities: CapabilitySet = field(default_factory=CapabilitySet)
 
     # ── Environment identity ─────────────────────────────────────────
-    # Which ENVIRONMENTS column this session is: "TUI", "CLI", or "MCP"
-    # (the keys of plugins.capabilities.ENVIRONMENTS).  Stamped by each
+    # Which ENVIRONMENTS column this session is: "TUI", "WEB", "CLI" or
+    # "MCP" (the keys of plugins.capabilities.ENVIRONMENTS).  Stamped by each
     # host right beside its ``ctx.capabilities`` assignment; /help's
     # AVAILABLE matrix marks the column "(current)".  Empty on a bare
     # test fake -> no marker, nothing breaks.
@@ -264,17 +264,19 @@ class PluginContext:
     def sync_capabilities(self) -> None:
         """Re-snapshot ``self.capabilities`` into the capability handles.
 
-        ``FilesystemHandle`` and ``UIHandle`` hold a snapshot of the
-        host's ``CapabilitySet`` (so their runtime gates -- ``fs.resolve``,
-        ``fs.open_file``, ``ui.confirm`` -- read the right one).  Hosts
-        that build the context first and assign ``ctx.capabilities``
-        afterward (app.py / cli.py / mcp) MUST call this so the snapshot
-        follows the reassignment; otherwise the handles keep the default
+        ``FilesystemHandle``, ``UIHandle`` and ``InternalHandle`` hold a
+        snapshot of the host's ``CapabilitySet`` (so their runtime gates --
+        ``fs.resolve``, ``fs.open_file``, ``ui.confirm``,
+        ``internal.edit_file`` -- read the right one).  Hosts that build the
+        context first and assign ``ctx.capabilities`` afterward (app.py /
+        cli.py / mcp) MUST call this so the snapshot follows the
+        reassignment; otherwise the handles keep the default
         (all-restrictive) set and, e.g., a CLI operator would be sandboxed
         by ``fs.resolve``.  Called once by ``__post_init__`` too.
         """
         self.fs.capabilities = self.capabilities
         self.ui.capabilities = self.capabilities
+        self.internal.capabilities = self.capabilities
 
     # -- Namespaces ------------------------------------------------------------
 

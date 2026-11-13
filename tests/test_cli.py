@@ -14,7 +14,7 @@ from termapy.cli import CLITerminal
 from termapy.cli_prompt import PlainFileHistory
 from termapy.defaults import DEFAULT_CFG
 from termapy.plugins import CapabilitySet, CmdResult
-from termapy.plugins.capabilities import STATE_MESSAGES
+from termapy.plugins.capabilities import STATE_MESSAGES, environment_capabilities
 
 pytestmark = pytest.mark.slow  # subprocess-spawning + CLITerminal end-to-end
 
@@ -63,15 +63,23 @@ def _grant_gui_apps(cli):
 
     /run.profile.show and .explore are gated on gui_apps in two places:
     the command's ``needs`` (read from ctx.capabilities by the dispatcher)
-    and ``ctx.fs.open_file`` (read from ctx.fs.capabilities).  CapabilitySet
-    is frozen, so union a fresh set and assign both snapshots -- mirroring
-    what PluginContext.__post_init__ does at construction.  Lets these tests
-    exercise the open behavior on a headless host (CI has no DISPLAY).
+    and ``ctx.fs.open_file`` (read from the handle's snapshot).  CapabilitySet
+    is frozen, so union a fresh set and re-snapshot it into every handle, as
+    the hosts do.  Lets these tests exercise the open behavior on a headless
+    host (CI has no DISPLAY).
     """
     # A CLI with a desktop has both: its system editor is its file editor.
-    caps = cli.ctx.capabilities.union(CapabilitySet(gui_apps=True, file_editor=True))
-    cli.ctx.capabilities = caps
-    cli.ctx.fs.capabilities = caps
+    cli.ctx.capabilities = cli.ctx.capabilities.union(
+        CapabilitySet(gui_apps=True, file_editor=True)
+    )
+    cli.ctx.sync_capabilities()
+
+
+@pytest.mark.rule("web-is-an-environment")
+def test_the_cli_publishes_its_row(cli):
+    """The CLI's ctx.capabilities is the CLI row of the one table, so the gate and /help agree."""
+    assert cli.ctx.capabilities == environment_capabilities("CLI"), "one owner"
+    assert cli.ctx.environment == "CLI", "the column /help marks current"
 
 
 # -- Output methods ----------------------------------------------------------
@@ -451,7 +459,7 @@ class TestEditCfgCallableInCli:
         from termapy.plugins import CapabilitySet
 
         cli.ctx.capabilities = CapabilitySet(interactive=True, gui_apps=True, file_editor=True)
-        cli.ctx.fs.capabilities = cli.ctx.capabilities
+        cli.ctx.sync_capabilities()
         opened = []
         cli.ctx.fs._open_file_impl = lambda path: opened.append(path)
 
@@ -472,7 +480,7 @@ class TestEditCfgCallableInCli:
         from termapy.plugins import CapabilitySet
 
         cli.ctx.capabilities = CapabilitySet(interactive=True, gui_apps=True, file_editor=True)
-        cli.ctx.fs.capabilities = cli.ctx.capabilities
+        cli.ctx.sync_capabilities()
         opened = []
         cli.ctx.fs._open_file_impl = lambda path: opened.append(path)
         scripts_dir = cli.ctx.fs.scripts_dir
@@ -1193,7 +1201,10 @@ class TestNoSessionLog:
 
         # Assert
         assert cli.session_log_path() is None, "the CLI writes no session log"
-        expected = f"/{command} requires: session_log (not available in this environment)"
+        expected = (
+            f"/{command} requires the session_log capability, a session log (the TUI's or "
+            "the MCP server's; the CLI keeps none); not available in this environment"
+        )
         assert (result.success, result.error) == (False, expected)
 
     @pytest.mark.parametrize("command", ["log.dump", "log.show"])

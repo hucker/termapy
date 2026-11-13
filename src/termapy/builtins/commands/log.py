@@ -34,7 +34,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy import diag_log
-from termapy.config import open_with_system
 from termapy.defaults import cfg_value
 from termapy.folder_ops import dump_text_slice, file_table
 from termapy.folders import LOG_SUFFIX, default_file_name, inside, is_inside
@@ -89,7 +88,7 @@ def _handler_diag_show(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.fail(msg=_NO_DIAG_LOG)
     if not path.is_file():
         return CmdResult.fail(msg=f"Log file not found: {path}")
-    open_with_system(str(path))
+    ctx.fs.open_file(path)
     ctx.io.result(f"  Opening {path.name}")
     return CmdResult.ok(value=path)
 
@@ -407,7 +406,7 @@ def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
         return picked
     if not picked.exists():
         return CmdResult.fail(msg=f"Log file not found: {picked}")
-    open_with_system(str(picked))
+    ctx.fs.open_file(picked)
     ctx.io.result(f"  Opening {picked.name}")
     return CmdResult.ok(value=picked)
 

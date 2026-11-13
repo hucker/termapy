@@ -58,6 +58,9 @@ from termapy.plugins.capabilities import (
     CapabilitySet,
     MissingCapability,
     detect_gui_apps,
+    environment_capabilities,
+    hints_lacking,
+    requires_text,
     state_message,
 )
 from termapy.plugins.command import (
@@ -133,6 +136,9 @@ __all__ = [
     "MissingCapability",
     "REQUIREMENT_HINTS",
     "detect_gui_apps",
+    "environment_capabilities",
+    "hints_lacking",
+    "requires_text",
     "state_message",
     # Command + return types + helpers
     "BoundaryException",

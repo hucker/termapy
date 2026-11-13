@@ -35,7 +35,6 @@ from termapy.config import (
     global_plugins_dir,
     is_config_file,
     new_config_from_args,
-    open_with_system,
     rename_config,
 )
 from termapy.config_resolve import resolve_config
@@ -51,7 +50,15 @@ from termapy.folders import (
 )
 from termapy.help_dynamic import cfg_status, compose
 from termapy.matching import closest, did_you_mean
-from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
+from termapy.plugins import (
+    CapabilitySet,
+    CmdResult,
+    Column,
+    Command,
+    UsageError,
+    escape_markup,
+    requires_text,
+)
 from termapy.plugins.params import ParamSpec
 from termapy.scripting import BOOL_TOKENS_HELP, coerce_to_type
 
@@ -462,7 +469,7 @@ def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
         args: Unused.
     """
     data_dir = Path(ctx.config_path).parent
-    open_with_system(str(data_dir))
+    ctx.fs.open_file(data_dir)
     return CmdResult.ok(value=data_dir)
 
 
@@ -697,17 +704,22 @@ def write_info_report(ctx: PluginContext, *, trigger: str) -> tuple[Path, str]:
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """Write the project report and print the folder tree.
 
-    With ``--display``, also opens the report in the system viewer.
+    With ``--display``, also opens the report in the system viewer.  The
+    option, not the command, needs the desktop, so the handler checks the
+    capability itself and refuses before writing anything (registry
+    ``gated-call-declares-need``).
 
     Args:
         ctx: Plugin context.
         args: ``"--display"`` to open report externally.
     """
+    if ctx.flag("--display") and not ctx.capabilities.gui_apps:
+        return CmdResult.fail(msg=f"--display requires {requires_text(['gui_apps'], ctx.prefix)}")
     try:
         report_path, colored_tree = write_info_report(ctx, trigger=f"by {ctx.prefix}cfg.info")
         ctx.io.output_markup(colored_tree)
         if ctx.flag("--display"):
-            open_with_system(str(report_path))
+            ctx.fs.open_file(report_path)
     except OSError as e:
         return CmdResult.fail(msg=f"Info error: {e}")
     except TypeError as e:

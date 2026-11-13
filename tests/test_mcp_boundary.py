@@ -25,7 +25,12 @@ from termapy.builtins.commands.proto import _write_crc_codegen_files
 from termapy.cli import CLITerminal
 from termapy.defaults import DEFAULT_CFG
 from termapy.mcp.server import MCPHost
-from termapy.plugins.capabilities import ENVIRONMENTS, CapabilitySet, MissingCapability
+from termapy.plugins.capabilities import (
+    ENVIRONMENTS,
+    CapabilitySet,
+    MissingCapability,
+    environment_capabilities,
+)
 from termapy.plugins.handles.fs import FilesystemHandle
 
 # Every route to /os a client could try.  {} is the shell command.
@@ -189,6 +194,12 @@ class TestNoShell:
         """Every gate here rests on this, so granting MCP interactive must be a loud decision."""
         assert host.ctx.capabilities.interactive is False, "the running host"
         assert ENVIRONMENTS["MCP"].interactive is False, "the table /help and the catalog read"
+
+    @pytest.mark.rule("web-is-an-environment")
+    def test_the_host_publishes_the_mcp_row(self, host):
+        """The MCP host's ctx.capabilities is the MCP row of the one table, so the gate and the catalog agree."""
+        assert host.ctx.capabilities == environment_capabilities("MCP"), "one owner"
+        assert host.ctx.environment == "MCP", "the column /help marks current"
 
     def test_a_refusal_names_the_reason(self, host):
         """/os under MCP answers with the capability it lacks, not the flag, because the flag would not help."""
@@ -857,7 +868,9 @@ class TestHostView:
 
         # Assert
         assert host.ctx.capabilities.host_info is False, "the MCP host has no host view by default"
-        assert "requires: host_info" in answer["error"], "the capability gate refuses it"
+        assert "requires the host_info capability" in answer["error"], (
+            "the capability gate refuses it"
+        )
         assert "Hostname" not in json.dumps(answer), "and nothing about the host comes back"
 
     def test_the_live_sessions_are_refused_by_default(self, host):
@@ -866,7 +879,9 @@ class TestHostView:
         answer = _call(host, "/app.alive")
 
         # Assert
-        assert "requires: host_info" in answer["error"], "the capability gate refuses it"
+        assert "requires the host_info capability" in answer["error"], (
+            "the capability gate refuses it"
+        )
         assert answer["data"] is None, "no session record comes back"
 
     def test_a_person_always_has_the_host_view(self):
@@ -899,7 +914,10 @@ class TestHostView:
         assert result.returncode == 0, result.stderr
         actual = json.loads(result.stdout.splitlines()[-1])
         assert actual["host_info"] is expected_view, "the flag decides the capability"
-        gated = {line: "requires: host_info" in error for line, error in actual["errors"].items()}
+        gated = {
+            line: "requires the host_info capability" in error
+            for line, error in actual["errors"].items()
+        }
         expected = dict.fromkeys(gated, not expected_view)
         assert gated == expected, "and whether each machine view is refused at the gate"
 
@@ -909,7 +927,9 @@ class TestHostView:
         answer = _call(host, "/port.usb")
 
         # Assert
-        assert "requires: host_info" in answer["error"], "the capability gate refuses it"
+        assert "requires the host_info capability" in answer["error"], (
+            "the capability gate refuses it"
+        )
         assert answer["data"] is None, "no node of the bus comes back"
 
     @pytest.mark.parametrize(

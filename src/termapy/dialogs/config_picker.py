@@ -24,7 +24,6 @@ from termapy.config import (
     config_summary,
     file_manager_name,
     is_config_file,
-    open_with_system,
 )
 from termapy.dialogs._common import (
     _DISMISS_BINDINGS,
@@ -129,22 +128,19 @@ class ConfigPicker(ModalScreen[tuple | None]):
         # No path here: the header row already shows it in full, and
         # repeating it in a tooltip is the clutter this replaced.
         self.query_one("#picker-cfgdir", PathLink).tooltip = _path_link_tooltip(
-            live=self.gui_apps and not self.web,
             gui_apps=self.gui_apps,
             action=f"Open this folder in {self._manager}.",
         )
         self.query_one("#picker-load", Button).tooltip = "Load and activate the selected config."
         self.query_one("#picker-edit", Button).tooltip = "Open the selected config in the editor."
-        # Absent under --web (see __init__); disabled when this process has
-        # no display to reach, with the override named so the user can fix
-        # a wrong guess (mosh, tmux inside SSH, WSLg).
-        explore = self.query("#picker-explore")
-        if explore:
-            explore.first(Button).tooltip = (
-                f"Open the selected config's folder in {self._manager}."
-                if self.gui_apps
-                else _NO_DISPLAY_TIP
-            )
+        # Disabled when this session has no desktop the user sees, with the
+        # override named so the user can fix a wrong guess (mosh, tmux
+        # inside SSH, WSLg) or turn it on at the serving machine.
+        self.query_one("#picker-explore", Button).tooltip = (
+            f"Open the selected config's folder in {self._manager}."
+            if self.gui_apps
+            else _NO_DISPLAY_TIP
+        )
         self.query_one("#picker-new", Button).tooltip = "Create a new config."
         self.query_one(
             "#picker-rename", Button
@@ -160,8 +156,7 @@ class ConfigPicker(ModalScreen[tuple | None]):
         read_only: bool = False,
         *,
         gui_apps: bool = True,
-        web: bool = False,
-        opener: Callable[[str], None] = open_with_system,
+        opener: Callable[[str], None] | None = None,
         open_device: str = "",
         port_source: PortSource | None = None,
     ) -> None:
@@ -177,22 +172,19 @@ class ConfigPicker(ModalScreen[tuple | None]):
                 resolution, as ``port_control.resolve_port`` takes it;
                 injected so a test can show a serial number's device
                 without owning the machine's ports.
-            gui_apps: Whether this process can show a desktop app the user
-                will see (``ctx.capabilities.gui_apps``, SSH-aware).  False
-                disables Explore with a tooltip naming the ``TERMAPY_GUI``
-                override, since that case is fixable.
-            web: Served in a browser (``App.is_web``).  A folder would open
-                on the SERVER's desktop, never the viewer's, so Explore is
-                not offered at all rather than disabled.
-            opener: What Explore and the folder link call; injected so a
-                test can prove a press reaches it without a file manager
-                appearing.
+            gui_apps: Whether this session can show a desktop app the user
+                will see (``ctx.capabilities.gui_apps``: SSH- and
+                browser-aware).  False disables Explore and the folder link
+                with a tooltip naming the ``TERMAPY_GUI`` override.
+            opener: What Explore and the folder link call with a folder: the
+                host's gated ``ctx.fs.open_file``; ``None`` leaves both inert.
+                Injected so a test can prove a press reaches it without a
+                file manager appearing.
         """
         super().__init__()
         self.current_path = current_path
         self.read_only = read_only
         self.gui_apps = gui_apps
-        self.web = web
         self._opener = opener
         self._open_device = open_device
         self._port_source = port_source
@@ -224,7 +216,7 @@ class ConfigPicker(ModalScreen[tuple | None]):
                     d.resolve(),
                     len(str(d.resolve())),
                     link_id="picker-cfgdir",
-                    opener=self._opener if self.gui_apps and not self.web else None,
+                    opener=self._opener if self.gui_apps else None,
                 )
             ol = FileOptionList(
                 json_files,
@@ -256,17 +248,16 @@ class ConfigPicker(ModalScreen[tuple | None]):
                     variant="primary",
                     disabled=not has_configs or self.read_only,
                 )
-                if not self.web:
-                    # The header row cannot be highlighted, so whenever
-                    # configs exist one is selected: "a folder is selected"
-                    # is the same condition Load uses.
-                    explore_btn = Button(
-                        Text(self._manager),
-                        id="picker-explore",
-                        disabled=not has_configs or not self.gui_apps,
-                    )
-                    explore_btn.styles.background = "slategray"
-                    yield explore_btn
+                # The header row cannot be highlighted, so whenever configs
+                # exist one is selected: "a folder is selected" is the same
+                # condition Load uses.
+                explore_btn = Button(
+                    Text(self._manager),
+                    id="picker-explore",
+                    disabled=not has_configs or not self.gui_apps,
+                )
+                explore_btn.styles.background = "slategray"
+                yield explore_btn
                 new_btn = Button("New", id="picker-new")
                 new_btn.styles.background = "darkorchid"
                 yield new_btn
@@ -308,7 +299,7 @@ class ConfigPicker(ModalScreen[tuple | None]):
     def explore_config(self) -> None:
         """Open the selected config's folder; unlike its neighbours, this does not dismiss."""
         path = self._selected_path()
-        if path:
+        if path and self._opener is not None:
             self._opener(str(Path(path).parent))
 
     @on(Button.Pressed, "#picker-edit")

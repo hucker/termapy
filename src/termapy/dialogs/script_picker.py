@@ -16,7 +16,7 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, OptionList
 
-from termapy.config import file_manager_name, reveal_in_file_manager
+from termapy.config import file_manager_name
 from termapy.dialogs._common import (
     _DISMISS_BINDINGS,
     _FILE_PICKER_WIDTH,
@@ -71,7 +71,6 @@ class ScriptPicker(ModalScreen[tuple | None]):
         ).tooltip = "Delete the selected script (asks for confirmation)."
         self.query_one("#script-cancel", Button).tooltip = "Close without running or editing."
         self.query_one("#script-path", PathLink).tooltip = _path_link_tooltip(
-            live=self._live_link,
             gui_apps=self.gui_apps,
             action=f"Show this file in {file_manager_name()}.",
         )
@@ -82,8 +81,7 @@ class ScriptPicker(ModalScreen[tuple | None]):
         read_only: bool = False,
         *,
         gui_apps: bool = True,
-        web: bool = False,
-        opener: Callable[[str], None] = reveal_in_file_manager,
+        opener: Callable[[str], None] | None = None,
         file_action: FileAction | None = None,
     ) -> None:
         """Build the picker for scripts living in ``scripts_dir``.
@@ -94,13 +92,14 @@ class ScriptPicker(ModalScreen[tuple | None]):
             read_only: When ``True``, disables Edit, Rename and Delete so
                 the user can still pick a script to Run but cannot
                 mutate the on-disk set.
-            gui_apps: Whether this process can show a desktop app the user
-                will see (``ctx.capabilities.gui_apps``).  False leaves the
-                title-row path inert, its tooltip naming the override.
-            web: Served in a browser (``App.is_web``): a file manager would
-                open on the server, so the path is shown but inert.
-            opener: What a click on the path calls; injected so a test can
-                prove the click reaches it without a file manager appearing.
+            gui_apps: Whether this session can show a desktop app the user
+                will see (``ctx.capabilities.gui_apps``: SSH- and
+                browser-aware).  False leaves the title-row path inert, its
+                tooltip naming the override.
+            opener: What a click on the path calls: the host's gated
+                ``ctx.fs.reveal_file``; ``None`` leaves the path inert.
+                Injected so a test can prove the click reaches it without a
+                file manager appearing.
             file_action: Renames or deletes a script while the picker stays
                 open (``FileAction``); ``None`` disables Rename and Delete.
         """
@@ -108,7 +107,6 @@ class ScriptPicker(ModalScreen[tuple | None]):
         self.scripts_dir = scripts_dir
         self.read_only = read_only
         self.gui_apps = gui_apps
-        self._live_link = gui_apps and not web
         self._opener = opener
         self._file_action = file_action
         self._can_change = not read_only and file_action is not None
@@ -139,7 +137,7 @@ class ScriptPicker(ModalScreen[tuple | None]):
                     paths[0],
                     max(len(str(path)) for path in paths),
                     link_id="script-path",
-                    opener=self._opener if self._live_link else None,
+                    opener=self._opener if self.gui_apps else None,
                 )
             ol = FileOptionList(
                 scripts,

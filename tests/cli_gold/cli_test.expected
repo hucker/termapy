@@ -232,7 +232,7 @@ CONFIG
   A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
 
 AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
+  TUI: yes   WEB: yes   CLI: yes (current)   MCP: yes
 
 SEE ALSO
   /term.color, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.info, /term.json_fmt, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.traffic, /term.usb_db, /term
@@ -1415,7 +1415,7 @@ CONFIG
   max_grep_lines = 100  caps the matches shown
 
 AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: no
+  TUI: yes   WEB: yes   CLI: yes (current)   MCP: no
   (MCP does not provide: interactive)
 demo> /help max_grep_lines
 NAME
@@ -1783,17 +1783,17 @@ demo> /port.break -5
 demo> /print === section: capability gates (tui_mode + screen_capture) ===
   === section: capability gates (tui_mode + screen_capture) ===
 demo> /term.line_no on
-  Error: /term.line_no requires: tui_mode (not available in this environment)
+  Error: /term.line_no requires the tui_mode capability, the TUI (switch with /tui); not available in this environment
 demo> /ss.svg
-  Error: /ss.svg requires: screen_capture (not available in this environment)
+  Error: /ss.svg requires the screen_capture capability, the TUI's render surface (screenshots, screen text); not available in this environment
 demo> /ss.txt
-  Error: /ss.txt requires: screen_capture (not available in this environment)
+  Error: /ss.txt requires the screen_capture capability, the TUI's render surface (screenshots, screen text); not available in this environment
 demo> /print === section: json mode ===
   === section: json mode ===
 demo> /term.line_no --json
-  {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires: tui_mode (not available in this environment)", "value": "", "data": null, "output_lines": [], "elapsed_s": 0}
+  {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires the tui_mode capability, the TUI (switch with /tui); not available in this environment", "value": "", "data": null, "output_lines": [], "elapsed_s": 0}
 demo> /term.line_no.json
-  {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires: tui_mode (not available in this environment)", "value": "", "data": null, "output_lines": [], "elapsed_s": 0}
+  {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires the tui_mode capability, the TUI (switch with /tui); not available in this environment", "value": "", "data": null, "output_lines": [], "elapsed_s": 0}
 demo> /term.request on
   request_mode = on  (session)
   on
@@ -1847,7 +1847,7 @@ demo> /term.control_keys
 demo> /term.timestamps
   off
 demo> /term.traffic
-  Error: /term.traffic requires: tui_mode (not available in this environment)
+  Error: /term.traffic requires the tui_mode capability, the TUI (switch with /tui); not available in this environment
 demo> /term.color
   off
 demo> /term.color on
@@ -1984,7 +1984,7 @@ demo> /proto.send --dry-run "AT\r"
 demo> /proto.crc.verify crc16-modbus endian=le 01 03 00 00 00 01 84 0A
   OK  crc16-modbus  endian=little  crc=0x0A84  (6 data bytes)
 demo> /proto.debug demo.pro
-  Error: /proto.debug requires: tui_mode (not available in this environment)
+  Error: /proto.debug requires the tui_mode capability, the TUI (switch with /tui); not available in this environment
 demo> /print === section: coverage: profile and help ===
   === section: coverage: profile and help ===
 demo> /profile.validate demo_legacy.profile.json
@@ -2018,7 +2018,7 @@ DESCRIPTION (developer)
       args: Text to print.
 
 AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
+  TUI: yes   WEB: yes   CLI: yes (current)   MCP: yes
 
 SUBCOMMANDS
   /print.r    Print Rich markup text (e.g. [bold red]Warning![/]).
@@ -2036,7 +2036,7 @@ REQUIRED CAPABILITIES
   config_loaded - a loaded config
 
 AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: yes
+  TUI: yes   WEB: yes   CLI: yes (current)   MCP: yes
 
 SEE ALSO
   /ss.delete, /ss.explore, /ss.rename, /ss.show, /ss.svg, /ss.txt, /ss
@@ -2063,15 +2063,15 @@ demo> /print === section: coverage: answered by the CLI's capabilities ===
 demo> /log.dump
   Error: This frontend keeps no session log; /log.list names the config's
 demo> /log.delete
-  Error: /log.delete requires: session_log (not available in this environment)
+  Error: /log.delete requires the session_log capability, a session log (the TUI's or the MCP server's; the CLI keeps none); not available in this environment
 demo> /log.fingerprint
-  Error: /log.fingerprint requires: session_log (not available in this environment)
+  Error: /log.fingerprint requires the session_log capability, a session log (the TUI's or the MCP server's; the CLI keeps none); not available in this environment
 demo> /log.list
   demo/ - empty
 demo> /log.start
-  Error: /log.start requires: session_log (not available in this environment)
+  Error: /log.start requires the session_log capability, a session log (the TUI's or the MCP server's; the CLI keeps none); not available in this environment
 demo> /log.stop
-  Error: /log.stop requires: session_log (not available in this environment)
+  Error: /log.stop requires the session_log capability, a session log (the TUI's or the MCP server's; the CLI keeps none); not available in this environment
 demo> /log.diag.show ../demo/demo.cfg
   Error: Invalid log name: ../demo/demo.cfg
 demo> /grep OK
@@ -2212,7 +2212,7 @@ PARAMETERS
   <new>  new name (the extension is kept) (required)
 
 AVAILABLE
-  TUI: yes   CLI: yes (current)   MCP: no
+  TUI: yes   WEB: yes   CLI: yes (current)   MCP: no
   (MCP does not provide: interactive)
   === section: spy log stays in cap ===
 Disconnected: DEMO

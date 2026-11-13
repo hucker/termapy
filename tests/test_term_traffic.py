@@ -128,7 +128,10 @@ def test_the_cli_refuses_the_toggle(tmp_path):
     result = cli.repl.dispatch_full("/term.traffic on")
 
     # Assert
-    assert result.error == "/term.traffic requires: tui_mode (not available in this environment)"
+    assert result.error == (
+        "/term.traffic requires the tui_mode capability, the TUI (switch with /tui); "
+        "not available in this environment"
+    )
 
 
 def test_term_info_reports_traffic_off_outside_the_tui(tmp_path):

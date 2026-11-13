@@ -239,7 +239,11 @@ so most capability mismatches fail loudly *before* the handler runs.
 
 Gated methods today:
 
-- `ctx.fs.open_file` -- requires `gui_apps` (no-op in headless/SSH)
+- `ctx.fs.open_file` and `ctx.fs.reveal_file` -- require `gui_apps`: the
+  desktop's opener would otherwise succeed on a machine the user cannot
+  see (SSH without X11, a TUI served in a browser)
+- `ctx.internal.edit_file` -- requires `file_editor` (and the system
+  editor it falls back to, `gui_apps`)
 - `ctx.ui.confirm` -- requires `confirm_dialog` (implies `block_until`)
 - `ctx.ui.notify` -- requires `ui_notify` (use `ctx.io.notify` for the
   always-works fallback)
@@ -930,6 +934,7 @@ either directly.
 | `ctx.fs.cap_dir` | Captures directory (Path) |
 | `ctx.fs.prof_dir` | Profile output directory (Path) |
 | `ctx.fs.open_file(path)` | Open in system viewer/editor (gated on `gui_apps`) |
+| `ctx.fs.reveal_file(path)` | Show in the file manager, selected (gated on `gui_apps`) |
 
 ### TUI-only (`ctx.ui`)
 

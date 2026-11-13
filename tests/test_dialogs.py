@@ -732,7 +732,7 @@ class TestPathLink:
 
 class TestConfigPickerExplore:
     """The Explore button: opens the SELECTED config's folder, gated like
-    the ``/<folder>.explore`` commands, and absent when served in a browser."""
+    the ``/<folder>.explore`` commands on the session's ``gui_apps``."""
 
     @staticmethod
     def _seed(tmp_path, monkeypatch, name: str = "rig"):
@@ -785,25 +785,6 @@ class TestConfigPickerExplore:
                     "labelled with the platform's file manager, not a Windows verb"
                 )
                 assert "TERMAPY_GUI" in str(button.tooltip), "the tooltip names the override"
-
-        _run(scenario)
-
-    def test_hidden_when_served_in_a_browser(self, tmp_path, monkeypatch):
-        """In web mode the button is absent: a server folder is not the viewer's."""
-        # Arrange
-        self._seed(tmp_path, monkeypatch)
-
-        async def scenario():
-            app = _Host()
-            async with app.run_test() as pilot:
-                # Act
-                app.push_screen(ConfigPicker(web=True))
-                await pilot.pause()
-
-                # Assert
-                assert not app.screen.query("#picker-explore"), (
-                    "a folder on the server is never the viewer's; the button is not offered"
-                )
 
         _run(scenario)
 

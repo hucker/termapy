@@ -41,30 +41,51 @@ class FilesystemHandle:
     cap_dir: Path = field(default_factory=lambda: Path("."))
     prof_dir: Path = field(default_factory=lambda: Path("."))
 
-    # Backing callable for the gated open_file.
+    # Backing callables for the gated open_file and reveal_file: the one
+    # way the desktop's opener is reached (registry raw-primitive-one-home).
     _open_file_impl: Callable = lambda path: None
+    _reveal_file_impl: Callable = lambda path: None
 
-    # Capability snapshot for the open_file gate.  PluginContext sets
-    # this in __post_init__ to its own CapabilitySet.
+    # Capability snapshot for the gates.  PluginContext sets this in
+    # __post_init__ to its own CapabilitySet.
     capabilities: CapabilitySet = field(default_factory=CapabilitySet)
+
+    def _require_gui_apps(self, method: str) -> None:
+        """Raise MissingCapability unless the host provides ``gui_apps``.
+
+        Without it the desktop's opener would succeed silently on a machine
+        the user cannot see (SSH without X11, a TUI served in a browser),
+        which is worse than a clear refusal.
+        """
+        if not self.capabilities.gui_apps:
+            raise MissingCapability(
+                f"ctx.fs.{method} requires gui_apps capability; "
+                "declare needs=CapabilitySet.GUI_APPS on your Command"
+            )
 
     def open_file(self, path: str | Path) -> None:
         """Open a file or folder in the system viewer/editor.
-
-        Requires the ``gui_apps`` capability -- without it, the call
-        would silently open on the wrong machine (SSH without X11).
 
         Raises:
             MissingCapability: if the environment doesn't provide
                 ``gui_apps``.  Declare ``needs=CapabilitySet.GUI_APPS``
                 on your Command to gate dispatch instead.
         """
-        if not self.capabilities.gui_apps:
-            raise MissingCapability(
-                "ctx.fs.open_file requires gui_apps capability; "
-                "declare needs=CapabilitySet.GUI_APPS on your Command"
-            )
+        self._require_gui_apps("open_file")
         self._open_file_impl(path)
+
+    def reveal_file(self, path: str | Path) -> None:
+        """Show a file in the system file manager with it selected.
+
+        The pickers' path links call it.  Linux has no "select this file"
+        call, so there the file's folder opens.
+
+        Raises:
+            MissingCapability: if the environment doesn't provide
+                ``gui_apps``, as for ``open_file``.
+        """
+        self._require_gui_apps("reveal_file")
+        self._reveal_file_impl(path)
 
     # The one place caller-supplied file names become paths.  Every
     # command that reads or writes a user-named file MUST route through

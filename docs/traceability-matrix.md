@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 187: 172 registry rows (guarantees 137, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 183. Pinned by none: 4.
+Ids: 190: 175 registry rows (guarantees 140, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 186. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -363,6 +363,11 @@ Ids: 187: 172 registry rows (guarantees 137, assumptions 35), 15 spec sections i
 
 - `test_format_tables_sync.py`: the module (3 functions) **guard**
 
+### `gated-call-declares-need` (guarantee, structure)
+
+- `test_architecture.py`: `test_a_handler_calling_a_gated_method_declares_the_capability` **guard**, `test_gated_call_guard_fires_on_a_probe` **guard**
+- `test_cfg_info_report.py`: `TestDisplay.test_opens_the_report_through_the_gated_opener`, `TestDisplay.test_refused_without_a_desktop_before_writing`
+
 ### `handler-docstring` (guarantee, structure)
 
 - `test_architecture.py`: `test_every_example_plugin_handler_has_a_docstring` **guard**, `test_every_registered_handler_has_a_docstring` **guard**, `test_handler_docstring_guard_flags_a_bare_handler` **guard**
@@ -666,6 +671,10 @@ Ids: 187: 172 registry rows (guarantees 137, assumptions 35), 15 spec sections i
 
 - `test_quick_open.py`: `TestCommandLine.test_quick_open_outside_project` **guard**
 
+### `raw-primitive-one-home` (guarantee, structure)
+
+- `test_architecture.py`: `test_a_raw_primitive_is_referenced_only_in_its_home` **guard**, `test_raw_primitive_guard_fires_on_a_probe` **guard**, `test_raw_primitive_homes_have_no_stale_entries`
+
 ### `reader-failure-reported` (guarantee, contract)
 
 - `test_serial_engine.py`: `TestReadLoop.test_a_raising_callback_is_reported_as_a_disconnect` **guard**, `TestReadLoop.test_read_loop_calls_on_error` **guard**
@@ -931,6 +940,13 @@ Ids: 187: 172 registry rows (guarantees 137, assumptions 35), 15 spec sections i
 ### `vt100-on-engine` (guarantee, contract)
 
 - `test_vt100.py`: `TestPassthroughSession` **guard** (3 functions)
+
+### `web-is-an-environment` (guarantee, structure)
+
+- `test_app_pilot.py`: `TestAppBoots.test_a_tui_on_a_terminal_publishes_the_tui_row` **guard**
+- `test_cli.py`: `test_the_cli_publishes_its_row` **guard**
+- `test_environments.py`: the module (3 functions)
+- `test_mcp_boundary.py`: `TestNoShell.test_the_host_publishes_the_mcp_row` **guard**
 
 ### `widget-text-literal` (guarantee, data)
 

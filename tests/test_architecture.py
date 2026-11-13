@@ -13,8 +13,11 @@ a guard you meet too late.
 from __future__ import annotations
 
 import ast
+import functools
+import inspect
 import json
 import re
+import textwrap
 import unicodedata
 from collections.abc import Iterable
 from pathlib import Path
@@ -4579,6 +4582,11 @@ def _claimed_but_unregistered(
     return {name: sorted(frontends) for name, frontends in sorted(claimed.items())}
 
 
+def _with_web(frontend_plugins: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """The tables plus WEB: the TUI served in a browser registers the TUI's commands."""
+    return {**frontend_plugins, "WEB": frontend_plugins["TUI"]}
+
+
 @pytest.mark.rule("available-matches-registration")
 def test_help_available_names_only_frontends_that_register_the_command(frontend_plugins):
     """Every frontend /help AVAILABLE says yes for registers the command."""
@@ -4587,7 +4595,9 @@ def test_help_available_names_only_frontends_that_register_the_command(frontend_
     # Arrange / Act
     unregistered = {
         name: frontends
-        for name, frontends in _claimed_but_unregistered(frontend_plugins, ENVIRONMENTS).items()
+        for name, frontends in _claimed_but_unregistered(
+            _with_web(frontend_plugins), ENVIRONMENTS
+        ).items()
         if name not in KNOWN_UNREGISTERED_WHERE_AVAILABLE
     }
 
@@ -4628,13 +4638,329 @@ def test_known_unregistered_where_available_has_no_stale_entries(frontend_plugin
     from termapy.plugins.capabilities import ENVIRONMENTS
 
     # Arrange / Act
-    unregistered = _claimed_but_unregistered(frontend_plugins, ENVIRONMENTS)
+    unregistered = _claimed_but_unregistered(_with_web(frontend_plugins), ENVIRONMENTS)
 
     # Assert
     stale = sorted(set(KNOWN_UNREGISTERED_WHERE_AVAILABLE) - set(unregistered))
     assert stale == [], (
         f"/help tells the truth now; drop from KNOWN_UNREGISTERED_WHERE_AVAILABLE: {stale}"
     )
+
+
+# ── A raw primitive has one home; a gated call declares its need ─────────────
+#
+# Audit 2026-11-13 (Chuck: no code may "sneak around" a capability).  Every
+# restrictive capability has a gated door -- ctx.fs.open_file for gui_apps,
+# ctx.ui.confirm for confirm_dialog, ctx.internal.edit_file for file_editor
+# -- and a raw primitive behind it.  The audit found /cfg.info --display, two
+# palette entries, the Help button and the proto-debug Log button opening
+# files on the machine serving a --web session, unseen: each called the
+# primitive instead of the door.  Two guards keep it from recurring: a raw
+# primitive is referenced only in its listed homes (the door's implementation
+# and the commands reviewed with it), and a registered handler that calls a
+# door declares the capability or checks it first.  The tables only shrink; a
+# new home is a review, with its reason beside it.
+
+# A module that IS a raw primitive -> the files (relative to src/termapy,
+# forward slashes) that may import it.
+RAW_MODULE_HOMES: dict[str, frozenset[str]] = {
+    "subprocess": frozenset(
+        {
+            "config.py",  # open_with_system / reveal_in_file_manager run the desktop's opener
+            "breadcrumbs.py",  # ps: the other termapy sessions, behind host_info
+            "serial_engine.py",  # lsof: who holds a port, behind env_flags.port_policy
+            "app.py",  # stty sane when the TUI hands its terminal back
+            "builtins/commands/os_cmd.py",  # /os: interactive and env-gated
+            "builtins/commands/_cfg_icon.py",  # /cfg.icon's launcher: gui_apps
+        }
+    ),
+    "webbrowser": frozenset({"terminal_host.py"}),  # /help.open: gui_apps in every frontend
+    "platform": frozenset(
+        {
+            "config.py",  # which OS folder layout applies
+            "builtins/commands/log.py",  # /log.fingerprint: host_info
+        }
+    ),
+    "socket": frozenset({"builtins/commands/log.py"}),  # /log.fingerprint's hostname: host_info
+}
+
+# A name that IS a raw primitive -> the files that may reference it; an
+# import or a definition counts as a reference.
+RAW_NAME_HOMES: dict[str, frozenset[str]] = {
+    "open_with_system": frozenset({"config.py", "terminal_host.py"}),  # def; ctx.fs.open_file
+    "reveal_in_file_manager": frozenset({"config.py", "terminal_host.py"}),  # def; fs.reveal_file
+    "startfile": frozenset({"config.py"}),  # os.startfile, inside open_with_system
+    "input": frozenset({"cli.py", "cli_flags.py"}),  # the CLI's prompt; a flag's y/N question
+    "read_running": frozenset(
+        {
+            "breadcrumbs.py",  # defined
+            "builtins/commands/app.py",  # /app.alive, /app.kill (host_info), /app.list's count
+            "cli_flags.py",  # --alive, --kill: the operator at the command line
+            "port_control.py",  # which session holds a port, behind env_flags.port_policy
+        }
+    ),
+}
+
+
+def _raw_primitive_uses(tree: ast.AST) -> list[tuple[int, str]]:
+    """``(line, primitive)`` for each import of a raw module and each reference to or definition of a raw name in ``tree``."""
+    found: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found.extend(
+                (node.lineno, alias.name) for alias in node.names if alias.name in RAW_MODULE_HOMES
+            )
+        elif isinstance(node, ast.ImportFrom):
+            if node.module in RAW_MODULE_HOMES:
+                found.append((node.lineno, node.module))
+            found.extend(
+                (node.lineno, alias.name) for alias in node.names if alias.name in RAW_NAME_HOMES
+            )
+        elif isinstance(node, ast.FunctionDef) and node.name in RAW_NAME_HOMES:
+            found.append((node.lineno, node.name))
+        # ``input`` is a common attribute name (a widget's); only its call is the primitive.
+        elif (
+            isinstance(node, ast.Attribute) and node.attr in RAW_NAME_HOMES and node.attr != "input"
+        ):
+            found.append((node.lineno, node.attr))
+        elif isinstance(node, ast.Name) and node.id in RAW_NAME_HOMES and node.id != "input":
+            found.append((node.lineno, node.id))
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "input"
+        ):
+            found.append((node.lineno, "input"))
+    return sorted(set(found))
+
+
+def _primitive_homes(primitive: str) -> frozenset[str]:
+    """The files that may reference ``primitive``, whichever table holds it."""
+    return RAW_MODULE_HOMES.get(primitive) or RAW_NAME_HOMES[primitive]
+
+
+def _raw_primitive_uses_by_file() -> dict[str, list[tuple[int, str]]]:
+    """``{file: [(line, primitive)]}`` over the package, the vendored tree excluded."""
+    return {
+        path.relative_to(SRC).as_posix(): _raw_primitive_uses(
+            ast.parse(path.read_text(encoding="utf-8"))
+        )
+        for path in _package_python_files()
+    }
+
+
+@pytest.mark.rule("raw-primitive-one-home")
+def test_a_raw_primitive_is_referenced_only_in_its_home():
+    """Every import of a raw module and every reference to a raw name sits in a file its table row allows."""
+    # Arrange / Act
+    violations = [
+        f"{file}:{line}  {primitive}"
+        for file, uses in _raw_primitive_uses_by_file().items()
+        for line, primitive in uses
+        if file not in _primitive_homes(primitive)
+    ]
+
+    # Assert
+    assert violations == [], (
+        "a raw primitive outside its home:\n  "
+        + "\n  ".join(violations)
+        + "\n\nReach the desktop through ctx.fs.open_file / ctx.fs.reveal_file, an editor"
+        "\nthrough ctx.internal.edit_file, and the shell or the host's facts through a"
+        "\ncommand that declares its need; a new home is a reviewed row in the table."
+    )
+
+
+@pytest.mark.rule("raw-primitive-one-home")
+def test_raw_primitive_homes_have_no_stale_entries():
+    """Every listed home still references its primitive, so the tables only shrink."""
+    # Arrange / Act
+    uses = {
+        file: {primitive for _line, primitive in found}
+        for file, found in _raw_primitive_uses_by_file().items()
+    }
+    stale = sorted(
+        f"{primitive}: {home}"
+        for table in (RAW_MODULE_HOMES, RAW_NAME_HOMES)
+        for primitive, homes in table.items()
+        for home in homes
+        if primitive not in uses.get(home, set())
+    )
+
+    # Assert
+    assert stale == [], f"no longer referenced there; drop from the table: {stale}"
+
+
+@pytest.mark.rule("raw-primitive-one-home")
+def test_raw_primitive_guard_fires_on_a_probe():
+    """The guard sees an import, a from-import, an attribute, a call, a definition and input(), and passes a comment, a docstring and a widget's input attribute."""
+    # Arrange
+    probe = (
+        "# subprocess.run in a comment is fine\n"
+        "import subprocess\n"
+        "from termapy.config import open_with_system\n"
+        "def _launch(path):\n"
+        '    """open_with_system in a docstring is fine"""\n'
+        "    os.startfile(path)\n"
+        "    answer = input('y/N ')\n"
+        "    crumbs = breadcrumbs.read_running()\n"
+        "    text = event.input.value\n"
+        "def reveal_in_file_manager(path):\n"
+        "    pass\n"
+    )
+
+    # Act
+    found = _raw_primitive_uses(ast.parse(probe))
+
+    # Assert
+    assert found == [
+        (2, "subprocess"),
+        (3, "open_with_system"),
+        (6, "startfile"),
+        (7, "input"),
+        (8, "read_running"),
+        (10, "reveal_in_file_manager"),
+    ], "each use once, by line; the comment, the docstring and event.input are not uses"
+
+
+# A gated handle method -> the capabilities one of which the calling handler
+# declares in ``needs=`` or reads (``ctx.capabilities.<flag>``) before the call.
+GATED_CALLS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("fs", "open_file"): ("gui_apps",),
+    ("fs", "reveal_file"): ("gui_apps",),
+    ("ui", "confirm"): ("confirm_dialog",),
+    ("ui", "notify"): ("ui_notify",),
+    ("ui", "status_bar"): ("status_bar",),
+    ("ui", "clear_screen"): ("tui_mode",),
+    ("ui", "screenshot"): ("screen_capture",),
+    # gui_apps implies file_editor in every frontend: a file only the system
+    # editor opens (.log, .py) declares the desktop instead.
+    ("internal", "edit_file"): ("file_editor", "gui_apps"),
+}
+
+
+def _gated_calls(tree: ast.AST) -> list[tuple[int, str, tuple[str, ...]]]:
+    """``(line, "ctx.ui.confirm", flags)`` for every gated handle method ``tree`` calls."""
+    found: list[tuple[int, str, tuple[str, ...]]] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Attribute)
+            and (node.func.value.attr, node.func.attr) in GATED_CALLS
+        ):
+            handle, method = node.func.value.attr, node.func.attr
+            found.append((node.lineno, f"ctx.{handle}.{method}", GATED_CALLS[(handle, method)]))
+    return sorted(found)
+
+
+def _checked_flags(tree: ast.AST) -> set[str]:
+    """The flags ``tree`` reads off ``capabilities``, plus ``"*"`` when it catches MissingCapability."""
+    flags: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Attribute)
+            and node.value.attr == "capabilities"
+        ):
+            flags.add(node.attr)
+        elif (
+            isinstance(node, ast.ExceptHandler)
+            and node.type is not None
+            and "MissingCapability" in ast.unparse(node.type)
+        ):
+            flags.add("*")
+    return flags
+
+
+def _handler_function(handler: Any) -> Any:
+    """The function a registered handler runs: a bound method, a partial or a wraps() wrapper, unwrapped."""
+    function = getattr(handler, "__func__", handler)
+    if isinstance(function, functools.partial):
+        function = function.func
+    return inspect.unwrap(function)
+
+
+def _undeclared_gated_calls(handler: Any, needs: Any) -> list[str]:
+    """``"ctx.ui.confirm needs confirm_dialog"`` for each gated call in ``handler``'s own body that ``needs`` does not declare and the body does not check."""
+    try:
+        source = textwrap.dedent(inspect.getsource(_handler_function(handler)))
+    except (OSError, TypeError):
+        return []
+    tree = ast.parse(source)
+    checked = _checked_flags(tree)
+    if "*" in checked:
+        return []
+    return [
+        f"{call} needs {' or '.join(flags)}"
+        for _line, call, flags in _gated_calls(tree)
+        if not any(getattr(needs, flag) or flag in checked for flag in flags)
+    ]
+
+
+@pytest.mark.rule("gated-call-declares-need")
+def test_a_handler_calling_a_gated_method_declares_the_capability(frontend_plugins):
+    """Every registered handler that calls a gated handle method declares the capability in needs= or checks it first."""
+    # Arrange / Act
+    violations: list[str] = []
+    seen: set[tuple[object, Any]] = set()
+    for frontend, plugins in frontend_plugins.items():
+        for name, info in sorted(plugins.items()):
+            key = (_handler_identity(info.handler), info.needs)
+            if key in seen:
+                continue
+            seen.add(key)
+            violations.extend(
+                f"{frontend} /{name}: {problem}"
+                for problem in _undeclared_gated_calls(info.handler, info.needs)
+            )
+
+    # Assert
+    assert violations == [], (
+        "a handler reaches a gated door its command does not declare:\n  "
+        + "\n  ".join(violations)
+        + "\n\nDeclare the capability in Command(needs=...), or for an option-dependent use"
+        "\ncheck ctx.capabilities.<flag> before the call and refuse with the reason."
+    )
+
+
+@pytest.mark.rule("gated-call-declares-need")
+def test_gated_call_guard_fires_on_a_probe():
+    """The guard flags a gated call the command does not declare, and passes one declared, one checked first, one caught and the ungated io twin."""
+    from termapy.plugins import CapabilitySet, MissingCapability
+
+    # Arrange
+    def undeclared(ctx, args):
+        ctx.ui.confirm(args)
+        ctx.io.notify(args)  # the always-works twin is not gated
+
+    def declared(ctx, args):
+        return ctx.ui.confirm(args)
+
+    def checked(ctx, args):
+        if ctx.capabilities.gui_apps:
+            ctx.fs.open_file(args)
+
+    def caught(ctx, args):
+        try:
+            ctx.internal.edit_file(args)
+        except MissingCapability:
+            return None
+
+    # Act
+    actual = {
+        "undeclared": _undeclared_gated_calls(undeclared, CapabilitySet()),
+        "declared": _undeclared_gated_calls(declared, CapabilitySet(confirm_dialog=True)),
+        "checked": _undeclared_gated_calls(checked, CapabilitySet()),
+        "caught": _undeclared_gated_calls(caught, CapabilitySet()),
+    }
+
+    # Assert
+    assert actual == {
+        "undeclared": ["ctx.ui.confirm needs confirm_dialog"],
+        "declared": [],
+        "checked": [],
+        "caught": [],
+    }, "only the undeclared, unchecked call is a finding"
 
 
 # ── Text files are UTF-8, never UTF-8 read back as cp1252 ─────────────────────

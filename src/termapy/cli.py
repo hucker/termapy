@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.capture import CaptureEngine, format_capture_result
-from termapy.cli_flags import confirm_on_stdin
+from termapy.cli_flags import assume_yes, confirm_on_stdin
 from termapy.config import (
     CONFIG_LOAD_ERRORS,
     cfg_dir,
@@ -78,6 +78,7 @@ class CLITerminal(TerminalHost):
         term_width: int | None = None,
         zero_config: bool = False,
         output_level: str | None = None,
+        assume_yes: bool = False,
     ) -> None:
         """Create a CLI terminal frontend.
 
@@ -97,6 +98,8 @@ class CLITerminal(TerminalHost):
                 a port interactively.
             output_level: Initial output level (silent/quiet/normal/verbose)
                 from CLI flags.  None means use the default.
+            assume_yes: ``-y`` / ``--yes``: answer yes to every question
+                the session asks (``_confirm``).
         """
         self.cfg = cfg
         self.config_path = config_path
@@ -111,7 +114,12 @@ class CLITerminal(TerminalHost):
         self._exec_exit_code = 0
         # Set by /exit and /tui (_request_exit); the prompt loop ends on it.
         self._exit_requested = False
+        # -y / --yes: every question this session asks is answered yes.
+        self._assume_yes = assume_yes
         self.switch_to: str | None = None
+        # The interactive prompt, once _run_interactive builds it; None in
+        # the one-shot modes and on the plain input() path.
+        self._session: PromptSession | None = None
 
         # In exec mode the output is meant for piping/scripting, so
         # suppress the input echo ("demo> AT+VER") that's helpful in
@@ -373,6 +381,35 @@ class CLITerminal(TerminalHost):
             self.switch_to = switch_to
         self.repl._script_stop.set()
 
+    def _leave_on_request(self, by: int) -> None:
+        """Another termapy asked this session to leave: as ``/exit`` does, from the stop watch's thread.
+
+        A script stops before its next line and ``-e`` stops waiting for the
+        device.  A prompt waiting for a line ends as Ctrl+D ends it, through
+        the loop's own teardown, and a prompt just starting ends itself
+        (``_end_prompt_if_asked`` as its ``pre_run``).  The plain ``input()``
+        prompt (no tty, or ``cli_completion`` off) cannot be woken: the
+        session leaves after its next line, or is ended outright.
+        """
+        self._log_line("#", f"Stop requested by termapy PID {by}")
+        self._request_exit(None)
+        session = self._session
+        loop = session.app.loop if session is not None else None
+        if loop is not None:
+            try:
+                loop.call_soon_threadsafe(self._end_prompt_if_asked)
+            except RuntimeError:
+                pass  # that prompt's loop just closed; the next prompt ends itself
+
+    def _end_prompt_if_asked(self) -> None:
+        """End the waiting prompt as Ctrl+D does once this session has been asked to leave."""
+        session = self._session
+        if not self._exit_requested or session is None:
+            return
+        app = session.app
+        if app.is_running and app.future is not None and not app.future.done():
+            app.exit(exception=EOFError)
+
     def _hook_tui(self, ctx: PluginContext, args: str) -> CmdResult:
         """``/tui``: leave the CLI for the TUI, on the current config."""
         self._request_exit("tui")
@@ -439,7 +476,9 @@ class CLITerminal(TerminalHost):
     # -- Confirmation ---------------------------------------------------------
 
     def _confirm(self, message: str) -> bool:
-        """Prompt for y/n confirmation on stdin (``cli_flags.confirm_on_stdin``)."""
+        """Prompt for y/n confirmation on stdin (``cli_flags.confirm_on_stdin``); yes under ``--yes``."""
+        if self._assume_yes:
+            return assume_yes(message)
         return confirm_on_stdin(message)
 
     # -- Prompt session (history + tab completion via prompt_toolkit) ----------
@@ -542,6 +581,10 @@ class CLITerminal(TerminalHost):
             if alt.exists():
                 script_path = alt
         path, _ = self.repl.start_script(str(script_path))
+        if self._exit_requested:
+            # start_script clears the stop for a new script, so a request to
+            # leave that came in while the session started would be lost.
+            self.repl._script_stop.set()
         if path:
             try:
                 self.repl.run_script(
@@ -583,10 +626,14 @@ class CLITerminal(TerminalHost):
         a "not before now" floor first.  Same pattern ``/cap.wire`` uses.
 
         No "Disconnected." chrome banner -- exec mode is the piping
-        mode, and chrome bytes corrupt captured stdout.
+        mode, and chrome bytes corrupt captured stdout.  A request to
+        leave that came in while the session started runs nothing.
         """
         import time as _time
 
+        if self._exit_requested:
+            self.engine.disconnect()
+            return
         last_arrival = [_time.monotonic()]
 
         def _bump_last_rx(_data: bytes) -> None:
@@ -596,7 +643,7 @@ class CLITerminal(TerminalHost):
             with self.ctx.serial.rx_observer(_bump_last_rx):
                 result = self.ctx.dispatch(command)
                 deadline = _time.monotonic() + self._EXEC_MAX_WAIT_S
-                while _time.monotonic() < deadline:
+                while _time.monotonic() < deadline and not self._exit_requested:
                     if (_time.monotonic() - last_arrival[0]) >= self._EXEC_IDLE_GAP_S:
                         break
                     _time.sleep(0.01)
@@ -640,13 +687,15 @@ class CLITerminal(TerminalHost):
         self._session = self._build_session()
 
         def _loop() -> None:
-            while True:
+            while not self._exit_requested:
                 try:
                     from termapy.variables import expand_vars
 
                     prompt = expand_vars(self.ctx, cfg_value(self.cfg, "cli_prompt"))
                     s = self._session
-                    line = s.prompt(prompt) if s else input(prompt)
+                    line = (
+                        s.prompt(prompt, pre_run=self._end_prompt_if_asked) if s else input(prompt)
+                    )
                 except EOFError:
                     break
 
@@ -743,6 +792,7 @@ class CLITerminal(TerminalHost):
             self._run_exec_mode(self.exec_cmd)
         else:
             self._run_interactive()
+        self._stop_watching()
         self.repl.fire_lifecycle("on_app_stop")
         return self.switch_to
 
@@ -877,6 +927,7 @@ def _run_cli_mode(args: argparse.Namespace) -> str | None:
                 term_width=getattr(args, "term_width", None),
                 zero_config=True,
                 output_level=getattr(args, "output_level", None),
+                assume_yes=getattr(args, "yes", False),
             )
             result = cli.run()
             if exec_cmd:
@@ -900,6 +951,7 @@ def _run_cli_mode(args: argparse.Namespace) -> str | None:
         exec_cmd=exec_cmd,
         term_width=getattr(args, "term_width", None),
         output_level=getattr(args, "output_level", None),
+        assume_yes=getattr(args, "yes", False),
     )
     result = cli.run()
     if exec_cmd:

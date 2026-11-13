@@ -239,6 +239,8 @@ class TerminalHost:
         diag_log.start(self.front_end)
         self._register_vars()
         self._leave_breadcrumb()
+        if self._watch_stop_at_start:
+            self._watch_for_stop()
         self._on_app_prestart()
         self.repl.fire_lifecycle("on_app_prestart")
         self.repl.fire_lifecycle("on_app_start")
@@ -273,6 +275,35 @@ class TerminalHost:
             log=str(self.session_log_path() or ""),
             detailed=detailed,
         )
+
+    # Whether the start answers another termapy's request to leave.  MCP
+    # starts answering later, once its signal handler can turn one into its
+    # normal shutdown (``run_mcp_stdio``).
+    _watch_stop_at_start: ClassVar[bool] = True
+
+    def _watch_for_stop(self) -> None:
+        """Answer a request to leave (``/app.kill``, ``--kill``) with :meth:`_leave_on_request`.
+
+        The request is ``breadcrumbs.request_stop``'s; this process's watch
+        finds it within ``STOP_POLL_S`` and calls the method on its own thread
+        (registry ``kill-asks-first``).
+        """
+        from termapy import breadcrumbs
+
+        breadcrumbs.on_stop_request(self._leave_on_request)
+
+    def _stop_watching(self) -> None:
+        """The session is ending: hold a request to leave for the next frontend of this process."""
+        from termapy import breadcrumbs
+
+        breadcrumbs.release_stop_request(self._leave_on_request)
+
+    def _leave_on_request(self, by: int) -> None:
+        """Leave because termapy ``by`` asked, the way ``/exit`` leaves, without asking anything.
+
+        Called on the stop watch's thread.  Each frontend leaves its own
+        way; the base has no session to leave.
+        """
 
     def _register_vars(self) -> None:
         """Register the session's variables: ``$(FRONT_END)``, ``$(CFG)``, ``$(CFG.*)``, ``$(PORT.*)``.

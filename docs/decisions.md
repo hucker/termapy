@@ -1541,3 +1541,40 @@ the capability closes that too.
 **Where:** `env_flags.MCP_HOST_INFO`, `CapabilitySet.host_info` (`needs=` on `/port.usb`,
 `/log.fingerprint` and `/app.running`), `PortPolicy.hides_host` (`serial_engine.shown_holder`); registry
 `mcp-host-info-opt-in`; `help/mcp-server.md`, README's Security table.
+
+## 2026-11-12 — Stopping a session asks it to leave; termapy never ends a process itself
+
+`/app.kill` and `termapy --kill` write a request, `running/<pid>.stop` holding the session's start
+token and the asking PID, for each session they stop, and wait up to `timeout=` (default
+`STOP_GRACE_S`, 3 s). Each session's stop watch, one thread per process, looks for its own request
+every 100 ms (`STOP_POLL_S`, one file check) and leaves
+the way `/exit` makes it leave: the TUI exits through `on_unmount` (history, port, `Session End`)
+and restores its terminal, the CLI ends its prompt as Ctrl+D does or stops its script, vt100 leaves
+as a lost port does, the web server as Ctrl+C. A session still running when the wait is over, hung,
+partway through a firmware write or started by an older termapy, keeps running, and the reply names
+the command that ends it (`breadcrumbs.kill_command`: `taskkill /PID <pid> /F`, `kill <pid>`). The
+asker leaves last, through `/exit`, when it picked itself, and stays open while any session it picked
+is still running. Behavior removed: until this entry `--kill` ended every picked session outright
+(TerminateProcess on Windows, SIGTERM then SIGKILL elsewhere); termapy now signals no process.
+
+**Why:** ending a TUI outright left its window in Textual's state (Chuck's went black and white
+after `/app.kill all`) and lost its history and log ending. No OS offers a graceful "please exit"
+to a process in another console window on Windows: Ctrl+Break through `AttachConsole` reaches
+every process in that console, the shell included, and `WM_CLOSE` closes the whole tab; on POSIX
+SIGTERM would serve, but a TUI or CLI does not handle it. A request the session reads works the
+same on every OS. One request per session, not one shared file (Chuck's first sketch): a shared
+file cannot carry a target (`COM4`, `m3_bin`), a session started during the stop would see it and
+leave, and one left behind by a crashed asker would stop every termapy after it. The token is the
+session's, so a PID the OS reuses never acts on a request (`kill-verifies-identity`), and
+`prune_stale` deletes a request no live session carries. No automatic hard kill as the fallback
+(Chuck): a session that did not leave may be mid-flash or mid-transfer, and ending it is the
+person's call, made knowing that, with the command in hand.
+
+MCP ends with `os._exit` after its teardown: the SDK's stdio loop waits on a thread blocked reading
+stdin, which neither `_thread.interrupt_main` nor closing the handle wakes on Windows (tried), so a
+normal unwind would hang until the client wrote. The teardown it runs first is the one its
+shutdown always runs (`MCPHost.shut_down`), queued on the command worker behind any command in
+flight. Handling SIGTERM in every frontend, for `kill <pid>` and `docker stop`, is a separate item.
+**Where:** `breadcrumbs.request_stop` / `StopWatch` / `on_stop_request` / `stop_sessions`,
+`TerminalHost._watch_for_stop` and each frontend's `_leave_on_request`; registry `kill-asks-first`;
+`help/cli.md`.

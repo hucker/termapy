@@ -727,23 +727,50 @@ def run_alive() -> NoReturn:
 def run_kill(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> None:
     """``--kill``: stop the termapys a target picks, or, bare, list them as ``--alive`` does.
 
-    Bare ``--kill`` lists them and changes nothing.  ``--kill all``, a port
-    (``COM3``) or a config name lists the ones it picks, asks, and stops
-    them (``breadcrumbs.stop``).  A running termapy is found by the
+    Bare ``--kill`` lists them and changes nothing.  ``--kill all``, a PID, a
+    port (``COM3``) or a config name lists the ones it picks, asks, and stops
+    them (``breadcrumbs.stop_sessions``: each is asked to leave, and one
+    still running after the grace period is named with the command that
+    ends it, and left running).  A running
+    termapy is found by the
     breadcrumb it leaves, so one started before breadcrumbs existed is not
     seen.  Exits 0 when nothing picked is left running, including when
     nothing was running; 1 when the target picks nothing, the answer is no,
     or a process would not stop.
 
+    ``timeout=DUR`` beside the target sets how long to wait for the
+    sessions to leave, as on ``/app.kill`` (default ``STOP_GRACE_S``).
+
     Args:
-        args: Parsed CLI namespace; ``kill`` is the target, ``""`` when bare.
+        args: Parsed CLI namespace; ``kill`` is the words after the flag,
+            ``[]`` when bare.
         confirm: Asks the yes/no question (``confirm_on_stdin`` at a terminal).
     """
     from termapy import breadcrumbs
+    from termapy.scripting import parse_duration
 
-    target = args.kill
+    words = list(args.kill)
+    timeout = breadcrumbs.STOP_GRACE_S
+    for word in [word for word in words if word.casefold().startswith("timeout=")]:
+        words.remove(word)
+        try:
+            timeout = parse_duration(word.partition("=")[2])
+        except ValueError:
+            print(f"termapy: Invalid timeout: {word.partition('=')[2]}", file=sys.stderr)
+            sys.exit(1)
+    if len(words) > 1:
+        print(f"termapy: --kill takes one target, got {' '.join(words)}", file=sys.stderr)
+        sys.exit(1)
+    target = words[0] if words else ""
     if not target:
         run_alive()
+    if target.casefold() == "me":
+        print(
+            "termapy: --kill me means the session it is typed in, and a command line is "
+            "not a session: type app.kill me in the session you mean",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     running = breadcrumbs.read_running()
     if not running:
         print("No termapy is running.")
@@ -761,14 +788,19 @@ def run_kill(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> Non
     if not confirm(f"Stop {len(picked)} termapy {noun}?"):
         print("Nothing stopped.")
         sys.exit(1)
-    failed = 0
-    for crumb in picked:
-        if breadcrumbs.stop(crumb):
-            print(f"Stopped {crumb.pid} ({crumb.summary})")
-        else:
-            failed += 1
-            print(f"termapy: could not stop {crumb.pid} ({crumb.summary})", file=sys.stderr)
-    sys.exit(1 if failed else 0)
+    print(f"Asking {len(picked)} termapy {noun} to leave...")
+    outcome = breadcrumbs.stop_sessions(picked, grace_s=timeout)
+    for line in outcome.stopped_lines():
+        print(line)
+    for line in outcome.refused_lines():
+        print(f"termapy: {line}", file=sys.stderr)
+    sys.exit(1 if outcome.refused else 0)
+
+
+def assume_yes(message: str) -> bool:
+    """The answer under ``-y`` / ``--yes``: yes, shown as if typed, so a log says what was assumed."""
+    print(f"  {message} [y/N] y (--yes)")
+    return True
 
 
 def confirm_on_stdin(message: str) -> bool:

@@ -8,6 +8,12 @@ switches config, and removes it when it exits.  A process that is killed
 or crashes leaves its file behind, naming a PID that has gone or now
 belongs to another program; the start token tells the two apart, so a
 stale breadcrumb is never acted on (registry ``kill-verifies-identity``).
+
+Stopping a session asks it and never ends it (registry ``kill-asks-first``):
+a request file, ``running/<pid>.stop``, which the session's ``StopWatch``
+finds within 100 ms and answers by leaving the way ``/exit`` makes it
+leave.  A session still running after the grace period is reported with
+the command that ends it (``kill_command``); termapy signals no process.
 """
 
 from __future__ import annotations
@@ -17,8 +23,9 @@ import json
 import os
 import re
 import sys
+import threading
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -32,8 +39,6 @@ if TYPE_CHECKING:
 # The folder of breadcrumbs inside the app state folder.
 RUNNING_FOLDER = "running"
 
-# How long ``stop`` waits for a process to go before giving up on it.
-_STOP_WAIT_S = 3.0
 
 # A Windows process access right, exit code and snapshot flag, from the Windows SDK.
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
@@ -548,35 +553,48 @@ def read_running() -> list[Crumb]:
 def prune_stale() -> int:
     """Delete the breadcrumbs whose process has gone, and any that cannot be read.
 
+    A request to leave (``request_stop``) goes too when no live breadcrumb
+    carries the token it names, so an asker that crashed leaves nothing
+    armed for a later process given the same PID.
+
     Returns:
-        How many were deleted.
+        How many breadcrumbs were deleted.
     """
     pruned = 0
+    live: dict[int, str] = {}
     for path in _crumb_files():
         crumb = _load(path)
         if crumb is not None and _is_live(crumb):
+            live[crumb.pid] = crumb.token
             continue
         try:
             path.unlink(missing_ok=True)
             pruned += 1
         except OSError:
             pass
+    folder = running_dir()
+    for request in sorted(folder.glob("*.stop")) if folder.is_dir() else []:
+        pid = int(request.stem) if request.stem.isdigit() else -1
+        if _read_request(pid, live.get(pid, "")) is None:
+            _remove(request)
     return pruned
 
 
 def select(crumbs: Iterable[Crumb], target: str) -> list[Crumb]:
-    """The breadcrumbs ``target`` picks: ``all``, ``others``, a port, or a config name.
+    """The breadcrumbs ``target`` picks: ``all``, ``others``, a PID, a port, or a config name.
 
     ``others`` picks the same as ``all`` here: a session that asks drops
     itself from the result (``/app.kill``), and the ``--kill`` process is
-    not a session.  A port is compared the way termapy compares port names
-    everywhere (``port_control.same_port``), against the port open now and
-    the config's setting.  A config name is exact, case ignored; a wildcard
+    not a session.  A target of digits picks the session with that PID (and
+    a config of that name, should one be called that).  A port is compared
+    the way termapy compares port names everywhere
+    (``port_control.same_port``), against the port open now and the
+    config's setting.  A config name is exact, case ignored; a wildcard
     makes either a glob (``matching``), so ``m3*`` picks several.
 
     Args:
         crumbs: The running termapys.
-        target: ``all``, ``others``, a port such as ``COM3``, or a config name.
+        target: ``all``, ``others``, a PID, a port such as ``COM3``, or a config name.
 
     Returns:
         The picked breadcrumbs, in the order given.
@@ -596,8 +614,10 @@ def select(crumbs: Iterable[Crumb], target: str) -> list[Crumb]:
                 matches(port, target) for port in ports
             )
         else:
-            hit = name.casefold() == target.casefold() or any(
-                same_port(port, target) for port in ports
+            hit = (
+                (target.isdigit() and crumb.pid == int(target))
+                or name.casefold() == target.casefold()
+                or any(same_port(port, target) for port in ports)
             )
         if hit:
             picked.append(crumb)
@@ -605,7 +625,7 @@ def select(crumbs: Iterable[Crumb], target: str) -> list[Crumb]:
 
 
 def suggest(crumbs: Iterable[Crumb], target: str) -> str:
-    """The did-you-mean for a target that picked nothing, from the configs and ports running.
+    """The did-you-mean for a target that picked nothing, from the configs, ports and PIDs running.
 
     Returns:
         `` -- did you mean a, b?``, or ``""`` when nothing is close.
@@ -615,57 +635,240 @@ def suggest(crumbs: Iterable[Crumb], target: str) -> str:
     crumbs = list(crumbs)
     names = {crumb.config_name for crumb in crumbs if crumb.config_name}
     names |= {crumb.open_port for crumb in crumbs if crumb.open_port}
+    names |= {str(crumb.pid) for crumb in crumbs}
     return did_you_mean(closest(target, sorted(names)))
 
 
-def stop(crumb: Crumb) -> bool:
-    """End the process a breadcrumb names, if it is still that process.
+# ── Asking a session to leave ────────────────────────────────────────────────
 
-    The token is checked again first: by now the PID may belong to another
-    program (registry ``kill-verifies-identity``), and then nothing is
-    signaled.  Windows ends the process outright; elsewhere it is asked to
-    terminate and killed if it has not gone within a few seconds.  Once the
-    process is gone its breadcrumb is deleted.
+# How often a session looks for a request to leave, and how long a stop
+# waits for the sessions it asked before reporting the ones still running.
+STOP_POLL_S = 0.1
+STOP_GRACE_S = 3.0
 
-    Args:
-        crumb: A breadcrumb from ``read_running``.
 
-    Returns:
-        True when the process is gone, whether it was stopped here or had
-        already exited.
-    """
-    import signal
+def _stop_path(pid: int) -> Path:
+    """Where a request for process ``pid`` to leave is written, ``running/<pid>.stop``."""
+    return running_dir() / f"{pid}.stop"
 
-    if _is_live(crumb):
-        try:
-            os.kill(crumb.pid, signal.SIGTERM)
-        except OSError:
-            return False
-        # Windows has no SIGKILL: its SIGTERM already ends the process outright.
-        force = getattr(signal, "SIGKILL", None)
-        if not _gone_within(crumb, _STOP_WAIT_S) and force is not None:
-            try:
-                os.kill(crumb.pid, force)
-            except OSError:
-                return False
-            _gone_within(crumb, _STOP_WAIT_S)
-        if _is_live(crumb):
-            return False
+
+def _remove(path: Path) -> None:
+    """Delete ``path``; a file already gone, or one that cannot be deleted, is left be."""
     try:
-        (running_dir() / f"{crumb.pid}.json").unlink(missing_ok=True)
+        path.unlink(missing_ok=True)
     except OSError:
         pass
+
+
+def request_stop(crumb: Crumb, *, by: int | None = None) -> bool:
+    """Ask the session ``crumb`` names to leave, the way ``/exit`` makes it leave.
+
+    Writes ``running/<pid>.stop`` holding the session's start token, so a
+    PID the OS has since given to another termapy never acts on it
+    (registry ``kill-verifies-identity``), and the PID that asked.  Written
+    whole and renamed into place, under a name of its own: the session
+    rewrites its breadcrumb through ``<pid>.tmp``.
+
+    Args:
+        crumb: The session, from ``read_running``.
+        by: The PID asking; None is this process.
+
+    Returns:
+        False when the request could not be written.
+    """
+    asker = os.getpid() if by is None else by
+    path = _stop_path(crumb.pid)
+    partial = path.with_name(f"{crumb.pid}.stop.{asker}.tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        partial.write_text(json.dumps({"token": crumb.token, "by": asker}), encoding="utf-8")
+        os.replace(partial, path)
+    except OSError:
+        _remove(partial)
+        return False
     return True
 
 
-def _gone_within(crumb: Crumb, seconds: float) -> bool:
-    """Wait up to ``seconds`` for the breadcrumb's process to go; True once it has."""
-    deadline = time.monotonic() + seconds
-    while time.monotonic() < deadline:
-        if not _is_live(crumb):
-            return True
-        time.sleep(0.05)
-    return not _is_live(crumb)
+def _read_request(pid: int, token: str) -> int | None:
+    """The PID that asked process ``pid`` to leave, or None when no request carries ``token``."""
+    path = _stop_path(pid)
+    if not token or not path.exists():
+        return None
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+        if str(record["token"]) != token:
+            return None
+        return int(record.get("by") or 0)
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+class StopWatch:
+    """A process's watch for a request to leave: a thread that hands it to the frontend.
+
+    Every ``poll_s`` it looks for ``running/<pid>.stop`` carrying the
+    process's start token.  On finding one, it deletes it and calls the
+    handler the running frontend registered (``on_stop_request``), on the
+    watch's own thread.  With no handler registered, between two frontends
+    of one process, the request stays on disk for the next one.  The
+    folder is read at each look, as ``running_dir`` is everywhere.
+    """
+
+    def __init__(self, pid: int, token: str, *, poll_s: float = STOP_POLL_S) -> None:
+        """Watch for requests naming process ``pid`` with start ``token``; ``start`` begins."""
+        self.pid = pid
+        self.token = token
+        self.poll_s = poll_s
+        self._handler: Callable[[int], None] | None = None
+        self._lock = threading.Lock()
+        self._cancelled = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="termapy-stop-watch", daemon=True)
+
+    def start(self) -> None:
+        """Start the watch's thread."""
+        self._thread.start()
+
+    def set_handler(self, handler: Callable[[int], None] | None) -> None:
+        """Make ``handler`` the one a request calls, with the asking PID; None holds requests."""
+        with self._lock:
+            self._handler = handler
+
+    def clear_handler(self, handler: Callable[[int], None]) -> None:
+        """Unregister ``handler`` if it is still the one registered; a newer one stays."""
+        with self._lock:
+            if self._handler == handler:
+                self._handler = None
+
+    def cancel(self, timeout: float | None = None) -> None:
+        """Stop watching and wait up to ``timeout`` for the thread to end."""
+        self._cancelled.set()
+        if self._thread.is_alive():
+            self._thread.join(timeout)
+
+    def check(self) -> bool:
+        """Look once: answer a request carrying this process's token; True when one was answered."""
+        with self._lock:
+            handler = self._handler
+        if handler is None:
+            return False
+        by = _read_request(self.pid, self.token)
+        if by is None:
+            return False
+        _remove(_stop_path(self.pid))
+        from termapy import diag_log
+
+        diag_log.info("stop requested by termapy PID %s", by)
+        try:
+            handler(by)
+        except Exception as e:
+            # A watch thread that died would leave every later request unanswered.
+            diag_log.exception("stop request handler raised %s: %s", type(e).__name__, e)
+        return True
+
+    def _run(self) -> None:
+        """Look every ``poll_s`` until cancelled."""
+        while not self._cancelled.wait(self.poll_s):
+            self.check()
+
+
+_WATCH: StopWatch | None = None
+
+
+def on_stop_request(handler: Callable[[int], None]) -> None:
+    """Make ``handler`` how this process leaves when another termapy asks it to.
+
+    The frontend that runs registers its own way out (the TUI's exit, the
+    CLI's), replacing the one before it; it is called on the watch's
+    thread with the asking PID.  The watch starts at the first call, one
+    per process, for this process's breadcrumb (``leave``); before the
+    first ``leave`` there is nothing another termapy could name, and
+    nothing is watched.
+    """
+    global _WATCH
+    if _OWN is None:
+        return
+    if _WATCH is None:
+        _WATCH = StopWatch(_OWN.pid, _OWN.token)
+        _WATCH.start()
+    _WATCH.set_handler(handler)
+
+
+def release_stop_request(handler: Callable[[int], None]) -> None:
+    """A frontend is done: hold requests for the next one, unless a newer handler is registered."""
+    if _WATCH is not None:
+        _WATCH.clear_handler(handler)
+
+
+@dataclass(frozen=True)
+class StopOutcome:
+    """How a ``stop_sessions`` went, session by session.
+
+    Attributes:
+        left: Left when asked, or were already gone.
+        refused: Still running after the grace period, left running.
+    """
+
+    left: tuple[Crumb, ...]
+    refused: tuple[Crumb, ...]
+
+    def stopped_lines(self) -> list[str]:
+        """One line per session that left: ``Stopped 22056 (tui, demo, COM7)``."""
+        return [f"Stopped {crumb.pid} ({crumb.summary})" for crumb in self.left]
+
+    def refused_lines(self) -> list[str]:
+        """One line per session still running, with the command that ends it."""
+        return [
+            f"Could not shut down process {crumb.pid} ({crumb.summary}). "
+            f'Please kill it using "{kill_command(crumb.pid)}".'
+            for crumb in self.refused
+        ]
+
+
+def kill_command(pid: int) -> str:
+    """The command a person types to end process ``pid``: ``taskkill /PID 22056 /F`` or ``kill 22056``.
+
+    termapy never runs it.  A session that did not leave when asked may be
+    hung, or partway through a firmware write or a transfer, so ending it
+    is the person's call, made knowing that.
+    """
+    if sys.platform == "win32":
+        return f"taskkill /PID {pid} /F"
+    return f"kill {pid}"
+
+
+def stop_sessions(
+    crumbs: Iterable[Crumb], *, grace_s: float = STOP_GRACE_S, poll_s: float = 0.1
+) -> StopOutcome:
+    """Ask every session to leave and wait; report, never end, the ones still running.
+
+    Every request goes out first, so the sessions leave together and the
+    wait is ``grace_s`` at most, however many there are.  A session still
+    running after it, hung or older than stop requests, keeps running and
+    is reported with the command that ends it (registry
+    ``kill-asks-first``).  Its request is withdrawn; what is gone loses its
+    request and breadcrumb files.
+
+    Args:
+        crumbs: The sessions, from ``read_running`` / ``select``.
+        grace_s: How long to wait for them to leave.
+        poll_s: How often to look while waiting.
+    """
+    crumbs = list(crumbs)
+    asked = [crumb for crumb in crumbs if _is_live(crumb) and request_stop(crumb)]
+    deadline = time.monotonic() + grace_s
+    waiting = list(asked)
+    while waiting and time.monotonic() < deadline:
+        time.sleep(poll_s)
+        waiting = [crumb for crumb in waiting if _is_live(crumb)]
+    refused = [
+        crumb for crumb in crumbs if crumb in waiting or (crumb not in asked and _is_live(crumb))
+    ]
+    for crumb in crumbs:
+        _remove(_stop_path(crumb.pid))
+        if crumb not in refused:
+            _remove(running_dir() / f"{crumb.pid}.json")
+    left = tuple(crumb for crumb in crumbs if crumb not in refused)
+    return StopOutcome(left=left, refused=tuple(refused))
 
 
 # ── The sessions as a table: /app.alive and termapy --alive ──────────────────

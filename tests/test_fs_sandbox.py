@@ -1,9 +1,10 @@
 """MCP filesystem/network sandbox: the fs chokepoint and its command gates.
 
 The MCP host confines a remote/automated peer to the config sandbox:
-host-wide file paths and network 'ports' are refused unless the operator
-opts in per-class (TERMAPY_MCP_FS_UNCONFINED / TERMAPY_MCP_NET_EGRESS).
-Interactive hosts (CLI/TUI) grant both, so they are never sandboxed.
+host-wide file paths are refused unless the operator opts in
+(TERMAPY_MCP_FS_UNCONFINED); network 'ports' need TERMAPY_MCP_NET_EGRESS,
+checked where a port opens (test_port_allow.py).  Interactive hosts
+(CLI/TUI) grant both capabilities, so they are never sandboxed.
 
 Two layers are tested here:
   1. FilesystemHandle.resolve / guard_external_path -- the chokepoint,
@@ -159,6 +160,20 @@ class TestMcpHostSandboxed:
         assert not result.success, "path-valued cfg key refused outside sandbox"
         assert "sandbox" in result.error, "refusal cites the sandbox"
 
+    @pytest.mark.parametrize(
+        "line",
+        ["cfg log_file", "cfg profile_path", "cfg file_xfer_root", "cfg.auto file_xfer_root"],
+    )
+    def test_every_path_key_is_held_to_the_sandbox_on_both_setters(self, tmp_path, line):
+        """A key of kind path is refused outside the sandbox through /cfg as through /cfg.auto: /cfg used to skip the check."""
+        # Arrange
+        host = _mcp_host(tmp_path)
+        # Act
+        result = host.repl.dispatch(rf"{line} {tmp_path}\steal.txt")
+        # Assert
+        assert not result.success, "path-valued cfg key refused outside sandbox"
+        assert "sandbox" in result.error, "refusal cites the sandbox"
+
     def test_cfg_auto_nonpath_key_still_works(self, tmp_path):
         """Only path-valued cfg keys are gated; an ordinary cfg.auto edit still succeeds."""
         # Arrange -- a normal cfg edit must NOT be gated.
@@ -183,6 +198,7 @@ class TestMcpHostSandboxed:
             "name-based cfg.load (MCP hot-swap) is not sandbox-gated"
         )
 
+    @pytest.mark.rule("writes-in-cfg-folder")
     def test_crc_file_write_lands_in_the_config_folder(self, tmp_path):
         """CRC codegen with file= writes into the config's firmware/ folder, inside the sandbox."""
         # Arrange
@@ -213,15 +229,10 @@ class TestMcpHostSandboxed:
         # Assert
         assert result.success, "inline crc codegen is unaffected by the sandbox"
 
-    def test_port_connect_socket_url_refused(self, tmp_path):
-        """A socket:// URL as the port is network egress and is refused without the opt-in."""
-        # Arrange
-        host = _mcp_host(tmp_path)
-        # Act
-        result = host.repl.dispatch("port.connect socket://127.0.0.1:9")
-        # Assert
-        assert not result.success, "network 'port' refused under sandbox"
-        assert "sandbox" in result.error, "refusal cites the sandbox"
+    # A network port under MCP is refused where every route opens one,
+    # config.open_serial, not by /port.connect (decision 2026-11-11): see
+    # test_port_allow.py, TestNetworkPorts and TestUnderMcp, which run the
+    # process as an MCP server does.
 
     def test_cap_poll_absolute_file_refused(self, tmp_path):
         """An absolute file= on cap.poll is refused as escaping the config sandbox."""

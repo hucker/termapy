@@ -20,8 +20,8 @@ What it does:
     7. Update tagged config examples in help docs
     8. Refresh USB vendor table from upstream usb.ids
     9. Insert CHANGELOG stub
-    10. Run pytest
-    11. Run tox (multi-version)
+    10. Run pytest (no coverage): the parallel pass, then the timing tests alone
+    11. Run tox on every other Python, stopping at the first that fails
     12. Build HTML help with zensical
     13. Commit HTML rebuild
     14. Commit release
@@ -469,13 +469,8 @@ def refresh_usb_vendor_table() -> None:
       - **Compilable Python.**  The generated module must parse and
         import cleanly.
     """
-    # Was ``src/termapy/_usb_vendor_full.py`` before the v0.65 ``usb/``
-    # subpackage refactor; the generator (scripts/refresh_usb_ids.py)
-    # writes to the new location below.
+    # Written by scripts/refresh_usb_ids.py.
     full_path = REPO_ROOT / "src" / "termapy" / "usb" / "_vendors_full.py"
-    # Capture the previous count from the generated module's header
-    # (``Entries:   3427``).  Falls back to None if the file doesn't
-    # exist yet or the header line is absent.
     previous_count = _read_previous_vendor_count(full_path)
 
     run([sys.executable, "scripts/refresh_usb_ids.py"])
@@ -607,14 +602,44 @@ def insert_changelog_stub(version: str) -> None:
 
 
 def run_pytest() -> None:
-    info("Running pytest...")
-    run(["uv", "run", "pytest", "-q"])
+    """The full suite on uv's Python, without coverage: the parallel pass, then the timing tests alone.
+
+    Nothing in a release reads a local coverage figure (CI measures it for
+    Codecov), and tracing every line slows each run.  A ``timing`` test's
+    result depends on wall-clock time, so it runs after the parallel pass
+    with nothing beside it (registry ``timing-tests-run-alone``).
+    """
+    info("Running pytest (no coverage): the parallel pass...")
+    run(["uv", "run", "pytest", "-q", "--no-cov", "-m", "not timing"])
+    info("Running pytest: the timing tests, alone...")
+    run(["uv", "run", "pytest", "-q", "--no-cov", "-m", "timing", "-n", "0"])
     ok("pytest passed")
 
 
+def uv_python_env() -> str:
+    """The tox env name of the Python ``uv run`` uses, e.g. ``py314``."""
+    return run_out(
+        [
+            "uv",
+            "run",
+            "python",
+            "-c",
+            "import sys; print(f'py{sys.version_info[0]}{sys.version_info[1]}')",
+        ]
+    )
+
+
 def run_tox() -> None:
-    info("Running tox (multi-version)...")
-    run(["tox"])
+    """Every other Python in tox's env list, stopping at the first that fails.
+
+    run_pytest has just run the suite on uv's Python, so tox skips that
+    env.  ``--fail-fast`` stops after the first failing env, which still
+    reports every failure it found, rather than running the rest of a
+    release that has already failed.
+    """
+    current = uv_python_env()
+    info(f"Running tox (multi-version, {current} skipped: pytest just ran it)...")
+    run(["tox", "run", "--fail-fast", "--skip-env", f"^{current}$"])
     ok("tox passed")
 
 

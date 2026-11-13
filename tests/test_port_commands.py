@@ -7,7 +7,7 @@ unexecuted, and eight of them (the signal reads, ``/port.flow_control``,
 ``/port.help``, ``/port.mode``, ``/port.usb``) were named by no test at
 all.  These tests drive each command the way a user or a script does --
 ``repl.dispatch_full`` on a ``CLITerminal`` connected to the DEMO port
-(the ``tests/test_capture_claim.py`` shape) -- and pin the scriptable
+(``conftest.py``'s ``cli``) -- and pin the scriptable
 ``value``, the printed line and the side effect on the open port and the
 session cfg.  The chip commands run against the ``TERMAPY_DEMO_FLEET``
 roster, the environment layer that exists precisely because a dispatched
@@ -22,26 +22,9 @@ import sys
 import pytest
 
 from termapy.cli import CLITerminal
-from termapy.defaults import DEFAULT_CFG
 from termapy.demo import FakeSerial
+from termapy.plugins import CmdResult
 from termapy.plugins.capabilities import STATE_MESSAGES
-
-
-@pytest.fixture
-def cli(tmp_path):
-    """A connected CLI on the DEMO port, its cfg folder under tmp_path."""
-    default_serial = DEFAULT_CFG["serial"]
-    assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
-    cfg = {**DEFAULT_CFG, "serial": {**default_serial, "port": "DEMO", "baud_rate": 115200}}
-    config_path = tmp_path / "rig" / "rig.cfg"
-    config_path.parent.mkdir()
-    config_path.write_text(json.dumps(cfg))
-    terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=120)
-    # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
-    terminal.repl.global_root = tmp_path
-    assert terminal._connect() is True, "the DEMO port opens"
-    yield terminal
-    terminal._disconnect()
 
 
 def _demo_port(cli: CLITerminal) -> FakeSerial:
@@ -62,8 +45,9 @@ class TestHelp:
         assert result.value == "port", "the resolved name, so a script can confirm the match"
         assert "port.connect" in capsys.readouterr().out, "the page lists the subcommands"
 
+    @pytest.mark.rule("bare-declared")
     def test_bare_port_lists_without_a_picker(self, cli):
-        """bare-declared: a bare /port runs /port.list where no picker exists (the CLI); the TUI opens its picker."""
+        """A bare /port runs /port.list where no picker exists (the CLI); the TUI opens its picker."""
         bare = cli.repl.dispatch_full("/port")
         listed = cli.repl.dispatch_full("/port.list")
         assert bare.success, bare.error
@@ -79,7 +63,7 @@ class TestSignals:
         port = _demo_port(cli)
         for signal in ("cts", "dsr", "ri", "cd"):
             result = cli.repl.dispatch_full(f"/port.{signal}")
-            expected = str(int(getattr(port, signal)))
+            expected = int(getattr(port, signal))
             assert result.value == expected, f"{signal} mirrors the port"
 
     def test_a_value_is_refused_as_read_only(self, cli, capsys):
@@ -113,7 +97,7 @@ class TestHardwareLines:
         port = _demo_port(cli)
         port.dtr = True
         result = cli.repl.dispatch_full("/port.dtr")
-        assert result.value == "1"
+        assert result.value == 1
 
     def test_a_value_sets_the_line(self, cli, capsys):
         """/port.dtr off drives the line low and reports the new level; a set has no scriptable value."""
@@ -146,15 +130,15 @@ class TestHardwareLines:
         assert result.success is False, "nothing was set"
 
     @pytest.mark.parametrize(
-        ("command", "label", "level"),
+        ("command", "level"),
         [
-            ("dtr", "DTR (out)", True),
-            ("dtr", "DTR (out)", False),
-            ("cts", "CTS (in)", None),  # an input: the DEMO port's own level, read-only
+            ("dtr", True),
+            ("dtr", False),
+            ("cts", None),  # an input: the DEMO port's own level, read-only
         ],
     )
-    def test_help_shows_the_level_the_command_returns(self, cli, capsys, command, label, level):
-        """/help's state line for a line or signal shows the 0/1 the command returns, not pyserial's True/False."""
+    def test_help_shows_the_level_the_command_returns(self, cli, capsys, command, level):
+        """/help's CURRENT STATE for a line or signal is the 0/1 the command returns, not pyserial's True/False."""
         # Arrange
         if level is not None:
             setattr(_demo_port(cli), command, level)
@@ -166,10 +150,10 @@ class TestHardwareLines:
 
         # Assert
         actual = capsys.readouterr().out
-        assert f"Current {label} = {expected}" in actual, (
+        assert f"CURRENT STATE\n  {expected}\n" in actual, (
             f"help and /port.{command} agree:\n{actual}"
         )
-        assert expected in ("0", "1"), "the command answers 0 or 1"
+        assert expected in (0, 1), "the command answers 0 or 1"
 
 
 # ── frame properties ────────────────────────────────────────────────────────
@@ -179,7 +163,7 @@ class TestProperties:
     def test_bare_reads_the_live_value(self, cli):
         """/port.baud_rate with no argument returns the open port's baud rate."""
         result = cli.repl.dispatch_full("/port.baud_rate")
-        assert result.value == "115200"
+        assert result.value == 115200
 
     def test_a_value_sets_the_port_and_the_session_cfg(self, cli, capsys):
         """/port.baud_rate 9600 changes the open port and the session cfg together."""
@@ -211,8 +195,9 @@ class TestProperties:
             "refused value applied nowhere"
         )
 
+    @pytest.mark.rule("failure-is-failure")
     def test_a_non_number_is_refused(self, cli, capsys):
-        """failure-is-failure: a baud rate that is not an integer fails by name, printed once.
+        """A baud rate that is not an integer fails by name, printed once.
 
         Until 2026-10-16 every /port.* setter printed its refusal and
         returned success, so a script or agent read a typo as applied.
@@ -239,7 +224,7 @@ class TestProperties:
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.baud_rate")
         assert "115200 (disconnected)" in capsys.readouterr().out
-        assert result.value == "115200", "scripts get the number, not the annotation"
+        assert result.value == 115200, "scripts get the number, not the annotation"
 
 
 # ── /port.mode ──────────────────────────────────────────────────────────────
@@ -250,6 +235,27 @@ class TestMode:
         """/port.mode with no argument reports the configured baud and frame as one token pair."""
         result = cli.repl.dispatch_full("/port.mode")
         assert result.value == "115200 8N1"
+
+    def test_bare_data_carries_each_field(self, cli):
+        """Bare /port.mode's data is the frame field by field, baud and custom as /port.baud_rate spells them."""
+        # Act
+        result = cli.repl.dispatch_full("/port.mode")
+
+        # Assert
+        actual = result.data
+        expected = {"baud": 115200, "custom": False, "byte_size": 8, "parity": "N", "stop_bits": 1}
+        assert actual == expected, "four frame facts with their JSON types, no prose to parse"
+
+    def test_bare_data_follows_a_set(self, cli):
+        """After /port.mode 9600 E71, bare /port.mode's data reports the new frame."""
+        # Act
+        cli.repl.dispatch_full("/port.mode 9600 E71")
+        result = cli.repl.dispatch_full("/port.mode")
+
+        # Assert
+        actual = result.data
+        expected = {"baud": 9600, "custom": False, "byte_size": 7, "parity": "E", "stop_bits": 1}
+        assert actual == expected, "the data is read at the query, not cached"
 
     def test_baud_and_frame_apply_to_the_port_and_the_cfg(self, cli):
         """/port.mode 9600 E71 sets all four frame fields on the port and in the session cfg."""
@@ -453,8 +459,9 @@ class TestConnect:
         assert "Duplicate baud rate" in result.error
         assert cli.cfg["serial"]["baud_rate"] == 115200, "nothing applied on a refused line"
 
+    @pytest.mark.rule("failure-reported-once")
     def test_a_port_that_does_not_open_fails_with_its_reason(self, cli, capsys):
-        """failure-reported-once: an open that fails answers with why, in error and printed once.
+        """An open that fails answers with why, in error and printed once.
 
         The reason used to reach only the host's status line while the
         command failed with an empty error, so --json and MCP said nothing.
@@ -475,12 +482,209 @@ class TestConnect:
         )
 
 
+class _OpensAfter:
+    """``ctx.serial.connect`` that misses the first tries as an absent port does, then opens the real one."""
+
+    def __init__(self, cli: CLITerminal, misses: int, on_miss=None) -> None:
+        self._real = cli.repl.ctx.serial.connect
+        self._misses = misses
+        self._on_miss = on_miss
+        self.calls = 0
+        cli.repl.ctx.serial.connect = self
+
+    def __call__(self, port: str | None = None) -> None:
+        self.calls += 1
+        if self.calls <= self._misses:
+            if self._on_miss is not None:
+                self._on_miss()
+            raise OSError("Cannot open DEMO: Port not found")
+        self._real(port)
+
+
+class TestConnectTimeout:
+    """/port.connect timeout=: tries until the port opens or the time runs out."""
+
+    def test_a_timed_connect_waits_until_the_port_opens_twice(self, cli, capsys):
+        """A port that misses twice opens on the third try, and a second timed connect does the same."""
+        for _ in range(2):
+            # Arrange
+            cli._disconnect()
+            opener = _OpensAfter(cli, misses=2)
+            capsys.readouterr()
+
+            # Act
+            result = cli.repl.dispatch_full("/port.connect timeout=5s")
+
+            # Assert
+            assert result.success, result.error
+            assert cli.engine.is_connected is True
+            assert opener.calls == 3, "two misses, then the open"
+            out = capsys.readouterr().out
+            assert out.count("Waiting for DEMO...") == 1, "the default message, said once"
+
+    def test_msg_replaces_the_waiting_line_and_takes_the_rest(self, cli, capsys):
+        """msg= is the waiting line, verbatim to the end; a 9600 inside it is not a baud rate."""
+        # Arrange
+        cli._disconnect()
+        _OpensAfter(cli, misses=1)
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full(
+            "/port.connect timeout=5s msg=Waiting for reboot at 9600..."
+        )
+
+        # Assert
+        assert result.success, result.error
+        out = capsys.readouterr().out
+        assert "Waiting for reboot at 9600..." in out
+        assert "Waiting for DEMO" not in out, "the message replaces the default"
+        assert cli.cfg["serial"]["baud_rate"] == 115200, "text in msg= sets nothing"
+
+    def test_a_port_that_opens_at_once_shows_no_waiting_line(self, cli, capsys):
+        """When the first try opens the port there is nothing to wait for and no message."""
+        cli._disconnect()
+        capsys.readouterr()
+        result = cli.repl.dispatch_full("/port.connect DEMO 9600 timeout=5s msg=Waiting...")
+        assert result.success, result.error
+        assert "Waiting" not in capsys.readouterr().out
+        assert cli.cfg["serial"]["baud_rate"] == 9600, "the settings before timeout= still apply"
+
+    def test_without_a_timeout_it_tries_once(self, cli):
+        """No timeout= is one try, as /port.connect always was: the miss is the failure."""
+        cli._disconnect()
+        opener = _OpensAfter(cli, misses=1)
+        result = cli.repl.dispatch_full("/port.connect")
+        assert (result.success, opener.calls) == (False, 1)
+        assert result.error == "Cannot open DEMO: Port not found"
+
+    def test_a_timeout_that_runs_out_fails_with_the_last_reason(self, cli):
+        """A port that never opens fails once the time is up, with why and how long it waited."""
+        cli._disconnect()
+        result = cli.repl.dispatch_full("/port.connect DEMO_FAIL timeout=300ms")
+        assert result.success is False
+        assert result.error.startswith("Cannot open DEMO_FAIL"), result.error
+        assert "(waited " in result.error, result.error
+
+    def test_a_bad_timeout_is_refused(self, cli):
+        """A timeout that is not a duration fails before any try."""
+        cli._disconnect()
+        result = cli.repl.dispatch_full("/port.connect timeout=soon")
+        assert result.error == "Invalid timeout: soon"
+        assert cli.engine.is_connected is False
+
+    def test_a_stop_ends_the_wait(self, cli):
+        """Escape or Ctrl+C during the wait cancels the connect: typed, it says so."""
+        # Arrange -- the stop arrives while the second try misses
+        cli._disconnect()
+        stops = iter([None, cli.repl.ctx.internal.script_stop])
+        opener = _OpensAfter(cli, misses=10, on_miss=lambda: (next(stops) or (lambda: None))())
+
+        # Act
+        result = cli.repl.dispatch_full("/port.connect timeout=5s")
+
+        # Assert
+        assert result.error == "Connect canceled."
+        assert opener.calls < 10, "the wait ended at the stop, not after every try"
+
+
+# ── the connection banners follow the command's output level ───────────────
+
+
+_QUIET_SPELLINGS = ["{cmd}.quiet", "{cmd} --quiet", "{cmd}.silent", "{cmd} --silent"]
+
+
+class TestBannersFollowTheLevel:
+    """A connect or disconnect banner is the command's output: a quiet or silent call keeps it off the screen."""
+
+    @pytest.mark.parametrize("spelling", _QUIET_SPELLINGS)
+    def test_a_quiet_disconnect_prints_no_banner(self, cli, capsys, spelling):
+        """The suffix and the flag hide the banner alike, and the port still closes."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/" + spelling.format(cmd="port.disconnect"))
+        out = capsys.readouterr().out
+
+        # Assert
+        assert result.success is True, result.error
+        assert "Disconnected" not in out, f"{spelling} still printed the banner:\n{out}"
+        assert cli.engine.is_connected is False, "the port closed all the same"
+
+    @pytest.mark.parametrize("spelling", _QUIET_SPELLINGS)
+    def test_a_quiet_connect_prints_no_banner(self, cli, capsys, spelling):
+        """The connect banner hides alike, and the port opens."""
+        # Arrange
+        cli.repl.dispatch_full("/port.disconnect.silent")
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/" + spelling.format(cmd="port.connect"))
+        out = capsys.readouterr().out
+
+        # Assert
+        assert result.success is True, result.error
+        assert "Connected" not in out, f"{spelling} still printed the banner:\n{out}"
+        assert cli.engine.is_connected is True, "the port opened all the same"
+
+    def test_a_plain_call_still_prints_both_banners_after_a_quiet_one(self, cli, capsys):
+        """The level is the call's own: after a quiet pair, plain calls print their banners again."""
+        # Arrange
+        cli.repl.dispatch_full("/port.disconnect.quiet")
+        cli.repl.dispatch_full("/port.connect --quiet")
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/port.disconnect")
+        cli.repl.dispatch_full("/port.connect")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert "Disconnected: DEMO" in out, "a plain disconnect shows its banner"
+        assert "Connected: DEMO" in out, "a plain connect shows its banner"
+
+    @pytest.mark.parametrize(
+        ("cmd", "banner"),
+        [("/port.disconnect", "Disconnected: DEMO"), ("/port.connect", "Connected: DEMO")],
+    )
+    def test_a_json_call_carries_its_banner_in_the_envelope(self, cli, capsys, cmd, banner):
+        """--json answers with one envelope: the banner is in its output_lines and nothing prints beside it."""
+        # Arrange
+        if cmd == "/port.connect":
+            cli.repl.dispatch_full("/port.disconnect.silent")
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full(f"{cmd} --json")
+        lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+
+        # Assert
+        assert len(lines) == 1, f"only the envelope prints: {lines}"
+        output_lines = json.loads(lines[0])["output_lines"]
+        assert [line.startswith(banner) for line in output_lines] == [True], output_lines
+
+    def test_a_quiet_json_call_has_no_banner_anywhere(self, cli, capsys):
+        """--json --quiet: the envelope's output is empty and nothing prints beside it."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/port.disconnect --json --quiet")
+        lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+
+        # Assert
+        assert len(lines) == 1, f"only the envelope prints: {lines}"
+        assert json.loads(lines[0])["output_lines"] == [], "quiet keeps it out of the envelope too"
+
+
 # ── a failed command captured into a variable ───────────────────────────────
 
 
 class TestCapture:
+    @pytest.mark.rule("failure-reported-once")
     def test_a_failed_capture_answers_with_the_inner_error_once(self, cli, capsys):
-        """failure-reported-once: $(B) <- a refused command fails with its error, printed once, B unset.
+        """$(B) <- a refused command fails with its error, printed once, B unset.
 
         The capture used to blank the error to dodge a double print, so an
         agent saw success false with error "" (review 2026-10-15, S4).
@@ -497,7 +701,7 @@ class TestCapture:
             "the inner failure is the answer"
         )
         assert out.count("Invalid baud rate: fast") == 1, "printed once, at the capture's exit"
-        assert cli.repl.dispatch_full("/var B").value == "", "B was not assigned"
+        assert cli.repl.dispatch_full("/var B").success is False, "B was not assigned"
 
     def test_json_names_the_inner_error(self, cli, capsys):
         """--json on a failed capture carries the inner error in the envelope and prints no line outside it."""
@@ -565,12 +769,15 @@ class TestChip:
         assert result.value == "0001"
 
     def test_a_field_for_every_port_is_device_prefixed(self, cli, monkeypatch):
-        """/port.chip.model * values '<device>: <value>' per port, and answers with a device-to-value mapping."""
+        """/port.chip.model * answers with a device-to-value mapping, '-' kept as the roster has it, and counts the ports."""
         monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         result = cli.repl.dispatch_full("/port.chip.model *")
-        expected = "COM3: FTDI FT232R / FT245R\nCOM4: Silicon Labs CP2102\nCOM7: -"
-        assert result.value == expected, "'-' kept as the roster has it"
-        assert result.data["COM4"] == "Silicon Labs CP2102", "a port is looked up, not searched for"
+        assert result.data == {
+            "COM3": "FTDI FT232R / FT245R",
+            "COM4": "Silicon Labs CP2102",
+            "COM7": "-",
+        }, "a port is looked up, not searched for"
+        assert result.value == 3, "the value counts the ports"
 
     def test_a_field_table_is_titled_by_the_fields_label(self, cli, capsys, monkeypatch):
         """/port.chip.<field> * heads its table with the label the /port.chip page uses, never the raw field name."""
@@ -606,6 +813,7 @@ class TestChip:
         assert "SERIAL #" in header, "the port table uses the shared label"
         assert " SN " not in f" {header} ", "the old abbreviation is gone"
 
+    @pytest.mark.rule("labels-title-case")
     def test_display_labels_are_title_case(self, cli, capsys):
         """Every word of a /port.info label starts upper case (Baud Rate, USB Speed, In Use); symbols and acronyms stay."""
         capsys.readouterr()
@@ -636,20 +844,97 @@ class TestChip:
         assert result.value == "n/a"
 
 
+# ── /port.list ──────────────────────────────────────────────────────────────
+
+
+class TestPortList:
+    """list-one-format, table-fits-the-frontend: /port.list is a table over the port records, fitted to the frontend."""
+
+    @staticmethod
+    def _header(cli, capsys, width: int) -> tuple[list[str], CmdResult]:
+        """The header words /port.list prints at ``width``, and its result."""
+        cli.repl.ctx.io.width = lambda: width
+        capsys.readouterr()
+        result = cli.repl.dispatch_full("/port.list")
+        lines = capsys.readouterr().out.splitlines()
+        return lines[1].split(), result
+
+    def test_a_wide_frontend_gets_every_filled_column(self, cli, capsys, monkeypatch):
+        """At 200 columns the table shows every column the fleet fills, and hides the ones no port has."""
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+        header, result = self._header(cli, capsys, 200)
+        assert result.value == 3 and len(result.data) == 3, "three ports, counted"
+        assert {"PORT", "MFG", "DESCRIPTION", "CHIP", "SPEED", "VID:PID"} <= set(header)
+        assert "SERIAL" in header, "the serial-number column, every port has one"
+        assert not {"DRIVER", "LOCATION", "IF", "VENDOR"} & set(header), (
+            "a column no port fills is hidden"
+        )
+
+    def test_a_narrow_frontend_loses_the_expendable_columns_first(self, cli, capsys, monkeypatch):
+        """At 60 columns SPEED and CHIP go, in DROP_ORDER; the port, its maker and description stay."""
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+        header, _ = self._header(cli, capsys, 60)
+        assert header[:3] == ["PORT", "MFG", "DESCRIPTION"], "never dropped"
+        assert not {"SPEED", "CHIP"} & set(header), "the most expendable went first"
+
+    def test_the_title_counts_the_ports(self, cli, capsys, monkeypatch):
+        """The table's title is Ports - N ports, the one list format."""
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+        capsys.readouterr()
+        cli.repl.dispatch_full("/port.list")
+        assert capsys.readouterr().out.splitlines()[0].strip() == "Ports - 3 ports"
+
+    @pytest.mark.rule("links-are-data")
+    def test_the_port_cell_prefills_a_connect(self):
+        """A click on a port name puts /port.connect <port> in the input line, never runs it."""
+        from termapy.plugins.views import Link
+        from termapy.port_format import PORT_TABLE_COLUMNS
+
+        assert PORT_TABLE_COLUMNS[0].link({"device": "COM3"}) == Link(
+            "port.connect COM3", run=False
+        )
+
+    def test_the_columns_mirror_the_schema(self):
+        """One list of column facts: drop ranks follow DROP_ORDER, hide_empty is OPTIONAL_COLUMNS, headers COLUMN_HEADERS."""
+        from termapy.port_format import (
+            COLUMN_HEADERS,
+            DROP_ORDER,
+            OPTIONAL_COLUMNS,
+            PORT_COLUMNS,
+            PORT_TABLE_COLUMNS,
+        )
+
+        by_name = dict(zip(PORT_COLUMNS, PORT_TABLE_COLUMNS))
+        assert [column.title for column in PORT_TABLE_COLUMNS] == [
+            COLUMN_HEADERS[name] for name in PORT_COLUMNS
+        ]
+        expendable = sorted(
+            (name for name in by_name if by_name[name].drop), key=lambda n: -by_name[n].drop
+        )
+        assert expendable == list(DROP_ORDER), "the highest drop rank is the first to go"
+        assert {name for name in by_name if by_name[name].hide_empty} == set(OPTIONAL_COLUMNS)
+        assert all(by_name[name].drop == 0 for name in ("port", "manufacturer", "description"))
+
+
 # ── /port.usb ───────────────────────────────────────────────────────────────
+
+
+def _ports_in(records: list[dict]) -> int:
+    """How many nodes of a record tree carry a serial port."""
+    return sum((1 if record["port"] else 0) + _ports_in(record["children"]) for record in records)
 
 
 class TestUsbTree:
     def test_the_tree_renders_where_a_backend_exists(self, cli, capsys):
-        """/port.usb draws the machine's tree on Windows and Linux and fails by name elsewhere."""
+        """/port.usb draws the machine's tree on Windows and Linux, counting its serial ports, and fails by name elsewhere."""
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.usb")
         out = capsys.readouterr().out
         if sys.platform == "win32" or sys.platform.startswith("linux"):
             assert result.success is True, result.error
-            # Whitespace removed: the console indents and may wrap a long row.
-            assert "".join(result.value.split()) == "".join(out.split()), (
-                "the rendered lines are the scriptable value"
+            assert out.strip(), "the drawing printed"
+            assert result.value == _ports_in(result.data), (
+                "the value counts the ports the tree carries"
             )
         else:
             assert result.success is False
@@ -664,6 +949,7 @@ class TestUsbTree:
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.usb --json")
         assert isinstance(result.data, list), "the record tree, one entry per root"
-        assert result.value == "", "no rendered text on the data path"
+        assert isinstance(result.value, int), "the port count, never the drawing"
         document = json.loads(capsys.readouterr().out.strip())
         assert document["data"] == result.data, "the one line printed is the JSON document"
+        assert document["output_lines"] == [], "the drawing never rides beside the tree"

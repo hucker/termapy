@@ -32,6 +32,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
 from termapy.folders import PROFILE_SUFFIX, file_suggestion
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.capabilities import STATE_MESSAGES
@@ -106,7 +107,7 @@ def _apply_profile(
     n = len(profile.get("commands", {}))
     rev = profile.get("profile_revision") or "(none)"
     ctx.io.result(f"Loaded {label}: {n} commands (rev {rev}).", "green")
-    return CmdResult.ok(value=str(n))
+    return CmdResult.ok(value=n)
 
 
 def _read_profile_json(ctx: PluginContext, timeout_ms: int) -> dict | None:
@@ -124,7 +125,7 @@ def _read_profile_json(ctx: PluginContext, timeout_ms: int) -> dict | None:
         if not chunk:
             break
         buf += chunk
-        text = buf.decode(ctx.cfg.get("encoding", "utf-8"), errors="replace")
+        text = buf.decode(cfg_value(ctx.cfg, "encoding"), errors="replace")
         start = text.find("{")
         if start < 0:
             continue
@@ -176,7 +177,7 @@ def _handler_validate(ctx: PluginContext, args: str) -> CmdResult:
     if result.ok:
         n = len(profile.get("commands", {})) if isinstance(profile, dict) else 0
         ctx.io.result(f"Valid profile.  {n} commands.", "green")
-        return CmdResult.ok(value=str(n))
+        return CmdResult.ok(value=n)
     ctx.io.output(f"  Profile has {len(result.errors)} error(s):", "red")
     for error in result.errors:
         ctx.io.output(f"    - {error}", "yellow")
@@ -316,6 +317,8 @@ def _handler_save(ctx: PluginContext, args: str) -> CmdResult:
         if default is None:
             raise UsageError("No config loaded; can't derive a default path")
         path = default
+    ctx.fs.guard_code_folder(path.resolve().parent)
+    ctx.fs.guard_replace(path)
 
     # Strip internal __source_* fields before writing.  They're
     # runtime hints, not part of the profile contract.
@@ -338,7 +341,7 @@ def _handler_save(ctx: PluginContext, args: str) -> CmdResult:
             "dispatch via the profile until you audit each entry.",
             "yellow",
         )
-    return CmdResult.ok(value=str(n))
+    return CmdResult.ok(value=n)
 
 
 def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
@@ -350,14 +353,17 @@ def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
     n = len(ns.get("commands") or {})
     ns.clear()
     ctx.io.result(f"Unloaded profile ({n} commands).", "green")
-    return CmdResult.ok(value=str(n))
+    return CmdResult.ok(value=n)
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """Show metadata of the active profile.
 
     A record answer (registry ``record-one-format``): the metadata is
-    ``data``, with ``device`` a dict or None and ``commands`` the count.
+    ``data``, with ``loaded`` True, ``device`` a dict or None and
+    ``commands`` the count.  With no profile the data is
+    ``{"loaded": False}`` beside the one-line answer, so an agent reads the
+    state rather than the prose.
     """
     ns = ctx.ns(_ACTIVE_PROFILE_NS)
     if not ns:
@@ -365,7 +371,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
             f"{STATE_MESSAGES['profile_loaded']}  {ctx.prefix}profile.load <path> to load one.",
             "yellow",
         )
-        return CmdResult.ok(value="")
+        return CmdResult.ok(value="", data={"loaded": False})
 
     source_path = ns.get("__source_path", "")
     source_cmd = ns.get("__source_cmd", "")
@@ -380,6 +386,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     device = ns.get("device") or {}
     cmd_count = len(ns.get("commands") or {})
     data = {
+        "loaded": True,
         "source": source_display,
         "profile_version": ns.get("profile_version"),
         "profile_revision": ns.get("profile_revision"),
@@ -400,7 +407,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         if device.get("startup_banner"):
             rows.append(("device.startup_banner", str(device["startup_banner"])))
     rows.append(("commands", str(cmd_count)))
-    return CmdResult.record(data, rows, value=str(cmd_count))
+    return CmdResult.record(data, rows, value=cmd_count)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
@@ -408,10 +415,13 @@ COMMAND = Command(
     group="devices",
     name="profile",
     help="Device profile commands (MCP profile schema, validator, loader).",
+    intro=(
+        "A device profile describes a serial device's commands as data: typed args, "
+        "help text, response shapes and error patterns. An MCP agent calls them by "
+        "name."
+    ),
     long_help=(
-        "A device profile declaratively describes a serial device's "
-        "command catalog: typed args, help text, response shapes, error "
-        "patterns.  Wire-level settings (baud, line endings, encoding, "
+        "Wire-level settings (baud, line endings, encoding, "
         "ndjson) live in the cfg file; the profile describes the device "
         "side only.  Profiles are the input the MCP server consumes to "
         "bridge LLMs to serial devices.  See "
@@ -468,6 +478,7 @@ COMMAND = Command(
                 "are applied to the live cfg."
             ),
             handler=_handler_load,
+            cfg={"encoding": "decodes the profile a cmd= fetches"},
         ),
         "save": Command(
             args="{path}",
@@ -503,6 +514,7 @@ COMMAND = Command(
             help="Print metadata of the active profile.",
             handler=_handler_info,
             shows=True,
+            state=True,
         ),
     },
 )

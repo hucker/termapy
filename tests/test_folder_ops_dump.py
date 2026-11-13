@@ -13,6 +13,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from termapy.folder_ops import _make_dump_handler
 from termapy.plugins import IOHandle, PluginContext
 
@@ -107,8 +109,9 @@ class TestDumpContainment:
 
 
 class TestDumpName:
+    @pytest.mark.rule("file-name-default-ext")
     def test_dump_takes_a_bare_stem(self, tmp_path):
-        """file-name-default-ext: /run.dump welcome prints run/welcome.run; the folder's .run is optional."""
+        """/run.dump welcome prints run/welcome.run; the folder's .run is optional."""
         # Arrange -- the real /run.dump, so the folder's extension is wired in
         from termapy.folder_ops import build_folder_subcommands
 

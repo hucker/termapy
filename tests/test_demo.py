@@ -452,6 +452,55 @@ class TestModbusCrc:
 # -- Demo config setup -----------------------------------------------------
 
 
+class TestTerminalKeys:
+    """A lone Ctrl-C, Ctrl-D or Esc is a keystroke: the device drops it rather than read a Modbus frame."""
+
+    @pytest.mark.parametrize("key", [b"\x1b", b"\x03", b"\x04", b"\x01", b"\x1a", b"\x7f"])
+    def test_repeated_lone_keys_draw_no_reply(self, dev: FakeSerial, key: bytes) -> None:
+        """Eight presses of one control key, each written alone, get no binary error reply (four once read as a frame)."""
+        # Act
+        for _ in range(8):
+            dev.write(key)
+        time.sleep(0.01)
+
+        # Assert
+        assert dev.read(4096) == b"", "no reply to keystrokes"
+
+    def test_a_command_after_keys_still_answers(self, dev: FakeSerial) -> None:
+        """Keys leave no residue: the next command is read cleanly."""
+        # Arrange
+        for key in (b"\x1b", b"\x03", b"\x04", b"\x1b"):
+            dev.write(key)
+
+        # Act
+        actual = _send_cmd(dev, "AT")
+
+        # Assert
+        assert actual == "OK\r\n"
+
+    def test_a_bare_enter_still_reaches_the_device(self, dev: FakeSerial) -> None:
+        """A lone CR is a line ending, not a key to drop: the empty line is answered."""
+        # Act
+        dev.write(b"\r")
+        time.sleep(0.01)
+
+        # Assert
+        assert dev.read(4096) == b"\r\n", "an empty line gets its empty answer"
+
+    def test_a_whole_modbus_frame_for_slave_three_still_answers(self, dev: FakeSerial) -> None:
+        """A frame whose first byte is 03 arrives whole, so it is still a frame, not a keystroke."""
+        # Arrange
+        request = _modbus_add_crc(struct.pack(">BBH H", 3, 0x03, 0, 1))
+
+        # Act
+        dev.write(request)
+        time.sleep(0.01)
+        response = dev.read(4096)
+
+        # Assert
+        assert response[:2] == b"\x03\x03", "slave 3 answers its read"
+
+
 class TestDemoConfigSetup:
     def test_setup_creates_files(self, tmp_path) -> None:
         """--demo setup writes the config, run/ and proto/ folders, and the probe plugin."""
@@ -466,6 +515,27 @@ class TestDemoConfigSetup:
         assert (tmp_path / "demo" / "plugin" / "probe.py").exists(), "demo plugin copied"
         assert (tmp_path / "demo" / "dev" / "console.device.json").exists(), "device file copied"
 
+    def test_setup_ships_every_demo_plugin(self, tmp_path) -> None:
+        """Every plugin in the demo package lands in the demo's plugin/: traffic.py was left out of the copy list for months."""
+        import importlib.resources
+
+        from termapy.config import setup_demo_config
+
+        # Arrange
+        package = importlib.resources.files("termapy.builtins.demo") / "plugin"
+        expected = sorted(
+            entry.name
+            for entry in package.iterdir()
+            if entry.name.endswith(".py") and not entry.name.startswith("_")
+        )
+
+        # Act
+        config_path = setup_demo_config(tmp_path)
+
+        # Assert
+        actual = sorted(path.name for path in (config_path.parent / "plugin").glob("*.py"))
+        assert actual == expected, "a demo plugin in the package is missing from the install list"
+
     def test_setup_creates_only_the_folders_it_populates(self, tmp_path) -> None:
         """``--demo`` ships run/ proto/ plugin/ sym/ dev/; the rest appear on first use."""
         from termapy.config import setup_demo_config
@@ -478,8 +548,9 @@ class TestDemoConfigSetup:
         expected = ["dev", "plugin", "proto", "run", "sym"]
         assert actual == expected, "no empty ss/ cap/ prof/ viz/ shipped with the demo"
 
+    @pytest.mark.rule("cfg-written-in-order")
     def test_setup_writes_the_standard_order(self, tmp_path) -> None:
-        """cfg-written-in-order: --demo copies demo.cfg as it is, so the template keeps DEFAULT_CFG's order."""
+        """--demo copies demo.cfg as it is, so the template keeps DEFAULT_CFG's order."""
         import json
 
         from termapy.config import ordered_cfg, setup_demo_config

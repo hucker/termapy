@@ -1,4 +1,4 @@
-"""did-you-mean-one: every name typed from memory answers a typo with the names it most likely meant.
+"""Every name typed from memory answers a typo with the names it most likely meant.
 
 One function picks the names (``matching.closest``) and one phrases them
 (``matching.did_you_mean``).  These run each place a name is typed from
@@ -21,6 +21,8 @@ from termapy.cli import CLITerminal
 from termapy.config import setup_demo_config
 from termapy.folders import SYMBOLS_SUFFIX, file_suggestion
 from termapy.plugins.views import Link, error_pieces
+
+pytestmark = pytest.mark.rule("did-you-mean-one")
 
 _PART = {
     "device_version": 1,
@@ -49,6 +51,7 @@ def demo(tmp_path, monkeypatch):
     return terminal
 
 
+@pytest.mark.rule("did-you-mean-one")
 @pytest.mark.parametrize(
     ("line", "expected"),
     [
@@ -71,7 +74,7 @@ def demo(tmp_path, monkeypatch):
     ],
 )
 def test_a_typo_names_what_was_meant(demo, line, expected):
-    """did-you-mean-one: each site fails, and its error names the name that was meant."""
+    """Each site fails, and its error names the name that was meant."""
     # Act
     result = demo.repl.dispatch_full(line)
     # Assert
@@ -79,6 +82,7 @@ def test_a_typo_names_what_was_meant(demo, line, expected):
     assert expected in result.error, result.error
 
 
+@pytest.mark.rule("did-you-mean-one")
 @pytest.mark.parametrize(
     ("line", "kept"),
     [
@@ -89,7 +93,7 @@ def test_a_typo_names_what_was_meant(demo, line, expected):
     ],
 )
 def test_nothing_close_keeps_the_way_to_look(demo, line, kept):
-    """did-you-mean-one: with no near name, the error still says where to look, and suggests nothing."""
+    """With no near name, the error still says where to look, and suggests nothing."""
     result = demo.repl.dispatch_full(line)
     assert kept in result.error, result.error
     assert "did you mean" not in result.error, "no far-fetched suggestion"
@@ -135,6 +139,7 @@ def _links(text: str, line: str) -> list[tuple[str, Link]]:
     return [(piece.text, piece.link) for piece in pieces or () if piece.link is not None]
 
 
+@pytest.mark.rule("links-are-data")
 @pytest.mark.parametrize(
     ("text", "line", "expected"),
     [
@@ -166,20 +171,22 @@ def _links(text: str, line: str) -> list[tuple[str, Link]]:
     ],
 )
 def test_an_errors_fixes_are_links(text, line, expected):
-    """links-are-data: a fix runs on a click when its command only shows; one that acts fills the input."""
+    """A fix runs on a click when its command only shows; one that acts fills the input."""
     assert _links(text, line) == expected
 
 
+@pytest.mark.rule("links-are-data")
 def test_the_pieces_are_the_line_unchanged():
-    """links-are-data: the linked line has exactly the characters of the plain one."""
+    """The linked line has exactly the characters of the plain one."""
     text = "Error: Unknown symbol: u1_mode -- did you mean U1_MODE, U1MODE?"
     pieces = error_pieces(text, "sym u1_mode", prefix="/", commands=set())
     assert pieces is not None, "two names to link"
     assert "".join(piece.text for piece in pieces) == text, "clicking adds links, never text"
 
 
+@pytest.mark.rule("links-are-data")
 def test_an_error_with_nothing_to_click_stays_plain():
-    """links-are-data: no suggestion and no command named means no pieces, so the plain line prints."""
+    """No suggestion and no command named means no pieces, so the plain line prints."""
     text = "Error: Invalid address: zz (a path like cfg/demo is not a command)"
     assert error_pieces(text, "mem.read zz", prefix="/", commands={"demo"}) is None
 
@@ -200,6 +207,7 @@ def test_a_frontend_that_can_click_gets_the_fix_as_a_link(demo):
     )
 
 
+@pytest.mark.rule("links-are-data")
 def test_an_acting_command_waits_for_enter(demo):
     """A fix whose command acts (/dev.use writes a file) fills the input line; a click never runs it."""
     lines: list[tuple[list, str]] = []
@@ -209,8 +217,10 @@ def test_an_acting_command_waits_for_enter(demo):
     assert links == [Link("dev.use acme-adc16", run=False)], "the fixed command waits for Enter"
 
 
+@pytest.mark.rule("shows-declared")
+@pytest.mark.rule("links-are-data")
 def test_shows_is_for_commands_that_change_nothing():
-    """links-are-data: shows= on a command whose safety says it acts fails where it is declared."""
+    """shows= on a command whose safety says it acts fails where it is declared."""
     from termapy.plugins import CmdResult, Command
 
     with pytest.raises(ValueError, match="shows= is for a command that changes nothing"):
@@ -226,14 +236,16 @@ def test_shows_is_for_commands_that_change_nothing():
 # -- file names and paths -----------------------------------------------------
 
 
+@pytest.mark.rule("did-you-mean-one")
 def test_a_path_keeps_what_was_typed_around_the_name(tmp_path):
-    """did-you-mean-one: only the last part is matched, and the suggestion is the whole path as typed."""
+    """Only the last part is matched, and the suggestion is the whole path as typed."""
     (tmp_path / "PIC32CM5164LE00100.svd").write_text("", encoding="utf-8")
     typed = str(tmp_path / "PIC32CM5164LE0010.svd")
     expected = f" -- did you mean {tmp_path / 'PIC32CM5164LE00100.svd'}?"
     assert file_suggestion(tmp_path, typed) == expected, "a click fills in the full path"
 
 
+@pytest.mark.rule("did-you-mean-one")
 @pytest.mark.parametrize(
     ("typed", "expected"),
     [
@@ -242,13 +254,14 @@ def test_a_path_keeps_what_was_typed_around_the_name(tmp_path):
     ],
 )
 def test_a_name_is_matched_in_the_form_it_was_typed(tmp_path, typed, expected):
-    """did-you-mean-one: with or without its extension, the suggestion reads as the name was typed."""
+    """With or without its extension, the suggestion reads as the name was typed."""
     (tmp_path / "welcome.run").write_text("", encoding="utf-8")
     assert file_suggestion(tmp_path, typed, ".run") == expected
 
 
+@pytest.mark.rule("did-you-mean-one")
 def test_a_suffix_offers_only_that_kind_of_file(tmp_path):
-    """did-you-mean-one: the name without a compound suffix matches, and other kinds are never offered."""
+    """The name without a compound suffix matches, and other kinds are never offered."""
     (tmp_path / "demo.symbols.json").write_text("", encoding="utf-8")
     (tmp_path / "deme.txt").write_text("", encoding="utf-8")
     (tmp_path / ".demo").write_text("", encoding="utf-8")
@@ -258,14 +271,16 @@ def test_a_suffix_offers_only_that_kind_of_file(tmp_path):
     )
 
 
+@pytest.mark.rule("did-you-mean-one")
 def test_each_file_is_offered_once(tmp_path):
-    """did-you-mean-one: a file near in two forms (name and stem) is one suggestion, not two."""
+    """A file near in two forms (name and stem) is one suggestion, not two."""
     (tmp_path / "abc.y").write_text("", encoding="utf-8")
     assert file_suggestion(tmp_path, "abc.x") == " -- did you mean abc.y?"
 
 
+@pytest.mark.rule("did-you-mean-one")
 def test_a_folder_that_is_not_there_suggests_nothing(tmp_path):
-    """did-you-mean-one: a missing folder is no suggestion, never an error."""
+    """A missing folder is no suggestion, never an error."""
     assert file_suggestion(tmp_path / "nowhere", "welcom") == ""
 
 
@@ -324,16 +339,18 @@ def _clicking(demo) -> list[list]:
     return lines
 
 
+@pytest.mark.rule("links-are-data")
 def test_a_bare_reference_to_a_list_runs(demo):
-    """links-are-data: "try /dev.lib" runs on a click, because {<pattern>} is optional, not required."""
+    """ "try /dev.lib" runs on a click, because {<pattern>} is optional, not required."""
     lines = _clicking(demo)
     demo.repl.dispatch_full("/dev.use zzzzzzzz")
     links = [piece.link for piece in lines[-1] if piece.link is not None]
     assert links == [Link("dev.lib", run=True)], "an optional argument does not make the list wait"
 
 
+@pytest.mark.rule("links-are-data")
 def test_a_bare_reference_to_a_search_waits(demo):
-    """links-are-data: "try /search x" fills the input, because /search alone is a usage error."""
+    """ "try /search x" fills the input, because /search alone is a usage error."""
     lines = _clicking(demo)
     demo.repl.dispatch_full("/help zzzzzzzz")
     links = [piece.link for piece in lines[-1] if piece.link is not None]
@@ -342,8 +359,9 @@ def test_a_bare_reference_to_a_search_waits(demo):
     )
 
 
+@pytest.mark.rule("did-you-mean-one")
 def test_a_misspelled_keyword_names_the_keyword_meant(demo):
-    """did-you-mean-one: categroy=mcu is a typo of category=, not part of the file path."""
+    """categroy=mcu is a typo of category=, not part of the file path."""
     # Arrange
     lines = _clicking(demo)
     # Act
@@ -357,14 +375,3 @@ def test_a_misspelled_keyword_names_the_keyword_meant(demo):
     assert Link("dev.import x.svd category=mcu", run=False) in links, (
         "the click fixes the keyword in the line; the usage line after it does not hide the link"
     )
-
-
-def test_no_hidden_command_is_suggested(demo):
-    """did-you-mean-one: a hidden alias stays off the suggestions, as it stays off every discovery surface."""
-    hidden = sorted(name for name, info in demo.repl._plugins.items() if info.hidden)
-    assert hidden, "the built-ins keep a few legacy aliases hidden"
-    for name in hidden:
-        result = demo.repl.dispatch_full(f"/{name[:-1]}")
-        assert f"/{name}?" not in result.error and f"/{name}," not in result.error, (
-            f"{name} is hidden, so a typo of it never suggests it: {result.error}"
-        )

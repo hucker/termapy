@@ -1,6 +1,6 @@
 # Testing a `termapy_json` device from the host
 
-The m3 firmware (`Mag3_Sensor_PIC`, branch `feat/termapy-json`) is
+The PICBoard firmware (branch `feat/termapy-json`) is
 the reference hardware for `termapy_json.c`. This document gives a host-side
 tester everything it needs to drive that device over its serial monitor and
 check every reply shape the module can produce, without reading the firmware.
@@ -134,7 +134,7 @@ are not parsed; `params` accepts one flat array.
 | -32602 | bad or missing arguments | converted handlers (`fault`, `jtest`) |
 | 1 | device timeout with no code of its own | `tick` when the RTC does not advance |
 | 7 | the fixed fixture code | `jtest err` |
-| other positive | the device's own error byte | `temp_c` / `temp_f` pass the ADS124S06 status byte through |
+| other positive | the device's own error byte | reserved for handlers that pass a device status byte through (none in this build) |
 
 In text mode an error is the bare message with `\r\n`. Converted handlers keep
 their old text wording, so `fault 1000` prints `ERR: Invalid fault code (1-999)`
@@ -148,7 +148,7 @@ in JSON.
 | Command | Text reply | JSON `result` type | Notes |
 |---|---|---|---|
 | `fw` | `SB_0_8` | string | constant for this build |
-| `name` | `IMAG3 Sensor` | string | |
+| `name` | `PICBoard` | string | |
 | `rev` | `B7 & B8` | string | |
 | `built` | `<Mmm dd yyyy> <hh:mm:ss>` | string | compiler date and time |
 | `json` | `on` / `off` | string | see section 2 |
@@ -157,12 +157,9 @@ in JSON.
 | `fault <1-999>` | digits | integer | sets and echoes the code |
 | `fault 0` | `0` | integer | clears |
 | `fault 1000` | `ERR: Invalid fault code (1-999)` | error -32602 | |
-| `temp_c`, `temp_f` | digits | integer | or error with the sensor's status byte as a positive code |
-| `bat 1`, `bat 2`, `bat tot` | `d.d` | number | one decimal, no padding; `bat` and `bat all` are unconverted |
 
 Text output of a typed command is byte-identical to the pre-conversion
-firmware with two exceptions: `temp_c` no longer prints a stray `\r` after its
-line end, and `bat` values below 10 V no longer carry one leading space.
+firmware.
 
 ### 6b. Unconverted commands (passthrough)
 
@@ -187,7 +184,6 @@ Examples:
 | `help json` | one string containing `json` and `on\|off` |
 | `help` | one string, about 2.5 KB, with `\n` between rows |
 | `version` | one string with four `\n`-separated lines |
-| `bat` | one string `d.d d.d d.d` |
 | `jtest text` | `{"result":"line one\nline two"}` |
 | a 511-char line | no reply at all (RX ring overflow, see section 1); do not expect the firmware's `too long` message |
 
@@ -251,8 +247,8 @@ JTEST_JSON = {
    answers with `"id":7`; a following plain `fw` answers with no `id`.
 3. **Every fixture, both framings**, byte for byte (section 7).
 4. **Typed live values.** `tick` is an integer that increases between calls at
-   about 32768 per second; `bat 1` parses as a float; `fault 5` / `fault 0`
-   round-trip; `fault 1000` is -32602.
+   about 32768 per second; `fault 5` / `fault 0` round-trip; `fault 1000` is
+   -32602.
 5. **Passthrough.** `echo on` answers the wrapped string; `help` is one line of
    JSON; with `color on`, no `\x1b` byte appears in any JSON reply.
 6. **Malformed requests** from section 4 each answer the -32700 envelope, and
@@ -298,9 +294,9 @@ JTEST_JSON = {
 |---|---|
 | Module source of truth | termapy `examples/firmware/termapy_json.c`, `.h` (commit fe76188, JSON-RPC envelope) |
 | Host unit tests for the module | termapy `tests/test_firmware_json.py` + `tests/fixtures/firmware/json_host.c` |
-| Firmware copy | `Mag3_Sensor_PIC/firmware/IMAG3_Sensor_B7.X/TermapyJson.c`, `.h` (names only differ) |
-| Glue: putc, formatter, `json`, `jtest`, conversions | `Mag3_Sensor_PIC/firmware/IMAG3_Sensor_B7.X/Monitor.c` |
-| Glue: line reader, echo suppression, request extraction | `Mag3_Sensor_PIC/firmware/IMAG3_Sensor_B7.X/SMSerCmd.c` |
-| Glue: terminal putc hook | `Mag3_Sensor_PIC/firmware/IMAG3_Sensor_B7.X/main.c`, `app_put_terminal` |
-| Firmware-side hardware tests (the oracle for this document) | `Mag3_Sensor_PIC/test/test_termapy_json.py`, helpers in `test/conftest.py` |
-| Memory protocol | `Mag3_Sensor_PIC/firmware/IMAG3_Sensor_B7.X/TermapyMem.c` and README section `MEM` |
+| Firmware copy | `PICBoard/firmware/PICBoard.X/TermapyJson.c`, `.h` (names only differ) |
+| Glue: putc, formatter, `json`, `jtest`, conversions | `PICBoard/firmware/PICBoard.X/Monitor.c` |
+| Glue: line reader, echo suppression, request extraction | `PICBoard/firmware/PICBoard.X/SMSerCmd.c` |
+| Glue: terminal putc hook | `PICBoard/firmware/PICBoard.X/main.c`, `app_put_terminal` |
+| Firmware-side hardware tests (the oracle for this document) | `PICBoard/test/test_termapy_json.py`, helpers in `test/conftest.py` |
+| Memory protocol | `PICBoard/firmware/PICBoard.X/TermapyMem.c` and README section `MEM` |

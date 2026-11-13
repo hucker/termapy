@@ -30,6 +30,9 @@ class _StubApp:
         self.config_results: list[tuple] = []
         self.connect_calls: int = 0
         self.ctx = SimpleNamespace(prefix="/", dispatch=self.dispatched.append)
+        # The Advanced path hands the editor the engine's plugin table
+        # (cfg_users) so its help line can name a key's users.
+        self.repl = SimpleNamespace(_plugins={}, ctx=None)
 
     def _on_config_result(self, result: tuple) -> None:
         self.config_results.append(result)
@@ -60,7 +63,7 @@ def test_quick_setup_with_icon_dispatches_cfg_icon(_quick_setup_env):
     result = ("connect", "demo", "COM1", 115200, False, True)
 
     # Act
-    pickers.on_quick_setup(app, result)
+    pickers.on_quick_setup(app, result)  # ty: ignore[invalid-argument-type] -- a stub stands in for the app
 
     # Assert -- /cfg.icon must have been dispatched exactly once,
     # right after the cfg was loaded.
@@ -75,7 +78,7 @@ def test_quick_setup_without_icon_skips_dispatch(_quick_setup_env):
     result = ("connect", "demo", "COM1", 115200, False, False)
 
     # Act
-    pickers.on_quick_setup(app, result)
+    pickers.on_quick_setup(app, result)  # ty: ignore[invalid-argument-type] -- a stub stands in for the app
 
     # Assert
     assert "/cfg.icon" not in app.dispatched, "no dispatch when checkbox was not ticked"
@@ -94,7 +97,7 @@ def test_quick_setup_advanced_path_never_dispatches(_quick_setup_env):
     result = ("advanced", "demo", "COM1", 115200, False, True)
 
     # Act
-    pickers.on_quick_setup(app, result)
+    pickers.on_quick_setup(app, result)  # ty: ignore[invalid-argument-type] -- a stub stands in for the app
 
     # Assert
     assert "/cfg.icon" not in app.dispatched, "Advanced path never auto-dispatches /cfg.icon"
@@ -107,7 +110,7 @@ def test_quick_setup_cancel_does_nothing(_quick_setup_env):
     app = _StubApp()
 
     # Act
-    pickers.on_quick_setup(app, None)
+    pickers.on_quick_setup(app, None)  # ty: ignore[invalid-argument-type] -- a stub stands in for the app
 
     # Assert
     assert not app.dispatched, "no dispatch on cancel"
@@ -121,7 +124,7 @@ def test_quick_setup_writes_cfg_file_with_expected_contents(
     # Arrange / Act
     app = _StubApp()
     result = ("connect", "demo", "COM1", 115200, False, False)
-    pickers.on_quick_setup(app, result)
+    pickers.on_quick_setup(app, result)  # ty: ignore[invalid-argument-type] -- a stub stands in for the app
 
     # Assert -- sanity that the rest of the wizard's contract still
     # holds: cfg file is written with the chosen fields and the
@@ -161,14 +164,15 @@ def _existing_config(root: Path, name: str) -> tuple[Path, Path]:
     return cfg_path, script
 
 
+@pytest.mark.rule("config-created-once")
 def test_quick_setup_existing_name_asks_before_overwriting(_quick_setup_env):
-    """config-created-once: the wizard on an existing name asks the overwrite question and writes nothing yet."""
+    """The wizard on an existing name asks the overwrite question and writes nothing yet."""
     # Arrange
     cfg_path, _ = _existing_config(_quick_setup_env, "demo")
     app = _AskingStubApp()
 
     # Act
-    pickers.on_quick_setup(app, ("connect", "demo", "COM1", 115200, False, False))
+    pickers.on_quick_setup(app, ("connect", "demo", "COM1", 115200, False, False))  # ty: ignore[invalid-argument-type] -- a stub stands in for the app
 
     # Assert
     actual_message = app.pushed[0][0].message
@@ -179,12 +183,13 @@ def test_quick_setup_existing_name_asks_before_overwriting(_quick_setup_env):
     assert not app.config_results, "no config is loaded before the answer"
 
 
+@pytest.mark.rule("config-created-once")
 def test_quick_setup_overwrite_yes_replaces_cfg_and_keeps_scripts(_quick_setup_env):
-    """config-created-once: yes replaces only the .cfg; the folder's other files stay."""
+    """Yes replaces only the .cfg; the folder's other files stay."""
     # Arrange
     cfg_path, script = _existing_config(_quick_setup_env, "demo")
     app = _AskingStubApp()
-    pickers.on_quick_setup(app, ("connect", "demo", "COM1", 115200, False, False))
+    pickers.on_quick_setup(app, ("connect", "demo", "COM1", 115200, False, False))  # ty: ignore[invalid-argument-type] -- a stub stands in for the app
     _, callback = app.pushed[0]
 
     # Act
@@ -197,12 +202,13 @@ def test_quick_setup_overwrite_yes_replaces_cfg_and_keeps_scripts(_quick_setup_e
     assert app.config_results, "the new config is loaded"
 
 
+@pytest.mark.rule("config-created-once")
 def test_quick_setup_overwrite_no_changes_nothing(_quick_setup_env):
-    """config-created-once: no leaves the existing config as it was and loads nothing."""
+    """No leaves the existing config as it was and loads nothing."""
     # Arrange
     cfg_path, _ = _existing_config(_quick_setup_env, "demo")
     app = _AskingStubApp()
-    pickers.on_quick_setup(app, ("connect", "demo", "COM1", 115200, False, False))
+    pickers.on_quick_setup(app, ("connect", "demo", "COM1", 115200, False, False))  # ty: ignore[invalid-argument-type] -- a stub stands in for the app
     _, callback = app.pushed[0]
 
     # Act
@@ -220,7 +226,7 @@ def test_quick_setup_bad_name_reports_and_writes_nothing(_quick_setup_env):
     app = _AskingStubApp()
 
     # Act
-    pickers.on_quick_setup(app, ("connect", "my dev", "COM1", 115200, False, False))
+    pickers.on_quick_setup(app, ("connect", "my dev", "COM1", 115200, False, False))  # ty: ignore[invalid-argument-type] -- a stub stands in for the app
 
     # Assert
     assert app.statuses == ["New config failed: Name may not contain spaces: my dev"]

@@ -72,14 +72,16 @@ Scripts are picked and run from the **Run** button in the title bar
 | Key                    | Action                                              |
 | ---------------------- | --------------------------------------------------- |
 | **Ctrl+Q**             | Quit (also dismisses any open dialog)               |
-| **Escape**             | Dismiss dialog / clear input / exit history         |
+| **Escape**             | Stop, close; clear prompt; empty: Esc to the device |
 | **F1**–**F4**          | Help / Cfg / Run / Proto (same as the buttons)      |
 | **F10**                | Edit the current config                             |
 | **Ctrl+Shift+1**–**5** | Same four, plus Edit Config on **5**                |
 | **Ctrl+P** / **Alt+P** | Open command palette                                |
 | **Ctrl+S** / **Alt+S** | Save SVG screenshot                                 |
 | **Ctrl+T** / **Alt+T** | Save text screenshot                                |
-| **Ctrl+C** / **Cmd+C** | Copy selected text to the clipboard                 |
+| **Ctrl+C** / **Cmd+C** | Copy the selection; with none, Ctrl-C to the device |
+| **Ctrl+D**             | On an empty prompt, send Ctrl-D to the device       |
+| **Ctrl+Z**             | On an empty prompt, send Ctrl-Z to the device       |
 | **Ctrl+V** / **Cmd+V** | Paste into the prompt; several lines are all sent   |
 | **Ctrl+A**             | Select all output text (click the output first)     |
 | **Shift+Up**           | Select output from the newest line, from the prompt |
@@ -100,14 +102,33 @@ line goes as pasted, indentation and all, a blank line sends a bare line
 ending, and a line starting with `/` runs as a command, so a pasted script
 works too.  The lines go `multiline_paste_delay_ms` apart (10 by default,
 TeraTerm's), giving a device time to take each one.  **Escape** stops the
-rest, and a line that fails stops it as well.  A one-line paste lands in
+rest, and a line that fails stops it as well.  A pasted line that connects
+the port holds the lines after it until the on-connect commands finish, so
+they never reach the device ahead of that setup.  A one-line paste lands in
 the prompt for you to edit.  Set `multiline_paste` to `false` to paste
 only the first line, as before.
+
+Paste a **transcript**, text copied from the output pane, and only its
+commands run: termapy knows the prompt it puts before each command it
+echoes (`esp32s3>` and a space, from `echo_fmt`), so the lines that start with it run,
+the prompt taken off, and the output between them is skipped rather than
+sent to the device.  A status line says how many of each.  Only the current
+config's prompt is recognized; a transcript from another config pastes as
+before.  It is best effort: a command wider than the window copies wrapped,
+and only its first line runs, so paste a long one by itself.
 
 ## Copying text
 
 Drag across the main output window to select text, then press
-**Ctrl+C** (**Cmd+C** on macOS) to copy it to your clipboard.  The
+**Ctrl+C** (**Cmd+C** on macOS) to copy it to your clipboard.  With
+nothing selected, **Ctrl+C** belongs to the device, as in any terminal:
+termapy sends it Ctrl-C (byte 03), the key that stops a running
+MicroPython program.  On an empty prompt **Ctrl+D** sends Ctrl-D and
+**Ctrl+Z** sends Ctrl-Z, the key an AT modem takes to send an SMS.
+**Escape** with nothing running clears the prompt, or sends Esc when it
+is empty. `/term.control_keys off` keeps these keys termapy's for the
+session; `"control_keys": false` in the config file keeps them so.
+`/term.ctrl` sends any control character from a script or the CLI.  The
 selection is highlighted, and the copy is the text as shown: wrapped
 lines and table rules included, colors dropped.  Click the window
 first and press **Ctrl+A** to select everything.  The

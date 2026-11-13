@@ -45,10 +45,13 @@ $(BAUD) <- /port.baud_rate
 /var BAUD
 /var.clear
 /var DEVICE
+# A name that names nothing warns with the one it meant, and the line runs as typed
+/print $(CFG.FIRMWAR_DIR)
 
 # ── REPL: config queries ────────────────────────────────────────────────────
 /print === section: config read ===
 /cfg baud_rate
+/cfg serial
 /cfg encoding
 /cfg eol
 /cfg parity
@@ -66,10 +69,31 @@ $(BAUD) <- /port.baud_rate
 /cfg echo
 /cfg.auto echo false
 /cfg echo
+/term.echo
+/cfg.auto echo true
+# A key that starts a session flag moves it, and the setter reports it.
+/cfg.auto output_level quiet
+/term.output
+/cfg.auto output_level normal
+/term.output
+/cfg.auto output_level loud
+/help output_level
+# The words commands share have pages of their own.
+/help cycle
+/help json
+/help.idioms
+# A page shows what is about the command; --verbose shows the rest.
+/help term.hex
+/help term.hex --verbose
 /cfg.auto custom_buttons_side Right
 /cfg custom_buttons_side
 /cfg.auto custom_buttons_side up
 /cfg.auto custom_buttons_side bottom
+# One validator: what a load warns about, /cfg refuses (registry cfg-schema-one-table)
+/cfg.auto max_lines 0
+/cfg.auto encoding nope
+/cfg.auto eol_rx nope
+/cfg.auto config_version 99
 
 # ── REPL: config dump (full JSON) ───────────────────────────────────────────
 /print === section: config dump ===
@@ -126,6 +150,11 @@ $(BAUD) <- /port.baud_rate
 /port.baud_rate
 /port.connect
 /port.baud_rate
+# A timed connect to a port that never opens: the message, then the reason
+/port.disconnect
+/print port=[$(PORT.NAME)] state=$(PORT.STATE) serial=[$(PORT.SERIAL)] dtr=[$(PORT.DTR)]
+/port.connect DEMO_FAIL timeout=300ms msg=Waiting for a port that never opens...
+/port.connect DEMO
 
 # ── REPL: port break ────────────────────────────────────────────────────────
 /print === section: port break ===
@@ -136,10 +165,10 @@ $(BAUD) <- /port.baud_rate
 /print === section: port subcommands ===
 /port.help
 
-# ── REPL: show_line_endings toggle ──────────────────────────────────────────
+# ── REPL: term.eol.markers toggle ──────────────────────────────────────────
 /print === section: line endings ===
-/show_line_endings on
-/show_line_endings off
+/term.eol.markers on
+/term.eol.markers off
 
 # ── REPL: sequence counters ─────────────────────────────────────────────────
 /print === section: seq ===
@@ -257,6 +286,13 @@ $(BAUD) <- /port.baud_rate
 /mem.write sCfg 0302
 /mem.read sCfg
 MEM.M 0x1000 F0 05 --json
+# /term.json_fmt lays JSON out on screen only: into this pipe a device's JSON line
+# comes as it arrived, whatever the indent says.
+/term.json_fmt
+/term.json_fmt.highlight
+/term.json_fmt.indent 4
+MEM.INFO
+/term.json_fmt indent 2
 
 # ── REPL: help for specific commands ────────────────────────────────────────
 /print === section: help ===
@@ -268,9 +304,23 @@ MEM.M 0x1000 F0 05 --json
 /help ss
 /help proto
 /help plugin
+# The demo's own RX/TX tap, which --demo installs in the demo's plugin/
+/help traffic
 /help sym
 /help mem
 /help run
+# A command's declared config keys (CONFIG), a key's page, and a key search.
+/help grep
+/help max_grep_lines
+/search max_grep_lines
+# CURRENT STATE: a command that declares state shows what its bare form answers.
+/print === section: help current state ===
+/help term.eol
+/help term.info
+/help port.baud_rate
+/help port.dtr
+# A bare family says what it is for, then its subcommands as a table.
+/xfer
 # REQUIRED CAPABILITIES with live status.  Here the port is open, the symbol
 # table loaded, and there is no profile and no capture: one row is (missing),
 # the rest are met, and the gated command answers with the state.
@@ -319,6 +369,13 @@ MEM.M 0x1000 F0 05 --json
 /nonexistent_command
 /cfg nonexistent_key
 /port.baud_rate not_a_number
+# A rate off the standard list is a typo until custom=true says otherwise
+/port.baud_rate 11520
+/port.mode 11520 8N1
+/port.baud_rate 9460 custom=true
+/port.baud_rate
+/port.baud_rate 115200
+/cfg custom_baud false
 /port.parity X
 /port.dtr maybe
 /port.break -5
@@ -331,7 +388,7 @@ MEM.M 0x1000 F0 05 --json
 # --demo mode (connected), which satisfies serial_connected, and .run files
 # satisfy block_until -- neither reaches the gate here.
 /print === section: capability gates (tui_mode + screen_capture) ===
-/line_no on
+/term.line_no on
 /ss.svg
 /ss.txt
 
@@ -343,6 +400,8 @@ MEM.M 0x1000 F0 05 --json
 # device's fixed replies are exact.  elapsed_s is masked by the harness.
 /print === section: json mode ===
 /term.line_no --json
+# The suffix form: the same envelope as --json
+/term.line_no.json
 /term.request on
 /print hello enveloped
 /var.set GOLD 42
@@ -371,11 +430,17 @@ MEM.R 0x1000 2 --json
 /term.eol.rx
 /term.hex
 /proto.hex
-/term.json
+/term.json_fmt
 /term.output
 /term.send_bare_enter
+/term.control_keys
 /term.timestamps
+# The live counts are a TUI display: the CLI refuses the toggle by capability
+/term.traffic
 /term.color
+/term.color on
+/term.color off
+/term.ctrl 1
 /term.info
 /term.log a line for the session log, not the screen
 /port.mode
@@ -384,8 +449,6 @@ MEM.R 0x1000 2 --json
 +PROD-ID
 /print === section: coverage: folders ===
 /run.help at_demo
-/run.legacy at_demo
-/run.legacy zz*
 /edit.run.list
 /run.dump status_check
 /proto
@@ -428,6 +491,7 @@ MEM.R 0x1000 2 --json
 /log.list
 /log.start
 /log.stop
+/log.diag.show ../demo/demo.cfg
 /grep OK
 /find OK
 /find.next
@@ -449,7 +513,10 @@ MEM.R 0x1000 2 --json
 /run.rename status_check status_probe
 /run.rename status_probe status_check
 /delay 1ms
+/delay 1ms msg=Waiting for the board: copy=3 files...
 /run.record
+/run.last
+/run.last 1
 /cap.delete
 /cap.delete nosuch.txt
 /cap.delete *
@@ -459,3 +526,27 @@ MEM.R 0x1000 2 --json
 /port.disconnect
 /port.connect TERMAPY-DEMO
 /port.info
+# The OS name of the port the serial number opened, beside the spec it was opened by
+/print port=$(PORT.NAME) state=$(PORT.STATE) cfg=$(CFG.PORT) serial=$(PORT.SERIAL) dtr=$(PORT.DTR) baud=$(PORT.BAUD_RATE)
+
+# -- A load starts clean: what this session changed is gone -----------------
+/print === section: a load starts clean ===
+/help cfg.load
+/var.set GOLD_LOAD_VAR 1
+/env.set GOLD_LOAD_ENV 1
+/print {seq7+}
+/term.output verbose
+/cfg.load demo
+/term.output
+/var GOLD_LOAD_VAR
+/env.list GOLD_LOAD_ENV
+/print {seq7+}
+
+# -- A person's job: an MCP client cannot rename or delete a file ------------
+/print === section: rename and delete need a person ===
+/help cap.rename
+
+# -- A spy:// log takes only a path relative to cap/ -------------------------
+/print === section: spy log stays in cap ===
+/port spy://NO-SUCH-PORT?file=../traffic.txt
+/port DEMO

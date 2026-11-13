@@ -219,7 +219,8 @@ def test_v5_to_v6_renames_config_keys():
     assert result["eol_markers"] is True, (
         "show_eol -> show_line_endings -> line_endings -> eol_markers"
     )
-    assert result["show_traceback"] is True, "exception_traceback renamed"
+    assert "show_traceback" not in result, "exception_traceback: renamed in v6, removed in v37"
+    assert "exception_traceback" not in result, "and its old name is gone with it"
     assert result["border_color"] == "green", "app_border_color renamed"
     assert result["cmd_prefix"] == "/", "repl_prefix renamed"
     assert result["config_read_only"] is True, "read_only renamed"
@@ -910,6 +911,122 @@ def test_v32_to_v33_preserves_set_paste_keys():
     assert actual == (False, 50), "existing values preserved"
 
 
+def test_v33_to_v34_adds_the_transmit_delays_off():
+    """Migration v33->v34 adds both transmit delays at 0, so nothing a config sends changes."""
+    # Arrange
+    cfg = {"config_version": 33, "port": "COM4"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    actual = (result["tx_char_delay_ms"], result["tx_line_delay_ms"])
+    assert actual == (0, 0), "both delays added, off"
+
+
+def test_v33_to_v34_preserves_set_transmit_delays():
+    """Migration v33->v34 keeps transmit delays already set."""
+    # Arrange
+    cfg = {"tx_char_delay_ms": 1, "tx_line_delay_ms": 20, "config_version": 33}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    actual = (result["tx_char_delay_ms"], result["tx_line_delay_ms"])
+    assert actual == (1, 20), "existing values preserved"
+
+
+def test_v34_to_v35_turns_control_keys_on():
+    """Migration v34->v35 adds control_keys, on: Ctrl+C, Ctrl+D and Escape reach the device."""
+    # Arrange
+    cfg = {"config_version": 34, "port": "COM4"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["control_keys"] is True
+
+
+def test_v34_to_v35_keeps_control_keys_off():
+    """Migration v34->v35 keeps a control_keys already set off."""
+    # Arrange
+    cfg = {"control_keys": False, "config_version": 34}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert result["control_keys"] is False
+
+
+def test_v35_to_v36_adds_color_and_output_level():
+    """Migration v35->v36 adds color and output_level at the values every session started with."""
+    # Arrange
+    cfg = {"config_version": 35, "port": "COM4"}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    actual = (result["color"], result["output_level"])
+    expected = (True, "normal")
+    assert actual == expected, "a migrated config behaves as it did before the keys existed"
+
+
+def test_v35_to_v36_keeps_values_already_set():
+    """Migration v35->v36 keeps a color and output_level already in the file."""
+    # Arrange
+    cfg = {"color": False, "output_level": "quiet", "config_version": 35}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    actual = (result["color"], result["output_level"])
+    expected = (False, "quiet")
+    assert actual == expected
+
+
+def test_v37_to_v38_splits_json_style_into_the_json_section():
+    """Migration v37->v38: indent keeps the indent unhighlighted, color keeps both, compact takes the new defaults."""
+    actual = {
+        style: migrate_config({"config_version": 37, "json_style": style})["json_fmt"]
+        for style in ("compact", "indent", "color")
+    }
+    expected = {
+        "compact": {"highlight": True, "indent": 2},
+        "indent": {"highlight": False, "indent": 2},
+        "color": {"highlight": True, "indent": 2},
+    }
+    assert actual == expected
+
+
+def test_v37_to_v38_removes_json_style_and_keeps_a_json_section():
+    """Migration v37->v38 drops json_style, and a json section already in the file wins."""
+    # Arrange
+    cfg = {"config_version": 37, "json_style": "color", "json_fmt": {"indent": 4}}
+
+    # Act
+    result = migrate_config(cfg)
+
+    # Assert
+    assert "json_style" not in result, "the old key is gone"
+    assert result["json_fmt"] == {"indent": 4, "highlight": True}, "what was there stays"
+
+
+def test_v38_to_v39_adds_tx_chunking_on():
+    """Migration v38->v39 adds tx_chunking as true, and a config that already set it keeps its value."""
+    # Act
+    added = migrate_config({"config_version": 38})
+    kept = migrate_config({"config_version": 38, "tx_chunking": False})
+
+    # Assert
+    assert added["tx_chunking"] is True, "the new key arrives on"
+    assert kept["tx_chunking"] is False, "a value already in the file wins"
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labeled line to _migration_steps."""
     # Arrange -- a config from v17 runs every migrator since.
@@ -921,28 +1038,9 @@ def test_migration_steps_recorded_per_version():
     # Assert -- one step entry per migrator that ran, labeled
     # "v<from> -> v<to>: <description>".
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 16, (
-        f"v17 -> v33 covers sixteen migrators "
-        f"(17->18 ... 31->32, 32->33); "
-        f"got {len(steps)}: {steps!r}"
-    )
-    expected_prefixes = (
-        "v17 -> v18",
-        "v18 -> v19",
-        "v19 -> v20",
-        "v20 -> v21",
-        "v21 -> v22",
-        "v22 -> v23",
-        "v23 -> v24",
-        "v24 -> v25",
-        "v25 -> v26",
-        "v26 -> v27",
-        "v27 -> v28",
-        "v28 -> v29",
-        "v29 -> v30",
-        "v30 -> v31",
-        "v31 -> v32",
-        "v32 -> v33",
+    expected_prefixes = tuple(f"v{n} -> v{n + 1}" for n in range(17, CURRENT_CONFIG_VERSION))
+    assert len(steps) == len(expected_prefixes), (
+        f"one step per migrator from v17 to v{CURRENT_CONFIG_VERSION}; got {len(steps)}: {steps!r}"
     )
     for step, prefix in zip(steps, expected_prefixes, strict=True):
         assert step.startswith(prefix), f"step {step!r} should start with {prefix!r}"
@@ -960,7 +1058,9 @@ def test_migration_steps_include_docstring_summary():
 
     # Assert -- v20->v21 step shape (the one this test is about).
     steps = result.get("_migration_steps", [])
-    assert len(steps) == 13, f"thirteen steps (v20->v21 ... v31->v32, v32->v33); got {steps!r}"
+    assert len(steps) == CURRENT_CONFIG_VERSION - 20, (
+        f"one step per version since v20; got {steps!r}"
+    )
     assert "record_enabled" in steps[0], (
         f"v20->v21 step line carries the migrator's docstring summary; got {steps[0]!r}"
     )
@@ -995,9 +1095,8 @@ def test_a_saved_step_list_is_not_shown_again():
 
     # Assert
     actual = [step.split(":")[0] for step in first_steps]
-    assert actual == ["v28 -> v29", "v29 -> v30", "v30 -> v31", "v31 -> v32", "v32 -> v33"], (
-        "this run's five steps, none of the saved ones"
-    )
+    expected = [f"v{n} -> v{n + 1}" for n in range(28, CURRENT_CONFIG_VERSION)]
+    assert actual == expected, "this run's steps, none of the saved ones"
     assert "_migration_steps" not in second, "a current config shows no steps, saved list or not"
 
 

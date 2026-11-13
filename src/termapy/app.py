@@ -8,22 +8,24 @@ Runs well in most terminals (Windows Terminal, iTerm2, etc).
 VS Code's integrated terminal can be jerky due to its rendering pipeline.
 """
 
+import argparse
 import os
 import re
 import sys
 import threading
 import time
-import traceback
 from collections import OrderedDict
-from collections.abc import Sequence
-from datetime import datetime
+from collections.abc import Callable, Sequence
+from functools import partial
 from pathlib import Path
 from threading import Event
+from types import MappingProxyType
+from typing import Any, ParamSpec, TypeVar
 
 import serial
 from rich.style import Style
 from rich.text import Text
-from textual import on, work
+from textual import events, on, work
 from textual.actions import SkipAction
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -33,8 +35,9 @@ from textual.message import Message
 from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widgets import Button, Input, Label, OptionList, RichLog, Static
+from textual.widgets.button import ButtonVariant
 
-from termapy import port_control
+from termapy import diag_log, port_control
 from termapy.capture import (
     CaptureEngine,
     CaptureResult,
@@ -48,7 +51,6 @@ from termapy.config import (
     cfg_history_path,
     load_config,
     on_connect_commands,
-    open_serial,
     open_with_system,
     rename_config,
     session_log_file,
@@ -65,7 +67,7 @@ from termapy.config_resolve import (
     resolve_config as _resolve_config,
     resolve_proto_path,
 )
-from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix, default_cfg
+from termapy.defaults import DEFAULT_CMD_PREFIX, cfg_slot, cfg_value, cmd_prefix, default_cfg
 from termapy.dialogs import (
     CfgConfirm,
     ConfigEditor,
@@ -80,30 +82,27 @@ from termapy.dialogs import (
     ScriptPicker,
     UpdateAvailableDialog,
 )
+from termapy.folder_ops import stamped_path
 from termapy.folders import FOLDER_EXTS, FOLDER_PATTERNS, ensure_folder
 from termapy.help_tooltip import build_help_tooltip
 from termapy.history_nav import HistoryNavigator, merge_history, read_history
-from termapy.markup import markup_to_plain
+from termapy.markup import escape_markup, markup_to_plain, received_json_markup
 from termapy.palette_provider import PaletteProvider
 from termapy.plugins import (
     BoundaryException,
     CapabilitySet,
     CmdResult,
+    cfg_users,
 )
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.views import Link, Piece
 from termapy.proto_debug import ProtoDebugScreen
-from termapy.protocol import builtins_viz_dir, load_visualizers_from_dir
+from termapy.protocol import ProtoScript, builtins_viz_dir, load_visualizers_from_dir
 from termapy.repl import ReplEngine
 from termapy.serial_engine import SerialEngine
-from termapy.serial_port import eol_label
-from termapy.terminal_host import (
-    LOG_STARTED,
-    LOG_STOPPED,
-    SESSION_END,
-    SESSION_START,
-    TerminalHost,
-)
+from termapy.serial_port import eol_label_markup
+from termapy.session_log import SessionLog
+from termapy.terminal_host import TerminalHost
 from termapy.widgets import (
     LINK_META,
     CommandSuggester,
@@ -111,6 +110,7 @@ from termapy.widgets import (
     PromptInput,
     SelectableRichLog,
     StatusBar,
+    without_color,
 )
 
 # Exceptions we expect to see when an event-loop callback, timer tick,
@@ -127,16 +127,21 @@ from termapy.widgets import (
 # narrow.
 SHUTDOWN_RACE: tuple[type[BaseException], ...] = (NoMatches, RuntimeError)
 
+# ``_on_main``'s signature: the arguments ``fn`` takes, and what it returns.
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
 
 # scripting import kept low (below the module-level defs above); placement, not a cycle.
 from termapy.scripting import (  # noqa: E402
     ANSI_RE,
-    filename_timestamp,
     format_age,
     format_duration,
+    format_size,
     format_timestamp,
     render_progress_bar,
     split_cmd_lines,
+    transcript_commands,
 )
 
 # Single source of truth for top-row hotkeys.
@@ -233,7 +238,7 @@ class SerialTerminal(TerminalHost, App):
             self.done = done
 
     TITLE = "termapy"
-    front_end = "textual"
+    front_end = "tui"
 
     CSS = """
     Tooltip {
@@ -443,7 +448,18 @@ class SerialTerminal(TerminalHost, App):
         Binding("ctrl+p", "command_palette", "Command Palette", show=False, priority=True),
         Binding("ctrl+s", "screenshot", "Screenshot", show=False),
         Binding("ctrl+t", "text_screenshot", "Text Screenshot", show=False),
-        Binding("escape", "stop_script", "Stop Script", show=False),
+        # Escape stops what runs; with nothing to stop it clears the prompt,
+        # or, empty, is the device's (control_keys).
+        Binding("escape", "stop_script", "Stop, clear, or Esc to the device", show=False),
+        # Ctrl+C, Ctrl+D and Ctrl+Z the focused widget did not take go to the device
+        # (/term.ctrl) while control_keys is on: a selection anywhere copies
+        # first (Input, then the screen, pass Ctrl+C on when nothing is
+        # selected), and the prompt keeps Ctrl+D and Ctrl+Z while it holds
+        # text.
+        # Replaces Textual's quit hint.
+        Binding("ctrl+c", "send_control('c')", "Ctrl-C to the device", show=False),
+        Binding("ctrl+d", "send_control('d')", "Ctrl-D to the device", show=False),
+        Binding("ctrl+z", "send_control('z')", "Ctrl-Z to the device", show=False),
         # Shift+Up/Down from the prompt start a keyboard selection in the
         # output pane; once the pane has focus its own bindings take them.
         Binding("shift+up,shift+down", "select_output", "Select output", show=False),
@@ -518,25 +534,41 @@ class SerialTerminal(TerminalHost, App):
         self.show_picker_on_start = show_picker
         self._first_run = first_run
         self._initial_output_level = output_level
-        self.log_fh = None
-        # Set by /log.stop (and /log.delete) until /log.start: no log is
-        # opened meanwhile, a config switch included.
-        self._log_stopped = False
+        self.session_log = SessionLog()
         self.last_screenshot: str | None = None
         self.repl = ReplEngine(
             cfg,
             config_path,
             write=self._status,
         )
+        self.repl.screen_json = True
         # Set by _load_history; declared first so _sync_history is safe
         # however early it runs.
         self._history_mtime_seen: float = 0.0
         self.history: list[str] = self._load_history()
         self._history_nav = HistoryNavigator()
+        # A typed command or paste is in flight (_begin_busy / _end_busy);
+        # its grey-bar look comes only after _BUSY_LOOK_DELAY_S.
+        self._busy = False
+        self._busy_look_timer: Timer | None = None
+        self._busy_look_shown = False
+        # On-connect runs not finished yet (_run_on_connect).  A paste or a
+        # button's sequence waits for them, so its next line cannot reach the
+        # device ahead of the setup they do.
+        self._on_connect_runs = 0
+        self._on_connect_lock = threading.Lock()
+        # Counts every begin and end, so a busy-look timer that fires late
+        # (after _end_busy) knows its command is over and does nothing.
+        self._busy_generation = 0
+        self._saved_placeholder = ""
         # Clickable output (_write_link_segments): link id -> Link, the
         # newest _LINK_LIMIT kept, so a long session's table stays bounded.
         self._links: OrderedDict[int, Link] = OrderedDict()
         self._next_link_id = 0
+        # The output pane's row width, held here for the dispatch workers
+        # (LinkLog.Width on every resize): a table is fitted to it (registry
+        # table-fits-the-frontend).  None until the first layout.
+        self._output_width: int | None = None
         self._suggester = CommandSuggester(complete_file=self.repl.complete_file_arg)
         self._cached_commands: list[str] = []
         self._popup_mode: str = "commands"
@@ -588,11 +620,8 @@ class SerialTerminal(TerminalHost, App):
         # user keeps their visual context when leaving find mode.
         # Cleared after restore or when find ends with no matches.
         self._find_last_current_line: int | None = None
-        # When _write_batch auto-dismisses find (new live data),
-        # we DON'T want to scroll #output back to the find
-        # position -- the user's interest just shifted to fresh
-        # output.  This flag is False during auto-dismiss and True
-        # during user-initiated close.
+        # False while new live data dismisses find: the user's interest moved
+        # to the fresh output, so #output does not scroll back to the match.
         self._find_restore_scroll_on_close: bool = True
 
         # File capture engine
@@ -610,7 +639,7 @@ class SerialTerminal(TerminalHost, App):
         self._engine = SerialEngine(
             cfg=cfg,
             capture=self._capture,
-            open_fn=open_serial,
+            open_fn=self._open_serial,
             log=self._log_line,
         )
         self._cap_timer: Timer | None = None
@@ -628,7 +657,7 @@ class SerialTerminal(TerminalHost, App):
         self._shutting_down = False
 
     @property
-    def cfg(self):  # ty: ignore[invalid-property-type-override] -- read-only by design, see below
+    def cfg(self) -> MappingProxyType:  # ty: ignore[invalid-property-type-override] -- read-only by design, see below
         """Read-only view of the config dict (single source of truth in ReplEngine).
 
         ``TerminalHost`` declares ``cfg`` writable because the CLI and MCP
@@ -641,11 +670,6 @@ class SerialTerminal(TerminalHost, App):
     @property
     def is_connected(self) -> bool:
         return self._engine.is_connected
-
-    @property
-    def ser(self):
-        """The underlying serial port object (for DTR/RTS/break access)."""
-        return self._engine.port_obj
 
     # -- TerminalHost abstract method implementations -------------------------
     # These satisfy the ABC contract by delegating to the TUI-specific methods
@@ -783,7 +807,7 @@ class SerialTerminal(TerminalHost, App):
         self._suggester.update(self._cached_commands, self.history, prefix)
 
     def compose(self) -> ComposeResult:
-        title = self.cfg.get("title", "") or self.config_path
+        title = cfg_value(self.cfg, "title") or self.config_path
         port_info = self._port_info_str()
         with Horizontal(id="title-bar"):
             from importlib.metadata import (
@@ -800,10 +824,7 @@ class SerialTerminal(TerminalHost, App):
                 ver = _get_version("termapy")
             except PackageNotFoundError:
                 ver = "?"
-            # Windows puts the close "X" top-right (Windows convention);
-            # mac/linux put it top-left (macOS convention, standard on
-            # Linux too).  Same button, same id/handler -- only position
-            # differs.
+            # Each platform's window-close convention: top-right on Windows.
             exit_on_right = sys.platform == "win32"
 
             def _make_exit_btn() -> Button:
@@ -818,15 +839,15 @@ class SerialTerminal(TerminalHost, App):
                 ver, _hotkey_label("btn-help"), prefix=cmd_prefix(self.cfg)
             )
             yield help_btn
-            if self.cfg.get("cfg_enabled", True):
+            if cfg_value(self.cfg, "cfg_enabled"):
                 cfg_btn = Button("Cfg", id="btn-cfg")
                 cfg_btn.tooltip = f"New / Edit / Load config ({_hotkey_label('btn-cfg')})."
                 yield cfg_btn
-            if self.cfg.get("run_enabled", True):
+            if cfg_value(self.cfg, "run_enabled"):
                 run_btn = Button("Run", id="btn-scripts")
                 run_btn.tooltip = f"Run a script ({_hotkey_label('btn-scripts')})."
                 yield run_btn
-            if self.cfg.get("proto_enabled", True):
+            if cfg_value(self.cfg, "proto_enabled"):
                 proto_btn = Button("Proto", id="btn-proto")
                 proto_btn.tooltip = f"Protocol test scripts ({_hotkey_label('btn-proto')})."
                 yield proto_btn
@@ -851,7 +872,7 @@ class SerialTerminal(TerminalHost, App):
             yield right
             if exit_on_right:
                 yield _make_exit_btn()
-        max_lines = self.cfg.get("max_lines", 10000)
+        max_lines = cfg_value(self.cfg, "max_lines")
         # Docks inside this container stay between the title bar and the
         # bottom bar; a dock on the screen would run over both.
         with Container(id="main-area"):
@@ -908,7 +929,7 @@ class SerialTerminal(TerminalHost, App):
                 # record_enabled is false.  All recording state
                 # lives in the recorder builtin -- this button just
                 # dispatches /run.record and refreshes its visual.
-                if self.cfg.get("record_enabled", True):
+                if cfg_value(self.cfg, "record_enabled"):
                     record_btn = Button(
                         # Angle brackets mark this as a state indicator
                         # rather than a discovery button.  Square
@@ -958,9 +979,18 @@ class SerialTerminal(TerminalHost, App):
                     close_btn.tooltip = Text(f"Close find ({cmd_prefix(self.cfg)}find.clear)")
                     close_btn.display = False
                     yield close_btn
+                # /term.traffic's live counts: a label of their own, so status
+                # messages and progress text never write over them.
+                yield StatusBar(id="traffic-bar")
                 yield StatusBar(id="status-bar")
 
-                def _btn(label, id, tip, variant="default", display=True):
+                def _btn(
+                    label: str,
+                    id: str,
+                    tip: str,
+                    variant: ButtonVariant = "default",
+                    display: bool = True,
+                ) -> Button:
                     b = Button(Text(label), id=id, variant=variant)
                     b.tooltip = tip
                     b.display = display
@@ -992,69 +1022,15 @@ class SerialTerminal(TerminalHost, App):
                 yield _btn("SS", "btn-ss-dir", "Open screenshot folder.")
                 yield _btn("Cap", "btn-cap-dir", "Open captures folder.")
 
-    def _show_config_info(self, *args, **kwargs):
+    def _show_config_info(self, path: str) -> None:
         """Delegate to ``info_views.show_config_info``."""
         from termapy.info_views import show_config_info
 
-        show_config_info(self, *args, **kwargs)
+        show_config_info(self, path)
 
     def session_log_path(self) -> Path | None:
         """The TUI's session log: ``log_file`` when set, else ``<cfg>.log`` (``config.session_log_file``)."""
         return session_log_file(self.cfg, self.config_path)
-
-    def _close_session_log(self) -> None:
-        """Close the open log handle: the session ends, or ``/log.stop`` lets go of it.
-
-        ``_log_line`` tolerates a handle closed under it from a worker.
-        """
-        if self.log_fh:
-            self.log_fh.close()
-            self.log_fh = None
-
-    def _end_session_log(self) -> None:
-        """Write the ``Session End`` marker into the open log, then close it.
-
-        The session leaves a log two ways, both while it is still open: the
-        app exits (``on_unmount``) or a switch moves the session to another
-        config's file (``_follow_session_log``).  So every ``Session Start``
-        has its ``Session End`` -- unless ``/log.stop`` closed the log
-        first, and its last line says ``Log Stopped``, or the session did
-        not end cleanly, which is what a start without an end then says.
-        """
-        if self.log_fh and not self.log_fh.closed:
-            self._log_line("#", SESSION_END)
-        self._close_session_log()
-
-    def _stop_session_log(self) -> bool:
-        """``/log.stop``: mark the gap, close the log, and keep it closed until ``/log.start``.
-
-        Returns False when it was already stopped.  ``/log.delete`` stops
-        it before removing the file, so a delete leaves it stopped too.
-        """
-        if self._log_stopped:
-            return False
-        self._log_stopped = True
-        if self.log_fh and not self.log_fh.closed:
-            self._log_line("#", LOG_STOPPED)
-        self._close_session_log()
-        return True
-
-    def _start_session_log(self) -> bool:
-        """``/log.start``: open the log again, appending, from a ``Log Started`` line.
-
-        Returns False when it was not stopped.  A file that cannot be
-        opened raises ``OSError`` with the log still stopped, for the
-        command to report.
-        """
-        if not self._log_stopped:
-            return False
-        self._log_stopped = False
-        try:
-            self._open_log(LOG_STARTED)
-        except OSError:
-            self._log_stopped = True
-            raise
-        return True
 
     def _on_app_prestart(self) -> None:
         """Open the session log, then show the VS Code tip, so startup is in the log.
@@ -1066,37 +1042,11 @@ class SerialTerminal(TerminalHost, App):
         self._open_log()
         self._maybe_show_vscode_tip()
 
-    def _open_log(self, marker: str = SESSION_START) -> None:
-        """Open the log file from a *marker* line if a config is loaded and the log is neither open nor stopped."""
-        if self.log_fh or self._log_stopped or not self.config_path:
-            return
-        log_path = self.session_log_path()
-        if log_path is None:
-            return
-        self.log_fh = open(log_path, "a", encoding="utf-8")
-        self._log_line("#", marker)
-
-    def _follow_session_log(self, previous: Path | None) -> None:
-        """Move the session log to the config just switched to.
-
-        A config's log is that config's history, so after a switch the
-        session belongs in the new config's file: the old one gets a line
-        saying where the session went and its ``Session End``, and the new
-        one is opened with its ``Session Start``.  ``_open_log`` alone kept writing to the first config's
-        file for the whole session, because it returns while any log is
-        open.  Two configs naming one ``log_file`` share it, so a switch
-        between them keeps the open file.
-        """
-        if self.log_fh and self.session_log_path() != previous:
-            self._log_line("#", f"Switched to config: {Path(self.config_path).stem}")
-            self._end_session_log()
-        self._open_log()
-
     def _apply_border_color(self) -> None:
         """Apply border_color from config to title bar and output border."""
         from termapy.defaults import resolve_color
 
-        color = resolve_color(self.cfg.get("border_color", "") or "blue")
+        color = resolve_color(cfg_value(self.cfg, "border_color") or "blue")
         bar = self.query_one("#title-bar")
         bar.styles.background = color
         self.query_one("#output", RichLog).styles.border = ("solid", color)
@@ -1118,6 +1068,7 @@ class SerialTerminal(TerminalHost, App):
         self._rebuild_suggester_commands()
         self._run_startup()
         self._check_for_updates()
+        self.set_interval(0.5, self._refresh_traffic)
 
     def _maybe_show_vscode_tip(self) -> None:
         """Inform Windows/Linux VS Code users about the Alt-key fallbacks.
@@ -1142,7 +1093,7 @@ class SerialTerminal(TerminalHost, App):
         # which renders as a faint dimmed tone; we want something that
         # actually draws the eye.
         try:
-            output = self.query_one("#output", RichLog)
+            self.query_one("#output", RichLog)
         except SHUTDOWN_RACE:
             return
         rule = "-" * 72
@@ -1153,7 +1104,7 @@ class SerialTerminal(TerminalHost, App):
             "Other:       Alt+P=palette, Alt+S=SVG, Alt+T=text screenshot.",
             rule,
         ):
-            output.write(Text(line, style="bold green"))
+            self._pane_write(Text(line, style="bold green"))
             self._log_line("#", line)
 
     @work(thread=True)
@@ -1273,13 +1224,14 @@ class SerialTerminal(TerminalHost, App):
         ctx.io._write = self._status
         ctx.io._write_markup = lambda markup: self._write_output_markup(markup, log=True)
         ctx.io._write_segments = self._write_link_segments
+        ctx.io.width = lambda: self._output_width
         ctx.io.log = self._log_line
         ctx.serial.wait_for_data = self._wait_for_data
         ctx.io.status_bar = self._set_status_bar
         ctx.dispatch = self._dispatch_single
         # A plugin's notification is text unless it asks otherwise.
         ctx.io.notify = lambda text, **kw: self._on_main(
-            self.notify, text, **{"markup": False, **kw}
+            partial(self.notify, markup=False), text, **kw
         )
         ctx.io.clear_screen = lambda: self._on_main(self._clear_output)
         ctx.ui._save_screenshot_impl = lambda *a, **kw: self._on_main(
@@ -1309,6 +1261,7 @@ class SerialTerminal(TerminalHost, App):
             # The operator is the caller on their own machine: no sandbox.
             filesystem_unconfined=True,
             network_egress=True,
+            host_info=True,
         )
         ctx.environment = "TUI"  # ENVIRONMENTS column; /help marks it (current)
         ctx.sync_capabilities()  # push caps into fs/ui handle snapshots
@@ -1323,9 +1276,7 @@ class SerialTerminal(TerminalHost, App):
         self.ctx = ctx
         # TUI: REPL echo on (input clears on Enter, so echo keeps a
         # scrollback record).  Device echo follows cfg echo.
-        self._init_flags(echo_repl=True)
-        if self._initial_output_level is not None:
-            ctx.ns("flags")["output_level"] = self._initial_output_level
+        self._init_flags(echo_repl=True, output_level=self._initial_output_level)
 
     def _register_tui_hooks(self) -> None:
         """Register TUI-specific commands as plugin hooks.
@@ -1357,7 +1308,7 @@ class SerialTerminal(TerminalHost, App):
                 QuickSetup(title="Welcome to Termapy - Quick Setup"),
                 callback=self._on_quick_setup,
             )
-        elif self.cfg.get("auto_connect"):
+        elif cfg_value(self.cfg, "auto_connect"):
             self._connect()
         else:
             self._status(f"{self._port_info_str()} - press Connect to start")
@@ -1366,19 +1317,11 @@ class SerialTerminal(TerminalHost, App):
 
     def on_unmount(self) -> None:
         self._shutting_down = True
-        # History saved and the log flushed BEFORE the exit event fires: a
-        # plugin's on_app_stop (the cfg info report tails both files) must
-        # see THIS session's lines, not the previous session's.  The log is
-        # block-buffered, so without the flush its tail is still in memory.
+        self._stop_watching()
+        # History saved BEFORE the exit event fires: a plugin's on_app_stop
+        # (the cfg info report tails it and the log) must see THIS session's
+        # lines.  The session log needs no flush: every write flushes.
         self._save_history()
-        # /log.stop closes the handle from a dispatch worker, so it may
-        # already be closed here; a flush on a closed file is ValueError.
-        # Non-critical log I/O is swallowed, as everywhere else.
-        if self.log_fh and not self.log_fh.closed:
-            try:
-                self.log_fh.flush()
-            except (OSError, ValueError):
-                pass
         self.repl.fire_lifecycle("on_app_stop")
         # Stop background work unconditionally: _disconnect() early-returns
         # when not connected, so relying on it left the auto-reconnect worker
@@ -1390,6 +1333,17 @@ class SerialTerminal(TerminalHost, App):
         # genuinely exited rather than probably-exited.  Last, so the end
         # marker follows the Disconnected line and the stop hooks' output.
         self._end_session_log()
+
+    def _leave_on_request(self, by: int) -> None:
+        """Another termapy asked this TUI to leave: exit as ``/exit`` does, and open no next mode.
+
+        On the stop watch's thread.  ``on_unmount`` saves the history, closes
+        the port and ends the session log, and the terminal is restored after
+        ``run()``; a question on screen answers no once ``_shutting_down`` is set.
+        """
+        self._log_line("#", f"Stop requested by termapy PID {by}")
+        self.switch_to = None
+        self._on_main(self.exit)
 
     def _connect(self, port: str | None = None, *, report: bool = True) -> bool:
         if self.is_connected:
@@ -1426,7 +1380,9 @@ class SerialTerminal(TerminalHost, App):
             command for _, command in on_connect_commands(self.cfg, "tui_on_connect_cmd")
         ]
         if connect_cmds:
-            self._run_lines(connect_cmds, delay=0.2)
+            with self._on_connect_lock:
+                self._on_connect_runs += 1
+            self._run_on_connect(connect_cmds)
 
     def _on_connect_failed(self) -> None:
         """TUI post-connect failure: update status, auto-reconnect (on main)."""
@@ -1435,7 +1391,7 @@ class SerialTerminal(TerminalHost, App):
     def _show_connect_failed(self) -> None:
         """Main thread: the body of ``_on_connect_failed``."""
         self._set_conn_status("Disconnected")
-        if self.cfg.get("auto_reconnect"):
+        if cfg_value(self.cfg, "auto_reconnect"):
             self._auto_reconnect()
 
     @property
@@ -1499,7 +1455,7 @@ class SerialTerminal(TerminalHost, App):
             return
         self._set_conn_status(text, "retry")
 
-    def _open_proto_debug(self, path, script) -> None:
+    def _open_proto_debug(self, path: Path, script: ProtoScript) -> None:
         """Open the interactive protocol debug screen.
 
         Discovers available packet visualizers from built-in, global,
@@ -1522,23 +1478,39 @@ class SerialTerminal(TerminalHost, App):
         ctx = self.repl.ctx
         self.push_screen(ProtoDebugScreen(path, ctx, script, final))
 
-    @work(thread=True)
-    def _run_lines(
-        self,
-        cmds: list[str],
-        echo_prefix: str = "",
-        delay: float = 0,
-    ) -> None:
-        """Send multiple commands in a background thread.
+    # How long a connect settles before its on-connect commands run.
+    _ON_CONNECT_DELAY_S = 0.2
 
-        Args:
-            cmds: Command strings to send.
-            echo_prefix: Optional prefix for echoed output.
-            delay: Seconds to wait before sending the first command.
+    @work(thread=True)
+    def _run_on_connect(self, cmds: list[str]) -> None:
+        """Run the on-connect commands on a worker of their own, after the connect settles.
+
+        Counted from before the worker starts until it ends, whatever
+        happens, so ``_wait_for_on_connect`` holds a paste's next line for
+        the whole of it: the settling pause too, when no script is running yet.
         """
-        if delay:
-            time.sleep(delay)
-        self._send_lines(cmds, echo_prefix=echo_prefix)
+        try:
+            time.sleep(self._ON_CONNECT_DELAY_S)
+            self._send_lines(cmds)
+        finally:
+            with self._on_connect_lock:
+                self._on_connect_runs -= 1
+
+    def _wait_for_on_connect(self) -> None:
+        """Hold this worker while on-connect commands or a script it did not start are running.
+
+        A paste or a button's sequence takes the dispatch guard one line at a
+        time, so without this its lines run between another worker's: a
+        pasted ``/port.connect`` started the on-connect script 200 ms later,
+        the next pasted line reached the device ahead of what the script set
+        up, and it lost its echo to the script's echo-off.  Its own ``/run``
+        has returned by the time this is asked, so a running script is someone
+        else's.  Off the main thread only.  The shared stop event ends the
+        wait: Escape, and the app stopping.
+        """
+        stop = self.repl._script_stop
+        while (self._on_connect_runs > 0 or self.repl.in_script) and not stop.wait(0.05):
+            pass
 
     def _send_lines(self, lines: list[str], echo_prefix: str = "") -> None:
         """Send multiple commands with cmd_delay_ms between each.
@@ -1546,7 +1518,7 @@ class SerialTerminal(TerminalHost, App):
         Called from a background thread (@work). _status and
         _dispatch_single are both thread-safe.
         """
-        delay_s = self.cfg.get("cmd_delay_ms", 0) / 1000.0
+        delay_s = cfg_value(self.cfg, "cmd_delay_ms") / 1000.0
         for command in lines:
             command = command.strip()
             if not command:
@@ -1558,7 +1530,7 @@ class SerialTerminal(TerminalHost, App):
                 time.sleep(delay_s)
             self._wait_for_idle(400)
 
-    def _on_main(self, fn, *args, **kwargs):
+    def _on_main(self, fn: Callable[_P, _R], *args: _P.args, **kwargs: _P.kwargs) -> _R | None:
         """Run *fn* on the main thread.  No-op if already there."""
         if self._main_thread_id == threading.get_ident():
             return fn(*args, **kwargs)
@@ -1566,6 +1538,26 @@ class SerialTerminal(TerminalHost, App):
             return self.call_from_thread(fn, *args, **kwargs)
         except RuntimeError:
             return None  # app shutting down
+
+    def _pane_write(self, content: str | Text) -> None:
+        """Write to the output pane as /term.color has it: with color off, every color is dropped.
+
+        Bold, italic, underline and the links' click actions stay, so a
+        help page reads the same and still clicks; a markup string is
+        parsed as the pane parses it.  With color on, ``content`` goes to
+        the widget as it is.  Main thread only, like the widget.
+        """
+        log = self.query_one("#output", RichLog)
+        if self._color_on():
+            log.write(content)
+            return
+        text = Text.from_markup(content) if isinstance(content, str) else content
+        log.write(without_color(text))
+
+    def _color_on(self) -> bool:
+        """Whether /term.color is on: the session flag, on before the context exists."""
+        ctx = getattr(getattr(self, "repl", None), "ctx", None)
+        return True if ctx is None else bool(ctx.ns("flags").get("color", True))
 
     def _status(self, text: str, color: str = "dim") -> None:
         """Write a termapy status message with consistent formatting.
@@ -1582,7 +1574,7 @@ class SerialTerminal(TerminalHost, App):
                 pass
             return
         try:
-            self.query_one("#output", RichLog).write(Text(text, style=f"bold italic {color}"))
+            self._pane_write(Text(text, style=f"bold italic {color}"))
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
         self._log_lines("#", text.splitlines() or [""])
@@ -1601,55 +1593,9 @@ class SerialTerminal(TerminalHost, App):
                 pass
             return
         try:
-            self.query_one(StatusBar).show(text, timeout)
+            self.query_one("#status-bar", StatusBar).show(text, timeout)
         except SHUTDOWN_RACE:
             pass  # widget gone during shutdown
-
-    def _log_line(self, prefix: str, text: str) -> None:
-        """Write a prefixed line to the log file.
-
-        THREADING: reached from the reader path (``_write_batch``) and from
-        dispatch workers, while ``/log.stop`` closes and nulls ``log_fh``
-        on another thread.  Bind the handle to a local so the write cannot
-        land on ``None``, and catch ``ValueError`` -- writing to a file that
-        closed between the bind and the write raises that, not ``OSError``.
-
-        Args:
-            prefix: Line prefix (``>`` TX, ``<`` RX, ``#`` status).
-            text: Content to log.
-        """
-        fh = self.log_fh
-        if fh is not None:
-            try:
-                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                fh.write(f"[{ts}] {prefix} {text}\n")
-                fh.flush()
-            except (OSError, ValueError):
-                pass  # closed under us by /log.stop or /log.delete, or a disk error
-
-    def _log_lines(self, prefix: str, texts: list[str]) -> None:
-        """Write a batch of prefixed lines with one write and one flush.
-
-        The per-line version ran a write AND a flush for every received
-        line, on the event loop, inside the reader's round trip (E2).  All
-        lines in a batch share one timestamp -- they arrived in the same
-        read, so that is if anything more honest than stamping each one a
-        few microseconds apart.
-
-        Args:
-            prefix: Line prefix (``>`` TX, ``<`` RX, ``#`` status).
-            texts: Content lines to log.
-        """
-        fh = self.log_fh
-        if fh is None or not texts:
-            return
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-        block = "".join(f"[{ts}] {prefix} {text}\n" for text in texts)
-        try:
-            fh.write(block)
-            fh.flush()
-        except (OSError, ValueError):
-            pass  # closed under us by /log.stop or /log.delete, or a disk error
 
     def _wait_for_data(self, timeout_ms: int = 250) -> bool:
         """Block until RX arrives or *timeout_ms* elapses (``ctx.serial``).
@@ -1742,28 +1688,23 @@ class SerialTerminal(TerminalHost, App):
                 pass
             return
         try:
-            self.query_one("#output", RichLog).write(text)
+            self._pane_write(text)
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
         if log:
             self._log_lines("#", markup_to_plain(text).splitlines() or [""])
 
     def _report_exception(self, e: Exception) -> None:
-        """Write exception details to the terminal output in red.
+        """Show an exception an event handler stopped: one red line, the traceback in the diagnostic log.
 
-        Displays the exception type, message, filename, and line number
-        so that silently swallowed errors become visible during development.
+        Call it in the ``except`` block, so the log records the traceback
+        being handled.
 
         Args:
             e: The caught exception to report.
         """
-        tb = traceback.extract_tb(e.__traceback__)
-        if tb:
-            last = tb[-1]
-            location = f"{last.filename}:{last.lineno}"
-        else:
-            location = "unknown"
-        self._status(f"Exception: {type(e).__name__}: {e} ({location})", "red")
+        diag_log.exception("TUI event handler raised")
+        self._status(f"Exception: {type(e).__name__}: {e}{diag_log.traceback_note()}", "red")
 
     def _disconnect(self) -> None:
         if self._capture.active:
@@ -1793,7 +1734,7 @@ class SerialTerminal(TerminalHost, App):
             except SHUTDOWN_RACE:
                 pass  # widgets gone during shutdown
             self._sync_hw_buttons(reset=True)
-        except Exception as e:  # noqa: BLE001 -- reported via _report_exception
+        except BoundaryException as e:
             self._report_exception(e)
 
     def _sync_hw_visibility(self) -> None:
@@ -1819,8 +1760,28 @@ class SerialTerminal(TerminalHost, App):
         self._on_main(self._show_config_info, config_path)
         return CmdResult.ok(value=config_path)
 
-    def _switch_config(self, cfg: dict, path: str) -> None:
-        """Apply a new config: disconnect, update state, refresh UI, reconnect."""
+    def _switch_config(
+        self,
+        cfg: dict,
+        path: str,
+        *,
+        keep_connection: bool = False,
+        keep_session: bool = False,
+    ) -> None:
+        """Apply a config: disconnect, update state, refresh UI, connect if it says to.
+
+        Plain, this is a load, and a load ends with what a fresh start on the
+        config has (registry ``config-load-deterministic``).
+
+        Args:
+            cfg: The config to apply.
+            path: Its file.
+            keep_connection: A connected port reconnects whatever ``auto_connect``
+                says.  The editor's Save asks for this: a saved edit is not a
+                request to drop the link.
+            keep_session: Not a load at all, the same config with a new port:
+                nothing is reset and ``on_config_load`` does not fire.
+        """
         # Read before the swap: the log the session is leaving.
         previous_log = self.session_log_path()
         self._clear_output()
@@ -1847,16 +1808,15 @@ class SerialTerminal(TerminalHost, App):
                 self._status(f"  {step}", "yellow")
         for w in cfg.pop("_config_warnings", []):
             self._status(f"Config warning: {w}", "yellow")
-        self.repl.ctx.ns("flags")["hex"] = cfg.get("hex", False)
-        self.repl.ctx.ns("flags")["line_no"] = cfg.get("line_no", False)
         self.repl.replace_cfg(cfg, path)
         self.config_path = path
+        if not keep_session:
+            self._reset_session()
+        self._leave_breadcrumb()
         self.history = self._load_history()
         self._history_nav.reset()
         self.repl.ctx.config_path = path
-        # Every path the handle declares, so none is left on the old config:
-        # prof_dir was missed here for as long as this list has existed, and
-        # /help run.profile went on counting the previous config's CSVs.
+        # Every path the handle declares, so none is left on the old config.
         self.repl.ctx.fs.ss_dir = self.repl.ss_dir
         self.repl.ctx.fs.scripts_dir = self.repl.scripts_dir
         self.repl.ctx.fs.proto_dir = self.repl.proto_dir
@@ -1871,9 +1831,12 @@ class SerialTerminal(TerminalHost, App):
         # The engine resolves the new config's plugins and symbols here;
         # the cfg may also have swapped the active profile out from under
         # us, so rebuild the suggester after the pass, not before it.
-        self.repl.fire_lifecycle("on_config_load")
+        if not keep_session:
+            self.repl.fire_lifecycle("on_config_load")
+            # The load may have ended a recording.
+            self._refresh_record_button()
         self._rebuild_suggester_commands()
-        if was_connected or cfg.get("auto_connect"):
+        if (keep_connection and was_connected) or cfg_value(cfg, "auto_connect"):
             self._connect()
 
     def _switch_to_cli(self) -> CmdResult:
@@ -1911,13 +1874,13 @@ class SerialTerminal(TerminalHost, App):
         resolution, so a serial number or a ``|`` chain loads like a COM name.
         """
         port = cfg["serial"]["port"]
-        # comports() failures are environmental: OSError on udev / IOKit
+        # system_ports() failures are environmental: OSError on udev / IOKit
         # / WMI hiccups, ImportError on platforms without list_ports.
         # Treat either as "no ports visible" and fall through.
         try:
-            from serial.tools.list_ports import comports
+            from termapy.port_control import system_ports
 
-            available = {p.device for p in comports()}
+            available = {p.device for p in system_ports()}
             present = port_control.port_present(port)
         except (OSError, ImportError):
             available, present = set(), False
@@ -1964,7 +1927,9 @@ class SerialTerminal(TerminalHost, App):
                 self._status(f"Failed to load config: {e}", "red")
                 return
             self.push_screen(
-                ConfigEditor(cfg, result[1]),
+                ConfigEditor(
+                    cfg, result[1], used_by=cfg_users(self.repl._plugins), ctx=self.repl.ctx
+                ),
                 callback=self._on_config_result,
             )
         elif action == "rename":
@@ -2022,11 +1987,11 @@ class SerialTerminal(TerminalHost, App):
             callback=_on_name,
         )
 
-    def _on_config_result(self, *args, **kwargs):
+    def _on_config_result(self, result: tuple | None) -> None:
         """Delegate to ``pickers.on_config_result``."""
         from termapy.pickers import on_config_result
 
-        return on_config_result(self, *args, **kwargs)
+        on_config_result(self, result)
 
     def _port_info_str(self) -> str:
         """Format port info like 'COM4 115200 8N1' for title bar.
@@ -2066,11 +2031,15 @@ class SerialTerminal(TerminalHost, App):
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
 
-    def _update_conn_tooltip(self, *args, **kwargs) -> None:
+    def _update_conn_tooltip(
+        self,
+        widget: Button | None = None,
+        display: tuple[str, port_control.ChipFacts | None] | None = None,
+    ) -> None:
         """Refresh the port-button tooltip.  Implementation in ``title_bar``."""
         from termapy.title_bar import update_conn_tooltip
 
-        update_conn_tooltip(self, *args, **kwargs)
+        update_conn_tooltip(self, widget, display)
 
     def _sync_hw_buttons(self, reset: bool = False) -> None:
         """Update DTR/RTS button labels to reflect actual pin state."""
@@ -2102,7 +2071,9 @@ class SerialTerminal(TerminalHost, App):
                 self._status(f"Failed to load config: {e}", "red")
                 return
             self.push_screen(
-                ConfigEditor(cfg, self.config_path),
+                ConfigEditor(
+                    cfg, self.config_path, used_by=cfg_users(self.repl._plugins), ctx=self.repl.ctx
+                ),
                 callback=self._on_config_result,
             )
         else:
@@ -2128,7 +2099,7 @@ class SerialTerminal(TerminalHost, App):
     def _on_btn_break(self) -> None:
         if self.is_connected:
 
-            def _send():
+            def _send() -> None:
                 self._engine.send_break()
                 self.notify("Break sent", timeout=1.5)
 
@@ -2149,12 +2120,15 @@ class SerialTerminal(TerminalHost, App):
     def _btn_scripts(self) -> None:
         if not self._require_config():
             return
+        from termapy.pickers import file_action
+
         self.push_screen(
             ScriptPicker(
                 self.repl.scripts_dir,
-                read_only=self.cfg.get("config_read_only", False),
+                read_only=cfg_value(self.cfg, "config_read_only"),
                 gui_apps=self.repl.ctx.capabilities.gui_apps,
                 web=self.is_web,
+                file_action=partial(file_action, self, "run"),
             ),
             callback=self._on_script_picked,
         )
@@ -2162,12 +2136,15 @@ class SerialTerminal(TerminalHost, App):
     def _btn_proto(self) -> None:
         if not self._require_config():
             return
+        from termapy.pickers import file_action
+
         self.push_screen(
             ProtoPicker(
                 self.repl.proto_dir,
-                read_only=self.cfg.get("config_read_only", False),
+                read_only=cfg_value(self.cfg, "config_read_only"),
                 gui_apps=self.repl.ctx.capabilities.gui_apps,
                 web=self.is_web,
+                file_action=partial(file_action, self, "proto"),
             ),
             callback=self._on_proto_picked,
         )
@@ -2187,12 +2164,13 @@ class SerialTerminal(TerminalHost, App):
         the dialog stays pure in its inputs and testable.
         """
         if read_only is None:
-            read_only = self.cfg.get("config_read_only", False)
+            read_only = cfg_value(self.cfg, "config_read_only")
         return ConfigPicker(
             current_path,
             read_only=read_only,
             gui_apps=self.repl.ctx.capabilities.gui_apps,
             web=self.is_web,
+            open_device=self.engine.open_device if self.engine.is_connected else "",
         )
 
     def _btn_cfg(self) -> None:
@@ -2254,9 +2232,7 @@ class SerialTerminal(TerminalHost, App):
         """
         is_rec = self.ctx.internal.is_recording
         if is_rec is not None and is_rec():
-            # Active: dispatch bare /run.record to stop.  The handler
-            # closes the file, deregisters the observer, and prints
-            # the "Recorded N commands" message.
+            # Recording: a bare /run.record stops it.
             self._dispatch_on_thread(self._repl_line("run.record"))
             self._refresh_record_button()
         else:
@@ -2499,7 +2475,7 @@ class SerialTerminal(TerminalHost, App):
         Custom button commands support \\n as a multi-command separator.
         """
         idx = int(btn_id.split("-")[-1])
-        buttons = self.cfg.get("custom_buttons", [])
+        buttons = cfg_value(self.cfg, "custom_buttons")
         if idx >= len(buttons):
             return
         # "{prefix}" in a button command is the config's REPL prefix, so the
@@ -2511,35 +2487,35 @@ class SerialTerminal(TerminalHost, App):
         elif parts:
             self._dispatch_on_thread(parts[0])
 
-    def _show_port_picker(self, *args, **kwargs):
+    def _show_port_picker(self) -> None:
         """Delegate to ``info_views.show_port_picker``."""
         from termapy.info_views import show_port_picker
 
-        show_port_picker(self, *args, **kwargs)
+        show_port_picker(self)
 
-    def _update_port(self, *args, **kwargs) -> None:
+    def _update_port(self, port: str) -> None:
         """Refresh port-name display.  Implementation in ``title_bar``."""
         from termapy.title_bar import update_port
 
-        update_port(self, *args, **kwargs)
+        update_port(self, port)
         # Connection failure already reported by _try_open_port
 
-    def _on_port_picked(self, *args, **kwargs):
+    def _on_port_picked(self, port: str | None) -> None:
         """Delegate to ``pickers.on_port_picked``."""
         from termapy.pickers import on_port_picked
 
-        on_port_picked(self, *args, **kwargs)
+        on_port_picked(self, port)
 
     # -- Palette action wrappers --
 
     def _new_config(self) -> None:
         self.push_screen(QuickSetup(), callback=self._on_quick_setup)
 
-    def _on_quick_setup(self, *args, **kwargs):
+    def _on_quick_setup(self, result: tuple | None) -> None:
         """Delegate to ``pickers.on_quick_setup``."""
         from termapy.pickers import on_quick_setup
 
-        on_quick_setup(self, *args, **kwargs)
+        on_quick_setup(self, result)
 
     def _edit_file(self, path: Path) -> None:
         """``ctx.internal.edit_file``: the TUI's own editor for the config, a .run or a .pro file.
@@ -2556,7 +2532,12 @@ class SerialTerminal(TerminalHost, App):
 
             def open_editor() -> None:
                 self.push_screen(
-                    ConfigEditor(dict(self.cfg), config_path),
+                    ConfigEditor(
+                        dict(self.cfg),
+                        config_path,
+                        used_by=cfg_users(self.repl._plugins),
+                        ctx=self.repl.ctx,
+                    ),
                     callback=self._on_config_result,
                 )
         elif ext == FOLDER_EXTS["run"]:
@@ -2584,7 +2565,12 @@ class SerialTerminal(TerminalHost, App):
 
     def _palette_edit_config(self) -> None:
         self.push_screen(
-            ConfigEditor(dict(self.cfg), self.config_path),
+            ConfigEditor(
+                dict(self.cfg),
+                self.config_path,
+                used_by=cfg_users(self.repl._plugins),
+                ctx=self.repl.ctx,
+            ),
             callback=self._on_config_result,
         )
 
@@ -2871,7 +2857,7 @@ class SerialTerminal(TerminalHost, App):
         if self._shutting_down:
             return
         self._port_lost()
-        if self.cfg.get("auto_reconnect"):
+        if cfg_value(self.cfg, "auto_reconnect"):
             self._auto_reconnect()
 
     def _clear_output(self) -> None:
@@ -2894,31 +2880,20 @@ class SerialTerminal(TerminalHost, App):
 
     # ── File capture engine ──────────────────────────────────────────────────
 
-    def _cap_start(self, *args, **kwargs):
-        """Start a capture.  Implementation in ``capture_view``.
+    def _cap_start(self, **kwargs: Any) -> bool | None:
+        """Start a capture on the main thread; ``capture_view._cap_start`` is the implementation.
 
-        Stub kept on the App because the host wires this onto
-        ``internal.start_capture`` (bound-method reference).
-        Signature pass-through so this file stays unaware of the
-        real arg list, which lives in ``capture_view._cap_start``.
-
-        Marshalled to the main thread: the ``/cap`` command runs on the
-        dispatch worker thread, but ``_cap_start`` schedules Textual
-        timers and mounts the progress overlay, which require the event
-        loop.  ``_on_main`` runs it inline when already on the main thread.
+        The host wires this onto ``internal.start_capture``.  ``/cap`` runs on
+        a worker, and the capture mounts Textual timers and an overlay.
         """
         from termapy.capture_view import _cap_start
 
-        return self._on_main(_cap_start, self, *args, **kwargs)
+        return self._on_main(_cap_start, self, **kwargs)
 
     def _cap_stop(self) -> None:
-        """Stop the current capture.  Implementation in ``capture_view``.
+        """Stop the capture on the main thread, as ``_cap_start`` starts it.
 
-        Stub kept on the App because the host wires this onto
-        ``internal.stop_capture`` and the cap-stop button looks it up
-        by attribute name.  Marshalled to the main thread for the same
-        reason as ``_cap_start`` -- ``/cap.stop`` arrives on the worker
-        thread but the overlay teardown is Textual work.
+        Wired onto ``internal.stop_capture``; the cap-stop button looks it up by name.
         """
         from termapy.capture_view import _cap_stop
 
@@ -2939,7 +2914,7 @@ class SerialTerminal(TerminalHost, App):
         Fired by ``CaptureEngine.on_complete`` inside ``stop()`` for every
         completion path (manual /cap.stop, timed, target-reached), so the
         message prints exactly once.  ``_cap_stop`` handles the log line and
-        UI teardown; it no longer prints the status itself.
+        UI teardown.
         """
         text, color = format_capture_result(result)
         self._status(text, color)
@@ -2984,8 +2959,9 @@ class SerialTerminal(TerminalHost, App):
                 from termapy.builtins.commands.find import dismiss
 
                 dismiss(self.repl.ctx)
-            except Exception:
+            except BoundaryException:
                 # Defensive: a broken plugin must not block live data.
+                diag_log.exception("find.dismiss raised", once="find.dismiss")
                 self._find_overlay_active = False
             finally:
                 self._find_restore_scroll_on_close = True
@@ -2993,12 +2969,13 @@ class SerialTerminal(TerminalHost, App):
             log = self.query_one("#output", RichLog)
         except SHUTDOWN_RACE:
             return  # widgets torn down between flag check and query
-        show_ts = self.cfg.get("timestamps", False)
+        show_ts = cfg_value(self.cfg, "timestamps")
         flags = self.repl.ctx.ns("flags")
         show_ln = flags.get("line_no", False)
         color_on = flags.get("color", True)
-        # One ANSI strip per line, reused by the plain-render, log and
-        # capture paths below; each used to run its own (E3).
+        # One ANSI strip per line, reused by the plain-render and log paths
+        # below; each used to run its own (E3).  A text capture strips its
+        # own copy, without the eol_markers marker (_feed_rx_consumers).
         plain = [ANSI_RE.sub("", text) for text in lines]
         # from_ansi renders device SGR color; when color is off, render the
         # already-stripped copy so raw escapes don't leak through.  A hex
@@ -3008,19 +2985,28 @@ class SerialTerminal(TerminalHost, App):
             shown = lines if color_on else plain
         else:
             shown = rows
+        # A device's JSON line is laid out by json_fmt.indent and json_fmt.highlight
+        # (display only); highlighting needs color.  The hex view shows bytes.
+        json_text = rows is None
+        json_indent, json_highlight = self.repl.json_layout()
         # Lines beyond what the pane keeps are counted (line numbers stay
         # true) but not rendered: RichLog would discard them on arrival.
         skip = max(0, len(shown) - log.max_lines) if log.max_lines else 0
         self._line_counter += skip
         renderables: list[Text] = []
-        for text in shown[skip:]:
+        for index, text in enumerate(shown[skip:], skip):
             self._line_counter += 1
             prefix = ""
             if show_ln:
                 prefix += f"{self._line_counter:>5} | "
             if show_ts:
                 prefix += f"[{format_timestamp()}] "
-            if from_ansi:
+            shown_markup = None
+            if json_text:
+                shown_markup = received_json_markup(plain[index], json_indent, json_highlight)
+            if shown_markup is not None:
+                renderables.append(Text.from_markup(escape_markup(prefix) + shown_markup))
+            elif from_ansi:
                 renderables.append(Text.from_ansi(f"{prefix}{text}"))
             else:
                 renderables.append(Text(f"{prefix}{text}"))
@@ -3033,7 +3019,7 @@ class SerialTerminal(TerminalHost, App):
             # from the per-line rendering.
             log.write(Text("\n").join(renderables))
         self._log_lines("<", plain)
-        self._feed_rx_consumers(lines, plain)
+        self._feed_rx_consumers(lines)
 
     @on(Input.Changed, "#cmd")
     def _on_cmd_changed(self, event: Input.Changed) -> None:
@@ -3055,7 +3041,7 @@ class SerialTerminal(TerminalHost, App):
         self._history_nav.reset()
         cmd = event.value.strip()
         if not cmd:
-            if self.cfg.get("send_bare_enter", False):
+            if cfg_value(self.cfg, "send_bare_enter"):
                 self._dispatch_on_thread("")
             return
 
@@ -3076,10 +3062,7 @@ class SerialTerminal(TerminalHost, App):
             self.history.pop(0)
         self._update_suggester()
 
-        inp = self.query_one("#cmd", Input)
-        self._saved_placeholder = inp.placeholder
-        inp.placeholder = "Running... escape to cancel"
-        self._set_input_busy(True)
+        self._begin_busy("Running... escape to cancel")
         self._dispatch_on_thread_interactive(cmd)
 
     def on_prompt_input_multiline_paste(self, event: PromptInput.MultilinePaste) -> None:
@@ -3087,20 +3070,29 @@ class SerialTerminal(TerminalHost, App):
 
         With ``multiline_paste`` off, the first line lands in the prompt as
         Textual's own paste puts it, and a status line says the rest were
-        left out, so none go missing silently.
+        left out, so none go missing silently.  A copied transcript (a line
+        starting with the echo's prompt) runs only its commands, the prompt
+        taken off; its output lines would otherwise go to the device.
         """
         lines = event.lines
+        commands = transcript_commands(lines, self.repl.echo_prompt())
+        if commands is not None:
+            skipped = len(lines) - len(commands)
+            self._status(
+                f"Pasted a transcript: running its {len(commands)} commands, "
+                f"skipping {skipped} lines of output.",
+                "yellow",
+            )
+            lines = commands
         inp = self.query_one("#cmd", Input)
-        if not self.cfg.get("multiline_paste", True):
+        if not cfg_value(self.cfg, "multiline_paste"):
             inp.insert_text_at_cursor(lines[0])
             self._status(f"Pasted 1 of {len(lines)} lines: multiline_paste is off.", "yellow")
             return
-        if self.query_one("#bottom-bar").disabled or self.repl.in_script:
+        if self._busy or self.repl.in_script:
             self._status(self._BUSY_MSG, "yellow")
             return
-        self._saved_placeholder = inp.placeholder
-        inp.placeholder = f"Pasting {len(lines)} lines... escape to stop"
-        self._set_input_busy(True)
+        self._begin_busy(f"Pasting {len(lines)} lines... escape to stop")
         self._paste_on_thread(lines)
 
     # -- Clickable output ------------------------------------------------------
@@ -3144,24 +3136,35 @@ class SerialTerminal(TerminalHost, App):
                 style += Style(underline=True, meta=meta)
             line.append(piece.text, style=style)
         try:
-            self.query_one("#output", RichLog).write(line)
+            self._pane_write(line)
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown
         self._log_lines("#", [line.plain])
 
     _EXPIRED_LINK_MSG = "That link has expired - run its list again."
 
-    def _describe_link(self, link_id: int) -> str:
-        """What a click on link ``link_id`` does, for its tooltip (``LinkLog``).
+    def _describe_link(self, link_id: int) -> Text:
+        """What link ``link_id`` names and what a click on it does, for its tooltip (``LinkLog``).
 
-        The command as it will be typed, with the live prefix: the one a
-        click runs, or the one it puts in the input line for Enter.
+        The definition's first line in bold, what the link adds, then, dim,
+        the command as it will be typed, with the live prefix: the one a
+        click runs, or the one it puts in the input line for Enter.  With
+        /term.color off the colors go, as they do in the pane.
         """
         link = self._links.get(link_id)
         if link is None:
-            return self._EXPIRED_LINK_MSG
+            return Text(self._EXPIRED_LINK_MSG)
         command = f"{cmd_prefix(self.cfg)}{link.command}".rstrip()
-        return f"Click to run: {command}" if link.run else f"Click to fill the input: {command}"
+        click = f"Click to run: {command}" if link.run else f"Click to fill the input: {command}"
+        head, newline, rest = self.repl.link_summary(link.command).partition("\n")
+        tip = (Piece(link.tip),) if isinstance(link.tip, str) else link.tip
+        parts = (
+            Text.assemble((head, "bold"), newline + rest),
+            Text.assemble(*((piece.text, piece.style) for piece in tip)),
+            Text(click, style="dim"),
+        )
+        shown = Text("\n\n").join(part for part in parts if part)
+        return shown if self._color_on() else without_color(shown)
 
     def action_click_link(self, link_id: int) -> None:
         """Do what a clicked link says: run its command as typed, or put it in the input line."""
@@ -3178,10 +3181,62 @@ class SerialTerminal(TerminalHost, App):
             inp.cursor_position = len(inp.value)
             inp.focus()
             return
-        if self.query_one("#bottom-bar").disabled:
+        if self._busy or self.query_one("#bottom-bar").disabled:
             self._status(self._BUSY_MSG, "yellow")
             return
         self._submit_line(command)
+
+    # A typed command or paste that finishes sooner than this never shows the
+    # busy look: greying the bar and putting it back for a quick command
+    # made every button flash.
+    _BUSY_LOOK_DELAY_S = 0.15
+
+    def _begin_busy(self, placeholder: str) -> None:
+        """A typed command or paste starts: busy now, and looks it if it is still running soon.
+
+        ``_busy`` is the fact (Escape and the click and paste checks read it);
+        the grey bar and the ``placeholder`` come only after
+        ``_BUSY_LOOK_DELAY_S``, so a quick command repaints nothing.
+        """
+        self._busy = True
+        self._busy_generation += 1
+        if self._busy_look_timer is not None:
+            self._busy_look_timer.stop()
+        self._busy_look_timer = self.set_timer(
+            self._BUSY_LOOK_DELAY_S,
+            partial(self._show_busy_look, self._busy_generation, placeholder),
+        )
+
+    def _show_busy_look(self, generation: int, placeholder: str) -> None:
+        """The busy-look timer fired: grey the bar and show ``placeholder``, unless its command already ended.
+
+        ``generation`` is the command the timer was set for.  A timer's
+        ``stop()`` does not always beat a timer whose wait has already run
+        out (Textual's Windows sleep waits on an executor thread), so the
+        callback can run after ``_end_busy``; unguarded, it greyed the bar
+        for good and every click answered Busy (found 2026-11-01, on a
+        help page that took as long as ``_BUSY_LOOK_DELAY_S`` to render).
+        """
+        if generation != self._busy_generation:
+            return
+        self._busy_look_timer = None
+        inp = self.query_one("#cmd", Input)
+        self._saved_placeholder = inp.placeholder
+        inp.placeholder = placeholder
+        self._set_input_busy(True)
+        self._busy_look_shown = True
+
+    def _end_busy(self) -> None:
+        """The typed command or paste ended: not busy, and the busy look undone if it was shown."""
+        self._busy = False
+        self._busy_generation += 1
+        if self._busy_look_timer is not None:
+            self._busy_look_timer.stop()
+            self._busy_look_timer = None
+        if self._busy_look_shown:
+            self._busy_look_shown = False
+            self._restore_input_placeholder()
+            self._set_input_busy(False)
 
     def _restore_input_placeholder(self) -> None:
         """Restore the command input placeholder after execution."""
@@ -3212,33 +3267,39 @@ class SerialTerminal(TerminalHost, App):
     # so blocking handlers (xmodem, ymodem, etc.) never freeze the TUI.
 
     @work(thread=True)
-    def _dispatch_on_thread(self, cmd: str) -> None:
-        """Run a command on a background thread."""
+    def _dispatch_on_thread(self, cmd: str, then: Callable[[], None] | None = None) -> None:
+        """Run a command on a background thread, then ``then`` on the main thread once it has finished.
+
+        ``then`` is how a dialog that stays open learns the command is done
+        (a picker re-listing its folder after a delete that asked first).
+        """
         try:
             self._dispatch_single(cmd)
         except RuntimeError:
-            pass
+            return
+        if then is not None:
+            try:
+                self.call_from_thread(then)
+            except RuntimeError:
+                pass
 
     @work(thread=True)
     def _dispatch_on_thread_interactive(self, cmd: str) -> None:
-        """Background dispatch for interactive input (restores placeholder)."""
+        """Background dispatch for typed input: keeps the line for /run.last, then ends the busy state."""
         try:
-            self._dispatch_single(cmd)
+            self._dispatch_typed(cmd)
         except RuntimeError:
             pass
         try:
-            self.call_from_thread(self._restore_input_placeholder)
-        except RuntimeError:
-            pass
-        try:
-            self.call_from_thread(self._set_input_busy, False)
+            self.call_from_thread(self._end_busy)
         except RuntimeError:
             pass
 
     @work(thread=True)
     def _dispatch_sequence_on_thread(self, cmds: list[str]) -> None:
-        """Run a sequence of commands on a background thread."""
+        """Run a sequence of commands on a background thread, waiting out on-connect commands between them."""
         for cmd in cmds:
+            self._wait_for_on_connect()
             try:
                 self._dispatch_single(cmd)
             except RuntimeError:
@@ -3257,15 +3318,17 @@ class SerialTerminal(TerminalHost, App):
         into a closed port answers once rather than once per line.  Escape
         stops it through the shared stop event, which the paste may clear
         because it is then the outermost cancellable operation (registry
-        ``plugin-never-clears-stop``).
+        ``plugin-never-clears-stop``).  Each line waits its turn behind
+        on-connect commands (registry ``paste-waits-for-on-connect``).
         """
         stop = self.repl._script_stop
         if not self.repl.in_script:
             stop.clear()
-        delay_s = self.cfg.get("multiline_paste_delay_ms", 10) / 1000.0
+        delay_s = cfg_value(self.cfg, "multiline_paste_delay_ms") / 1000.0
         prefix = cmd_prefix(self.cfg)
         sent = 0
         for line in lines:
+            self._wait_for_on_connect()
             if stop.is_set():
                 break
             command = line.strip() if line.lstrip().startswith(prefix) else line
@@ -3281,8 +3344,7 @@ class SerialTerminal(TerminalHost, App):
         if sent < len(lines):
             self._status(f"Paste stopped after {sent} of {len(lines)} lines.", "yellow")
         try:
-            self.call_from_thread(self._restore_input_placeholder)
-            self.call_from_thread(self._set_input_busy, False)
+            self.call_from_thread(self._end_busy)
         except RuntimeError:
             pass
 
@@ -3333,7 +3395,7 @@ class SerialTerminal(TerminalHost, App):
                 status=self._status,
                 serial_write=self._serial_write,
                 is_connected=lambda: self.is_connected,
-                eol_label=eol_label,
+                eol_label=eol_label_markup,
                 report=report,
             )
         finally:
@@ -3370,7 +3432,7 @@ class SerialTerminal(TerminalHost, App):
                 status=self._status,
                 serial_write=self._serial_write,
                 is_connected=lambda: self.is_connected,
-                eol_label=eol_label,
+                eol_label=eol_label_markup,
             )
         finally:
             self._dispatch_guard.release()
@@ -3388,11 +3450,11 @@ class SerialTerminal(TerminalHost, App):
     # popup on non-Linux platforms.
     _LINUX_ONLY_RE = re.compile(r"linux[^.\n]*only|only[^.\n]*linux", re.IGNORECASE)
 
-    def _show_commands(self, *args, **kwargs):
+    def _show_commands(self) -> None:
         """Delegate to ``info_views.show_commands``."""
         from termapy.info_views import show_commands
 
-        show_commands(self, *args, **kwargs)
+        show_commands(self)
 
     def _hide_history(self) -> None:
         popup = self.query_one("#history-popup", OptionList)
@@ -3422,7 +3484,7 @@ class SerialTerminal(TerminalHost, App):
             inp.value = f"{prefix}{name} "
             inp.action_end()
 
-    def on_key(self, event) -> None:
+    def on_key(self, event: events.Key) -> None:
         """Handle Up/Down for history cycling, Escape to dismiss popup or clear.
 
         In the output pane a printable key goes back to the prompt and is
@@ -3451,7 +3513,9 @@ class SerialTerminal(TerminalHost, App):
             elif pane is not None:
                 # Nothing is selected here (the pane keeps an Escape that
                 # clears a selection, SelectionDismissed): back to the
-                # prompt, and Escape keeps its other jobs.
+                # prompt, and Escape keeps its other jobs.  The binding
+                # still sees the pane focused (the focus moves after this
+                # key), so it stops what runs and sends the device nothing.
                 self._return_to_prompt(pane)
             elif popup_visible:
                 self._hide_history()
@@ -3491,6 +3555,10 @@ class SerialTerminal(TerminalHost, App):
             inp.action_end()
             event.prevent_default()
 
+    def on_link_log_width(self, message: LinkLog.Width) -> None:
+        """Hold the output pane's row width for the dispatch workers (registry table-fits-the-frontend)."""
+        self._output_width = message.columns
+
     def on_selectable_rich_log_selection_dismissed(
         self, message: SelectableRichLog.SelectionDismissed
     ) -> None:
@@ -3523,22 +3591,66 @@ class SerialTerminal(TerminalHost, App):
         return True
 
     def action_stop_script(self) -> None:
-        """Stop a running script or repeat (Escape key)."""
+        """Escape: stop what is running; with nothing to stop, clear the prompt, or send Esc when it is empty.
+
+        ``on_key`` runs first and keeps Escape for its own jobs (cancel a
+        transfer, close the history popup, leave history browsing), and then
+        this binding never fires.  Here Escape stops a script, a paste, a
+        replay, a /delay or a /repeat.  With nothing running and the prompt
+        focused, it clears the prompt, or, empty, is the device's
+        (``/term.ctrl esc``) unless ``control_keys`` is off: the same shape
+        as Ctrl+C (copy, else send) and Ctrl+D (delete, else send).
+        """
+        inp = self.query_one("#cmd", Input)
+        if self.focused is inp and self._nothing_running():
+            if inp.value:
+                inp.value = ""
+            elif cfg_value(self.cfg, "control_keys"):
+                self._dispatch_on_thread(self._repl_line("term.ctrl esc"))
+            return
         self.repl._script_stop.set()
+
+    def _nothing_running(self) -> bool:
+        """Whether no script and no command runs, so a key has nothing of termapy's to stop.
+
+        A script is asked for (it keeps the bar live for its Stop button); a
+        typed command, paste or replay is ``_busy`` from submit to finish,
+        including the pause between pasted lines and before its grey look
+        shows; a command from a button or the palette holds the dispatch
+        guard (tested non-blocking, so main never waits on it).
+        """
+        if self.repl.in_script or self._busy:
+            return False
+        if not self._dispatch_guard.acquire(blocking=False):
+            return False
+        self._dispatch_guard.release()
+        return True
+
+    def action_send_control(self, key: str) -> None:
+        """Send Ctrl+<key> to the device, as ``/term.ctrl <key>``, when nothing on screen took it.
+
+        Reached only after the focused widget passed the key on: Ctrl+C
+        when no text is selected, Ctrl+D or Ctrl+Z on an empty prompt.  Never over a
+        dialog: Textual's binding chain stops at a modal screen, so app
+        bindings do not fire there.  With ``control_keys`` off the key does
+        nothing.
+        """
+        if cfg_value(self.cfg, "control_keys"):
+            self._dispatch_on_thread(self._repl_line(f"term.ctrl {key}"))
 
     def action_btn_help(self) -> None:
         self._btn_help()
 
     def action_btn_cfg(self) -> None:
-        if self.cfg.get("cfg_enabled", True):
+        if cfg_value(self.cfg, "cfg_enabled"):
             self._btn_cfg()
 
     def action_btn_run(self) -> None:
-        if self.cfg.get("run_enabled", True):
+        if cfg_value(self.cfg, "run_enabled"):
             self._btn_scripts()
 
     def action_btn_proto(self) -> None:
-        if self.cfg.get("proto_enabled", True):
+        if cfg_value(self.cfg, "proto_enabled"):
             self._btn_proto()
 
     def action_btn_open_config(self) -> None:
@@ -3560,16 +3672,18 @@ class SerialTerminal(TerminalHost, App):
             pass
 
     def action_screenshot(self, filename: str | None = None, path: str | None = None) -> None:
-        ts = filename_timestamp()
-        svg_path = str((ensure_folder(self.repl.ss_dir) / f"screenshot_{ts}.svg").resolve())
+        svg_path = str(
+            stamped_path(ensure_folder(self.repl.ss_dir), "screenshot", ".svg").resolve()
+        )
         self.save_screenshot(svg_path)
         self.last_screenshot = svg_path
         self.notify(f"Screenshot saved: {svg_path}", timeout=1.5, markup=False)
         self._sync_ss_button()
 
     def action_text_screenshot(self) -> None:
-        ts = filename_timestamp()
-        txt_path = str((ensure_folder(self.repl.ss_dir) / f"screenshot_{ts}.txt").resolve())
+        txt_path = str(
+            stamped_path(ensure_folder(self.repl.ss_dir), "screenshot", ".txt").resolve()
+        )
         text = self._get_screen_text()
         Path(txt_path).write_text(text, encoding="utf-8")
         self.last_screenshot = txt_path
@@ -3704,14 +3818,14 @@ class SerialTerminal(TerminalHost, App):
         """
         for old_button in list(self.query(".custom-btn")):
             await old_button.remove()
-        side = self.cfg.get("custom_buttons_side", "bottom")
+        side = cfg_value(self.cfg, "custom_buttons_side")
         bar = self.query_one("#custom-bar", Horizontal)
         column = self.query_one("#custom-side", VerticalScroll)
         target = column if side in ("left", "right") else bar
         column.set_class(side == "left", "left")
         buttons = [
             self._custom_button(i, entry)
-            for i, entry in enumerate(self.cfg.get("custom_buttons", []))
+            for i, entry in enumerate(cfg_value(self.cfg, "custom_buttons"))
             if entry.get("enabled", False)
         ]
         if buttons:
@@ -3741,7 +3855,26 @@ class SerialTerminal(TerminalHost, App):
         from background threads, the status label does.
         """
         try:
-            self.query_one(StatusBar).set_progress(text)
+            self.query_one("#status-bar", StatusBar).set_progress(text)
+        except SHUTDOWN_RACE:
+            pass
+
+    def _refresh_traffic(self) -> None:
+        """Show the engine's TX/RX counts while ``/term.traffic`` is on, hide them when off (main thread).
+
+        Runs twice a second from ``on_mount``.  It reads the flag each tick,
+        so a config load, which turns the flag off, hides the counts with no
+        hook.
+        """
+        ctx = getattr(getattr(self, "repl", None), "ctx", None)
+        on = ctx is not None and bool(ctx.ns("flags").get("traffic"))
+        if on:
+            tx, rx = ctx.serial.byte_counts()
+            text = f"TX {format_size(tx)}  RX {format_size(rx)}"
+        else:
+            text = ""
+        try:
+            self.query_one("#traffic-bar", StatusBar).set_progress(text)
         except SHUTDOWN_RACE:
             pass
 
@@ -3758,7 +3891,7 @@ class SerialTerminal(TerminalHost, App):
             self._sync_hw_visibility()
             self._sync_hw_buttons()
 
-    def _refresh_after_cfg(self, key: str, new_val) -> None:
+    def _refresh_after_cfg(self, key: str, new_val: object) -> None:
         was_connected = self.is_connected
         if key in port_control.SERIAL_KEYS and was_connected:
             self._disconnect()
@@ -3772,28 +3905,27 @@ class SerialTerminal(TerminalHost, App):
         if key in port_control.SERIAL_KEYS and was_connected:
             self._connect()
 
-    def _hook_cfg_confirm(self, key: str, new_val) -> bool:
+    def _hook_cfg_confirm(self, key: str, new_val: object) -> bool:
         """``/cfg <key> <value>`` in the TUI: ask, wait for the answer, and apply on Yes.
 
         Returns:
             True when the change was applied; False on Cancel, and on a
             call from the main thread, which cannot wait.
         """
-        # baud_rate / port / etc. live under cfg["serial"] post-v22, so read
-        # the current value from wherever the key sits (mirrors the routing
-        # in repl._apply_cfg).  A naive self.cfg[key] KeyErrors on serial keys.
-        serial = self.cfg.get("serial", {})
-        old_val = serial[key] if isinstance(serial, dict) and key in serial else self.cfg[key]
+        # The current value from wherever the key sits: a section (serial,
+        # json_fmt) or the top level, as /cfg found it.
+        slot = cfg_slot(self.cfg, key)
+        old_val = slot[0][slot[1]] if slot is not None else None
         if not self._ask(CfgConfirm(key, old_val, new_val)):
             return False
         self.repl._apply_cfg(key, new_val)
         return True
 
-    def _on_script_picked(self, *args, **kwargs):
+    def _on_script_picked(self, result: tuple | None) -> None:
         """Delegate to ``pickers.on_script_picked``."""
         from termapy.pickers import on_script_picked
 
-        on_script_picked(self, *args, **kwargs)
+        on_script_picked(self, result)
 
     def _on_script_saved(self, path: str | None) -> None:
         if path:
@@ -3801,11 +3933,11 @@ class SerialTerminal(TerminalHost, App):
             self._sync_scripts_button()
         self._sync_proto_button()
 
-    def _on_proto_picked(self, *args, **kwargs):
+    def _on_proto_picked(self, result: tuple | None) -> None:
         """Delegate to ``pickers.on_proto_picked``."""
         from termapy.pickers import on_proto_picked
 
-        on_proto_picked(self, *args, **kwargs)
+        on_proto_picked(self, result)
 
     def _on_proto_saved(self, path: str | None) -> None:
         """Handle result from the ProtoEditor dialog.
@@ -3817,11 +3949,11 @@ class SerialTerminal(TerminalHost, App):
             self._status(f"Proto script saved: {Path(path).name}", "green")
             self._sync_proto_button()
 
-    def _open_picker(self, *args, **kwargs):
+    def _open_picker(self, name: str) -> CmdResult:
         """Delegate to ``pickers.open_picker``."""
         from termapy.pickers import open_picker
 
-        return open_picker(self, *args, **kwargs)
+        return open_picker(self, name)
 
     _script_last_label: str = ""
 
@@ -3988,7 +4120,7 @@ def _reset_terminal() -> None:
         pass
 
 
-def _run_proto_headless(args) -> None:
+def _run_proto_headless(args: argparse.Namespace) -> None:
     """Run a .pro test script headlessly (no TUI) and write JSON results."""
     from termapy.protocol import run_proto_tests
 
@@ -4028,18 +4160,23 @@ def _run_proto_headless(args) -> None:
         sys.exit(2)
 
     # Run tests
-    template = cfg.get("proto_results_template", "{name}_results.json")
+    template = cfg_value(cfg, "proto_results_template")
     # run_proto_tests executes user-supplied .pro content, which drives
     # arbitrary command handlers and serial I/O; ValueError comes from
     # the parser specifically, everything else from the test session
     # is a trust-boundary catch.
+    diag_log.start("proto", str(config_path))
     try:
         results = run_proto_tests(pro_path, cfg, template=template)
     except ValueError as e:
         print(f"termapy: {e}", file=sys.stderr)
         sys.exit(2)
     except BoundaryException as e:
-        print(f"termapy: test error: {e}", file=sys.stderr)
+        diag_log.exception("headless proto run raised: %s", pro_path)
+        print(
+            f"termapy: test error: {type(e).__name__}: {e}{diag_log.traceback_note()}",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     # Print summary
@@ -4055,7 +4192,7 @@ def _run_proto_headless(args) -> None:
     sys.exit(0 if failed == 0 else 1)
 
 
-def _run_web_mode(args) -> None:
+def _run_web_mode(args: argparse.Namespace) -> None:
     """Serve the TUI in a web browser via textual-serve, at ``args.web``'s ``(host, port)``."""
     try:
         # No ty: ignore here -- the gate runs with all extras synced (see
@@ -4100,6 +4237,22 @@ def _run_web_mode(args) -> None:
     import os
 
     os.environ.setdefault("TERMAPY_GUI", "0")
+    # The server holds no serial port (each browser session is a TUI
+    # process with its own breadcrumb); this one lets --kill find it.
+    from termapy import breadcrumbs
+
+    breadcrumbs.leave("web", config=args.config or "", detailed=True)
+
+    def _stop_server(by: int) -> None:
+        """Another termapy asked this server to stop: unwind as Ctrl+C does (the stop watch's thread).
+
+        aiohttp cleans up and tells each browser session's TUI to quit.
+        """
+        import _thread
+
+        _thread.interrupt_main()
+
+    breadcrumbs.on_stop_request(_stop_server)
     server = Server(
         " ".join(cmd_parts),
         host=host,
@@ -4109,7 +4262,7 @@ def _run_web_mode(args) -> None:
     server.serve()
 
 
-def _run_tui_mode(args) -> str | None:
+def _run_tui_mode(args: argparse.Namespace) -> str | None:
     """Run in TUI mode. Returns mode to switch to, or None for exit."""
     if args.demo:
         from termapy.config import setup_demo_config

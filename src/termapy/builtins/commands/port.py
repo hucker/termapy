@@ -2,16 +2,39 @@
 
 from __future__ import annotations
 
+import re
+import textwrap
 from typing import TYPE_CHECKING
 
 from termapy import port_control
-from termapy.help_dynamic import compose, green, port_status, state_line
-from termapy.legacy import make_forwarder
-from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError
-from termapy.port_format import find_chips
+from termapy.defaults import STANDARD_BAUD_RATES, cfg_value
+from termapy.help_dynamic import compose, port_status
+from termapy.plugins import (
+    CapabilitySet,
+    CmdResult,
+    Column,
+    Command,
+    PieceLine,
+    TextLine,
+    UsageError,
+)
+from termapy.plugins.waiting import wait
+from termapy.port_format import PORT_TABLE_COLUMNS, find_chips
+from termapy.scripting import format_duration, parse_duration
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from termapy.plugins import PluginContext
+
+
+# The standard rates as /help port.baud_rate lists them, from the one table.
+_STANDARD_RATES_HELP = textwrap.fill(
+    ", ".join(str(rate) for rate in STANDARD_BAUD_RATES),
+    width=62,
+    initial_indent="  ",
+    subsequent_indent="  ",
+)
 
 
 def _apply(ctx: PluginContext, result: port_control.Result) -> None:
@@ -31,7 +54,7 @@ def _apply(ctx: PluginContext, result: port_control.Result) -> None:
         ctx.serial.apply_port_effects(effects)
 
 
-def _answer(ctx: PluginContext, result: port_control.Result, value: str) -> CmdResult:
+def _answer(ctx: PluginContext, result: port_control.Result, value: object) -> CmdResult:
     """A setter's answer: its refusal as the failure, else its lines and ``value``.
 
     A refusal (``port_control.problem``) applies nothing and prints nothing
@@ -81,29 +104,26 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
-    """List the serial ports: a table for a person, records for a structured consumer; the value is the device names."""
-    # Structured consumer: records only, no table.  ``value`` is the
-    # comma-joined device names (the useful scalar for an agent or a
-    # capture) rather than the rendered table text the human branch
-    # returns -- the table is exactly the big prose ``wants_data``
-    # exists to skip.
-    if ctx.wants_data:
-        records = port_control.list_port_records()
-        return CmdResult.ok(
-            value=",".join(record["device"] or "" for record in records),
-            data=records,
-        )
-    result = port_control.list_ports()
-    _apply(ctx, result)
-    return CmdResult.ok(value=_joined_value(result))
+    """List the serial ports: a table fitted to the frontend's width, the records as data, their count the value.
+
+    A list answer (registry ``list-one-format``) over
+    ``port_control.list_port_records``, the same records ``--ports --json``
+    prints; the columns are ``port_format.PORT_TABLE_COLUMNS``, whose drop
+    ranks let a narrow screen lose SPEED and CHIP before the port names.
+    Under ``TERMAPY_ALLOWED_PORTS`` the title says the list is limited.
+    """
+    return CmdResult.table(
+        port_control.ports_title(), "port", PORT_TABLE_COLUMNS, port_control.list_port_records()
+    )
 
 
 def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
-    """Render the USB device tree, or its records for a structured consumer; fails on an unsupported platform."""
+    """The USB device tree as a page, its nested records as data and its serial-port count as the value; fails on an unsupported platform."""
     from termapy.usb_tree import (
         UnsupportedPlatform,
+        count_ports,
         gather_usb_tree,
-        render_tree,
+        render_tree_pieces,
         to_json_records,
     )
 
@@ -111,35 +131,91 @@ def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
         roots = gather_usb_tree()
     except UnsupportedPlatform as exc:
         return CmdResult.fail(msg=str(exc))
-    # Structured consumer: the nested record tree (same shape as
-    # ``--usb --json``), skipping the box-drawing render entirely.
-    if ctx.wants_data:
-        return CmdResult.ok(value="", data=to_json_records(roots))
-    lines = render_tree(roots)
-    for line in lines:
-        ctx.io.output(line)
-    return CmdResult.ok(value="\n".join(lines))
+    # The tree is the data (the shape ``--usb --json`` prints), its drawing
+    # the page dispatch prints for a person (registry record-one-format).
+    return CmdResult.record(
+        to_json_records(roots),
+        [PieceLine(tuple(line)) for line in render_tree_pieces(roots)],
+        value=count_ports(roots),
+    )
+
+
+class _Opener:
+    """One try at opening the port per call, keeping why the last try failed."""
+
+    def __init__(self, ctx: PluginContext, port: str | None) -> None:
+        self._ctx = ctx
+        self._port = port
+        self.error = ""
+
+    def __call__(self) -> bool:
+        """Try once: True when the port is open (or already was)."""
+        try:
+            self._ctx.serial.connect(self._port)
+        except OSError as e:
+            self.error = str(e)
+            return False
+        return True
+
+
+# How often a timed connect tries the port again.
+_RETRY_S = 0.1
+# /port.connect's own options, taken off the line before the rest is read
+# as the port's settings: msg= runs to the end of the line, so it is last.
+_MSG_RE = re.compile(r"(?:^|\s)msg=(.*)$")
+_TIMEOUT_RE = re.compile(r"(?:^|\s)timeout=(\S*)")
+
+
+def _wait_options(args: str) -> tuple[str, float, str]:
+    """``timeout=`` and ``msg=`` taken off ``/port.connect``'s line.
+
+    Returns:
+        The rest of the line, the timeout in seconds (0 for one try) and
+        the message (empty for the default one).
+
+    Raises:
+        ValueError: The timeout is not a duration.
+    """
+    msg = ""
+    match = _MSG_RE.search(args)
+    if match:
+        msg = match.group(1).strip()
+        args = args[: match.start()]
+    timeout = 0.0
+    match = _TIMEOUT_RE.search(args)
+    if match:
+        try:
+            timeout = parse_duration(match.group(1))
+        except ValueError:
+            raise ValueError(f"Invalid timeout: {match.group(1)}") from None
+        args = args[: match.start()] + args[match.end() :]
+    return args, timeout, msg
 
 
 def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
-    """Open the named port (or the config's), applying any baud, frame, line-ending and echo settings first; URL ports need network egress."""
-    port, baud, mode, line_ending, echo, err = port_control.parse_open_args(args)
+    """Open the named port (or the config's), applying any baud, frame, line-ending and echo settings first; TERMAPY_ALLOWED_PORTS decides which ports may open.
+
+    With ``timeout=`` a port that does not open is tried again until it
+    does or the time runs out: one plugged in, enumerating, or let go by
+    another program.  The wait shows progress and Escape, Ctrl+C or a
+    script's Stop ends it.
+    """
+    try:
+        args, timeout, msg = _wait_options(args)
+    except ValueError as e:
+        return CmdResult.fail(msg=str(e))
+    port, baud, mode, line_ending, echo, custom, err = port_control.parse_open_args(args)
     if err:
         return CmdResult.fail(msg=err)
-    # Network egress: a serial-over-URL "port" (socket://, rfc2217://)
-    # opens an outbound TCP connection.  Refuse under the MCP sandbox so
-    # an automated peer can't reach arbitrary hosts; physical ports are
-    # unaffected.  Checked before any cfg mutation.
-    if port and "://" in port and not ctx.capabilities.network_egress:
-        msg = (
-            "Network ports (socket://, rfc2217://) are disabled under the MCP "
-            "sandbox. Set TERMAPY_MCP_NET_EGRESS=1 in the server's shell to "
-            "allow them."
-        )
-        return CmdResult.fail(msg=msg)
+    # Which ports may open, network ports under MCP included, is decided where
+    # every route opens one, config.open_serial (registry port-policy-at-opener);
+    # a refusal comes back as the connect's failure.
     # Apply all optional settings to config before connecting so the
     # port opens with the requested settings.  Each branch is a no-op
-    # when the user didn't supply that field.
+    # when the user didn't supply that field.  custom=true asked for a rate
+    # off the standard list, so the session's config says so too.
+    if custom:
+        ctx.serial.apply_port_effects({"cfg_update": {"custom_baud": True}})
     if baud is not None:
         ctx.serial.apply_port_effects({"cfg_update": {"baud_rate": baud}})
     if mode is not None:
@@ -160,11 +236,20 @@ def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
     # The port not opening (bad name, in use, ...) raises its reason, which
     # is this command's failure.  A /port.connect issued while already
     # connected only re-applies the cfg settings above; that is not a failure.
-    try:
-        ctx.serial.connect(port)
-    except OSError as e:
-        return CmdResult.fail(msg=str(e))
-    return CmdResult.ok(value=port or "")
+    opener = _Opener(ctx, port)
+    if opener():
+        return CmdResult.ok(value=port or "")
+    if timeout <= 0:
+        return CmdResult.fail(msg=opener.error)
+    ctx.io.output(msg or f"Waiting for {port or cfg_value(ctx.cfg, 'serial.port')}...")
+    outcome = wait(ctx, timeout, opener, interval=_RETRY_S)
+    if outcome == "met":
+        return CmdResult.ok(value=port or "")
+    if outcome == "stopped":
+        if ctx.internal.in_script():
+            return CmdResult.fail(msg="Script stopped.")
+        return CmdResult.fail(msg="Connect canceled.")
+    return CmdResult.fail(msg=f"{opener.error} (waited {format_duration(timeout)})")
 
 
 def _handler_disconnect(ctx: PluginContext, args: str) -> CmdResult:
@@ -202,9 +287,19 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_mode(ctx: PluginContext, args: str) -> CmdResult:
-    """Query (bare) or set the frame as one token such as 8N1, with an optional baud rate."""
+    """Query (bare) or set the frame as one token such as 8N1, with an optional baud rate.
+
+    Bare is a one-line record: ``value`` is the frame as one token a script
+    captures (``115200 8N1``), ``data`` its fields (``port_control.mode_facts``).
+    """
     result = port_control.set_mode(ctx.internal.port(), ctx.cfg, args)
-    return _answer(ctx, result, _joined_value(result))
+    if args.strip():
+        return _answer(ctx, result, _joined_value(result))
+    refusal = port_control.problem(result)
+    if refusal is not None:
+        return CmdResult.fail(msg=refusal)
+    shown = [TextLine(_joined_value(result))]
+    return CmdResult.record(port_control.mode_facts(ctx.cfg), shown, value=_read_value(result))
 
 
 def _handler_flow(ctx: PluginContext, args: str) -> CmdResult:
@@ -232,15 +327,14 @@ def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
     """Dump the USB-serial chip lookup table.
 
     Prints one row per known (VID:PID, chip model, speed, max_baud).
-    An optional name pattern narrows it to the chips whose model or
-    speed matches (``port_format.find_chips``).  Typical use:
-    ``/port.chip.list ftdi``, ``/port.chip.list high``.
+    An optional name pattern narrows it to the chips any column of which
+    matches (``port_format.find_chips``).  Typical use:
+    ``/port.chip.list ftdi``, ``/port.chip.list 0403``, ``/port.chip.list high``.
 
-    ``CmdResult.value`` is ``"Count=<N>"`` where ``<N>`` is the number
-    of chips matching the filter (or the total when unfiltered), so a
-    script can capture the match count with
-    ``$(COUNT) <- /port.chip.list ftdi``.  None matching is an empty
-    table and ``Count=0``.
+    ``CmdResult.value`` is the number of chips matching the filter (or
+    the total when unfiltered), so a script can capture the match count
+    with ``$(COUNT) <- /port.chip.list ftdi``.  None matching is an empty
+    table and ``0``.
     """
     rows = find_chips(args.strip())
 
@@ -253,13 +347,7 @@ def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
         }
         for vid, pid, info in rows
     ]
-    return CmdResult.table(
-        "USB-serial chips",
-        "chip",
-        _CHIP_COLUMNS,
-        records,
-        value=f"Count={len(records)}",
-    )
+    return CmdResult.table("USB-serial chips", "chip", _CHIP_COLUMNS, records)
 
 
 # /port.chip.list columns: the records keep max_baud an int for a data consumer.
@@ -271,7 +359,7 @@ _CHIP_COLUMNS = (
 )
 
 
-def _make_chip_field_handler(field: str):
+def _make_chip_field_handler(field: str) -> Callable[[PluginContext, str], CmdResult]:
     """Build a handler for /port.chip.<field>.
 
     The handler takes an optional port name, or ``*`` for every port as
@@ -294,14 +382,9 @@ def _make_chip_field_handler(field: str):
             if not records:
                 ctx.io.output("No serial ports found", "yellow")
                 return CmdResult.ok(value="")
-            lines = "\n".join(
-                f"{record['device']}: {columns[1].cell(record)}" for record in records
-            )
             # The data maps each device to its value, so a consumer looks a port up.
             by_device = {str(record["device"]): record[field] for record in records}
-            return CmdResult.table(
-                f"Chip {label}", "port", columns, records, value=lines, data=by_device
-            )
+            return CmdResult.table(f"Chip {label}", "port", columns, records, data=by_device)
         result = port_control.chip_field(field, args, current, connected)
         _apply(ctx, result)
         # Single-port single-field call: return value via CmdResult.value
@@ -342,32 +425,62 @@ def _joined_value(result: port_control.Result) -> str:
     return "\n".join(text for text, color in msgs if color not in ("red", "yellow"))
 
 
-def _make_prop_handler(key: str):
+def _level(result: port_control.Result) -> int | str:
+    """A modem line's level as a number, ``0`` or ``1`` (the vocabulary ``$(PORT.CTS)`` uses), else the line as read."""
+    text = _read_value(result)
+    return int(text) if text in ("0", "1") else text
+
+
+def _make_prop_handler(key: str) -> Callable[[PluginContext, str], CmdResult]:
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         result = port_control.get_set_prop(ctx.internal.port(), ctx.cfg, key, args)
-        # Only return value on read (no args); set returns prose not useful as value
-        return _answer(ctx, result, _read_value(result) if not args.strip() else "")
+        # A bare query answers the setting in its own type, the config's
+        # (registry value-typed); a set returns prose not useful as a value.
+        value = cfg_value(ctx.cfg, f"serial.{key}") if not args.strip() else ""
+        return _answer(ctx, result, value)
 
     # The /help.dev text of each command built here (registry handler-docstring).
     _handler.__doc__ = f"Query (bare) or set the port's {key}, on the open port and in the config."
     return _handler
 
 
-def _make_hw_handler(line: str):
+def _handler_baud_rate(ctx: PluginContext, args: str) -> CmdResult:
+    """Query (bare) or set the port's baud rate; bare says ``(custom)`` while ``custom_baud`` is on, a set takes ``custom=true``.
+
+    Bare is a one-line record, so ``/help port.baud_rate``'s CURRENT STATE
+    shows the mode as the command does, while ``value`` stays the number a
+    script captures and ``data`` carries both.
+    """
+    result = port_control.get_set_prop(ctx.internal.port(), ctx.cfg, "baud_rate", args)
+    if args.strip():
+        return _answer(ctx, result, "")
+    refusal = port_control.problem(result)
+    if refusal is not None:
+        return CmdResult.fail(msg=refusal)
+    rate = _read_value(result)
+    data = port_control.baud_facts(ctx.cfg, rate)
+    connected = ctx.serial.is_connected()
+    shown = (
+        rate + (" (custom)" if data["custom"] else "") + ("" if connected else " (disconnected)")
+    )
+    return CmdResult.record(data, [TextLine(shown)], value=data["baud"])
+
+
+def _make_hw_handler(line: str) -> Callable[[PluginContext, str], CmdResult]:
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         result = port_control.get_set_hw_line(ctx.internal.port(), line, args)
-        return _answer(ctx, result, _read_value(result) if not args.strip() else "")
+        return _answer(ctx, result, _level(result) if not args.strip() else "")
 
     # The /help.dev text of each command built here (registry handler-docstring).
     _handler.__doc__ = f"Query (bare) or set the {line.upper()} output line of the open port."
     return _handler
 
 
-def _make_signal_handler(signal: str):
+def _make_signal_handler(signal: str) -> Callable[[PluginContext, str], CmdResult]:
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         # Signals are always read-only; extract value from the single msg
         result = port_control.read_signal(ctx.internal.port(), signal, args)
-        return _answer(ctx, result, _read_value(result))
+        return _answer(ctx, result, _level(result))
 
     # The /help.dev text of each command built here (registry handler-docstring).
     _handler.__doc__ = f"Read the {signal.upper()} input line of the open port."
@@ -376,39 +489,8 @@ def _make_signal_handler(signal: str):
 
 # ── Dynamic long_help helpers ────────────────────────────────────────────────
 
-# Single-value subcommands just print "Current <label> = <value>" using the
-# config dict as the source of truth. Config holds the mode even when no
-# port is open, so these still show something useful while disconnected.
-
-
-def _cfg_value_long_help(key: str, label: str):
-    """Build a callable that renders a state_line for a single cfg key.
-
-    Reads from ``ctx.cfg["serial"][key]`` if the key lives there
-    (post-v22 pyserial keys); falls back to flat top-level for any
-    other key.  Keeps callers (port.baud_rate, port.byte_size,
-    port.stop_bits) oblivious to the v22 nesting.
-    """
-
-    def _long(ctx: PluginContext) -> str:
-        serial = ctx.cfg.get("serial", {})
-        if key in serial:
-            value = serial[key]
-        else:
-            value = ctx.cfg.get(key, "?")
-        return state_line(label, value)
-
-    return _long
-
-
-def _port_root_long_help(ctx: PluginContext) -> str:
-    return compose(
-        port_status(ctx),
-        "Connect to, disconnect from, list, or configure the serial\n"
-        "port.  Subcommands cover live signals (DTR/RTS/CTS/DSR/RI/CD),\n"
-        "USB chip identification ({prefix}port.chip.*), and the four mode\n"
-        "settings baud_rate, byte_size, parity, stop_bits.",
-    )
+# A family's page gets a summary no single command gives.  A setting or a
+# signal line declares Command.state instead, and /help shows what it answers.
 
 
 def _port_info_long_help(ctx: PluginContext) -> str:
@@ -422,59 +504,27 @@ def _port_info_long_help(ctx: PluginContext) -> str:
     )
 
 
-def _port_mode_long_help(ctx: PluginContext) -> str:
-    serial = ctx.cfg["serial"]
-    byte = serial["byte_size"]
-    par = serial["parity"]
-    stop = serial["stop_bits"]
-    baud = serial["baud_rate"]
-    return compose(
-        green(f"Current mode = {baud} {par}{byte}{stop}"),
-        "Combined form for baud + mode triple. Accepts '{prefix}port.mode\n"
-        "115200 N81' or a subset. Individual subcommands\n"
-        "({prefix}port.baud_rate, {prefix}port.byte_size, {prefix}port.parity,\n"
-        "{prefix}port.stop_bits) exist too.",
-    )
-
-
-def _port_parity_long_help(ctx: PluginContext) -> str:
-    return compose(
-        state_line("parity", ctx.cfg["serial"]["parity"]),
-        "Parity bit mode. Values:\n"
-        "  N - none (default for most modern devices)\n"
-        "  E - even\n"
-        "  O - odd\n"
-        "  M - mark (always 1)\n"
-        "  S - space (always 0)",
-    )
-
-
-def _port_flow_long_help(ctx: PluginContext) -> str:
-    return compose(
-        state_line("flow control", ctx.cfg["serial"]["flow_control"]),
-        "Serial flow-control mode. Values:\n"
-        "  none    - no flow control (default; most modern devices)\n"
-        "  rtscts  - hardware handshake using the RTS/CTS lines\n"
-        "  xonxoff - software handshake using the 0x11/0x13 bytes\n"
-        "  manual  - leave DTR/RTS under plugin control\n"
-        "Use rtscts only when both ends agree -- a mismatch will\n"
-        "hang transmission silently.",
-    )
-
-
-def _port_hw_line_long_help(line: str, direction: str):
-    """Build long_help for dtr/rts (set) or cts/dsr/ri/cd (read-only)."""
-
-    def _long(ctx: PluginContext) -> str:
-        port = ctx.internal.port()
-        value = getattr(port, line, None) if port is not None else None
-        # The level as the command answers it (/port.cts returns 0 or 1),
-        # not pyserial's bool.
-        level = "?" if value is None else int(value)
-        return state_line(f"{line.upper()} ({direction})", level)
-
-    return _long
-
+# The /port.chip.<field> commands, one per chip fact: the help line each
+# shows.  The handler and the config declaration are the same for all, so
+# a new fact is a row here (and its ChipFacts field), never a new entry.
+_CHIP_FIELD_HELP = {
+    "device": "Show port device name.",
+    "description": "Show OS-reported port description.",
+    "manufacturer": "Show USB manufacturer string.",
+    "product": "Show USB product string.",
+    "serial": "Show USB serial number of the cable.",
+    "location": "Show USB topology location.",
+    "interface": "Show interface label (multi-channel chips).",
+    "vid_pid": "Show USB VID:PID hex string.",
+    "model": "Show identified chip model from the lookup table.",
+    "usb_speed": "Show theoretical USB speed class for the chip.",
+    "negotiated": "Show OS-reported negotiated USB link speed (Linux only).",
+    "driver": "Show the OS driver name (Linux + Windows).",
+    "latency_timer": "Show FTDI latency timer value (Linux + FTDI only).",
+    "max_baud": "Show maximum baud rate the chip supports.",
+    "permissions": "Show read/write permission status for the device.",
+    "in_use": "Show whether another process has the port open.",
+}
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 
@@ -483,8 +533,14 @@ COMMAND = Command(
     name="port",
     args="{name}",
     help="Serial port tools: connect, disconnect, list, configure.",
-    long_help=_port_root_long_help,
+    intro=(
+        "Connect to, disconnect from, list, or configure the serial port. Subcommands"
+        " cover live signals (DTR/RTS/CTS/DSR/RI/CD), USB chip identification, and "
+        "the mode settings."
+    ),
+    long_help=port_status,
     handler=_handler_root,
+    cfg={"serial.port": "set for the session, then reconnects"},
     picker="port",
     bare_sub="list",
     sub_commands={
@@ -513,6 +569,9 @@ COMMAND = Command(
                 "Windows and Linux only.\n"
             ),
             handler=_handler_usb,
+            # The machine's whole bus: an MCP server answers it only under
+            # TERMAPY_MCP_HOST_INFO (decision 2026-11-12).
+            needs=CapabilitySet(host_info=True),
         ),
         "help": Command(
             help="Show {prefix}port help.",
@@ -520,126 +579,205 @@ COMMAND = Command(
             shows=True,
         ),
         "connect": Command(
-            args="{name} {baud} {mode}",
+            args="{name} {baud} {mode} {custom=<bool>} {timeout=<dur>} {msg=<text>}",
             help="Connect to the serial port (e.g. {prefix}port.connect COM3 9600 N81).",
             long_help=(
                 "Connect to the serial port, optionally setting baud rate, "
                 "frame mode, line ending, or echo in one stroke.\n"
                 "\n"
-                "Syntax: {prefix}port.connect [name|port=name] [baud] [mode] [cr|lf|crlf] [echo|noecho]\n"
+                "Syntax: {prefix}port.connect [name|port=name] [baud] [mode] [cr|lf|crlf] [echo|noecho] [custom=true] [timeout=dur] [msg=text]\n"
                 "\n"
                 "  name         Port device or USB serial number. A bare name\n"
                 '               MUST come first. Falls back to cfg["port"].\n'
                 "  port=name    Explicit port; may go anywhere. Use it for a\n"
                 "               purely-numeric serial number (e.g. port=0001),\n"
                 "               which a bare token would read as a baud rate.\n"
-                "  baud         Baud rate (e.g. 9600, 115200).\n"
+                "  baud         Baud rate (e.g. 9600, 115200), a standard one\n"
+                "               unless custom=true ({prefix}help port.baud_rate\n"
+                "               lists them).\n"
                 "  mode         Frame; either field order -- 8N1 or N81, 7E2\n"
                 "               or E72. Parity: N/E/O/M/S.\n"
                 '  cr|lf|crlf   Line ending. Stored as cfg["eol"].\n'
                 '  echo|noecho  Toggle cfg["echo"].\n'
+                "  custom=true  Allow a rate off the standard list (300 or\n"
+                "               more), so a mistyped one is refused instead.\n"
+                "  timeout=dur  Keep trying until the port opens, for up to\n"
+                "               dur (e.g. 10s): a board being plugged in or\n"
+                "               rebooting, or a port another program is\n"
+                "               letting go of.  Without it, one try.\n"
+                "  msg=text     What the wait is for, shown while it waits\n"
+                "               (default: Waiting for <port>...).  The rest\n"
+                "               of the line, so it comes last; no quotes.\n"
                 "\n"
                 "Tokens after name are order-independent. Mutations are\n"
-                "session-only -- edit the config file to persist.\n"
+                "session-only -- edit the config file to persist.  A timed\n"
+                "wait shows progress; Escape or Ctrl+C ends it.\n"
                 "\n"
-                "Example: {prefix}port.connect COM3 9600 N81 crlf echo"
+                "Example: {prefix}port.connect COM3 9600 N81 crlf echo\n"
+                "         {prefix}port.connect COM3 250000 custom=true\n"
+                "         {prefix}port.connect timeout=10s msg=Waiting for reboot..."
             ),
             handler=_handler_connect,
-        ),
-        "open": Command(
-            help="Legacy alias for {prefix}port.connect.",
-            handler=make_forwarder("port.open", "port.connect"),
-            hidden=True,
+            cfg={
+                "serial.port": "opened when no name is given; named while waiting",
+                "serial.custom_baud": "set true for the session by custom=true",
+                "serial.baud_rate": "set for the session before opening",
+                "serial.parity": "set for the session before opening",
+                "serial.byte_size": "set for the session before opening",
+                "serial.stop_bits": "set for the session before opening",
+                "eol": "set for the session before opening",
+                "echo": "set for the session before opening",
+            },
         ),
         "mode": Command(
-            args="{baud} {mode}",
+            args="{baud} {mode} {custom=<bool>}",
             help="Show or set serial mode (e.g. {prefix}port.mode 9600 N81).",
-            long_help=_port_mode_long_help,
+            long_help=(
+                "Combined form for baud + mode triple. Accepts '{prefix}port.mode\n"
+                "115200 N81' or a subset. Individual subcommands\n"
+                "({prefix}port.baud_rate, {prefix}port.byte_size, {prefix}port.parity,\n"
+                "{prefix}port.stop_bits) exist too.\n"
+                "\n"
+                "The baud rate must be a standard one ({prefix}help\n"
+                "port.baud_rate lists them); add custom=true for a rate off\n"
+                "the list (300 or more), so a mistyped one is refused:\n"
+                "{prefix}port.mode 250000 8N1 custom=true"
+            ),
             handler=_handler_mode,
+            cfg={
+                "serial.custom_baud": "set true for the session by custom=true",
+                "serial.baud_rate": "set for the session; bare shows it",
+                "serial.byte_size": "set for the session; bare shows it",
+                "serial.parity": "set for the session; bare shows it",
+                "serial.stop_bits": "set for the session; bare shows it",
+            },
+            state=True,
         ),
         "disconnect": Command(
             help="Disconnect from the serial port.",
             long_help=port_status,
             handler=_handler_disconnect,
-        ),
-        "close": Command(
-            help="Legacy alias for {prefix}port.disconnect.",
-            handler=make_forwarder("port.close", "port.disconnect"),
-            hidden=True,
+            cfg={"serial.port": "the port it closes"},
         ),
         "info": Command(
             help="Print status, params, chip, and live signals for the connected port.",
             long_help=_port_info_long_help,
             handler=_handler_info,
-            shows=True,
+            cfg={
+                "serial.port": "the port it reports",
+                "serial.baud_rate": "on the page",
+                "serial.byte_size": "on the page",
+                "serial.parity": "on the page",
+                "serial.stop_bits": "on the page",
+                "serial.flow_control": "on the page",
+                "encoding": "on the page",
+                "file_xfer_root": "on the page when set",
+            },
         ),
         "baud_rate": Command(
-            args="{value}",
-            help="Show or set baud rate.",
-            long_help=_cfg_value_long_help("baud_rate", "baud rate"),
-            handler=_make_prop_handler("baud_rate"),
+            args="{value} {custom=<bool>}",
+            help="Show or set baud rate: a standard one, or any from 300 with custom=true.",
+            long_help=(
+                "Sets the open port's baud rate for the session.  It must be\n"
+                "one of the standard rates:\n"
+                "\n"
+                f"{_STANDARD_RATES_HELP}\n"
+                "\n"
+                "A rate off the list needs custom=true (300 or more), so a\n"
+                "mistyped one is refused instead of opened:\n"
+                "\n"
+                "  {prefix}port.baud_rate 9600\n"
+                "  {prefix}port.baud_rate 9460 custom=true"
+            ),
+            handler=_handler_baud_rate,
+            cfg={
+                "serial.baud_rate": "set for the session; bare shows it",
+                "serial.custom_baud": "set true for the session by custom=true; bare says (custom)",
+            },
+            state=True,
         ),
         "byte_size": Command(
             args="{value}",
             help="Show or set data bits.",
-            long_help=_cfg_value_long_help("byte_size", "byte size"),
             handler=_make_prop_handler("byte_size"),
+            cfg={"serial.byte_size": "set for the session; bare shows it"},
+            state=True,
         ),
         "parity": Command(
             args="{value}",
             help="Show or set parity.",
-            long_help=_port_parity_long_help,
+            long_help=(
+                "Parity bit mode. Values:\n"
+                "  N - none (default for most modern devices)\n"
+                "  E - even\n"
+                "  O - odd\n"
+                "  M - mark (always 1)\n"
+                "  S - space (always 0)"
+            ),
             handler=_make_prop_handler("parity"),
+            cfg={"serial.parity": "set for the session; bare shows it"},
+            state=True,
         ),
         "stop_bits": Command(
             args="{value}",
             help="Show or set stop bits.",
-            long_help=_cfg_value_long_help("stop_bits", "stop bits"),
             handler=_make_prop_handler("stop_bits"),
+            cfg={"serial.stop_bits": "set for the session; bare shows it"},
+            state=True,
         ),
         "flow_control": Command(
             args="{mode}",
             help="Show or set flow control (none/rtscts/xonxoff/manual).",
-            long_help=_port_flow_long_help,
+            long_help=(
+                "Serial flow-control mode. Values:\n"
+                "  none    - no flow control (default; most modern devices)\n"
+                "  rtscts  - hardware handshake using the RTS/CTS lines\n"
+                "  xonxoff - software handshake using the 0x11/0x13 bytes\n"
+                "  manual  - leave DTR/RTS under plugin control\n"
+                "Use rtscts only when both ends agree -- a mismatch will\n"
+                "hang transmission silently."
+            ),
             handler=_handler_flow,
+            cfg={"serial.flow_control": "set for the session; bare shows it"},
+            state=True,
         ),
         "dtr": Command(
             args="{on|off}",
             help="Show or set DTR line (hardware only).",
-            long_help=_port_hw_line_long_help("dtr", "out"),
             handler=_make_hw_handler("dtr"),
             needs=CapabilitySet.SERIAL_CONNECTED,
+            state=True,
         ),
         "rts": Command(
             args="{on|off}",
             help="Show or set RTS line (hardware only).",
-            long_help=_port_hw_line_long_help("rts", "out"),
             handler=_make_hw_handler("rts"),
             needs=CapabilitySet.SERIAL_CONNECTED,
+            state=True,
         ),
         "cts": Command(
             help="Show CTS state (read-only).",
-            long_help=_port_hw_line_long_help("cts", "in"),
             handler=_make_signal_handler("cts"),
             needs=CapabilitySet.SERIAL_CONNECTED,
+            state=True,
         ),
         "dsr": Command(
             help="Show DSR state (read-only).",
-            long_help=_port_hw_line_long_help("dsr", "in"),
             handler=_make_signal_handler("dsr"),
             needs=CapabilitySet.SERIAL_CONNECTED,
+            state=True,
         ),
         "ri": Command(
             help="Show Ring Indicator state (read-only).",
-            long_help=_port_hw_line_long_help("ri", "in"),
             handler=_make_signal_handler("ri"),
             needs=CapabilitySet.SERIAL_CONNECTED,
+            state=True,
         ),
         "cd": Command(
             help="Show Carrier Detect state (read-only).",
-            long_help=_port_hw_line_long_help("cd", "in"),
             handler=_make_signal_handler("cd"),
             needs=CapabilitySet.SERIAL_CONNECTED,
+            state=True,
         ),
         "break": Command(
             args="{duration_ms}",
@@ -650,107 +788,41 @@ COMMAND = Command(
         "chip": Command(
             args="{name|*}",
             help="Identify USB-serial chip(s) and report USB speed class.",
+            intro=(
+                "Identify the USB-serial chip behind a port: its maker, model, USB speed and "
+                "driver, as a report or one field at a time."
+            ),
             handler=_handler_chip,
-            shows=True,
+            cfg={"serial.port": "the port it identifies by default"},
             sub_commands={
                 "list": Command(
                     args="{pattern}",
                     help="Dump the USB-serial chip lookup table.",
                     long_help=(
                         "Show every chip termapy recognizes.  With a pattern,\n"
-                        "only chips whose model or speed matches it: plain\n"
-                        "text is contained, a wildcard (* ? [) makes a glob,\n"
-                        "and case is ignored.\n"
+                        "only chips whose VID:PID, model or speed matches it:\n"
+                        "plain text is contained, a wildcard (* ? [) makes a\n"
+                        "glob, and case is ignored.\n"
                         "\n"
                         "Examples:\n"
                         "  {prefix}port.chip.list           -- every chip\n"
                         "  {prefix}port.chip.list ftdi      -- FTDI chips only\n"
+                        "  {prefix}port.chip.list 0403      -- vendor ID 0403\n"
                         "  {prefix}port.chip.list arduino   -- Arduino boards only\n"
                         "  {prefix}port.chip.list high      -- high-speed chips"
                     ),
                     handler=_handler_chip_list,
                     shows=True,
                 ),
-                "device": Command(
-                    args="{name|*}",
-                    help="Show port device name.",
-                    handler=_make_chip_field_handler("device"),
-                ),
-                "description": Command(
-                    args="{name|*}",
-                    help="Show OS-reported port description.",
-                    handler=_make_chip_field_handler("description"),
-                ),
-                "manufacturer": Command(
-                    args="{name|*}",
-                    help="Show USB manufacturer string.",
-                    handler=_make_chip_field_handler("manufacturer"),
-                ),
-                "product": Command(
-                    args="{name|*}",
-                    help="Show USB product string.",
-                    handler=_make_chip_field_handler("product"),
-                ),
-                "serial": Command(
-                    args="{name|*}",
-                    help="Show USB serial number of the cable.",
-                    handler=_make_chip_field_handler("serial"),
-                ),
-                "location": Command(
-                    args="{name|*}",
-                    help="Show USB topology location.",
-                    handler=_make_chip_field_handler("location"),
-                ),
-                "interface": Command(
-                    args="{name|*}",
-                    help="Show interface label (multi-channel chips).",
-                    handler=_make_chip_field_handler("interface"),
-                ),
-                "vid_pid": Command(
-                    args="{name|*}",
-                    help="Show USB VID:PID hex string.",
-                    handler=_make_chip_field_handler("vid_pid"),
-                ),
-                "model": Command(
-                    args="{name|*}",
-                    help="Show identified chip model from the lookup table.",
-                    handler=_make_chip_field_handler("model"),
-                ),
-                "usb_speed": Command(
-                    args="{name|*}",
-                    help="Show theoretical USB speed class for the chip.",
-                    handler=_make_chip_field_handler("usb_speed"),
-                ),
-                "negotiated": Command(
-                    args="{name|*}",
-                    help="Show OS-reported negotiated USB link speed (Linux only).",
-                    handler=_make_chip_field_handler("negotiated"),
-                ),
-                "driver": Command(
-                    args="{name|*}",
-                    help="Show the OS driver name (Linux + Windows).",
-                    handler=_make_chip_field_handler("driver"),
-                ),
-                "latency_timer": Command(
-                    args="{name|*}",
-                    help="Show FTDI latency timer value (Linux + FTDI only).",
-                    handler=_make_chip_field_handler("latency_timer"),
-                ),
-                "max_baud": Command(
-                    args="{name|*}",
-                    help="Show maximum baud rate the chip supports.",
-                    handler=_make_chip_field_handler("max_baud"),
-                ),
-                "permissions": Command(
-                    args="{name|*}",
-                    help="Show read/write permission status for the device.",
-                    handler=_make_chip_field_handler("permissions"),
-                ),
-                "in_use": Command(
-                    args="{name|*}",
-                    help="Show whether another process has the port open.",
-                    handler=_make_chip_field_handler("in_use"),
-                ),
+                **{
+                    field: Command(
+                        args="{name|*}",
+                        help=help_text,
+                        handler=_make_chip_field_handler(field),
+                        cfg={"serial.port": "the port it reports by default"},
+                    )
+                    for field, help_text in _CHIP_FIELD_HELP.items()
+                },
             },
         ),
     },

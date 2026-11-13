@@ -47,11 +47,16 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import argparse
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable
     from pathlib import Path
     from typing import NoReturn
 
+    from rich.console import Console
+
+    from termapy.breadcrumbs import Crumb
+    from termapy.plugins.views import Piece
     from termapy.port_control import ChipFacts, PortSource
+    from termapy.usb_tree import UsbSource
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -93,86 +98,80 @@ def run_info(args: argparse.Namespace, *, source: PortSource | None = None) -> N
 
 
 # Fallback row width when stdout isn't a TTY (piped to a file or
-# through grep).  The drop-cascade in port_format shouldn't kick in
-# for piped output -- scripts expect all columns -- so we give it
-# enough budget that natural widths always win.
-_PORTS_PIPED_ROW_WIDTH = 200
+# through grep).  A table's drop-cascade shouldn't kick in for piped
+# output -- scripts expect all columns -- so we give it enough budget
+# that natural widths always win.
+_PIPED_ROW_WIDTH = 200
 
 
-def _ports_row_width() -> int:
-    """Return the row budget for the --ports table.
+def _table_row_width() -> int:
+    """Return the row budget for a table a flag prints (--ports, --alive).
 
     Uses the real terminal width when stdout is a TTY so the
-    drop-cascade can hide less-important columns (speed, chip,
-    vid_pid, in that priority order) when the user's terminal is
+    drop-cascade can hide less-important columns (for --ports: speed,
+    chip, vid_pid, in that priority order) when the user's terminal is
     narrower than the natural row width.  Falls back to a wide
     budget when output is piped -- scripts expect every column.
     """
     if sys.stdout.isatty():
         return shutil.get_terminal_size((80, 24)).columns
-    return _PORTS_PIPED_ROW_WIDTH
+    return _PIPED_ROW_WIDTH
 
 
-def _filter_facts(args: argparse.Namespace, facts_list: list) -> list:
-    """Apply --vid / --pid / --mfg / --sn filters.
+def _ports_matching(pattern: str, facts_list: list[ChipFacts]) -> list[ChipFacts]:
+    """The ports any of whose fields match ``pattern``: a grep across each row.
 
-    Each filter is optional; any combination AND-s.  ``--vid`` /
-    ``--pid`` accept hex (with or without 0x prefix) or decimal.
-    ``--mfg`` is a case-insensitive substring match.  ``--sn`` is an
-    exact case-insensitive match.
+    Read by ``matching.matches``, the one reader of a list filter: plain text
+    is contained (``FTDI``, ``Microchip``, a serial number, ``COM4``), a
+    wildcard makes a glob anchored at both ends, and case is ignored.  The
+    fields are the ``--json`` record's, so what the filter sees is what a
+    script would.  A simulator port (``DEMO``) named exactly is shown too:
+    it is not enumerated, and CI lists it without hardware.
     """
-    out = facts_list
-    if args.vid is not None:
-        needle = _parse_hex_int(args.vid)
-        if needle is None:
-            print(f"Invalid --vid: {args.vid!r}", file=sys.stderr)
-            sys.exit(2)
-        out = [f for f in out if _vid_of(f) == needle]
-    if args.pid is not None:
-        needle = _parse_hex_int(args.pid)
-        if needle is None:
-            print(f"Invalid --pid: {args.pid!r}", file=sys.stderr)
-            sys.exit(2)
-        out = [f for f in out if _pid_of(f) == needle]
-    if args.mfg:
-        m = args.mfg.lower()
-        out = [f for f in out if f.manufacturer and m in f.manufacturer.lower()]
-    if args.sn:
-        s = args.sn.lower()
-        out = [f for f in out if f.serial and f.serial.lower() == s]
-    return out
+    from termapy import port_control
+    from termapy.matching import matches
+    from termapy.port_format import facts_to_json_record
+
+    matched = [
+        fact
+        for fact in facts_list
+        if any(
+            isinstance(value, str) and matches(value, pattern)
+            for value in facts_to_json_record(fact).values()
+        )
+    ]
+    synthetic = port_control.synthetic_facts_for_reserved(pattern.upper())
+    return [*matched, synthetic] if synthetic is not None else matched
 
 
-def _parse_hex_int(s: str) -> int | None:
-    """Parse a VID/PID string as hex.  Accepts ``0x0403``, ``0403``, ``403``."""
-    s = s.strip().lower()
-    if s.startswith("0x"):
-        s = s[2:]
-    try:
-        return int(s, 16)
-    except ValueError:
-        return None
+def port_rows_styled(lines: list[str], facts_list: list[ChipFacts]) -> list[list[Piece]]:
+    """``format_table``'s lines as pieces, each row's port name in its state color.
 
+    The table is the header, the rule, then one row per port in
+    ``facts_list``'s order, each starting with the port's name; that
+    name takes ``port_control.port_state_style``.  The text is unchanged.
+    """
+    from termapy.plugins.views import Piece
+    from termapy.port_control import port_state_style
 
-def _vid_of(facts) -> int | None:
-    from termapy.port_format import split_vid_pid
-
-    return split_vid_pid(facts.vid_pid)[0]
-
-
-def _pid_of(facts) -> int | None:
-    from termapy.port_format import split_vid_pid
-
-    return split_vid_pid(facts.vid_pid)[1]
+    styled: list[list[Piece]] = [[Piece(line)] for line in lines[:2]]
+    for line, fact in zip(lines[2:], facts_list, strict=True):
+        name = fact.device or ""
+        color = port_state_style(fact.session)
+        if color and name and line.startswith(name):
+            styled.append([Piece(name, style=color), Piece(line[len(name) :])])
+        else:
+            styled.append([Piece(line)])
+    return styled
 
 
 def run_ports(args: argparse.Namespace, *, source: PortSource | None = None) -> None:
     """List serial ports one line per port and exit.
 
     With ``args.ports == "*"`` (the argparse ``const`` when the flag
-    is given bare), lists every port.  ``args.ports`` as a literal
-    name filters to that one device.  Multi-axis filters (``--vid``,
-    ``--pid``, ``--mfg``, ``--sn``) AND with the name match.
+    is given bare), lists every port.  Any other value is a pattern
+    matched against every field of each row (``_ports_matching``):
+    ``--ports FTDI``, ``--ports Microchip``, a serial number.
 
     Output is the picker table by default (PORT / MFG / DESCRIPTION /
     CHIP / SPEED / VID:PID / SN / DRIVER), or a JSON array when
@@ -192,28 +191,19 @@ def run_ports(args: argparse.Namespace, *, source: PortSource | None = None) -> 
     # It does show LOCATION and DRIVER though, so it asks for enrichment --
     # sysfs / registry reads, no port opened.
     all_facts = port_control._gather_all_chip_facts(
-        fast=not getattr(args, "json", False), enrich=True, source=source
+        fast=not getattr(args, "json", False), enrich=True, source=source, sessions=True
     )
+    # On stderr, so --json stays one JSON document.
+    note = port_control.ports_note()
+    if note:
+        print(f"termapy: ports {note}", file=sys.stderr)
 
+    facts_list = all_facts
     if args.ports and args.ports != "*":
-        all_facts = [
-            fact
-            for fact in all_facts
-            if fact.device is not None and port_control.same_port(fact.device, args.ports)
-        ]
-        # Reserved virtual ports (DEMO, DEMO_FAIL) aren't OS-enumerated
-        # but are reachable at runtime; surface a synthetic record when
-        # the user names one explicitly so CI can exercise --ports
-        # without hardware.
-        if not all_facts:
-            synthetic = port_control.synthetic_facts_for_reserved(args.ports)
-            if synthetic is not None:
-                all_facts = [synthetic]
-        if not all_facts and not args.json:
+        facts_list = _ports_matching(args.ports, all_facts)
+        if not facts_list and not args.json:
             print(f"No port matching {args.ports!r}", file=sys.stderr)
             sys.exit(1)
-
-    facts_list = _filter_facts(args, all_facts)
 
     if args.json:
         from termapy.port_format import facts_to_json_record
@@ -222,14 +212,12 @@ def run_ports(args: argparse.Namespace, *, source: PortSource | None = None) -> 
         print(json.dumps(records, indent=2))
         sys.exit(0 if records else 1)
 
-    if not facts_list:
-        if args.ports and args.ports != "*":
-            # Already printed the no-match message above.
-            sys.exit(1)
-        # Filters narrowed to empty; format_table prints a header still.
-    lines = format_table(facts_list, _ports_row_width())
-    for line in lines:
-        print(line)
+    lines = format_table(facts_list, _table_row_width())
+    if facts_list and sys.stdout.isatty() and not getattr(args, "no_color", False):
+        print_styled(port_rows_styled(lines, facts_list))
+    else:
+        for line in lines:
+            print(line)
 
     # format_table returns a single "(no ports found)" line for empty
     # input; treat that as failure for script-friendly exit codes.
@@ -280,7 +268,7 @@ _WATCH_WIDTHS = {
 }
 
 
-def _watch_port_width(devices, floor: int | None = None) -> int:
+def _watch_port_width(devices: Iterable[str], floor: int | None = None) -> int:
     """Port-column width for one watch session.
 
     A platform floor -- 6 on Windows (``COMxxx``) and 32 on POSIX
@@ -308,7 +296,9 @@ def _watch_port_width(devices, floor: int | None = None) -> int:
 _WATCH_GROWN = ("mfg", "description", "chip")
 
 
-def _watch_widths(fleet, start: dict[str, int] | None = None) -> dict[str, int]:
+def _watch_widths(
+    fleet: Iterable[ChipFacts], start: dict[str, int] | None = None
+) -> dict[str, int]:
     """Column widths for one watch session, grown to fit ``fleet``.
 
     The port column grows as ``_watch_port_width`` describes, and the
@@ -334,7 +324,7 @@ def _watch_widths(fleet, start: dict[str, int] | None = None) -> dict[str, int]:
     return widths
 
 
-def run_usb(args: argparse.Namespace, *, source=None) -> None:
+def run_usb(args: argparse.Namespace, *, source: UsbSource | None = None) -> None:
     """Print the whole USB tree to stdout and exit.
 
     Every hub, device and interface as physically connected, with the
@@ -343,13 +333,15 @@ def run_usb(args: argparse.Namespace, *, source=None) -> None:
     that way -- a listing that included keyboards would stop being a
     port listing.
 
-    ``--json`` emits the same tree as nested records instead.
+    ``--json`` emits the same tree as nested records instead.  At a
+    terminal the serial-port rows are colored as ``/port.usb`` colors
+    them; piped, or with ``--no-color``, the text is plain.
 
     Exits 0 when at least one device was found, 1 when the bus is empty
     or the platform has no backend.
 
     Args:
-        args: Parsed CLI namespace; only ``json`` is read.
+        args: Parsed CLI namespace; ``json`` and ``no_color`` are read.
         source: Callable returning UsbRecords, used instead of
             enumerating.  Nothing on the command line sets it.
     """
@@ -357,6 +349,7 @@ def run_usb(args: argparse.Namespace, *, source=None) -> None:
         UnsupportedPlatform,
         gather_usb_tree,
         render_tree,
+        render_tree_pieces,
         to_json_records,
     )
 
@@ -370,9 +363,36 @@ def run_usb(args: argparse.Namespace, *, source=None) -> None:
         print(json.dumps(to_json_records(roots), indent=2))
         sys.exit(0 if roots else 1)
 
-    for line in render_tree(roots):
-        print(line)
+    if sys.stdout.isatty() and not getattr(args, "no_color", False):
+        print_styled(render_tree_pieces(roots))
+    else:
+        for line in render_tree(roots):
+            print(line)
     sys.exit(0 if roots else 1)
+
+
+def print_styled(lines: Iterable[list[Piece]], console: Console | None = None) -> None:
+    """Print lines of pieces in their styles to a terminal.
+
+    Rich is imported here, not at the top: a print-and-exit flag loads it
+    only when its output is a terminal it colors, so piped output stays as
+    light as before (registry ``flag-paths-light``).  Rich honors
+    ``NO_COLOR`` (dropping color, keeping bold) and an older Windows
+    console by itself.
+
+    Args:
+        lines: One list of pieces per line (``usb_tree.render_tree_pieces``).
+        console: Where to print; a new stdout console when None.
+    """
+    from rich.console import Console
+
+    from termapy.plugins.views import pieces_markup
+
+    console = Console(soft_wrap=True) if console is None else console
+    for pieces in lines:
+        # No highlighter: only the pieces' own styles, never Rich's guesses
+        # (it would bold every number in a hub path).
+        console.print(pieces_markup(pieces), highlight=False)
 
 
 def run_watch(args: argparse.Namespace, *, source: PortSource | None = None) -> None:
@@ -447,7 +467,7 @@ def run_watch(args: argparse.Namespace, *, source: PortSource | None = None) -> 
         sys.exit(0)
 
 
-def _watch_cells(facts) -> dict[str, str]:
+def _watch_cells(facts: ChipFacts) -> dict[str, str]:
     """The text of each watch column for one port, before padding.
 
     The one place a cell's text is decided, so ``_watch_widths`` measures
@@ -476,7 +496,7 @@ def _watch_cells(facts) -> dict[str, str]:
 _WATCH_COLUMNS = ("port", "state", "mfg", "description", "chip", "speed", "vid_pid", "sn")
 
 
-def _format_state_line(marker: str, facts, widths: dict[str, int]) -> str:
+def _format_state_line(marker: str, facts: ChipFacts, widths: dict[str, int]) -> str:
     """Format a full ``[time] <marker> <port> <state> <chip data...>`` line.
 
     Used for baseline rows, open/close transitions, post-``+`` detail
@@ -500,7 +520,7 @@ def _format_marker_line(marker: str, device: str, widths: dict[str, int]) -> str
     return f"[{ts}] {marker:<{widths['marker']}}  {device:<{widths['port']}}"
 
 
-def _state_of(facts) -> str:
+def _state_of(facts: ChipFacts) -> str:
     """Return ``open`` / ``closed`` / ``-`` for the state column.
 
     Matches pyserial's ``serial.Serial.is_open`` terminology.  ``open``
@@ -513,7 +533,7 @@ def _state_of(facts) -> str:
     return "open" if facts.in_use.startswith("yes") else "closed"
 
 
-def _speed_of(facts) -> str:
+def _speed_of(facts: ChipFacts) -> str:
     """Return ``Full-Speed`` / ``High-Speed`` / ``-`` for the speed column."""
     if facts.usb_speed:
         if "Full-Speed" in facts.usb_speed:
@@ -565,8 +585,8 @@ def _emit_diff(
 def run_chips(args: argparse.Namespace) -> None:
     """Dump the USB-serial chip lookup table to stdout.
 
-    An optional name pattern narrows it to the chips whose model or
-    speed matches, through the one filter ``/port.chip.list`` uses
+    An optional name pattern narrows it to the chips any column of which
+    matches (VID:PID, model, speed), through the one filter ``/port.chip.list`` uses
     (``port_format.find_chips``); the bare flag's ``*`` matches them
     all.  ``--json`` produces an array of chip records instead of the
     column-aligned table.
@@ -677,6 +697,112 @@ def run_check(args: argparse.Namespace) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+def _print_sessions(crumbs: Iterable[Crumb]) -> None:
+    """Print running termapys as ``/app.alive`` shows them: one table, ``breadcrumbs``'."""
+    from termapy import breadcrumbs
+    from termapy.plugins.views import TableView
+
+    records = tuple(breadcrumbs.session_record(crumb) for crumb in crumbs)
+    view = TableView(breadcrumbs.SESSIONS_TITLE, "session", breadcrumbs.session_columns(), records)
+    for text, _color in view.lines(_table_row_width()):
+        print(text)
+
+
+def run_alive() -> NoReturn:
+    """``--alive``: list the termapys running on this machine, as ``/app.alive`` does, and exit 0.
+
+    A running termapy is found by the breadcrumb it leaves, so one started
+    before breadcrumbs existed is not seen.
+    """
+    from termapy import breadcrumbs
+
+    running = breadcrumbs.read_running()
+    if not running:
+        print("No termapy is running.")
+    else:
+        _print_sessions(running)
+    sys.exit(0)
+
+
+def run_kill(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> None:
+    """``--kill``: stop the termapys a target picks, or, bare, list them as ``--alive`` does.
+
+    Bare ``--kill`` lists them and changes nothing.  ``--kill all``, a PID, a
+    port (``COM3``) or a config name lists the ones it picks, asks, and stops
+    them (``breadcrumbs.stop_sessions``: each is asked to leave, and one
+    still running after the grace period is named with the command that
+    ends it, and left running).  A running
+    termapy is found by the
+    breadcrumb it leaves, so one started before breadcrumbs existed is not
+    seen.  Exits 0 when nothing picked is left running, including when
+    nothing was running; 1 when the target picks nothing, the answer is no,
+    or a process would not stop.
+
+    ``timeout=DUR`` beside the target sets how long to wait for the
+    sessions to leave, as on ``/app.kill`` (default ``STOP_GRACE_S``).
+
+    Args:
+        args: Parsed CLI namespace; ``kill`` is the words after the flag,
+            ``[]`` when bare.
+        confirm: Asks the yes/no question (``confirm_on_stdin`` at a terminal).
+    """
+    from termapy import breadcrumbs
+    from termapy.scripting import parse_duration
+
+    words = list(args.kill)
+    timeout = breadcrumbs.STOP_GRACE_S
+    for word in [word for word in words if word.casefold().startswith("timeout=")]:
+        words.remove(word)
+        try:
+            timeout = parse_duration(word.partition("=")[2])
+        except ValueError:
+            print(f"termapy: Invalid timeout: {word.partition('=')[2]}", file=sys.stderr)
+            sys.exit(1)
+    if len(words) > 1:
+        print(f"termapy: --kill takes one target, got {' '.join(words)}", file=sys.stderr)
+        sys.exit(1)
+    target = words[0] if words else ""
+    if not target:
+        run_alive()
+    if target.casefold() == "me":
+        print(
+            "termapy: --kill me means the session it is typed in, and a command line is "
+            "not a session: type app.kill me in the session you mean",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    running = breadcrumbs.read_running()
+    if not running:
+        print("No termapy is running.")
+        sys.exit(0)
+    breadcrumbs.prune_stale()
+    picked = breadcrumbs.select(running, target)
+    if not picked:
+        print(
+            f"termapy: no running termapy matches {target}{breadcrumbs.suggest(running, target)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    _print_sessions(picked)
+    noun = "process" if len(picked) == 1 else "processes"
+    if not confirm(f"Stop {len(picked)} termapy {noun}?"):
+        print("Nothing stopped.")
+        sys.exit(1)
+    print(f"Asking {len(picked)} termapy {noun} to leave...")
+    outcome = breadcrumbs.stop_sessions(picked, grace_s=timeout)
+    for line in outcome.stopped_lines():
+        print(line)
+    for line in outcome.refused_lines():
+        print(f"termapy: {line}", file=sys.stderr)
+    sys.exit(1 if outcome.refused else 0)
+
+
+def assume_yes(message: str) -> bool:
+    """The answer under ``-y`` / ``--yes``: yes, shown as if typed, so a log says what was assumed."""
+    print(f"  {message} [y/N] y (--yes)")
+    return True
+
+
 def confirm_on_stdin(message: str) -> bool:
     """Ask ``message`` on stdin with a ``[y/N]`` default of No.
 
@@ -749,6 +875,58 @@ def run_new(
             create_config(path, cfg, overwrite=True)
             verb = "Overwrote"
     except (ValueError, RuntimeError, OSError) as e:
+        print(f"termapy: {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"termapy: {verb} {path}", file=sys.stderr)
+    return path
+
+
+def run_quick(
+    target: str,
+    settings: list[str],
+    *,
+    usage_error: Callable[[str], NoReturn],
+    source: PortSource | None = None,
+) -> Path:
+    """Open ``termapy PORT [SETTING ...]``: the port's quick config, made or updated; return its path.
+
+    ``main()`` calls this for a positional that names no config, so a
+    config always wins the name.  The positional is a port when connecting
+    would find it now (``port_control.port_present``: a device name, a USB
+    serial number, a reserved port, a URL) or when a quick session opened
+    it before, so an unplugged adapter's config still opens.  A device name
+    is kept as the system spells it (``com3`` is ``COM3``), anything else
+    as typed.  The config is ``config.quick_config``'s; like ``--board``,
+    this does not exit on success, and its status line goes to stderr.
+    Anything else exits 1, naming the configs and ports it most likely
+    meant.
+
+    Args:
+        target: The positional, as typed.
+        settings: The words after it.
+        usage_error: Reports a bad setting and exits 2 (``parser.error``).
+        source: A substitute port list, as ``resolve_port`` takes it.
+
+    Returns:
+        The quick config's ``.cfg`` path.
+    """
+    from termapy import port_control
+    from termapy.config import config_names, quick_config, quick_config_path
+    from termapy.matching import closest, did_you_mean
+
+    present = port_control.present_ports(source=source)
+    port = next((name for name in present if port_control.same_port(name, target)), target)
+    if not port_control.port_present(port, source=source) and not quick_config_path(port).is_file():
+        suggestions = closest(target, config_names() + present)
+        print(
+            f"termapy: Unknown config or port: {target}{did_you_mean(suggestions)}", file=sys.stderr
+        )
+        sys.exit(1)
+    try:
+        path, verb = quick_config(port, " ".join(settings))
+    except ValueError as e:
+        usage_error(str(e))
+    except (RuntimeError, OSError) as e:
         print(f"termapy: {e}", file=sys.stderr)
         sys.exit(1)
     print(f"termapy: {verb} {path}", file=sys.stderr)

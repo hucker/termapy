@@ -9,20 +9,35 @@ from termapy.builtins.commands.var import (
     check_bare_dollar,
     rewrite_assignment,
 )
-from termapy.plugins import DirectiveInfo, DirectiveResult
+from termapy.folders import FOLDER_NAMES
+from termapy.plugins import CmdResult, DirectiveInfo, DirectiveResult, PluginContext, PluginInfo
+from termapy.port_control import (
+    PORT_SETTINGS,
+    PROBED_CHIP_FIELDS,
+    SIGNAL_LINES,
+    UNPROBED_CHIP_FIELDS,
+)
 from termapy.repl import ReplEngine
 from termapy.variables import (
     _CONTEXT_VARS,
     _FROZEN_MOMENTS,
     _VAR_REF_RE,
-    _VARS,
     clear_vars,
     deref_ref,
     expand_vars,
+    folder_var_name,
+    port_var_name,
     register_cfg_vars,
     resolve_one,
     set_start_time_vars,
+    snapshot,
+    unknown_names,
+    user_vars,
 )
+
+# One session's context, which every test here shares; ``_VARS`` is its live store.
+_CTX = PluginContext()
+_VARS = user_vars(_CTX)
 
 
 @pytest.fixture(autouse=True)
@@ -44,7 +59,7 @@ class TestExpandVars:
         _VARS["PORT"] = "COM7"
 
         # Act
-        actual = expand_vars("AT+PORT=$(PORT)")
+        actual = expand_vars(_CTX, "AT+PORT=$(PORT)")
         expected = "AT+PORT=COM7"
 
         # Assert
@@ -53,7 +68,7 @@ class TestExpandVars:
     def test_expand_unknown_var_left_as_is(self):
         """An undefined $(NAME) stays literal so the mistake is visible, not blanked."""
         # Act
-        actual = expand_vars("$(UNKNOWN) stays")
+        actual = expand_vars(_CTX, "$(UNKNOWN) stays")
         expected = "$(UNKNOWN) stays"
 
         # Assert
@@ -66,7 +81,7 @@ class TestExpandVars:
         _VARS["B"] = "world"
 
         # Act
-        actual = expand_vars("$(A) $(B)")
+        actual = expand_vars(_CTX, "$(A) $(B)")
         expected = "hello world"
 
         # Assert
@@ -78,7 +93,7 @@ class TestExpandVars:
         _VARS["KNOWN"] = "yes"
 
         # Act
-        actual = expand_vars("$(KNOWN) and $(MISSING)")
+        actual = expand_vars(_CTX, "$(KNOWN) and $(MISSING)")
         expected = "yes and $(MISSING)"
 
         # Assert
@@ -87,7 +102,7 @@ class TestExpandVars:
     def test_no_vars_in_string(self):
         """Text with no $(NAME) reference passes through unchanged."""
         # Act
-        actual = expand_vars("no variables here")
+        actual = expand_vars(_CTX, "no variables here")
         expected = "no variables here"
 
         # Assert
@@ -99,7 +114,7 @@ class TestExpandVars:
         _VARS["port"] = "COM7"
 
         # Act
-        actual = expand_vars("$(port) is set")
+        actual = expand_vars(_CTX, "$(port) is set")
         expected = "COM7 is set"
 
         # Assert
@@ -111,7 +126,7 @@ class TestExpandVars:
         _VARS["PORT"] = "COM7"
 
         # Act
-        actual = expand_vars("$(port) stays")
+        actual = expand_vars(_CTX, "$(port) stays")
         expected = "$(port) stays"
 
         # Assert
@@ -123,7 +138,7 @@ class TestExpandVars:
         _VARS["MY_VAR"] = "value"
 
         # Act
-        actual = expand_vars("$(MY_VAR)")
+        actual = expand_vars(_CTX, "$(MY_VAR)")
         expected = "value"
 
         # Assert
@@ -135,7 +150,7 @@ class TestExpandVars:
         _VARS["REG0"] = "100"
 
         # Act
-        actual = expand_vars("$(REG0)")
+        actual = expand_vars(_CTX, "$(REG0)")
         expected = "100"
 
         # Assert
@@ -147,7 +162,7 @@ class TestExpandVars:
         _VARS["PORT"] = "COM7"
 
         # Act - var followed by text with no separator
-        actual = expand_vars("port=$(PORT),baud=115200")
+        actual = expand_vars(_CTX, "port=$(PORT),baud=115200")
         expected = "port=COM7,baud=115200"
 
         # Assert
@@ -159,7 +174,7 @@ class TestExpandVars:
         _VARS["PORT"] = "COM"
 
         # Act - $(PORT) followed by digits: unambiguous thanks to parens
-        actual = expand_vars("$(PORT)7")
+        actual = expand_vars(_CTX, "$(PORT)7")
         expected = "COM7"
 
         # Assert
@@ -171,7 +186,7 @@ class TestExpandVars:
         _VARS["PORT"] = "COM7"
 
         # Act - bare $PORT (no parens) is NOT expanded
-        actual = expand_vars("$PORT")
+        actual = expand_vars(_CTX, "$PORT")
         expected = "$PORT"
 
         # Assert
@@ -190,7 +205,7 @@ class TestExpandVarsEscape:
         _VARS["PORT"] = "COM7"
 
         # Act
-        actual = expand_vars("\\$(PORT)")
+        actual = expand_vars(_CTX, "\\$(PORT)")
         expected = "$(PORT)"
 
         # Assert
@@ -199,7 +214,7 @@ class TestExpandVarsEscape:
     def test_escaped_dollar_unknown_var(self):
         """An escaped unknown reference also drops the escape and leaves $(NAME)."""
         # Act
-        actual = expand_vars("\\$(UNKNOWN)")
+        actual = expand_vars(_CTX, "\\$(UNKNOWN)")
         expected = "$(UNKNOWN)"
 
         # Assert
@@ -212,7 +227,7 @@ class TestExpandVarsEscape:
         _VARS["B"] = "world"
 
         # Act
-        actual = expand_vars("$(A) and \\$(B)")
+        actual = expand_vars(_CTX, "$(A) and \\$(B)")
         expected = "hello and $(B)"
 
         # Assert
@@ -221,7 +236,7 @@ class TestExpandVarsEscape:
     def test_escaped_dollar_in_serial_context(self):
         """An escaped $ with no paren after it still unescapes, so a device gets a $."""
         # Act
-        actual = expand_vars("AT+CMD=\\$50")
+        actual = expand_vars(_CTX, "AT+CMD=\\$50")
         expected = "AT+CMD=$50"
 
         # Assert
@@ -229,6 +244,20 @@ class TestExpandVarsEscape:
 
 
 # ── clear_vars ───────────────────────────────────────────────────────────────
+
+
+class TestAVariableBelongsToASession:
+    """User variables live in the session's context, not in the process."""
+
+    def test_two_contexts_hold_their_own(self):
+        """A variable set in one context is not visible in another, and expands where it was set."""
+        # Arrange
+        other = PluginContext()
+        _VARS["PORT"] = "COM7"
+
+        # Act / Assert
+        assert expand_vars(_CTX, "$(PORT)") == "COM7", "the session that set it reads it"
+        assert expand_vars(other, "$(PORT)") == "$(PORT)", "no other session sees it"
 
 
 class TestClearVars:
@@ -241,7 +270,7 @@ class TestClearVars:
         _VARS["B"] = "2"
 
         # Act
-        clear_vars()
+        clear_vars(_CTX)
 
         # Assert
         assert _VARS == {}, "all variables removed"
@@ -249,7 +278,7 @@ class TestClearVars:
     def test_clear_empty_is_ok(self):
         """Clearing when no variables exist is a no-op, not an error."""
         # Act - no error on empty dict
-        clear_vars()
+        clear_vars(_CTX)
 
         # Assert
         assert _VARS == {}, "clear on empty dict is ok"
@@ -449,7 +478,7 @@ class TestSessionTimeVars:
         """Once frozen, SESSION_DATE renders as a YYYY-MM-DD date."""
         # Act - freeze the SESSION moment, then read via expansion
         set_start_time_vars()
-        actual = expand_vars("$(SESSION_DATE)")
+        actual = expand_vars(_CTX, "$(SESSION_DATE)")
 
         # Assert - SESSION_DATE renders YYYY-MM-DD
         assert len(actual) == 10, "YYYY-MM-DD"
@@ -459,7 +488,7 @@ class TestSessionTimeVars:
         """Once frozen, SESSION_TIME renders as an HH:MM:SS time."""
         # Act
         set_start_time_vars()
-        actual = expand_vars("$(SESSION_TIME)")
+        actual = expand_vars(_CTX, "$(SESSION_TIME)")
 
         # Assert - SESSION_TIME renders HH:MM:SS
         assert len(actual) == 8, "HH:MM:SS"
@@ -469,9 +498,9 @@ class TestSessionTimeVars:
         """SESSION_DATETIME holds the same frozen date and time, not a fresh clock read."""
         # Act
         set_start_time_vars()
-        date = expand_vars("$(SESSION_DATE)")
-        time = expand_vars("$(SESSION_TIME)")
-        datetime_str = expand_vars("$(SESSION_DATETIME)")
+        date = expand_vars(_CTX, "$(SESSION_DATE)")
+        time = expand_vars(_CTX, "$(SESSION_TIME)")
+        datetime_str = expand_vars(_CTX, "$(SESSION_DATETIME)")
 
         # Assert - SESSION_DATETIME contains both the date and the time
         assert date in datetime_str, "datetime carries the frozen date"
@@ -480,7 +509,7 @@ class TestSessionTimeVars:
     def test_not_frozen_until_set(self):
         """SESSION_* stays literal until the session start is frozen."""
         # Act - no set_start_time_vars() call
-        actual = expand_vars("$(SESSION_DATETIME)")
+        actual = expand_vars(_CTX, "$(SESSION_DATETIME)")
 
         # Assert - unresolved, left literal
         assert actual == "$(SESSION_DATETIME)", "SESSION is unset until frozen"
@@ -491,8 +520,8 @@ class TestSessionTimeVars:
         set_start_time_vars()
 
         # Act
-        clear_vars()
-        actual = expand_vars("$(SESSION_DATETIME)")
+        clear_vars(_CTX)
+        actual = expand_vars(_CTX, "$(SESSION_DATETIME)")
 
         # Assert - still resolves after clearing user variables
         assert actual != "$(SESSION_DATETIME)", "SESSION persists across clear_vars"
@@ -501,7 +530,7 @@ class TestSessionTimeVars:
         """A :fmt override applies to the frozen SESSION moment."""
         # Act
         set_start_time_vars()
-        actual = expand_vars("$(SESSION_DATE:%Y%m%d)")
+        actual = expand_vars(_CTX, "$(SESSION_DATE:%Y%m%d)")
 
         # Assert - colon-free filename-safe rendering, 8 digits
         assert len(actual) == 8 and actual.isdigit(), "YYYYmmdd"
@@ -512,7 +541,7 @@ class TestSessionTimeVars:
         set_start_time_vars()
 
         # Act
-        actual = expand_vars("Started: $(SESSION_DATETIME)")
+        actual = expand_vars(_CTX, "Started: $(SESSION_DATETIME)")
 
         # Assert - session var expanded inline
         assert "$(SESSION_DATETIME)" not in actual, "placeholder replaced"
@@ -525,7 +554,7 @@ class TestDynamicTimeVars:
     def test_date_expands_without_being_set(self):
         """$(DATE) needs no setup and renders as a YYYY-MM-DD date."""
         # Act - no set_start_time_vars, $(DATE) still expands
-        actual = expand_vars("today: $(DATE)")
+        actual = expand_vars(_CTX, "today: $(DATE)")
 
         # Assert - expanded to current date
         assert "$(DATE)" not in actual
@@ -535,7 +564,7 @@ class TestDynamicTimeVars:
     def test_time_expands_without_being_set(self):
         """$(TIME) needs no setup and renders in HH:MM:SS form."""
         # Act
-        actual = expand_vars("now: $(TIME)")
+        actual = expand_vars(_CTX, "now: $(TIME)")
 
         # Assert - expanded to current time
         assert "$(TIME)" not in actual
@@ -544,7 +573,7 @@ class TestDynamicTimeVars:
     def test_datetime_expands_without_being_set(self):
         """$(DATETIME) resolves from the live clock with no prior set call."""
         # Act
-        actual = expand_vars("ts: $(DATETIME)")
+        actual = expand_vars(_CTX, "ts: $(DATETIME)")
 
         # Assert - expanded to current datetime
         assert "$(DATETIME)" not in actual
@@ -555,7 +584,7 @@ class TestDynamicTimeVars:
         _VARS["DATE"] = "custom-date"
 
         # Act
-        actual = expand_vars("$(DATE)")
+        actual = expand_vars(_CTX, "$(DATE)")
 
         # Assert - user-defined value takes precedence over dynamic
         assert actual == "custom-date"
@@ -568,7 +597,7 @@ class TestDynamicTimeVars:
         assert "DATETIME" not in _VARS
 
         # Act - but they still expand
-        actual = expand_vars("$(DATE) $(TIME) $(DATETIME)")
+        actual = expand_vars(_CTX, "$(DATE) $(TIME) $(DATETIME)")
 
         # Assert - all three expanded
         assert "$(DATE)" not in actual
@@ -582,7 +611,7 @@ class TestDatetimeFormatSpec:
     def test_filename_safe_datetime(self):
         """A strftime spec yields a colon-free YYYYmmdd_HHMMSS stamp for filenames."""
         # Act - the headline use: a colon-free stamp for filenames
-        actual = expand_vars("$(DATETIME:%Y%m%d_%H%M%S)")
+        actual = expand_vars(_CTX, "$(DATETIME:%Y%m%d_%H%M%S)")
 
         # Assert - YYYYmmdd_HHMMSS, no colons
         assert re.fullmatch(r"\d{8}_\d{6}", actual), "filename-safe stamp"
@@ -590,7 +619,7 @@ class TestDatetimeFormatSpec:
     def test_format_may_contain_colons(self):
         """Only the first colon splits name from format, so formats may hold colons."""
         # Act - the format itself has colons; we split on the FIRST colon only
-        actual = expand_vars("$(TIME:%H:%M:%S)")
+        actual = expand_vars(_CTX, "$(TIME:%H:%M:%S)")
 
         # Assert - HH:MM:SS reproduced from the format's own colons
         assert re.fullmatch(r"\d{2}:\d{2}:\d{2}", actual), "colon format survives"
@@ -598,7 +627,7 @@ class TestDatetimeFormatSpec:
     def test_partial_format(self):
         """A spec may select a subset of fields, such as hour and minute only."""
         # Act
-        actual = expand_vars("$(TIME:%H%M)")
+        actual = expand_vars(_CTX, "$(TIME:%H%M)")
 
         # Assert - just hour+minute, four digits
         assert re.fullmatch(r"\d{4}", actual), "HHMM"
@@ -607,7 +636,7 @@ class TestDatetimeFormatSpec:
         """Format specs apply to the frozen SESSION_* moment, not only the live clock."""
         # Act - :fmt works on frozen moments too
         set_start_time_vars()
-        actual = expand_vars("$(SESSION_DATETIME:%Y%m%d)")
+        actual = expand_vars(_CTX, "$(SESSION_DATETIME:%Y%m%d)")
 
         # Assert
         assert re.fullmatch(r"\d{8}", actual), "frozen moment, custom format"
@@ -618,7 +647,7 @@ class TestDatetimeFormatSpec:
         _VARS["PORT"] = "COM7"
 
         # Act
-        actual = expand_vars("$(PORT:%H)")
+        actual = expand_vars(_CTX, "$(PORT:%H)")
 
         # Assert - left literal so the misuse is visible (not "COM7", not a time)
         assert actual == "$(PORT:%H)", "fmt only applies to datetime vars"
@@ -626,7 +655,7 @@ class TestDatetimeFormatSpec:
     def test_bare_var_still_uses_default_format(self):
         """Without a format spec, $(DATE) keeps its default YYYY-MM-DD form."""
         # Act - no colon: default format still applies
-        actual = expand_vars("$(DATE)")
+        actual = expand_vars(_CTX, "$(DATE)")
 
         # Assert - default YYYY-MM-DD
         assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", actual), "default format intact"
@@ -642,7 +671,7 @@ class TestRetiredPlaceholders:
     def test_datetime_rewrites_and_expands(self):
         """{datetime} becomes a filename-safe stamp with no placeholder left over."""
         # Act - {datetime} -> $(DATETIME:%Y%m%d_%H%M%S) -> expanded in one pass
-        actual = expand_vars("run_{datetime}.log")
+        actual = expand_vars(_CTX, "run_{datetime}.log")
 
         # Assert - filename-safe stamp, no leftover placeholder
         assert re.fullmatch(r"run_\d{8}_\d{6}\.log", actual), (
@@ -652,7 +681,7 @@ class TestRetiredPlaceholders:
     def test_clock_rewrites_and_expands(self):
         """{clock} becomes the current HH:MM:SS by way of $(TIME)."""
         # Act - {clock} -> $(TIME) -> expanded
-        actual = expand_vars("at {clock}")
+        actual = expand_vars(_CTX, "at {clock}")
 
         # Assert
         assert re.fullmatch(r"at \d{2}:\d{2}:\d{2}", actual), "{clock} rewrites to $(TIME)"
@@ -660,7 +689,7 @@ class TestRetiredPlaceholders:
     def test_both_in_one_line(self):
         """Both retired placeholders on one line are rewritten in the same pass."""
         # Act
-        actual = expand_vars("{clock} {datetime}")
+        actual = expand_vars(_CTX, "{clock} {datetime}")
 
         # Assert - both rewritten and expanded
         assert re.fullmatch(r"\d{2}:\d{2}:\d{2} \d{8}_\d{6}", actual), "both rewritten"
@@ -668,7 +697,7 @@ class TestRetiredPlaceholders:
     def test_per_run_placeholders_untouched(self):
         """Per-run {seq1+}, {starttime}, {elapsed} are left for the template expander."""
         # Act - {seqN}/{starttime}/{elapsed} are not $() vars; pass through verbatim
-        actual = expand_vars("cap_{seq1+}_{starttime}_{elapsed}")
+        actual = expand_vars(_CTX, "cap_{seq1+}_{starttime}_{elapsed}")
 
         # Assert - left for the scripting-template expander downstream
         assert actual == "cap_{seq1+}_{starttime}_{elapsed}", (
@@ -912,6 +941,315 @@ class TestCfgContextVars:
         actual = _CONTEXT_VARS["CFG.PORT"]()
         assert actual == "", "no serial section -> empty, not a crash"
 
+    def test_every_data_folder_has_its_variable(self, tmp_path):
+        """Each folder in folders.FOLDERS has a CFG.<NAME>_DIR naming that folder inside the config's."""
+        # Arrange
+        cfg_file = tmp_path / "demo" / "demo.cfg"
+        register_cfg_vars(lambda: str(cfg_file), lambda: {}, lambda: "")
+
+        # Act
+        actual = {folder: _CONTEXT_VARS[folder_var_name(folder)]() for folder in FOLDER_NAMES}
+
+        # Assert
+        expected = {folder: str(cfg_file.resolve().parent / folder) for folder in FOLDER_NAMES}
+        assert actual == expected, "a data folder without its variable, or one pointing elsewhere"
+
+    def test_the_folder_variables_keep_their_names(self):
+        """The names scripts already use still resolve, and firmware/ has one beside them."""
+        # Arrange
+        register_cfg_vars(lambda: "", lambda: {}, lambda: "")
+        expected = {"CFG.RUN_DIR", "CFG.CAP_DIR", "CFG.VIZ_DIR", "CFG.FIRMWARE_DIR"}
+
+        # Act
+        actual = expected & set(_CONTEXT_VARS)
+
+        # Assert
+        assert actual == expected, "a folder variable a script may name went missing"
+
+
+class TestUnknownNames:
+    """A $(NAME) that names nothing is warned about, with what it likely meant, and the line still runs."""
+
+    def test_only_a_name_that_names_nothing_is_unknown(self):
+        """A clock, an escaped reference, an env name and a formatted name are not unknown; a typo is, once."""
+        # Act
+        actual = unknown_names(_CTX, "$(DATE) \\$(LITERAL) $(env.HOME) $(TIME:%H) $(NOPE) $(NOPE)")
+
+        # Assert
+        assert actual == ["NOPE"]
+
+    def test_a_typo_warns_with_the_name_it_meant(self, cli, capsys):
+        """/print $(CFG.FIRMWAR_DIR) warns and suggests CFG.FIRMWARE_DIR; the command still runs."""
+        # Arrange
+        cli._fire_app_start()
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/print $(CFG.FIRMWAR_DIR)")
+        out = capsys.readouterr().out
+
+        # Assert
+        expected = "Unknown variable: $(CFG.FIRMWAR_DIR) -- did you mean CFG.FIRMWARE_DIR?"
+        assert expected in out, out
+        assert result.success is True, "a warning, not a refusal: the line runs as typed"
+
+    def test_a_plain_name_set_later_warns_nothing(self, cli, capsys):
+        """/repeat var=I sets $(I) each pass, so the outer line's $(I) is no typo: no warning, and it counts."""
+        # Arrange
+        cli._fire_app_start()
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/repeat count=2 var=I cmd=/print pass $(I)")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert "Unknown variable" not in out, out
+        assert "pass 1" in out and "pass 2" in out, "the name was set later, as meant"
+
+    def test_a_plain_near_miss_still_warns(self, cli, capsys):
+        """A plain name a step from one that exists ($(DAT) for $(DATE)) is a typo: it warns with the name."""
+        # Arrange
+        cli._fire_app_start()
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/print $(DAT)")
+
+        # Assert
+        assert "Unknown variable: $(DAT) -- did you mean DATE" in capsys.readouterr().out
+
+    def test_a_known_name_warns_nothing(self, cli, capsys):
+        """A line whose names all expand prints no warning."""
+        # Arrange
+        cli._fire_app_start()
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/print $(CFG.PORT)")
+
+        # Assert
+        assert "Unknown variable" not in capsys.readouterr().out
+
+
+class TestVarListing:
+    """Bare /var is a table of every variable (registry list-one-format); its JSON is the snapshot, one mapping per kind."""
+
+    def test_the_listing_is_a_table_of_every_kind(self, cli, capsys):
+        """Each row is a name, its kind and its value; user variables come first, in the value too."""
+        # Arrange
+        cli._fire_app_start()
+        cli.repl.dispatch_full("/var.set GOLD 42")
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/var")
+        rows = [line.split(maxsplit=2) for line in capsys.readouterr().out.splitlines()]
+
+        # Assert
+        assert ["NAME", "KIND", "VALUE"] in rows, "the table's header"
+        assert ["GOLD", "user", "42"] in rows, "a user variable"
+        assert ["PORT.NAME", "context", "DEMO"] in rows, "a context variable, read when listed"
+        assert any(row[:2] == ["DATE", "dynamic"] for row in rows), "the clock says which time"
+        assert result.value == len(rows) - 3, (
+            "the value counts the table's rows (title, header, dashes aside)"
+        )
+
+    def test_one_name_is_a_record_with_its_kind(self, cli, capsys):
+        """/var NAME is a record page shaped like one row of the table: name, kind, value; the line is $(NAME) = value."""
+        # Arrange
+        cli._fire_app_start()
+        cli.repl.dispatch_full("/var.set GOLD 42")
+        capsys.readouterr()
+
+        # Act
+        user = cli.repl.dispatch_full("/var GOLD")
+        context = cli.repl.dispatch_full("/var PORT.NAME")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert user.data == {"name": "GOLD", "kind": "user", "value": "42"}
+        assert (user.value, context.data["kind"]) == ("42", "context")
+        assert "$(GOLD) = 42" in out, "the one line a person reads"
+
+    @pytest.mark.rule("view-is-the-answer")
+    def test_one_name_shows_at_quiet(self, cli, capsys):
+        """The variable's line is the answer, so .quiet prints it."""
+        cli.repl.dispatch_full("/var.set GOLD 42")
+        capsys.readouterr()
+        cli.repl.dispatch_full("/var.quiet GOLD")
+        assert "$(GOLD) = 42" in capsys.readouterr().out
+
+    def test_one_names_json_is_the_record_alone(self, cli, capsys):
+        """--json on one name carries the record as data and no printed line beside it."""
+        cli.repl.dispatch_full("/var.set GOLD 42")
+        capsys.readouterr()
+        cli.repl.dispatch_full("/var GOLD --json")
+        envelope = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+        assert envelope["data"] == {"name": "GOLD", "kind": "user", "value": "42"}
+        assert envelope["output_lines"] == [], "the facts ride once, as data"
+
+    def test_an_undefined_name_fails_naming_the_closest(self, cli, capsys):
+        """A name nothing defines fails with the standard phrasing and a did-you-mean over the names that exist."""
+        # Arrange
+        cli.repl.dispatch_full("/var.set GOLD 42")
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/var GOLF")
+
+        # Assert
+        assert result.success is False
+        assert result.error == "Unknown variable: $(GOLF) -- did you mean GOLD?"
+        assert capsys.readouterr().out.count("Unknown variable") == 1, "reported once, by dispatch"
+
+    def test_the_json_answer_is_the_snapshot(self, cli, capsys):
+        """--json answers with one name-to-value mapping per kind, so an agent looks a name up."""
+        # Arrange
+        cli._fire_app_start()
+        cli.repl.dispatch_full("/var.set GOLD 42")
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/var --json")
+        envelope = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+
+        # Assert
+        data = envelope["data"]
+        assert set(data) == {"user", "launch", "datetime", "context"}
+        assert data["user"] == {"GOLD": "42"}
+        assert data["context"]["PORT.NAME"] == "DEMO"
+
+
+@pytest.mark.rule("value-typed")
+class TestCaptureSpellsTypedValues:
+    """A command's typed value is captured as text, spelled once at the REPL's boundary."""
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [(7, "7"), (True, "on"), (False, "off"), (2.5, "2.5")],
+        ids=["int", "true", "false", "float"],
+    )
+    def test_a_typed_value_lands_in_the_variable_as_text(self, cli, capsys, value, expected):
+        """$(X) <- cmd stores the spelled value, so $(X) expands to digits or on/off, never True/7 as repr."""
+        # Arrange -- a command whose value is typed, as a count or a switch is
+        cli.repl.register_plugin(
+            PluginInfo(
+                name="probe",
+                args="",
+                help="h",
+                handler=lambda ctx, args: CmdResult.ok(value=value),
+            )
+        )
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/var.capture X /probe")
+        cli.repl.dispatch_full("/print $(X)")
+
+        # Assert
+        assert result.success is True, result.error
+        assert user_vars(cli.repl.ctx)["X"] == expected, "the variable holds text"
+        assert capsys.readouterr().out.splitlines()[-1].strip() == expected
+
+
+class TestPortContextVars:
+    """PORT.STATE and PORT.NAME read the port as it is when expanded, in every frontend's host."""
+
+    def _port_vars(self, cli) -> list[str]:
+        """The two values as a script would capture them."""
+        return [
+            cli.repl.dispatch_full("/var PORT.STATE").value,
+            cli.repl.dispatch_full("/var PORT.NAME").value,
+        ]
+
+    def test_they_follow_a_disconnect_and_a_reconnect(self, cli):
+        """Connected names the open port, a disconnect empties the name, and a reconnect brings it back."""
+        # Arrange
+        cli._fire_app_start()
+
+        # Act
+        connected = self._port_vars(cli)
+        cli.repl.dispatch_full("/port.disconnect")
+        closed = self._port_vars(cli)
+        cli.repl.dispatch_full("/port.connect")
+        reopened = self._port_vars(cli)
+
+        # Assert
+        assert connected == ["connected", "DEMO"]
+        assert closed == ["disconnected", ""], "no name for a port that is not open"
+        assert reopened == ["connected", "DEMO"], "a reconnect is seen, not the earlier state"
+
+    def test_the_name_is_the_port_a_serial_number_opened(self, cli):
+        """A config that connects by USB serial number still gets the OS port name, beside CFG.PORT's spec."""
+        # Arrange
+        cli._fire_app_start()
+        cli.repl.dispatch_full("/port.disconnect")
+
+        # Act
+        cli.repl.dispatch_full("/port.connect TERMAPY-DEMO")
+        actual = [
+            cli.repl.dispatch_full("/var PORT.NAME").value,
+            cli.repl.dispatch_full("/var CFG.PORT").value,
+        ]
+
+        # Assert
+        assert actual == ["DEMO", "TERMAPY-DEMO"], (
+            "the open port's name, while the config keeps the serial number"
+        )
+
+    def test_every_port_fact_has_its_variable_and_no_probe_does(self, cli):
+        """Each setting, modem line and unprobed chip field is a PORT variable; in_use and permissions are not."""
+        # Arrange
+        cli._fire_app_start()
+        facts = (*PORT_SETTINGS, *SIGNAL_LINES, *UNPROBED_CHIP_FIELDS)
+        expected = {"PORT.STATE", "PORT.NAME", *(port_var_name(fact) for fact in facts)}
+
+        # Act
+        actual = {name for name in _CONTEXT_VARS if name.startswith("PORT.")}
+
+        # Assert
+        assert actual == expected, "a port fact without its variable, or one nobody named"
+        assert not actual & {port_var_name(fact) for fact in PROBED_CHIP_FIELDS}, (
+            "a probed field would make reading a variable open a port"
+        )
+
+    def test_the_demo_port_reads_as_port_info_shows_it(self, cli):
+        """While connected the variables hold the open port's settings, lines and chip, as text."""
+        # Arrange
+        cli._fire_app_start()
+
+        # Act
+        context = snapshot(cli.repl.ctx)["context"]
+        actual = {
+            name: context[name]
+            for name in ("PORT.BAUD_RATE", "PORT.PARITY", "PORT.DTR", "PORT.RI", "PORT.SERIAL")
+        }
+
+        # Assert
+        expected = {
+            "PORT.BAUD_RATE": "115200",
+            "PORT.PARITY": "N",
+            "PORT.DTR": "1",
+            "PORT.RI": "0",
+            "PORT.SERIAL": "TERMAPY-DEMO",
+        }
+        assert actual == expected
+
+    def test_all_but_the_state_are_empty_when_no_port_is_open(self, cli):
+        """After a disconnect every PORT variable but PORT.STATE is empty: none looks a port up."""
+        # Arrange
+        cli._fire_app_start()
+        cli.repl.dispatch_full("/port.disconnect")
+
+        # Act
+        context = snapshot(cli.repl.ctx)["context"]
+        actual = {name: value for name, value in context.items() if name.startswith("PORT.")}
+
+        # Assert
+        assert actual.pop("PORT.STATE") == "disconnected"
+        assert set(actual.values()) == {""}, f"a fact of a port that is not open: {actual}"
+
 
 # ── resolve_one ──────────────────────────────────────────────────────────────
 
@@ -925,7 +1263,7 @@ class TestResolveOne:
         _VARS["PORT"] = "COM7"
 
         # Act
-        actual = resolve_one("PORT", None)
+        actual = resolve_one(_CTX, "PORT", None)
 
         # Assert
         assert actual == "COM7", "user variable resolved"
@@ -933,7 +1271,7 @@ class TestResolveOne:
     def test_resolve_unknown_returns_none(self):
         """An unknown name returns None, letting callers leave the reference literal."""
         # Act
-        actual = resolve_one("UNKNOWN", None)
+        actual = resolve_one(_CTX, "UNKNOWN", None)
 
         # Assert
         assert actual is None, "unknown variable returns None"
@@ -941,7 +1279,7 @@ class TestResolveOne:
     def test_resolve_with_datetime_format(self):
         """A datetime var with a strftime spec resolves to the formatted clock value."""
         # Act -- format suffix on a datetime var
-        actual = resolve_one("DATETIME", "%Y%m%d")
+        actual = resolve_one(_CTX, "DATETIME", "%Y%m%d")
 
         # Assert
         assert actual is not None and len(actual) >= 8, (
@@ -955,7 +1293,7 @@ class TestResolveOne:
         _VARS["PORT"] = "COM7"
 
         # Act -- format suffix is only meaningful on datetime vars
-        actual = resolve_one("PORT", "%Y")
+        actual = resolve_one(_CTX, "PORT", "%Y")
 
         # Assert
         assert actual is None, "format suffix on a non-datetime var returns None"
@@ -968,7 +1306,7 @@ class TestResolveOne:
         set_context_var("TEST_CTX", lambda: "ctx_value")
 
         # Act
-        actual = resolve_one("TEST_CTX", None)
+        actual = resolve_one(_CTX, "TEST_CTX", None)
 
         # Assert
         assert actual == "ctx_value", "context variable resolved"
@@ -991,7 +1329,7 @@ class TestDerefRef:
         _VARS["p1"] = "010300000002c40b"
 
         # Act
-        actual = deref_ref("p1")
+        actual = deref_ref(_CTX, "p1")
 
         # Assert
         assert actual == "010300000002c40b", "user variable resolves"
@@ -1000,7 +1338,7 @@ class TestDerefRef:
         """An undefined name is None, which the binder makes an error, never a literal."""
         # Act / Assert -- None is the signal params.resolve_deref turns into
         # "unknown variable: 'nope'"; it must not fall back to a literal
-        assert deref_ref("nope") is None, "undefined name resolves to None"
+        assert deref_ref(_CTX, "nope") is None, "undefined name resolves to None"
 
     def test_value_with_spaces_returned_whole(self):
         """A spaced value returns intact, so the binder passes it as one argument."""
@@ -1008,7 +1346,7 @@ class TestDerefRef:
         _VARS["spaced"] = "01 03 00 00 00 0a c5 cd"
 
         # Act
-        actual = deref_ref("spaced")
+        actual = deref_ref(_CTX, "spaced")
 
         # Assert
         assert actual == "01 03 00 00 00 0a c5 cd", (
@@ -1022,7 +1360,7 @@ class TestDerefRef:
         _VARS["multi"] = "line1\nline2"
 
         # Act / Assert
-        assert deref_ref("multi") == "line1\nline2", (
+        assert deref_ref(_CTX, "multi") == "line1\nline2", (
             "a newline survives; $(*NAME) is the only way to put one in an argument"
         )
 
@@ -1033,7 +1371,7 @@ class TestDerefRef:
         _VARS["empty"] = ""
 
         # Act
-        actual = deref_ref("empty")
+        actual = deref_ref(_CTX, "empty")
 
         # Assert
         assert actual == "", "empty value resolves to empty string, not None"
@@ -1041,7 +1379,7 @@ class TestDerefRef:
     def test_fmt_suffix_on_datetime_var(self):
         """A :fmt suffix splits at the first colon, as in $(NAME:fmt) expansion."""
         # Act -- ":fmt" splits on the FIRST colon, same rule as $(NAME:fmt)
-        actual = deref_ref("DATETIME:%Y%m%d")
+        actual = deref_ref(_CTX, "DATETIME:%Y%m%d")
 
         # Assert
         assert actual is not None and actual.isdigit(), (
@@ -1054,7 +1392,7 @@ class TestDerefRef:
         _VARS["plain"] = "value"
 
         # Act / Assert -- parity with expand_vars: :fmt is datetime-only
-        assert deref_ref("plain:%Y") is None, (
+        assert deref_ref(_CTX, "plain:%Y") is None, (
             "a format suffix on a non-datetime var does not resolve"
         )
 
@@ -1065,7 +1403,7 @@ class TestDerefRef:
         _VARS["p1"] = "resolved"
 
         # Act
-        actual = deref_ref("indirect")
+        actual = deref_ref(_CTX, "indirect")
 
         # Assert -- returned verbatim; the binder never re-scans it
         assert actual == "$(p1)", "a resolved value is data, never re-expanded"
@@ -1086,7 +1424,7 @@ class TestSnapshot:
         set_context_var("SNAP_TEST", lambda: "ctx_value")
 
         # Act
-        actual = snapshot()
+        actual = snapshot(_CTX)
 
         # Assert
         actual_namespaces = set(actual.keys())
@@ -1107,12 +1445,12 @@ class TestSnapshot:
         from termapy.variables import set_start_time_vars, snapshot
 
         # Act / Assert
-        before = snapshot()
+        before = snapshot(_CTX)
         assert "SESSION_DATE" not in before["datetime"], (
             "SESSION_* absent until a top-level script freezes the moment"
         )
         set_start_time_vars()
-        after = snapshot()
+        after = snapshot(_CTX)
         assert "SESSION_DATE" in after["datetime"], (
             "freezing the moment surfaces SESSION_* in the snapshot"
         )

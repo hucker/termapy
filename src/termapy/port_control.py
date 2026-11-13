@@ -21,16 +21,31 @@ import re
 import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
+if TYPE_CHECKING:
+    from types import ModuleType
+
+from termapy import env_flags
 from termapy.defaults import (
     VALID_BYTE_SIZES,
     VALID_FLOW_CONTROLS,
     VALID_PARITIES,
     VALID_STOP_BITS,
+    cfg_value,
 )
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.views import Item, TextLine
+from termapy.port_allow import (
+    LOOPBACK_SCHEME,
+    NETWORK_SCHEMES,
+    WRAPPER_SCHEMES,
+    PortNotAllowedError,
+    PortPolicy,
+    not_allowed_message,
+    url_scheme,
+    wrapped_port,
+)
 from termapy.scripting import format_duration, parse_bool
 from termapy.usb import chip as _usb_chip, vendor_for as _usb_vendor_for
 
@@ -100,6 +115,45 @@ _LINE_ENDING_TOKENS: dict[str, str] = {
 }
 
 
+# The keyword a command that sets a rate takes to ask for one off the standard list.
+_CUSTOM_KEYWORD = "custom="
+
+
+def take_custom(tokens: list[str]) -> tuple[list[str], bool, str | None]:
+    """Split a ``custom=<bool>`` token off ``tokens``: the rest, its value and any error.
+
+    The one reader of ``custom=`` for every command that sets a rate
+    (``/port.baud_rate``, ``/port.mode``, ``/port.connect`` and the
+    ``--new`` / ``/cfg.new`` settings): any ``parse_bool`` token, absent
+    meaning false.
+
+    Returns:
+        ``(rest, custom, error)``; ``error`` is the message for a bad or
+        repeated token, and then the other two mean nothing.
+    """
+    rest: list[str] = []
+    custom: bool | None = None
+    for token in tokens:
+        if not token.lower().startswith(_CUSTOM_KEYWORD):
+            rest.append(token)
+            continue
+        if custom is not None:
+            return [], False, f"Duplicate custom: {token}"
+        try:
+            custom = parse_bool(token[len(_CUSTOM_KEYWORD) :], what="custom")
+        except ValueError as e:
+            return [], False, str(e)
+    return rest, bool(custom), None
+
+
+def baud_error(baud: int, custom: bool) -> str | None:
+    """The refusal for a typed rate, or None (``config.check_baud``, registry ``baud-standard-unless-custom``)."""
+    from termapy.config import check_baud
+
+    reason = check_baud(baud, custom=custom, remedy="add custom=true")
+    return f"Invalid baud rate: {baud} ({reason})" if reason else None
+
+
 def parse_open_args(
     args: str,
 ) -> tuple[
@@ -108,24 +162,26 @@ def parse_open_args(
     tuple[str, int, float] | None,
     str | None,
     bool | None,
+    bool,
     str | None,
 ]:
     """Parse /port.connect arguments.
 
-    Syntax: ``{port=<name> | <name>} {baud} {mode} {line_ending} {echo}``.
-    A *bare* port name, if supplied, MUST be the first token.  The
-    explicit ``port=<name>`` form may appear anywhere and forces the value
-    to be the port -- use it for a purely-numeric serial number, which a
-    bare token would otherwise read as a baud rate.  Everything else is
-    order-independent; all fields optional (unspecified -> current cfg).
+    Syntax: ``{port=<name> | <name>} {baud} {mode} {line_ending} {echo}
+    {custom=<bool>}``.  A *bare* port name, if supplied, MUST be the first
+    token.  The explicit ``port=<name>`` form may appear anywhere and forces
+    the value to be the port -- use it for a purely-numeric serial number,
+    which a bare token would otherwise read as a baud rate.  Everything else
+    is order-independent; all fields optional (unspecified -> current cfg).
 
     Token classification:
 
     * ``port=<name>`` -- explicit port (device / SN / ``SN|COM`` chain / URL)
+    * ``custom=<bool>`` -- the baud rate is deliberately off the standard list
     * ``cr`` / ``lf`` / ``crlf`` -- line ending
     * ``echo`` / ``noecho`` -- echo toggle
     * ``N81`` / ``8N1`` / etc. -- serial mode, either field order (parse_mode)
-    * purely numeric -- baud rate
+    * purely numeric -- baud rate, standard unless ``custom=true``
     * a bare first token matching none of the above -- port name
 
     Args:
@@ -133,10 +189,11 @@ def parse_open_args(
 
     Returns:
         Tuple of ``(port_name, baud_rate, mode_tuple, line_ending,
-        echo, error_message)``.  ``line_ending`` is the literal
+        echo, custom, error_message)``.  ``line_ending`` is the literal
         ``"\\r"`` / ``"\\n"`` / ``"\\r\\n"`` (or None).  ``echo`` is
-        True / False / None.  ``error_message`` is non-None only when
-        a token cannot be classified.
+        True / False / None.  ``custom`` is whether ``custom=true`` was
+        given.  ``error_message`` is non-None only when a token cannot be
+        classified or the rate is refused (``baud_error``).
     """
     port: str | None = None
     baud: int | None = None
@@ -145,10 +202,13 @@ def parse_open_args(
     echo: bool | None = None
     first = True
 
-    def _err(msg: str) -> tuple[None, None, None, None, None, str]:
-        return (None, None, None, None, None, msg)
+    def _err(msg: str) -> tuple[None, None, None, None, None, bool, str]:
+        return (None, None, None, None, None, False, msg)
 
-    for token in args.split():
+    tokens, custom, custom_error = take_custom(args.split())
+    if custom_error:
+        return _err(custom_error)
+    for token in tokens:
         # Explicit port=<name> may appear anywhere and wins outright --
         # the escape hatch for a numeric SN that a bare token would read
         # as baud.  Case-insensitive key, value kept verbatim.
@@ -212,15 +272,51 @@ def parse_open_args(
         return _err(
             f"Unexpected argument: {token!r}. "
             f"Port name must come first; other tokens are "
-            f"baud / mode / cr|lf|crlf / echo|noecho."
+            f"baud / mode / cr|lf|crlf / echo|noecho / custom=true."
         )
-    return port, baud, mode, line_ending, echo, None
+    refusal = baud_error(baud, custom) if baud is not None else None
+    if refusal:
+        return _err(refusal)
+    return port, baud, mode, line_ending, echo, custom, None
+
+
+def baud_facts(cfg: Mapping[str, Any], rate: str | None = None) -> dict[str, Any]:
+    """The rate as data, ``{"baud", "custom"}``: the one producer of those two keys.
+
+    Args:
+        cfg: Config dict; ``custom`` is its ``custom_baud``.
+        rate: The rate as read, which bare ``/port.baud_rate`` takes from
+            the open port; ``None`` takes the config's, as ``/port.mode``
+            prints it.  Digits become a number, anything else stays text.
+    """
+    baud: Any = cfg["serial"]["baud_rate"] if rate is None else rate
+    if isinstance(baud, str) and baud.isdigit():
+        baud = int(baud)
+    return {"baud": baud, "custom": bool(cfg_value(cfg, "serial.custom_baud"))}
+
+
+def mode_facts(cfg: Mapping[str, Any]) -> dict[str, Any]:
+    """The frame bare ``/port.mode`` reports, with JSON types: its ``data``.
+
+    The config's frame, as the line ``/port.mode`` prints it, with the rate
+    from ``baud_facts``.  ``/port.baud_rate`` reads the open port's rate
+    instead, so the two differ only when the port and the config do.
+    """
+    serial = cfg["serial"]
+    return {
+        **baud_facts(cfg),
+        "byte_size": serial["byte_size"],
+        "parity": serial["parity"],
+        "stop_bits": serial["stop_bits"],
+    }
 
 
 def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
     """Set serial frame parameters from a mode string and optional baud rate.
 
-    Accepts: {baud} {mode}, e.g. '9600 N81', 'E71', '115200'.
+    Accepts: {baud} {mode} {custom=<bool>}, e.g. '9600 N81', 'E71', '115200',
+    '9460 N81 custom=true'.  A rate off the standard list needs
+    ``custom=true`` (``baud_error``), which also sets ``custom_baud``.
 
     Args:
         ser: Serial-like object, or None if disconnected.
@@ -237,7 +333,10 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
 
     baud: int | None = None
     mode: tuple[str, int, float] | None = None
-    for token in args.split():
+    tokens, custom, custom_error = take_custom(args.split())
+    if custom_error:
+        return _result([_msg(custom_error, "red")])
+    for token in tokens:
         parsed = parse_mode(token)
         if parsed:
             if mode is not None:
@@ -253,6 +352,9 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
 
     if baud is None and mode is None:
         return _result([_msg("Nothing to set.", "yellow")])
+    refusal = baud_error(baud, custom) if baud is not None else None
+    if refusal:
+        return _result([_msg(refusal, "red")])
 
     if ser is None:
         return _not_connected()
@@ -263,6 +365,8 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
         if baud is not None:
             ser.baudrate = baud
             cfg_update["baud_rate"] = baud
+            if custom:
+                cfg_update["custom_baud"] = True
         if mode is not None:
             parity, byte_size, stop_bits = mode
             ser.parity = parity
@@ -355,10 +459,11 @@ def list_port_records(*, source: PortSource | None = None) -> list[dict]:
 
     The structured twin of :func:`list_ports`: same gather (fast, enriched
     -- no port is opened), but each port becomes the fixed-schema dict of
-    ``port_format.facts_to_json_record`` instead of a table row.  Serves
-    ``/port.list`` under ``ctx.wants_data`` and any other caller that wants
-    machine-readable port facts; ``--ports --json`` uses the same record
-    builder, so shell and agent consumers see identical shapes.
+    ``port_format.facts_to_json_record`` instead of a table row.  The
+    records ``/port.list`` answers with (its table is
+    ``port_format.PORT_TABLE_COLUMNS`` over them) and any other caller that
+    wants machine-readable port facts; ``--ports --json`` uses the same
+    record builder, so shell and agent consumers see identical shapes.
 
     Args:
         source: Substitute port list instead of enumerating.  See
@@ -369,8 +474,19 @@ def list_port_records(*, source: PortSource | None = None) -> list[dict]:
     """
     from termapy.port_format import facts_to_json_record
 
-    facts_list = _gather_all_chip_facts(fast=True, enrich=True, source=source)
+    facts_list = _gather_all_chip_facts(fast=True, enrich=True, source=source, sessions=True)
     return [facts_to_json_record(facts) for facts in facts_list]
+
+
+def ports_note(*, policy: PortPolicy | None = None) -> str | None:
+    """What a port listing leaves out under ``TERMAPY_ALLOWED_PORTS``; None when it leaves out nothing."""
+    return _policy(policy).listing_note()
+
+
+def ports_title(*, policy: PortPolicy | None = None) -> str:
+    """The title of a port listing: ``Ports``, and ``ports_note`` when the list is limited."""
+    note = ports_note(policy=policy)
+    return f"Ports ({note})" if note else "Ports"
 
 
 # Field names exposed by /port.chip.<field> subcommands.  Order is the
@@ -395,6 +511,22 @@ CHIP_FIELDS: tuple[str, ...] = (
     "permissions",
     "in_use",
 )
+
+# The fields only the in-use probe fills: finding them can open the port
+# (``_check_in_use``), so a ``fast`` lookup leaves them None.
+PROBED_CHIP_FIELDS: tuple[str, ...] = ("permissions", "in_use")
+
+# The chip fields a lookup fills without opening any port.
+UNPROBED_CHIP_FIELDS: tuple[str, ...] = tuple(
+    field_name for field_name in CHIP_FIELDS if field_name not in PROBED_CHIP_FIELDS
+)
+
+# The serial settings a port page reports, as the config's ``serial`` keys.
+PORT_SETTINGS: tuple[str, ...] = ("baud_rate", "byte_size", "parity", "stop_bits", "flow_control")
+
+# The six modem lines, as the serial object's attributes.  Reading one
+# changes nothing: DTR and RTS report what was set, the rest the line's level.
+SIGNAL_LINES: tuple[str, ...] = ("dtr", "rts", "cts", "dsr", "ri", "cd")
 
 # Field labels, in Title Case like every display label on a label/value page:
 # the rows of the /port.chip and /port.info pages, and the
@@ -451,6 +583,11 @@ class ChipFacts:
     max_baud: str | None = None
     permissions: str | None = None
     in_use: str | None = None
+    # The termapy session holding the port, from the breadcrumbs, when a
+    # listing asked (``fill_sessions``): ``this session`` or ``termapy mcp,
+    # PID 17140``.  None when no termapy holds it, which says nothing about
+    # any other program.
+    session: str | None = None
     # Silicon-vendor name resolved from the VID via ``usb_vendor``.
     # Independent of ``manufacturer`` (which is the descriptor / INF
     # string) -- they can disagree, and that disagreement is itself
@@ -464,16 +601,11 @@ LOOPBACK_PORT = "loop://"
 
 
 def loopback_port_facts() -> ChipFacts:
-    """Honest ChipFacts for the pyserial loopback (``loop://``).
+    """Honest ChipFacts for the pyserial loopback (``loop://``): a name and a description.
 
-    Deliberately NOT a reserved name and NOT part of the DEMO machinery:
-    a loopback isn't a device, so it gets only a name + description and
-    leaves every USB field (VID:PID, serial, chip, ...) as ``None`` -- they
-    render as blanks, never invented identity.  The port picker surfaces
-    this as a selectable row; the spec itself already opens via
-    ``serial.serial_for_url`` (it echoes whatever you write straight back,
-    which is handy for exercising the real read/write path in CI or by
-    hand -- unlike DEMO, which simulates a *responding* device).
+    A loopback is not a device, so every USB field stays ``None`` and renders
+    blank, never invented identity; nor is it a reserved DEMO port, which
+    simulates a device that answers.
     """
     return ChipFacts(
         device=LOOPBACK_PORT,
@@ -606,7 +738,7 @@ def _gather_windows_extras(facts: ChipFacts, device: str) -> None:
         enum_root.Close()
 
 
-def _enum_subkeys(winreg_mod, key) -> list[str]:
+def _enum_subkeys(winreg_mod: ModuleType, key: object) -> list[str]:
     """Return every immediate subkey name of ``key`` (winreg-only)."""
     names: list[str] = []
     i = 0
@@ -964,8 +1096,8 @@ def _windows_usb_product(device_id: str, vid_pid: str) -> str | None:
 
 
 def _windows_match_inst(
-    winreg_mod,
-    parent_key,
+    winreg_mod: ModuleType,
+    parent_key: object,
     inst: str,
     device: str,
     facts: ChipFacts,
@@ -1030,7 +1162,7 @@ def _windows_match_inst(
         return True
 
 
-def _windows_lookup_location(winreg_mod, inst_key) -> str | None:
+def _windows_lookup_location(winreg_mod: ModuleType, inst_key: object) -> str | None:
     """Return the device's bus-location string, walking via ContainerID
     if necessary.
 
@@ -1116,6 +1248,73 @@ def _normalize_windows_location(loc: str) -> str:
     return f"{m.group(2)}.{m.group(1)}"
 
 
+#: The session that holds a port when it is this process: ``in_use`` and
+#: ``ChipFacts.session`` both read ``this session``.
+THIS_SESSION = "this session"
+
+
+def port_state_style(session: str | None) -> str:
+    """The style that marks a port by the termapy session holding it: green this one, yellow another.
+
+    ``""`` when no termapy session holds it: free, or held by a program
+    termapy cannot see.  The one owner of these colors: ``/port.list``,
+    the port picker, ``/port.usb`` and ``termapy --ports`` read them here.
+    """
+    if not session:
+        return ""
+    return "green" if session == THIS_SESSION else "yellow"
+
+
+def session_holding(
+    device: str, crumbs: list[Any], own_pid: int, *, hides_host: bool | None = None
+) -> str | None:
+    """The termapy session holding ``device``, by its breadcrumb; None when none does.
+
+    Only termapy sessions are seen, on every OS alike: a breadcrumb is a
+    file every running termapy writes, so reading them opens no port.  This
+    process's own is ``this session``, another's names it (``termapy mcp,
+    PID 17140``), and under MCP without ``TERMAPY_MCP_HOST_INFO`` another is
+    ``another termapy session`` (decision 2026-11-12).
+
+    Args:
+        device: The port, as the system lists it.
+        crumbs: The running termapys (``breadcrumbs.read_running``).
+        own_pid: This process's id.
+        hides_host: Leave another session unnamed; None asks this process's policy.
+    """
+    for crumb in crumbs:
+        if not crumb.open_port or not same_port(crumb.open_port, device):
+            continue
+        if crumb.pid == own_pid:
+            return THIS_SESSION
+        if hides_host is None:
+            hides_host = env_flags.port_policy().hides_host
+        return (
+            "another termapy session"
+            if hides_host
+            else f"termapy {crumb.frontend}, PID {crumb.pid}"
+        )
+    return None
+
+
+def fill_sessions(facts_list: list[ChipFacts]) -> None:
+    """Mark each port a termapy session holds, from the breadcrumbs, opening nothing.
+
+    A listing that colors ports by state calls this; resolution and the
+    reconnect loop never do.  A port no session holds keeps ``session``
+    None: termapy does not see other programs here.
+    """
+    from termapy import breadcrumbs
+
+    crumbs = breadcrumbs.read_running()
+    if not crumbs:
+        return
+    own_pid = os.getpid()
+    for fact in facts_list:
+        if fact.device:
+            fact.session = session_holding(fact.device, crumbs, own_pid)
+
+
 def _check_in_use(device: str, connected_port: str = "") -> str:
     """Report whether another process holds *device* -- non-invasively where possible.
 
@@ -1139,13 +1338,13 @@ def _check_in_use(device: str, connected_port: str = "") -> str:
       available (avoids pulsing the auto-reset line).
     """
     if connected_port and same_port(device, connected_port):
-        return "yes (this session)"
+        return f"yes ({THIS_SESSION})"
     if sys.platform != "win32":
         # Non-invasive: lsof never opens the port.  Names the holder.
-        from termapy.serial_engine import _find_port_holder
+        from termapy.serial_engine import _find_port_holder, shown_holder
 
         holder = _find_port_holder(device)
-        return f"yes ({holder})" if holder else "no"
+        return f"yes ({shown_holder(holder)})" if holder else "no"
     # Windows: create closed, de-assert DTR/RTS, then open so the DCB
     # applies DTR_CONTROL_DISABLE / RTS_CONTROL_DISABLE instead of the
     # pyserial default (both ENABLE), which is what pulses auto-reset.
@@ -1215,9 +1414,7 @@ def _facts_from_port_info(
     )
     if p.vid is not None and p.pid is not None:
         facts.vid_pid = f"{p.vid:04X}:{p.pid:04X}"
-        # Silicon vendor by VID -- independent of the descriptor / INF
-        # string in facts.manufacturer.  Populated even when the (VID,
-        # PID) pair isn't in the chip table.
+        # Even for a VID:PID the chip table does not know.
         facts.vendor = _usb_vendor_for(p.vid)
         chip = _usb_chip(p.vid, p.pid)
         if chip:
@@ -1270,8 +1467,11 @@ def gather_chip_facts(
     enrich: bool = False,
     source: PortSource | None = None,
     trust_env: bool = True,
+    policy: PortPolicy | None = None,
 ) -> ChipFacts | None:
     """Look up the named port and return all known facts about it.
+
+    A port the policy refuses is not found, as if it were not plugged in.
 
     ``fast=True`` skips the ``in_use``/``permissions`` probe (which opens
     the port on Windows -- see ``_check_in_use``).  Pass it from any
@@ -1294,25 +1494,39 @@ def gather_chip_facts(
         source: Callable returning a substitute port list; wins over the
             environment and over real hardware.
         trust_env: Whether the environment may supply a fleet.
+        policy: The port policy; None is this process's.
 
     Returns:
-        ChipFacts on success, or None if no connected port matches.
+        ChipFacts on success, or None if no allowed port matches.
     """
+    policy = _policy(policy)
     fleet = resolve_port_source(source, trust_env)
     if fleet is not None:
         for facts in fleet:
             if facts.device is not None and same_port(facts.device, port_name):
-                return facts
+                return facts if policy.allows_device(facts.device, facts.serial) else None
         return None
-    from serial.tools.list_ports import comports
-
-    for port in comports():
+    for port in system_ports(policy=policy):
         if same_port(port.device, port_name):
             return _facts_from_port_info(port, connected_port, fast=fast, enrich=enrich)
     # OS didn't enumerate it; fall back to synthesizing a record for
     # reserved virtual ports (DEMO, DEMO_FAIL) so /port.info DEMO and
     # `termapy --info DEMO` work without hardware.
     return synthetic_facts_for_reserved(port_name)
+
+
+def serial_number(port_name: str, *, source: PortSource | None = None) -> str:
+    """The named port's USB serial number, or "" when it reports none or is not found.
+
+    One enumeration and nothing opened: no in-use probe (``gather_chip_facts``
+    with ``fast=True``).
+
+    Args:
+        port_name: Device name, matched as the OS opens it.
+        source: Callable returning a substitute port list.
+    """
+    facts = gather_chip_facts(port_name, fast=True, source=source)
+    return (facts.serial or "") if facts is not None else ""
 
 
 # ─ Where ports come from ──────────────────────────────────────────────────
@@ -1412,8 +1626,15 @@ def _gather_all_chip_facts(
     enrich: bool = False,
     source: PortSource | None = None,
     trust_env: bool = True,
+    policy: PortPolicy | None = None,
+    sessions: bool = False,
 ) -> list[ChipFacts]:
-    """Return ChipFacts for every connected port, sorted by device name.
+    """Return ChipFacts for every allowed port, sorted by device name.
+
+    A port the policy refuses (``TERMAPY_ALLOWED_PORTS``) is left out
+    before anything is looked up, so the in-use probe never opens it, and no
+    listing, resolution or hint built on this one names it (registry
+    ``port-policy-at-opener``).
 
     ``fast=True`` skips the per-port ``_check_in_use`` probe so the
     gather doesn't scale linearly with port count -- ``--watch`` uses
@@ -1435,18 +1656,51 @@ def _gather_all_chip_facts(
         fast: Skip the per-port in_use/permissions probe.
         enrich: Look up driver / location / latency anyway.
         source: Callable returning a substitute port list; wins over the
-            environment and over real hardware.
+            environment and over real hardware.  It is filtered as the
+            machine's would be.
         trust_env: Whether the environment may supply a fleet.
+        policy: The port policy; None is this process's.
+        sessions: Mark the ports a termapy session holds, from the
+            breadcrumbs (``fill_sessions``), for a listing that colors
+            ports by state.
     """
+    policy = _policy(policy)
     fleet = resolve_port_source(source, trust_env)
     if fleet is not None:
-        return sorted(fleet, key=lambda f: f.device or "")
+        allowed = [fact for fact in fleet if policy.allows_device(fact.device, fact.serial)]
+        facts_list = sorted(allowed, key=lambda f: f.device or "")
+    else:
+        facts_list = [
+            _facts_from_port_info(p, connected_port, fast=fast, enrich=enrich)
+            for p in sorted(system_ports(policy=policy), key=lambda x: x.device)
+        ]
+    if sessions:
+        fill_sessions(facts_list)
+    return facts_list
+
+
+def _policy(policy: PortPolicy | None) -> PortPolicy:
+    """``policy``, or this process's when None (``env_flags.port_policy``)."""
+    return env_flags.port_policy() if policy is None else policy
+
+
+def system_ports(*, policy: PortPolicy | None = None) -> list[Any]:
+    """The serial ports the system lists that the policy allows: the one call to ``comports()``.
+
+    Every other module asks here (registry ``ports-enumerated-once``), so a
+    port ``TERMAPY_ALLOWED_PORTS`` leaves out is left out of every picker,
+    hint and listing.  Opens nothing.
+
+    Args:
+        policy: The port policy; None is this process's.
+
+    Returns:
+        pyserial ``ListPortInfo`` entries, in the system's order.
+    """
     from serial.tools.list_ports import comports
 
-    return [
-        _facts_from_port_info(p, connected_port, fast=fast, enrich=enrich)
-        for p in sorted(comports(), key=lambda x: x.device)
-    ]
+    policy = _policy(policy)
+    return [port for port in comports() if policy.allows_device(port.device, port.serial_number)]
 
 
 #: The reserved virtual ports and their descriptions, the one list of them.
@@ -1654,6 +1908,11 @@ def resolve_port(
             this as a user-facing error rather than silently picking one.
     """
     facts = _gather_all_chip_facts(connected_port, fast=True, source=source, trust_env=trust_env)
+    return _resolve_against(spec, facts)
+
+
+def _resolve_against(spec: str, facts: list[ChipFacts]) -> str:
+    """``resolve_port``'s matching, against a port list already gathered."""
     candidates = spec.split("|")
     for candidate in candidates:
         result = _match_candidate(candidate, facts)
@@ -1662,6 +1921,142 @@ def resolve_port(
     # No candidate resolved.  Return the last one so open_serial's error
     # message names what the user most explicitly asked for.
     return candidates[-1]
+
+
+def resolve_port_for_open(
+    spec: str, *, source: PortSource | None = None, policy: PortPolicy | None = None
+) -> str:
+    """Resolve a port spec to the name to open, refusing what the port policy does not allow.
+
+    The one gate ``config.open_serial`` passes every open through (registry
+    ``port-policy-at-opener``): resolution sees only allowed ports, and
+    ``check_open`` judges what it resolved to against the same list.
+
+    A person's session is told which a refused device is, plugged in or not
+    there (``_refused_device``); an MCP server is not, so an agent cannot
+    map the ports the listings hide.
+
+    Raises:
+        AmbiguousSerialNumberError: As ``resolve_port``.
+        PortNotAllowedError: The policy refuses the port; nothing was opened.
+    """
+    policy = _policy(policy)
+    facts = _gather_all_chip_facts(fast=True, source=source, policy=policy)
+    resolved = _resolve_against(spec, facts)
+    try:
+        return check_open(resolved, facts, policy=policy)
+    except PortNotAllowedError:
+        if policy.under_mcp or policy.allowlist is None or url_scheme(resolved) is not None:
+            raise
+        present = _refused_device(spec, source)
+        message = not_allowed_message(resolved, policy, present=present, absent=present is None)
+        raise PortNotAllowedError(message) from None
+
+
+def _refused_device(spec: str, source: PortSource | None) -> str | None:
+    """The plugged-in device a refused device spec names, or None when it names none.
+
+    For a person's denial only: it looks past the policy, at every port the
+    system lists, and opens nothing.
+    """
+    everything = _gather_all_chip_facts(fast=True, source=source, policy=PortPolicy())
+    try:
+        hidden = _resolve_against(spec, everything)
+    except AmbiguousSerialNumberError:
+        return None
+    devices = {fact.device for fact in everything}
+    return hidden if hidden in devices else None
+
+
+# A Windows device name the policy can read as written: no path, drive, stream
+# or extension syntax that Windows might map onto a different device.
+_PLAIN_WINDOWS_NAME = re.compile(r"[A-Za-z0-9_-]+")
+
+
+def port_identity(name: str) -> str | None:
+    r"""The canonical name the port policy reads for a name the system did not list.
+
+    Never the spelling as typed.  On Windows, ``COM5:``, ``COM2\..\COM5`` and
+    ``//./COM5`` may all open COM5, so only a plain name (once the Win32
+    ``\\.\`` prefix is dropped) has an identity; any other spelling has
+    none and is refused.  On Linux and macOS the identity is the real path,
+    with symlinks and ``..`` resolved, so a link named to fit a pattern is
+    read as the device it opens.
+    """
+    if not name:
+        return None
+    if os.name == "nt":
+        if name.startswith(_WIN32_DEVICE_PREFIX):
+            name = name[len(_WIN32_DEVICE_PREFIX) :]
+        return name if _PLAIN_WINDOWS_NAME.fullmatch(name) else None
+    return os.path.realpath(name)
+
+
+def check_open(resolved: str, facts: list[ChipFacts], *, policy: PortPolicy) -> str:
+    """The name to open for a resolved port, or ``PortNotAllowedError``.
+
+    With no policy in force every port opens as resolved.  Otherwise:
+
+    - a simulator port and ``loop://`` open: they reach no device and no network;
+    - a device is judged by the identities of the port it is (the name the
+      system lists and its serial number), or, for a name the system did not
+      list, by its canonical name (``port_identity``);
+    - ``spy://`` and ``alt://`` are judged by the port they wrap;
+    - a network URL must be named exactly (``PortPolicy.network_refusal``);
+    - ``hwgrep://`` and every other scheme are refused: termapy cannot
+      check what they open.
+
+    Args:
+        resolved: The resolved port, ``_resolve_against``'s answer.
+        facts: The allowed ports the resolution was made against.
+        policy: The port policy.
+
+    Raises:
+        PortNotAllowedError: The policy refuses the port; nothing was opened.
+    """
+    if not policy.in_force or resolved.upper() in _RESERVED_PORTS:
+        return resolved
+    scheme = url_scheme(resolved)
+    if scheme is None:
+        return _check_device(resolved, resolved, facts, policy)
+    if scheme == LOOPBACK_SCHEME:
+        return resolved
+    if scheme in WRAPPER_SCHEMES:
+        try:
+            inner = wrapped_port(resolved)
+        except ValueError:
+            raise PortNotAllowedError(not_allowed_message(resolved, policy)) from None
+        checked = _check_device(inner, resolved, facts, policy)
+        if checked == inner:
+            return resolved
+        # Open the port that was checked: the listed spelling, or a real path.
+        head, _, query = resolved.partition("?")
+        return f"{head.split('://', 1)[0]}://{checked}" + (f"?{query}" if query else "")
+    if scheme in NETWORK_SCHEMES:
+        refusal = policy.network_refusal(resolved)
+        if refusal is not None:
+            raise PortNotAllowedError(refusal)
+        return resolved
+    raise PortNotAllowedError(not_allowed_message(resolved, policy, scheme=scheme))
+
+
+def _check_device(name: str, shown: str, facts: list[ChipFacts], policy: PortPolicy) -> str:
+    """The name to open for device ``name``, or ``PortNotAllowedError`` naming ``shown``.
+
+    ``facts`` is normally the allowed list already; the port is still judged
+    here, so a caller that hands in the whole list cannot open a refused one.
+    """
+    for fact in facts:
+        if fact.device is not None and same_port(fact.device, name):
+            if policy.allows_device(fact.device, fact.serial):
+                return fact.device
+            break
+    identity = port_identity(name)
+    if identity is None or not policy.allows_device(identity):
+        raise PortNotAllowedError(not_allowed_message(shown, policy))
+    # On Linux and macOS open the path that was checked, not a link that
+    # could be pointed elsewhere; a Windows name opens as written.
+    return name if os.name == "nt" else identity
 
 
 def resolve_port_trace(
@@ -1696,6 +2091,16 @@ def resolve_port_trace(
             continue
         trace.append((candidate, result[1] if result else None))
     return trace
+
+
+def present_ports(*, source: PortSource | None = None) -> list[str]:
+    """The device names of the ports here now, as the system spells them; opens none.
+
+    Args:
+        source: A substitute port list, as ``resolve_port`` takes it.
+    """
+    facts = _gather_all_chip_facts(fast=True, source=source)
+    return [fact.device for fact in facts if fact.device is not None]
 
 
 def port_present(spec: str, *, source: PortSource | None = None) -> bool:
@@ -1757,6 +2162,54 @@ def port_display(
     except AmbiguousSerialNumberError:
         return spec, None
     return device, gather_chip_facts(device, fast=True, enrich=True, source=source)
+
+
+def listing_devices(
+    specs: Mapping[str, str],
+    *,
+    active: str | None = None,
+    open_device: str = "",
+    source: PortSource | None = None,
+) -> dict[str, str]:
+    """The device each config's port spec names, for a listing's PORT column; opens no port.
+
+    What the Cfg picker and ``/cfg.list`` show as a config's port (registry
+    ``port-display``): the device the spec resolves to against the ports
+    attached now, as ``port_display`` shows one config's, but enumerated
+    once for the whole list rather than once per row.  The active config
+    shows the device this session has open, when it has one, whatever its
+    file says (``/port COM9`` changes the session, not the file).  A spec
+    that names nothing attached, or two devices (an ambiguous serial
+    number), shows as written: an unplugged board has no device to name.
+
+    Args:
+        specs: Each config's key (its path as a string) to its port value
+            as written in the file.
+        active: The active config's key, or None when none is loaded.
+        open_device: The device this session has open, ``""`` when none
+            (``SerialEngine.open_device``).
+        source: A substitute port list, as ``resolve_port`` takes it.
+
+    Returns:
+        Each config's key to the device to show.
+    """
+    facts = _gather_all_chip_facts("", fast=True, source=source)
+
+    def snapshot() -> list[ChipFacts]:
+        return facts
+
+    devices: dict[str, str] = {}
+    for key, spec in specs.items():
+        if key == active and open_device:
+            devices[key] = open_device
+        elif not spec:
+            devices[key] = ""
+        else:
+            try:
+                devices[key] = resolve_port(spec, source=snapshot)
+            except AmbiguousSerialNumberError:
+                devices[key] = spec
+    return devices
 
 
 def _chip_rows(facts: ChipFacts) -> list[tuple[str, str] | tuple[str, str, str]]:
@@ -2023,9 +2476,9 @@ def port_info(
         ("Baud Rate", str(serial["baud_rate"])),
         ("Frame", f"{serial['byte_size']}{serial['parity']}{sb_str}"),
         ("Flow Control", str(serial["flow_control"])),
-        ("Encoding", str(cfg.get("encoding", "utf-8"))),
+        ("Encoding", str(cfg_value(cfg, "encoding"))),
     ]
-    xfer_root = cfg.get("file_xfer_root", "")
+    xfer_root = cfg_value(cfg, "file_xfer_root")
     if xfer_root:
         top_rows.append(("Xfer root", str(xfer_root)))
 
@@ -2033,12 +2486,8 @@ def port_info(
         "port": actual or None,
         "connected": connected,
         "spec": spec or None,
-        "baud_rate": serial["baud_rate"],
-        "byte_size": serial["byte_size"],
-        "parity": serial["parity"],
-        "stop_bits": sb,
-        "flow_control": serial["flow_control"],
-        "encoding": cfg.get("encoding", "utf-8"),
+        **{key: serial[key] for key in PORT_SETTINGS},
+        "encoding": cfg_value(cfg, "encoding"),
         "xfer_root": xfer_root or None,
         "chip": None,
         "signals": None,
@@ -2065,9 +2514,7 @@ def port_info(
 
     if connected:
         try:
-            signals = {
-                name: bool(getattr(ser, name)) for name in ("dtr", "rts", "cts", "dsr", "ri", "cd")
-            }
+            signals = {name: bool(getattr(ser, name)) for name in SIGNAL_LINES}
         except OSError:
             signals = None
         if signals is not None:
@@ -2078,6 +2525,10 @@ def port_info(
 
 def get_set_prop(ser: Any | None, cfg: Mapping[str, Any], key: str, args: str) -> Result:
     """Get or set a serial port property.
+
+    The baud rate also takes ``custom=<bool>``: a rate off the standard
+    list needs ``custom=true`` (``baud_error``), which also sets
+    ``custom_baud``.
 
     Args:
         ser: Serial-like object, or None if disconnected.
@@ -2100,6 +2551,12 @@ def get_set_prop(ser: Any | None, cfg: Mapping[str, Any], key: str, args: str) -
             return _result([_msg(f"{getattr(ser, attr)}")])
         except OSError as e:
             return _result([_msg(f"{desc} read error: {e}", "red")])
+    custom = False
+    if key == "baud_rate":
+        tokens, custom, custom_error = take_custom(val.split())
+        if custom_error:
+            return _result([_msg(custom_error, "red")])
+        val = " ".join(tokens)
     if not connected:
         return _not_connected()
     try:
@@ -2109,11 +2566,18 @@ def get_set_prop(ser: Any | None, cfg: Mapping[str, Any], key: str, args: str) -
         if valid and typed not in valid:
             opts = ", ".join(sorted(str(v) for v in valid))
             return _result([_msg(f"Invalid {desc.lower()}: {val} (use {opts})", "red")])
+        is_rate = key == "baud_rate" and isinstance(typed, int)
+        refusal = baud_error(typed, custom) if is_rate else None
+        if refusal:
+            return _result([_msg(refusal, "red")])
         setattr(ser, attr, typed)
+        cfg_update: dict[str, Any] = {key: typed}
+        if custom:
+            cfg_update["custom_baud"] = True
         return _result(
             [_msg(f"{desc} -> {typed}")],
             update_title=True,
-            cfg_update={key: typed},
+            cfg_update=cfg_update,
         )
     except ValueError:
         return _result([_msg(f"Invalid {desc.lower()}: {val}", "red")])

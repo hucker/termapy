@@ -1,7 +1,8 @@
-"""Guard ARCHITECTURE.md's generated module tree and test table against hand edits and drift.
+"""Guard ARCHITECTURE.md's generated module tree, test table and marker table against hand edits and drift.
 
-``scripts/sync_architecture.py`` writes both from the docstrings.  If a test
-here fails, fix the docstring (not the doc) and run::
+``scripts/sync_architecture.py`` writes the first two from the docstrings
+and the marker table from pyproject.toml's marker registrations.  If a test
+here fails, fix the docstring or the registration (not the doc) and run::
 
     uv run python scripts/sync_architecture.py
 """
@@ -26,25 +27,28 @@ from sync_architecture import (  # noqa: E402 -- path set above
 )
 
 
+@pytest.mark.rule("architecture-generated")
 def test_generated_blocks_are_in_sync():
-    """architecture-generated: the module tree and test table match the docstrings they are generated from."""
+    """The module tree, test table and marker table match the sources they are generated from."""
     assert main(["--check"]) == 0, (
-        "ARCHITECTURE.md was hand-edited or a docstring changed; "
+        "ARCHITECTURE.md was hand-edited, or a docstring or marker registration changed; "
         "run: uv run python scripts/sync_architecture.py"
     )
 
 
-def test_both_blocks_keep_their_markers():
-    """Deleting a block's markers fails the sync, so neither goes back to hand-kept silently."""
+@pytest.mark.rule("architecture-generated")
+def test_every_block_keeps_its_markers():
+    """Deleting a block's markers fails the sync, so none goes back to hand-kept silently."""
     # Arrange
     text = DOC.read_text(encoding="utf-8")
 
     # Act / Assert
-    for name in ("module-tree", "test-table"):
+    for name in ("module-tree", "test-table", "marker-table"):
         with pytest.raises(ValueError, match=f"{name}:start"):
             rewrite(text.replace(f"<!-- {name}:end -->", ""))
 
 
+@pytest.mark.rule("architecture-generated")
 def test_an_identifier_only_docstring_is_refused(tmp_path):
     """A module whose docstring opens with only a class name fails the sync instead of printing a bare row."""
     # Arrange
@@ -56,6 +60,7 @@ def test_an_identifier_only_docstring_is_refused(tmp_path):
         describe(module, "dialogs/bare.py")
 
 
+@pytest.mark.rule("architecture-generated")
 def test_the_line_counts_stay_release_preps():
     """A tracked row keeps the count the doc has now; the sync never recounts a row that has one."""
     # Arrange -- a count no file has, planted on app.py's row

@@ -134,26 +134,29 @@ the byte stream without disrupting normal operation -- it demonstrates the
 
 | Subcommand | Args | What it does |
 | ---------- | ---- | ------------ |
-| `/traffic.count` | `<cmd>` | Run a command and report TX/RX bytes during it |
-| `/traffic.hexdump` | `<file> [duration]` | Tee timestamped hex of all I/O to a file (default 5s) |
+| `/traffic.count` | `<cmd> {wait_gap=<dur>}` | Run a command and report the TX/RX bytes, its reply included: it waits until the device has been quiet for `wait_gap` (default 50ms) |
+| `/traffic.hexdump` | `<file> [duration]` | Tee timestamped hex of all I/O to a file in `cap/` (default 5s) |
 | `/traffic.rate` | `[duration]` | Bytes/sec rate over a window (default 5s) |
 | `/traffic.snoop` | `<bytes> {timeout=<dur>}` | Block until a byte pattern (hex or "text") appears in RX |
 
 Examples against the demo:
 
 ```text
-demo> /traffic.count AT+INFO
-  TX: 7  RX: 12  bytes
-
-demo> /traffic.rate 3s
-  Sampling for 3.0s...
-  TX: 0 bytes (0.0 B/s)
-  RX: 28 bytes (9.3 B/s)
-
-demo> /traffic.hexdump capture.log 10s
-
-demo> /traffic.snoop 4F 4B timeout=2s    # wait for "OK" in RX
-  Matched 4f4b at offset 14
+demo> /traffic.count AT+RAMP
+demo> AT+RAMP
+0.0
+  TX: 8  RX: 5  bytes
 ```
+
+`AT+RAMP\r` is the 8 bytes sent and `0.0\r\n` the 5 received.  A device that
+takes longer than 50ms to start answering needs a bigger gap,
+`/traffic.count wait_gap=200ms AT+INFO`; with `wait_gap=0ms` the reply arrives
+after the count and lands in whatever is measuring next.
+
+`/traffic.rate 3s` counts whatever moves during the window, so on the idle
+demo it reports zero; run it while something streams.
+`/traffic.hexdump capture.log 10s` writes ten seconds of both directions to
+`cap/capture.log`.  `/traffic.snoop 4F 4B timeout=2s` waits for `OK` in the
+received bytes; it blocks, so it runs only in a `.run` script.
 
 ---

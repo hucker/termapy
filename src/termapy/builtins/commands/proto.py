@@ -5,11 +5,13 @@ from __future__ import annotations
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from crcglot import DetectMatch, DetectResult, detect
+from crcglot import DetectMatch, DetectResult, LanguageInfo, detect
 
+from termapy import diag_log
 from termapy.builtins.commands._crc_verbs import build_crc_verb_command
+from termapy.defaults import cfg_value
 from termapy.folder_ops import (
     build_folder_subcommands,
     edit_command,
@@ -45,6 +47,7 @@ from termapy.protocol import (
     parse_data_segments,
     parse_hex,
     parse_toml_script,
+    result_path,
     script_name,
     strip_ansi,
     write_results,
@@ -59,6 +62,8 @@ from termapy.scripting import (
 from termapy.symbols import parse_number
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from termapy.plugins import PluginContext
 
 
@@ -183,8 +188,8 @@ def _run_cmd(ctx: PluginContext, cmd_text: str, frame_gap: int, quiet: bool) -> 
         frame_gap: Frame gap for response collection.
         quiet: Suppress output if True.
     """
-    line_ending = ctx.cfg.get("eol", "\r")
-    enc = ctx.cfg.get("encoding", "utf-8")
+    line_ending = cfg_value(ctx.cfg, "eol")
+    enc = cfg_value(ctx.cfg, "encoding")
     if not quiet:
         ctx.io.output(f"  CMD: {cmd_text}")
     ctx.serial.write((cmd_text + line_ending).encode(enc))
@@ -221,11 +226,11 @@ def _run_toml_script(
 ) -> dict:
     """Execute a TOML-format proto script.
 
-    Prose goes to ``ctx.io`` unless the caller wants data, in which case
-    the run is silent and the returned document is the whole output
-    (``/proto.run … --json``, MCP).  A stop request (Escape) ends the
-    run after the current test and skips the script-level teardown: a
-    stop means stop.
+    The run's narration is progress on the output channel, so the level
+    decides who sees it (quiet, MCP's default, hides it) and the returned
+    document is the structured answer whoever asked.  A stop request
+    (Escape) ends the run after the current test and skips the
+    script-level teardown: a stop means stop.
 
     Args:
         ctx: Plugin context for serial I/O and output.
@@ -238,12 +243,10 @@ def _run_toml_script(
         for the tests that ran.
     """
     stop_event = _stop_event(ctx)
-    quiet_run = ctx.wants_data
-    quiet_cmds = script.quiet or quiet_run
+    quiet_cmds = script.quiet
 
     def say(text: str, color: str = "dim") -> None:
-        if not quiet_run:
-            ctx.io.output(text, color)
+        ctx.io.output(text, color)
 
     test_results: list[dict] = []
     pass_count = 0
@@ -697,7 +700,7 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=str(e))
 
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8-sig")
         result = load_proto_script(text)
     except (ValueError, OSError) as e:
         return CmdResult.fail(msg=f"Script error: {e}")
@@ -706,25 +709,29 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
         script = result[1]
         if not script.tests:
             return CmdResult.fail(msg="Script has no tests.")
-        results = _run_toml_script(ctx, path, script, text)
+        out_path = None
         if script.json_file:
-            # Beside the script, in test/ -- where ``termapy --proto`` puts it.
-            config_name = Path(ctx.config_path).stem if ctx.config_path else ""
             try:
-                out_path = write_results(
-                    results,
-                    path.parent / "test",
-                    script.json_file,
-                    path.stem,
-                    config_name,
-                )
+                out_path = _results_path(ctx, path, script.json_file)
+            except ValueError as e:
+                return CmdResult.fail(msg=str(e))
+        diag_log.info("proto start: %s", path)
+        results = _run_toml_script(ctx, path, script, text)
+        diag_log.info(
+            "proto end: %s, %d passed, %d failed",
+            path.name,
+            results["summary"]["passed"],
+            results["summary"]["failed"],
+        )
+        if out_path is not None:
+            try:
+                write_results(results, out_path)
             except OSError as e:
                 return CmdResult.fail(msg=f"Write error: {e}")
-            if not ctx.wants_data:
-                ctx.io.output(f"  JSON: {out_path}")
+            ctx.io.output(f"  JSON: {out_path}")
         # The path is the scriptable value; the results document is the
-        # structured twin for --json / MCP, on a failing run too.
-        data = results if ctx.wants_data else None
+        # structured twin, on a failing run too.
+        data = results
         summary = results["summary"]
         if summary["failed"]:
             return CmdResult.fail(
@@ -736,11 +743,42 @@ def _handler_run(ctx: PluginContext, args: str) -> CmdResult:
     settings, steps = result[1]
     if not steps:
         return CmdResult.fail(msg="Script has no steps.")
+    diag_log.info("proto start: %s", path)
     failed, total = _run_flat_script(ctx, path, settings, steps)
+    diag_log.info("proto end: %s, %d passed, %d failed", path.name, total - failed, failed)
     if failed:
         return CmdResult.fail(msg=_failed_tests_msg(failed, total), value=str(path.resolve()))
     # Return the script path so scripts can confirm what was run.
     return CmdResult.ok(value=path)
+
+
+def _results_path(ctx: PluginContext, script_path: Path, template: str) -> Path:
+    """Where ``/proto.run`` writes a script's ``json_file``, asked before anything is sent.
+
+    In ``test/`` beside the script, where ``termapy --proto`` puts it.  A host
+    confined to the config's folder keeps them in its ``proto/test/`` wherever
+    the script came from, and an MCP client neither lands in a code folder nor
+    replaces a file outside that folder (registry ``mcp-no-code-writes``).
+
+    Args:
+        ctx: Plugin context, for the config's folders and the guards.
+        script_path: The ``.pro`` file being run.
+        template: Its ``json_file`` value.
+
+    Returns:
+        The path to write.
+
+    Raises:
+        ValueError: The template is not a plain file name.
+        MissingCapability: An MCP client may not write there.
+    """
+    confined = not ctx.capabilities.filesystem_unconfined
+    folder = Path(ctx.fs.proto_dir) if confined else script_path.parent
+    config_name = Path(ctx.config_path).stem if ctx.config_path else ""
+    out_path = result_path(folder / "test", template, script_path.stem, config_name)
+    ctx.fs.guard_code_folder(out_path.parent)
+    ctx.fs.guard_replace(out_path)
+    return out_path
 
 
 def _failed_tests_msg(failed: int, total: int) -> str:
@@ -767,7 +805,7 @@ def _handler_debug(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=str(e))
 
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8-sig")
         script = parse_toml_script(text)
     except (ValueError, OSError) as e:
         return CmdResult.fail(msg=f"Script error: {e}")
@@ -807,8 +845,8 @@ def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
         flags["hex"] = action
     state = "enabled" if flags["hex"] else "disabled"
     ctx.io.output(f"Hex display mode {state}.", "bright_green")
-    # Mirror the echo/verbose convention: return the new state.
-    return CmdResult.ok(value="on" if flags["hex"] else "off")
+    # Mirror the echo convention: the new state, a bool (registry value-typed).
+    return CmdResult.ok(value=bool(flags["hex"]))
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
@@ -882,14 +920,7 @@ def _handler_crc_list(ctx: PluginContext, args: str) -> CmdResult:
             }
         )
     records.sort(key=lambda record: (record["width"], record["name"]))
-    # The value is the matched names, alphabetical, so scripts can iterate or count.
-    return CmdResult.table(
-        "CRC algorithms",
-        "algorithm",
-        _CRC_COLUMNS,
-        records,
-        value="\n".join(names),
-    )
+    return CmdResult.table("CRC algorithms", "algorithm", _CRC_COLUMNS, records)
 
 
 _CRC_COLUMNS = (
@@ -1079,6 +1110,7 @@ def _write_crc_codegen_files(
     lang: str,
     file_stem: str,
     folder: Path,
+    guard_replace: Callable[[Path], None],
 ) -> list:
     """Write codegen output to disk; return the list of written ``Path``s.
 
@@ -1098,6 +1130,8 @@ def _write_crc_codegen_files(
             appended.
         folder: The folder the file(s) are written in, the config's
             ``firmware/`` unless ``file=`` names another.
+        guard_replace: ``ctx.fs.guard_replace``, asked about every file
+            before any is written, so a refusal leaves no half of a C pair.
 
     Returns:
         List of ``Path`` objects, one per file written.  Length 2 for
@@ -1106,20 +1140,16 @@ def _write_crc_codegen_files(
     from crcglot import LANGUAGES
 
     extensions = LANGUAGES[lang].extensions if lang in LANGUAGES else (".txt",)
-    written: list = []
+    contents = result if isinstance(result, tuple) else (result,)
+    paths = [folder / f"{file_stem}{ext}" for ext in extensions[: len(contents)]]
+    for path in paths:
+        guard_replace(path)
     # ``str(content)`` casts -- ``result`` comes from a crcglot generator
     # Callable, so ty widens its elements to ``object``; runtime always
     # returns strings.
-    if isinstance(result, tuple):
-        for content, ext in zip(result, extensions):
-            path = folder / f"{file_stem}{ext}"
-            path.write_text(str(content), encoding="utf-8")
-            written.append(path)
-    else:
-        path = folder / f"{file_stem}{extensions[0]}"
-        path.write_text(str(result), encoding="utf-8")
-        written.append(path)
-    return written
+    for path, content in zip(paths, contents):
+        path.write_text(str(content), encoding="utf-8")
+    return paths
 
 
 _CRC_CODEGEN_KV_KEYS = {
@@ -1151,14 +1181,7 @@ def _parse_int_value(value: str, key: str) -> int:
 
 
 def _did_you_mean(name: str) -> str:
-    """Build the `` -- did you mean X, Y?`` suffix for an unknown algorithm.
-
-    Calls ``crcglot.suggest_algorithms`` (0.25+), which runs a
-    three-tier match -- exact prefix, ``crc<width>`` family, then
-    fuzzy.  Returns ``""`` when crcglot has no suggestion to offer
-    (the caller appends the suffix unconditionally; an empty string
-    is a no-op).
-    """
+    """The `` -- did you mean X, Y?`` suffix for an unknown algorithm, ``""`` when crcglot has none."""
     from crcglot import suggest_algorithms
 
     # crcglot owns its names and how to rank them; termapy owns the phrasing.
@@ -1303,11 +1326,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
     if symbol_override == "":
         return CmdResult.fail(msg="symbol= requires a value")
 
-    # Doc-comment style: crcglot 0.13+ exposes a per-language curated
-    # set (Python: plain/google/numpy/rest; C/Java: doxygen/...; Rust:
-    # rustdoc; TypeScript: jsdoc; etc).  Default ``plain`` is applied
-    # by crcglot when the kwarg is omitted, so we only forward when the
-    # user explicitly passes ``style=``.
+    # crcglot applies its default style when style= is omitted, so forward only one typed.
     style = kv.get("style")
     if style == "":
         return CmdResult.fail(msg="style= requires a value")
@@ -1551,7 +1570,9 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         given = "" if stem.parent == Path(".") else str(stem.parent)
         folder = write_destination(ctx, given, FIRMWARE)
         try:
-            written = _write_crc_codegen_files(result, lang, stem.name, folder)
+            written = _write_crc_codegen_files(
+                result, lang, stem.name, folder, ctx.fs.guard_replace
+            )
         except OSError as e:
             return CmdResult.fail(msg=f"Write error: {e}")
         ctx.io.output(f"Wrote {', '.join(str(p) for p in written)}", "green")
@@ -1772,10 +1793,10 @@ def _encode_device_cmd(ctx: PluginContext, text: str) -> bytes:
     ending is appended when it isn't already present.  That is why ``cmd=`` takes
     a bare command (``cmd=AT+RND.CUSTOM``) with no quoting and no explicit ``\\r``.
     """
-    line_ending = ctx.cfg.get("eol", "\r")
+    line_ending = cfg_value(ctx.cfg, "eol")
     if not text.endswith(line_ending):
         text += line_ending
-    return text.encode(ctx.cfg.get("encoding", "utf-8"))
+    return text.encode(cfg_value(ctx.cfg, "encoding"))
 
 
 def _send_and_capture(
@@ -2003,7 +2024,7 @@ def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
         from termapy.variables import deref_ref
 
         for token in rest_tokens:
-            ok, resolved = resolve_deref(token, deref_ref)
+            ok, resolved = resolve_deref(token, lambda ref: deref_ref(ctx, ref))
             if not ok:
                 return CmdResult.fail(msg=resolved)
             try:
@@ -2108,6 +2129,16 @@ def _width_matches(
     return tuple(candidate for candidate in candidates if candidate.info.width == width_filter)
 
 
+def _sole_algorithm(result: dict[str, Any]) -> str:
+    """``/proto.crc.detect``'s value: the algorithm when exactly one fits, else ``""``.
+
+    The same rule as ``/proto.crc.find``'s value, read from crcglot's detect
+    wire dict (``candidates[].algorithm``), which is the command's data.
+    """
+    candidates = result.get("candidates") or []
+    return str(candidates[0]["algorithm"]) if len(candidates) == 1 else ""
+
+
 def _render_detect_result(
     ctx: PluginContext,
     result: DetectResult,
@@ -2142,7 +2173,7 @@ def _render_detect_result(
         # it as an answer rather than the generic "no match" so the user
         # has a concrete next step.  Identification only -- crcglot does
         # not generate code for these.  ``trailer_hint`` is None when
-        # the asc= helper synthesises a DetectResult directly.
+        # the asc= helper synthesizes a DetectResult directly.
         trailer_hint = getattr(result, "trailer_hint", None)
         if trailer_hint is not None and trailer_hint.matched:
             top = trailer_hint.candidates[0]
@@ -2279,7 +2310,7 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
     return ctx.internal.dispatch("help proto")
 
 
-def _build_one_crc_lang_command(code: str, info) -> Command:
+def _build_one_crc_lang_command(code: str, info: LanguageInfo) -> Command:
     """Build one ``/proto.crc.<lang>`` Command from a crcglot LanguageInfo.
 
     Flags are derived from the language's ``variants`` set:
@@ -2322,9 +2353,6 @@ def _build_one_crc_lang_command(code: str, info) -> Command:
             f"Accepted but falls back to --table (no native slice-by-8 for {info.display_name})."
         )
 
-    # Doc-comment styles per language (crcglot 0.13+).  ``plain`` is
-    # always available; the rest are language-specific (e.g. doxygen
-    # for C/Java, rustdoc for Rust, google/numpy/rest for Python).
     from crcglot.comments.registry import styles_for_language
 
     styles = tuple(styles_for_language(code))
@@ -2334,10 +2362,7 @@ def _build_one_crc_lang_command(code: str, info) -> Command:
         else ""
     )
 
-    # Naming convention (crcglot 0.13+ via ``LanguageInfo.naming``):
-    # snake / camel / pascal subset per language, with one idiomatic
-    # default emitted when ``naming=`` is omitted.  Only advertise when
-    # the language offers more than one option.
+    # Advertised, like the styles, only when the language offers a choice.
     naming_options = tuple(sorted(info.naming))
     naming_line = (
         f"Naming conventions: {', '.join(naming_options)} "
@@ -2430,11 +2455,16 @@ _FOLDER_SUBS["list"] = Command(
     handler=_handler_list,
     shows=True,
     needs=CapabilitySet.CONFIG_LOADED,
+    state=True,
 )
 COMMAND = Command(
     group="protocol",
     name="proto",
     help="Binary protocol tools: send, run, debug, hex, crc, info.",
+    intro=(
+        "Talk to a device that speaks bytes rather than lines: send raw bytes, run "
+        "protocol test scripts, debug a test step by step, and work out CRCs."
+    ),
     long_help=_proto_long_help,
     handler=_handler,
     picker="proto",
@@ -2467,6 +2497,12 @@ COMMAND = Command(
             help="Run a protocol test script.",
             long_help=_proto_run_long_help,
             handler=_handler_run,
+            cfg={
+                "eol": "appended to setup and teardown commands",
+                "encoding": "encodes setup commands",
+                "serial.port": "recorded in the results",
+                "serial.baud_rate": "recorded in the results",
+            },
             needs=CapabilitySet.SERIAL_CONNECTED,
             files="proto",
             picker="proto",
@@ -2484,13 +2520,24 @@ COMMAND = Command(
             args="{on|off|toggle}",
             help="Toggle hex display of incoming bytes (same flag as {prefix}term.hex).",
             handler=_handler_hex,
+            state=True,
         ),
         "crc": Command(
             help="Browse and compute CRC algorithms.",
+            intro=(
+                "Compute, verify, identify and reverse-engineer CRCs, and generate code for "
+                "them in several languages, using crcglot and its more than 100 named "
+                "algorithms."
+            ),
             long_help=(
-                "More than 100 named CRC algorithms come from the reveng CRC\n"
-                "catalog maintained by Greg Cook since 1999:\n"
+                "The algorithm definitions and their check values, the test cases,\n"
+                "come from the reveng CRC catalogue, maintained by Greg Cook since\n"
+                "1999:\n"
                 "  https://reveng.sourceforge.io/crc-catalogue/all.htm\n"
+                "\n"
+                "The code that computes CRCs and generates source is crcglot, a\n"
+                "separate Python package written independently of reveng:\n"
+                "  https://github.com/hucker/crcglot\n"
                 "\n"
                 "Every algorithm is verified against its catalog check\n"
                 "value (the CRC of the ASCII string '123456789') on every\n"
@@ -2552,12 +2599,16 @@ COMMAND = Command(
                         "  {prefix}proto.crc.find cmd=AT+RND\n"
                     ),
                     handler=_handler_crc_find,
+                    cfg={
+                        "eol": "appended to the cmd= trigger",
+                        "encoding": "encodes the cmd= trigger",
+                    },
                 ),
                 # Generated entirely from crcglot.VERBS['detect'] -- params, help,
                 # and execution (via crcglot.call_verb) all come from crcglot's
                 # manifest, so there is nothing to keep in sync by hand.  See
                 # _crc_verbs.build_crc_verb_command.
-                "detect": build_crc_verb_command("detect"),
+                "detect": build_crc_verb_command("detect", pick_value=_sole_algorithm),
                 "calc": Command(
                     args="<name> {data}",
                     help="Compute CRC over hex bytes, quoted text, or a file.",
@@ -2632,6 +2683,10 @@ COMMAND = Command(
                         "text), which is why this command parses its own args."
                     ),
                     handler=_handler_crc_reverse,
+                    cfg={
+                        "eol": "appended to the cmd= trigger",
+                        "encoding": "encodes the cmd= trigger",
+                    },
                 ),
                 # /proto.crc.<lang> commands are built dynamically from
                 # crcglot.LANGUAGES so every language crcglot ships gets a
@@ -2644,6 +2699,7 @@ COMMAND = Command(
             help="Print current protocol state.",
             handler=_handler_info,
             shows=True,
+            state=True,
         ),
         "edit": edit_command("proto"),
         **_FOLDER_SUBS,

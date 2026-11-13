@@ -29,6 +29,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
+from termapy import diag_log
 from termapy.config import cfg_relative_path, not_found_message
 from termapy.converters import DEVICE, read_source
 from termapy.devices import (
@@ -120,7 +121,10 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         doc = spec.convert(spec.source_of(data, text))
     # A plugin converter is third-party code on the dispatch path.
     except BoundaryException as e:
-        return CmdResult.fail(msg=f"Converter error: {spec.format}: {e}")
+        diag_log.exception("device converter %s raised on %s", spec.format, path)
+        return CmdResult.fail(
+            msg=f"Converter error: {spec.format}: {type(e).__name__}: {e}{diag_log.traceback_note()}"
+        )
     if not isinstance(doc, dict) or not doc.get("registers"):
         return CmdResult.fail(msg=f"No registers found in {path.name} ({spec.format})")
     doc = dict(doc)
@@ -185,7 +189,7 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
         "relative": relative,
         "reference": ref_path,
     }
-    return CmdResult.ok(value=str(len(device)), data=data)
+    return CmdResult.ok(value=len(device), data=data)
 
 
 def _already_defined(library: Path, name: str, dest: Path) -> str | None:
@@ -223,14 +227,7 @@ def _write_reference(
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """What THIS config loaded: one row per device, with its layer."""
-    devices = get_devices(ctx)
-    return CmdResult.table(
-        "devices",
-        "device",
-        device_columns(),
-        device_records(devices),
-        value="\n".join(device.name for device in devices),
-    )
+    return CmdResult.table("devices", "device", device_columns(), device_records(get_devices(ctx)))
 
 
 def _handler_regs(ctx: PluginContext, args: str) -> CmdResult:
@@ -263,7 +260,6 @@ def _handler_regs(ctx: PluginContext, args: str) -> CmdResult:
         "register",
         register_columns(),
         register_records(matched, address_bits=table.address_bits if table else 32),
-        value="\n".join(register.symbol.name for register in matched),
     )
 
 
@@ -322,7 +318,7 @@ def _handler_use(ctx: PluginContext, args: str) -> CmdResult:
         "green",
     )
     return CmdResult.ok(
-        value=str(len(loaded)),
+        value=len(loaded),
         data=device_records([loaded])[0] | {"reference": str(written)},
     )
 
@@ -362,7 +358,6 @@ def _handler_lib(ctx: PluginContext, args: str) -> CmdResult:
         "part",
         library_columns(),
         library_records(matched, loaded),
-        value="\n".join(part.device for part in matched),
     )
 
 
@@ -450,6 +445,11 @@ COMMAND = Command(
     name="dev",
     maturity="preview",
     help="Device files: a part's registers as data (see {prefix}help devices).",
+    intro=(
+        "A part's registers as data, from a vendor's register file, so {prefix}mem "
+        "can read and write them by name. Import a part into a library, then add it "
+        "to this config."
+    ),
     long_help=_long_help,
     sub_commands={
         "import": Command(
@@ -496,6 +496,7 @@ COMMAND = Command(
             help="List the devices this config has loaded, with their layer and placement.",
             handler=_handler_list,
             shows=True,
+            state=True,
         ),
         "regs": Command(
             params=[

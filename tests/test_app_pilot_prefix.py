@@ -17,6 +17,8 @@ import pytest
 
 from termapy.defaults import DEFAULT_CFG
 
+pytestmark = pytest.mark.rule("prefix-never-hardcoded")
+
 
 def _run(scenario) -> None:
     asyncio.run(scenario())

@@ -16,7 +16,11 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from termapy.folders import PLUGIN, VIZ, inside, is_inside
 from termapy.plugins.capabilities import CapabilitySet, MissingCapability
+
+# The folders termapy imports Python from, in the case a typed path may use.
+_CODE_FOLDERS = frozenset(name.casefold() for name in (PLUGIN, VIZ))
 
 
 @dataclass
@@ -44,7 +48,7 @@ class FilesystemHandle:
     # this in __post_init__ to its own CapabilitySet.
     capabilities: CapabilitySet = field(default_factory=CapabilitySet)
 
-    def open_file(self, path) -> None:
+    def open_file(self, path: str | Path) -> None:
         """Open a file or folder in the system viewer/editor.
 
         Requires the ``gui_apps`` capability -- without it, the call
@@ -82,9 +86,9 @@ class FilesystemHandle:
         that escapes the folder is refused UNLESS the host grants
         ``filesystem_unconfined`` -- so an MCP client (a remote/automated
         peer) is confined to the config sandbox, while the operator at a
-        CLI/TUI keeps host-wide paths.  Reuses the same
-        ``resolve()`` + ``is_relative_to`` containment as the ``.dump``
-        commands and the MCP capture resource.
+        CLI/TUI keeps host-wide paths.  The containment is
+        ``folders.inside``, as for the ``.dump`` commands and the MCP
+        capture resource.
 
         Args:
             name: Caller-supplied file name or path.
@@ -104,15 +108,13 @@ class FilesystemHandle:
         if attr is None:
             raise ValueError(f"Unknown folder: {folder!r}")
         base = Path(getattr(self, attr))
-        target = (base / name).resolve()
-        try:
-            inside = target.is_relative_to(base.resolve())
-        except OSError:
-            inside = False
-        if inside or self.capabilities.filesystem_unconfined:
+        target = inside(base, name)
+        if target is not None:
             return target
+        if self.capabilities.filesystem_unconfined:
+            return (base / name).resolve()
         raise MissingCapability(
-            f"Path {name!r} escapes the {folder}/ sandbox. The MCP host is "
+            f"Path {name!r} escapes the {base.name or folder}/ sandbox. The MCP host is "
             f"confined to the config directory; set TERMAPY_MCP_FS_UNCONFINED=1 "
             f"in the server's shell to allow host-wide paths."
         )
@@ -141,3 +143,68 @@ class FilesystemHandle:
                 f"TERMAPY_MCP_FS_UNCONFINED=1 in the server's shell to allow "
                 f"host-wide paths."
             )
+
+    def guard_code_folder(self, folder: Path) -> None:
+        """Refuse a write into a folder termapy imports code from, with no person present.
+
+        Python in ``plugin/`` or ``viz/`` runs at the next load, so an MCP
+        client writing there would step around every other gate.  Unlike the
+        sandbox above, no flag lifts this (registry ``mcp-no-code-writes``).
+
+        Below the config root every part of the path counts, because
+        ``plugin/sub/`` is still in ``plugin/``.  Above the root a folder named
+        ``plugin`` is only where a project happens to live, so a path outside
+        the root is judged by its last part.
+
+        Args:
+            folder: The folder the file lands in.
+
+        Raises:
+            MissingCapability: The folder is or sits in one that holds code, and
+                the host has no interactive session.
+        """
+        if self.capabilities.interactive:
+            return
+        resolved = folder.resolve()
+        config_folder = self._config_folder()
+        cfg_root = config_folder.parent if config_folder else None
+        parts = (
+            resolved.relative_to(cfg_root).parts
+            if cfg_root and is_inside(resolved, cfg_root)
+            else (resolved.name,)
+        )
+        for part in parts:
+            # Windows makes plugin. and plugin::$INDEX_ALLOCATION the folder plugin/.
+            if part.split(":")[0].rstrip(". ").casefold() in _CODE_FOLDERS:
+                raise MissingCapability(
+                    f"Folder {part!r} holds code termapy imports: an MCP client cannot write there."
+                )
+
+    def guard_replace(self, path: Path) -> None:
+        """Refuse replacing a file outside the config's folder, with no person present.
+
+        Inside its folder an MCP client may write over a file, as a person can;
+        outside it the file is not the config's to change, and no flag lifts
+        this (registry ``mcp-no-code-writes``, decision 2026-11-05).  A code
+        folder inside it is ``guard_code_folder``'s answer.
+
+        Args:
+            path: The file about to be written.
+
+        Raises:
+            MissingCapability: The file exists outside the config's folder, or
+                no config is loaded, and the host has no interactive session.
+        """
+        if self.capabilities.interactive or not path.exists():
+            return
+        config_folder = self._config_folder()
+        if config_folder is None or not is_inside(path, config_folder):
+            raise MissingCapability(
+                f"File exists: {path.name} "
+                "(an MCP client never replaces a file outside the config's folder)"
+            )
+
+    def _config_folder(self) -> Path | None:
+        """The active config's folder, or ``None`` with no config, when the data folders are ``.``."""
+        cap_dir = Path(self.cap_dir)
+        return None if cap_dir == Path(".") else cap_dir.resolve().parent

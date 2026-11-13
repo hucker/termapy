@@ -22,6 +22,8 @@ from sync_format_tables import TARGETS, main, render_table, rewrite  # noqa: E40
 
 from termapy.protocol.type_codes import TypeCode  # noqa: E402
 
+pytestmark = pytest.mark.rule("format-type-table-single-source")
+
 
 def test_generated_tables_are_in_sync():
     """Every generated type table in the help page and README matches TYPE_CODES."""

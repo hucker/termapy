@@ -12,17 +12,36 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Final
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from termapy import load_report
-from termapy.config import load_config, open_with_system
+from termapy.config import (
+    cap_folder_of,
+    load_config,
+    mcp_log_path,
+    open_serial,
+    open_with_system,
+    session_log_file,
+)
 from termapy.config_resolve import resolve_config
-from termapy.defaults import quiet_start
+from termapy.defaults import cfg_value, quiet_start
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
-from termapy.serial_port import eol_label
+from termapy.plugins.output_levels import OUTPUT_LEVEL_RANK, OUTPUT_MIN_RANK
+from termapy.scripting import strip_ansi
+from termapy.serial_port import eol_label_markup, strip_eol_markers
+from termapy.session_log import (
+    LOG_STARTED,
+    LOG_STOPPED,
+    SESSION_START,
+    STATUS_MARKER,
+    SessionLog,
+)
+from termapy.typed_lines import TypedLine
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from termapy.capture import CaptureEngine
     from termapy.repl import ReplEngine
     from termapy.serial_engine import SerialEngine
@@ -93,17 +112,6 @@ def _is_recording() -> bool:
     return _run_record.is_active()
 
 
-# A session's first and last line in each session log it writes, the TUI's
-# and MCP's alike.  A log whose last marker is a start (this one or Log
-# Started) is a session that did not end cleanly.
-SESSION_START: Final[str] = f"{' Session Start ':-^60s}"
-SESSION_END: Final[str] = f"{' Session End ':-^60s}"
-# The two ends of a gap inside a session: /log.stop writes the first before
-# the TUI lets go of its log, /log.start the second when it opens it again.
-LOG_STOPPED: Final[str] = f"{' Log Stopped ':-^60s}"
-LOG_STARTED: Final[str] = f"{' Log Started ':-^60s}"
-
-
 class TerminalHost:
     """Base class shared by TUI and CLI terminal frontends.
 
@@ -117,10 +125,15 @@ class TerminalHost:
     * ``repl``         - ``ReplEngine`` instance
     * ``capture``      - ``CaptureEngine`` instance
     * ``ctx``          - ``PluginContext`` (set by subclass ``_setup_context``)
+    * ``session_log``  - ``SessionLog``, which stays closed in a frontend that keeps none
     """
 
     _HISTORY_LIMIT: int = 30
     _help_server_port: int = 0
+    # /log.stop's state: the log stays closed, through a config switch, until /log.start.
+    _log_stopped: bool = False
+    # Set when ctx.internal.typed_lines is read; see _dispatch_typed.
+    _typed_lines_read: bool = False
     # The frontend's name, ``$(FRONT_END)``; each frontend sets its own.
     front_end: ClassVar[str] = "unknown"
 
@@ -132,10 +145,10 @@ class TerminalHost:
     ctx: PluginContext
     prefix: str
     # Set as ``_engine`` / ``_capture``; read through the properties below,
-    # the same in every frontend (the TUI once redeclared them read-only
-    # over attributes this class declared writable).
+    # the same in every frontend.
     _engine: SerialEngine
     _capture: CaptureEngine
+    session_log: SessionLog
 
     @property
     def engine(self) -> SerialEngine:
@@ -217,26 +230,105 @@ class TerminalHost:
         (:meth:`_on_app_prestart`), then the ``on_app_prestart`` hooks.
         Then ``on_app_start``, whose config load prints the load report --
         so what pre-start sets up, the variables and the session log, is
-        in place before anything else happens.
+        in place before anything else happens.  The diagnostic log opens
+        first of all, so a failure anywhere after it has a file to go to.
         """
+        from termapy import diag_log
+
+        # No config here: on_app_start's load, below, records it as its header.
+        diag_log.start(self.front_end)
         self._register_vars()
+        self._leave_breadcrumb()
+        if self._watch_stop_at_start:
+            self._watch_for_stop()
         self._on_app_prestart()
         self.repl.fire_lifecycle("on_app_prestart")
         self.repl.fire_lifecycle("on_app_start")
 
+    def _leave_breadcrumb(self) -> None:
+        """Tell ``/app.alive`` and ``termapy --alive`` what this session holds.
+
+        Called when the session starts, connects, disconnects, loses its
+        port, switches config and changes the open port's settings, so the
+        breadcrumb always names the port this process has open and how
+        (``breadcrumbs``).  A one-shot (``--run``, ``-e``) skips what costs
+        time to read: the version, who started it, the port's serial number.
+        """
+        from termapy import breadcrumbs
+        from termapy.config import port_settings
+
+        detailed = not getattr(self, "is_oneshot", False)
+        serial_cfg = self.cfg.get("serial") or {}
+        open_port = (self.engine.open_device or "") if self.engine.is_connected else ""
+        port_serial = ""
+        if open_port and detailed:
+            from termapy.port_control import serial_number
+
+            port_serial = serial_number(open_port)
+        breadcrumbs.leave(
+            self.front_end,
+            config=self.config_path or "",
+            port=str(serial_cfg.get("port") or ""),
+            open_port=open_port,
+            settings=port_settings(self.cfg) if open_port else "",
+            port_serial=port_serial,
+            log=str(self.session_log_path() or ""),
+            detailed=detailed,
+        )
+
+    # Whether the start answers another termapy's request to leave.  MCP
+    # starts answering later, once its signal handler can turn one into its
+    # normal shutdown (``run_mcp_stdio``).
+    _watch_stop_at_start: ClassVar[bool] = True
+
+    def _watch_for_stop(self) -> None:
+        """Answer a request to leave (``/app.kill``, ``--kill``) with :meth:`_leave_on_request`.
+
+        The request is ``breadcrumbs.request_stop``'s; this process's watch
+        finds it within ``STOP_POLL_S`` and calls the method on its own thread
+        (registry ``kill-asks-first``).
+        """
+        from termapy import breadcrumbs
+
+        breadcrumbs.on_stop_request(self._leave_on_request)
+
+    def _stop_watching(self) -> None:
+        """The session is ending: hold a request to leave for the next frontend of this process."""
+        from termapy import breadcrumbs
+
+        breadcrumbs.release_stop_request(self._leave_on_request)
+
+    def _leave_on_request(self, by: int) -> None:
+        """Leave because termapy ``by`` asked, the way ``/exit`` leaves, without asking anything.
+
+        Called on the stop watch's thread.  Each frontend leaves its own
+        way; the base has no session to leave.
+        """
+
     def _register_vars(self) -> None:
-        """Register the session's variables: ``$(FRONT_END)``, ``$(CFG)``, ``$(CFG.*)``.
+        """Register the session's variables: ``$(FRONT_END)``, ``$(CFG)``, ``$(CFG.*)``, ``$(PORT.*)``.
 
         The same set in every frontend, named by its :attr:`front_end`.
-        The ``CFG`` values are read when expanded, so a config switch
-        needs no second registration.
+        The ``CFG`` and ``PORT`` values are read when expanded, so a config
+        switch or a reconnect needs no second registration.  ``PORT.*`` is the
+        port open now (``PORT.NAME`` is ``COM9`` for a config that connects by
+        serial number), empty while none is open: it never looks a port up.
         """
-        from termapy.variables import register_cfg_vars, set_context_var, set_launch_var
+        from termapy.variables import (
+            register_cfg_vars,
+            register_port_vars,
+            set_context_var,
+            set_launch_var,
+        )
 
         set_launch_var("FRONT_END", self.front_end)
         set_context_var(
             "CFG",
             lambda: Path(self.config_path).stem if self.config_path else "termapy",
+        )
+        register_port_vars(
+            get_cfg=lambda: self.cfg,
+            get_port=lambda: self.engine.port_obj if self.engine.is_connected else None,
         )
         register_cfg_vars(
             get_config_path=lambda: self.config_path,
@@ -332,16 +424,17 @@ class TerminalHost:
             if resolved:
                 self._log("#", resolved)
             if banner:
-                self.write(f"Connected: {actual}", "green")
+                self._port_banner(f"Connected: {actual}", "green")
             self._log("#", f"  {conn}  {hw}".rstrip())
         else:
             if resolved:
-                self.write(resolved, "green")
+                self._port_banner(resolved, "green")
             if banner:
-                self.write(full, "green")
+                self._port_banner(full, "green")
         self.repl.fire_lifecycle("on_connect")
         self._start_reader()
         self._on_connected(full)
+        self._leave_breadcrumb()
 
     def _on_connected(self, message: str) -> None:
         """Called after a successful connection.  Override for UI updates."""
@@ -368,8 +461,28 @@ class TerminalHost:
         self.engine.disconnect()
         self._clear_device_state()
         msg = f"Disconnected: {actual}" if actual else "Disconnected."
-        self.write(msg, "red")
+        self._port_banner(msg, "red")
         self._on_disconnected()
+        self._leave_breadcrumb()
+
+    def _port_banner(self, text: str, color: str) -> None:
+        """Show a connect or disconnect banner at the level of the command that caused it.
+
+        The banner is the command's output, so ``.quiet`` / ``--quiet`` and
+        ``.silent`` / ``--silent`` keep it off the screen as they keep a
+        handler's own output off (``OUTPUT_MIN_RANK``); outside a command (a
+        button, the auto-reconnect) the session's level decides.  The session
+        log keeps a line it hides.  A call that answers in JSON (``--json``,
+        MCP) gets the banner through the command's own output channel, so it
+        is in the envelope's ``output_lines`` and nothing prints outside it.
+        """
+        ctx = self.repl.ctx
+        if OUTPUT_LEVEL_RANK[ctx.output_level] < OUTPUT_MIN_RANK:
+            self._log("#", text)
+        elif ctx.wants_data:
+            ctx.io.output(text, color)
+        else:
+            self.write(text, color)
 
     def _port_lost(self) -> None:
         """Tear down after the port vanished mid-session (an unplug, a driver reset).
@@ -389,6 +502,7 @@ class TerminalHost:
         if self.capture.active:
             self._stop_capture()
         self._on_disconnected()
+        self._leave_breadcrumb()
 
     def _clear_device_state(self) -> None:
         """Wipe namespaces tied to the device that just disconnected.
@@ -428,6 +542,7 @@ class TerminalHost:
             reload_devices=self.repl.reload_devices,
             library_layers=self.repl.library_layers,
             load_report=lambda: self.repl.load_report.records,
+            json_layout=self.repl.json_layout,
             port=lambda: self.engine.port_obj if self.engine.is_connected else None,
             in_script=lambda: self.repl.in_script,
             # The dispatch gate's own "right now" answer (static env set
@@ -440,6 +555,7 @@ class TerminalHost:
             # Every caller answers with the result (a forwarder, a
             # redirect), so the failure is printed once, at its exit.
             dispatch=lambda line: self.repl.dispatch(line, report=False),
+            read_state=self.repl.read_state,
             # set_proto_active intentionally not exposed -- the bare flag
             # setter is private; ``ctx.serial.io()`` is the public path.
             # TUI override installs a real modal launcher.  In non-TUI
@@ -464,6 +580,7 @@ class TerminalHost:
             # Which file this frontend's session log is: one owner, the
             # host's session_log_path (registry session-log-one-owner).
             session_log_path=lambda: self.session_log_path(),
+            session_log_paths=lambda: self.session_log_paths(),
             start_session_log=lambda: self._start_session_log(),
             stop_session_log=lambda: self._stop_session_log(),
             # How this frontend opens a file for editing (/edit decides which).
@@ -480,6 +597,7 @@ class TerminalHost:
             # host has no static dependency on a specific plugin (and
             # so the import is harmless if the builtin isn't loaded).
             is_recording=_is_recording,
+            typed_lines=self._read_typed_lines,
             # ``update_find_bar`` is None on the base host; the TUI
             # subclass sets it to its own _update_find_bar method
             # after super().__init__() runs.  CLI/MCP hosts inherit
@@ -513,12 +631,12 @@ class TerminalHost:
             update_port=lambda name: self._update_port(name),
             apply_port_effects=lambda effects: self._apply_port_effects(effects),
             write=self._serial_write,
-            send=self._serial_send,
             read_raw=self._serial_read_raw,
             drain=self._drain_rx_queue,
             wait_idle=lambda timeout_ms=100, max_wait_s=3.0: self._wait_for_idle(
                 timeout_ms, max_wait_s
             ),
+            byte_counts=self.engine.byte_counts,
             rx_queue=self.engine.rx_queue,
             claim=lambda: setattr(self.engine, "serial_claimed", True),
             release=lambda: setattr(self.engine, "serial_claimed", False),
@@ -573,9 +691,16 @@ class TerminalHost:
         self,
         echo_repl: bool = True,
         device_echo_allowed: bool = True,
-        color: bool = True,
+        color: bool | None = None,
+        output_level: str | None = None,
     ) -> None:
-        """Initialize the ``flags`` namespace with shared engine defaults.
+        """Initialize the ``flags`` namespace from the config, and the host's own rules over it.
+
+        Runs at startup and again at every load (``_reset_session``), with
+        the arguments it was first given: what the user asked for at launch
+        (``--no-color``, ``--quiet``) and what a host requires (MCP's JSON
+        stays uncolored) outlast any config, and everything else is the
+        config's.
 
         There are two independent local echoes, gated by two flags:
 
@@ -607,35 +732,66 @@ class TerminalHost:
                 at all.  True (TUI/CLI) seeds ``flags["echo"]`` from
                 ``cfg["echo"]``; False (MCP, headless) forces it off
                 regardless of cfg.
+            color: Color whatever the config says; ``None`` takes ``cfg["color"]``.
+            output_level: Level whatever the config says; ``None`` takes
+                ``cfg["output_level"]``.
         """
-        from termapy.plugins import DEFAULT_OUTPUT_LEVEL
-
+        self._flag_seeds: dict[str, Any] = {
+            "echo_repl": echo_repl,
+            "device_echo_allowed": device_echo_allowed,
+            "color": color,
+            "output_level": output_level,
+        }
         flags = self.ctx.ns("flags")
         flags.setdefault(
             "echo",
-            self.cfg.get("echo", False) if device_echo_allowed else False,
+            cfg_value(self.cfg, "echo") if device_echo_allowed else False,
         )
         flags.setdefault("echo_repl", echo_repl)
-        flags.setdefault("output_level", DEFAULT_OUTPUT_LEVEL)
-        flags.setdefault("hex", self.cfg.get("hex", False))
+        flags.setdefault(
+            "output_level",
+            cfg_value(self.cfg, "output_level") if output_level is None else output_level,
+        )
+        flags.setdefault("hex", cfg_value(self.cfg, "hex"))
         # Line numbers: the same pattern.  Only the TUI renders them, but
         # the flag is what /term.line_no sets and /term.info reports.
-        flags.setdefault("line_no", self.cfg.get("line_no", False))
+        flags.setdefault("line_no", cfg_value(self.cfg, "line_no"))
+        # The TUI's live TX/RX counts (/term.traffic): session-only, no cfg
+        # key, so every load starts with them hidden.
+        flags.setdefault("traffic", False)
         # Render device ANSI color (SGR).  Session flag toggled by
         # /term.color; the single source of truth for device color across
         # the TUI (strip before render when off) and CLI (strip in on_lines).
-        flags.setdefault("color", color)
+        flags.setdefault("color", cfg_value(self.cfg, "color") if color is None else color)
+
+    def _reset_session(self) -> None:
+        """Back to what a fresh start on the loaded config has.
+
+        A load's one reset, in every frontend (registry
+        ``config-load-deterministic``): whatever the session did goes, then
+        the flags are seeded from the config just loaded, so what came before
+        cannot change how this config behaves.  A plugin's session state is
+        in ``ctx.ns()``, so this covers it; ``on_config_load`` fires after this
+        for what a cleared dict cannot do.
+        """
+        self._clear_device_state()
+        self.repl.reset_session()
+        self._init_flags(**self._flag_seeds)
+        if self.repl.in_script:
+            # A script calling /cfg.load: its lines stay without echo, and its end
+            # restores the new config's value rather than the old one's.
+            self.repl.hold_script_echo()
 
     # -- Serial I/O -----------------------------------------------------------
 
     def _serial_read_raw(self, timeout_ms: int = 1000, frame_gap_ms: int = 0) -> bytes:
         """Collect raw bytes using timeout-based framing (delegates to SerialPort)."""
-        frame_gap = frame_gap_ms or self.cfg.get("proto_frame_gap_ms", 50)
+        frame_gap = frame_gap_ms or cfg_value(self.cfg, "proto_frame_gap_ms")
         if self.engine.serial_port:
             return self.engine.serial_port.read_raw(timeout_ms, frame_gap)
         return b""
 
-    def _feed_rx_consumers(self, lines: list[str], plain: list[str]) -> None:
+    def _feed_rx_consumers(self, lines: list[str]) -> None:
         """Hand received lines to the consumers every frontend shares.
 
         The expect watcher and text capture.  Each frontend calls this for
@@ -644,12 +800,18 @@ class TerminalHost:
         half, so ``/cap.text`` over MCP recorded nothing, which is why the
         list lives here and not in three copies.
 
+        Both get the line as the device sent it: the ``eol_markers`` display
+        marker comes off first, so ``/expect.regex match=^OK$`` matches and a
+        captured file holds no ``\\r\\n`` text, and the capture gets it with
+        ANSI stripped.
+
         Args:
             lines: Received lines as the reader produced them.
-            plain: The same lines with ANSI stripped, for the capture file.
         """
-        self.repl.feed_lines(lines)
+        received = [strip_eol_markers(line) for line in lines]
+        self.repl.feed_lines(received)
         if self.capture.active and self.capture.mode == "text":
+            plain = [strip_ansi(line) for line in received]
             if self.capture.feed_text(plain):
                 # Write failed mid-capture -- stop so the abort is visible
                 # instead of silently dropping the rest.
@@ -674,7 +836,7 @@ class TerminalHost:
         if self.engine.serial_port:
             self.engine.serial_port.wait_for_idle(timeout_ms, max_wait_s)
 
-    def _serial_op(self, label: str, fn) -> None:
+    def _serial_op(self, label: str, fn: Callable[[], object]) -> None:
         """Run a serial operation, catching OSError/SerialException."""
         from serial import SerialException
 
@@ -708,12 +870,6 @@ class TerminalHost:
         port.write(data)
         self.engine.notify_tx(data)
 
-    def _serial_send(self, text: str) -> None:
-        """Send text with configured line ending and encoding."""
-        ending = self.cfg.get("eol", "\r")
-        encoding = self.cfg.get("encoding", "utf-8")
-        self._serial_write((text + ending).encode(encoding))
-
     # -- Dispatch -------------------------------------------------------------
 
     def _dispatch(self, cmd: str, *, report: bool = True) -> CmdResult:
@@ -725,9 +881,32 @@ class TerminalHost:
             status=self.status,
             serial_write=self._serial_write,
             is_connected=lambda: self.engine.is_connected,
-            eol_label=eol_label,
+            eol_label=eol_label_markup,
             report=report,
         )
+
+    def _dispatch_typed(self, line: str) -> CmdResult:
+        """Run a line the user typed at the prompt, and keep it for ``/run.last``.
+
+        The one feed of ``repl.typed_lines``: the TUI's Enter (a clicked
+        link too, which runs as typed) and the CLI prompt come here; a
+        script line, a paste and a replayed line never do.  The line is
+        kept under the config active when it was typed, so a ``/cfg.load``
+        lands in the list it was typed in.  A line that read the typed
+        lines is not kept: ``/run.last``, or ``/repeat`` around it, would
+        replay its own replay.
+        """
+        config = self.repl.config_path
+        self._typed_lines_read = False
+        result = self.ctx.dispatch(line)
+        if not self._typed_lines_read:
+            self.repl.typed_lines.add(config, TypedLine(line, result.success, result.error))
+        return result
+
+    def _read_typed_lines(self) -> list[TypedLine]:
+        """The active config's typed lines (``ctx.internal.typed_lines``); marks the read."""
+        self._typed_lines_read = True
+        return self.repl.typed_lines.lines(self.repl.config_path)
 
     # -- Port effects ---------------------------------------------------------
 
@@ -737,19 +916,16 @@ class TerminalHost:
         Subclasses may override to add UI updates (title, hw buttons).
 
         cfg_update keys arrive flat (e.g. ``"baud_rate"``) because the
-        port_control producers don't need to know the cfg shape.  Route
-        each key to ``cfg["serial"]`` if it currently lives there;
-        otherwise set it at the top level.  Keeps producers oblivious
-        to schema changes like the v22 serial nesting.
+        port_control producers don't need to know the cfg shape;
+        ``ReplEngine.store_cfg`` routes each one.
         """
-        if effects.get("cfg_update"):
-            cfg = self.repl._cfg_data
-            serial = cfg.get("serial", {})
-            for key, val in effects["cfg_update"].items():
-                if key in serial:
-                    serial[key] = val
-                else:
-                    cfg[key] = val
+        from termapy.port_control import SERIAL_KEYS
+
+        changed = effects.get("cfg_update", {})
+        for key, val in changed.items():
+            self.repl.store_cfg(key, val)
+        if self.engine.is_connected and SERIAL_KEYS.intersection(changed):
+            self._leave_breadcrumb()
 
     # -- Port switching ---------------------------------------------------------
 
@@ -784,7 +960,7 @@ class TerminalHost:
         (the TUI) override this to surface a frontend-appropriate
         message.
         """
-        path = resolve_config(name)
+        path = self._resolve_config_name(name)
         if path is None:
             from termapy.config import config_names
             from termapy.matching import closest, did_you_mean
@@ -800,6 +976,14 @@ class TerminalHost:
         if result.success:
             self.status(f"Loaded config: {Path(path).stem}", "green")
         return result
+
+    def _resolve_config_name(self, name: str) -> str | None:
+        """The file ``/cfg.load`` takes ``name`` to mean, or None; a host may narrow it."""
+        return resolve_config(name)
+
+    def _open_serial(self, cfg: dict) -> Any:
+        """The engine's ``open_fn``: ``open_serial``, with the active config's ``cap/`` for a ``spy://`` log."""
+        return open_serial(cfg, cap_folder=cap_folder_of(self.config_path))
 
     def _switch_to_cfg_path(self, config_path: str) -> CmdResult:
         """Disconnect, replace the in-memory cfg, and reconnect.
@@ -818,6 +1002,8 @@ class TerminalHost:
         except (OSError, ValueError) as e:
             return CmdResult.fail(msg=f"Cannot load config: {e}")
 
+        if self.capture.active:
+            self._stop_capture()
         if self.engine.is_connected:
             self.repl.fire_lifecycle("on_disconnect")
             self.engine.disconnect()
@@ -830,7 +1016,9 @@ class TerminalHost:
         # changes) land in the engine's dict while ctx.cfg reads a stale
         # snapshot forever after.
         self.cfg = self.repl._cfg_data
+        self._leave_breadcrumb()
         self._setup_context()
+        self._reset_session()
         self.repl.fire_lifecycle("on_config_load")
         # auto_connect lives in the newly-loaded cfg -- if the user's
         # saved config wants the port opened on start, honor it here.
@@ -840,13 +1028,13 @@ class TerminalHost:
         # MCPHost runs auto-load-profile, auto-include, on_connect_cmd,
         # mcp_on_connect_cmd, and the banner watcher.  Inlining
         # ``engine.connect()`` here used to silently skip all of those.
-        if cfg.get("auto_connect"):
+        if cfg_value(cfg, "auto_connect"):
             self._connect()
         return CmdResult.ok(value=config_path)
 
     # -- Capture helpers ------------------------------------------------------
 
-    def _start_capture(self, **kwargs) -> bool:
+    def _start_capture(self, **kwargs: Any) -> bool:
         """Start a capture session.
 
         Subclasses may override to add UI (timer, progress).
@@ -902,10 +1090,10 @@ class TerminalHost:
         html_dir = str(Path(str(pkg_files("termapy").joinpath("html"))).resolve())
 
         class _QuietHandler(SimpleHTTPRequestHandler):
-            def __init__(self, *a, **kw):
+            def __init__(self, *a: Any, **kw: Any) -> None:
                 super().__init__(*a, directory=html_dir, **kw)
 
-            def log_message(self, format, *args):
+            def log_message(self, format: str, *args: object) -> None:
                 pass
 
         server = HTTPServer(("127.0.0.1", 0), _QuietHandler)
@@ -924,7 +1112,7 @@ class TerminalHost:
         self._help_server_port = port
         return port
 
-    def _hook_help_open(self, ctx, args: str) -> CmdResult:
+    def _hook_help_open(self, ctx: PluginContext | None, args: str) -> CmdResult:
         """Open a help topic in the local docs server (the one /help.open, TUI and CLI).
 
         An unknown topic lists the pages that exist, read from the built
@@ -981,18 +1169,88 @@ class TerminalHost:
         """
         return None
 
-    def _start_session_log(self) -> bool:
-        """``/log.start``: write the session log again; False when it already is.
+    def session_log_paths(self) -> list[Path]:
+        """Every session log this config has, the frontend's own first: what ``/log.list`` lists.
 
-        Only a host whose log can be stopped (the TUI) has anything to
-        start; the default's log never stops.
+        The TUI's and the MCP server's, whichever frontend asks, so either
+        can see and open the other's transcript.  Paths, existing or not.
         """
-        return False
+        own = self.session_log_path()
+        paths = [own] if own is not None else []
+        if self.config_path:
+            for path in (
+                session_log_file(self.cfg, self.config_path),
+                mcp_log_path(self.config_path),
+            ):
+                if path is not None and path not in paths:
+                    paths.append(path)
+        return paths
+
+    def _log_line(self, prefix: str, text: str) -> None:
+        """Write one line to the session log under ``prefix`` (see ``session_log`` for the markers)."""
+        self.session_log.write(prefix, [text])
+
+    def _log_lines(self, prefix: str, texts: list[str]) -> None:
+        """Write a batch of lines under one timestamp, one write and one flush."""
+        self.session_log.write(prefix, texts)
+
+    def _open_log(self, marker: str = SESSION_START) -> None:
+        """Open the session log from ``marker`` when a config is loaded and the log is neither open nor stopped."""
+        if self.session_log.fh is not None or self._log_stopped or not self.config_path:
+            return
+        path = self.session_log_path()
+        if path is not None:
+            self.session_log.open(path, marker)
+
+    def _end_session_log(self) -> None:
+        """Write ``Session End`` into the open log, then close it.
+
+        A session leaves a log two ways while it is still open: the
+        frontend exits, or a switch moves it to another config's file
+        (``_follow_session_log``).  So every ``Session Start`` has its
+        ``Session End``, unless ``/log.stop`` closed the log first, and its
+        last line says ``Log Stopped``, or the session did not end cleanly,
+        which a start without an end then says.
+        """
+        self.session_log.end()
+
+    def _follow_session_log(self, previous: Path | None) -> None:
+        """Move the session log to the config just switched to.
+
+        A config's log is that config's history, so the old file gets where
+        the session went and its ``Session End``, and the new one its
+        ``Session Start``.  Two configs naming one ``log_file`` share it, so a
+        switch between them keeps the open file.
+        """
+        if self.session_log.fh is not None and self.session_log_path() != previous:
+            self._log_line(STATUS_MARKER, f"Switched to config: {Path(self.config_path).stem}")
+            self._end_session_log()
+        self._open_log()
+
+    def _start_session_log(self) -> bool:
+        """``/log.start``: open the log again, appending, from a ``Log Started`` line.
+
+        False when it was not stopped.  A file that cannot be opened raises
+        ``OSError`` with the log still stopped, for the command to report.
+        """
+        if not self._log_stopped:
+            return False
+        self._log_stopped = False
+        try:
+            self._open_log(LOG_STARTED)
+        except OSError:
+            self._log_stopped = True
+            raise
+        return True
 
     def _stop_session_log(self) -> bool:
-        """``/log.stop`` and ``/log.delete``: let go of the log until ``/log.start``.
+        """``/log.stop`` and ``/log.delete``: mark the gap, close the log, keep it closed until ``/log.start``.
 
-        False when it was already stopped.  A host that keeps the file
-        open (the TUI) closes it here; the default holds nothing open.
+        False when it was already stopped.  A delete stops it first, so it
+        stays stopped after one too.
         """
-        return False
+        if self._log_stopped:
+            return False
+        self._log_stopped = True
+        self.session_log.end(LOG_STOPPED)
+        return True

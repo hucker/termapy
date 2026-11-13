@@ -87,8 +87,9 @@ class TestCommandDeclaration:
         assert loaded["boom"].safety == "readonly", "root tier carried into PluginInfo"
         assert loaded["boom.now"].safety == "destructive", "subcommand tier carried too"
 
+    @pytest.mark.rule("destructive-declared")
     def test_every_delete_command_is_destructive(self, host):
-        """destructive-declared: the delete verb means removal from disk, so its command is destructive."""
+        """The delete verb means removal from disk, so its command is destructive."""
         # Act
         undeclared = sorted(
             name
@@ -99,6 +100,7 @@ class TestCommandDeclaration:
         # Assert
         assert undeclared == [], "declare each of these safety='destructive'"
 
+    @pytest.mark.rule("destructive-declared")
     @pytest.mark.parametrize(
         ("command", "expected"),
         [
@@ -110,11 +112,12 @@ class TestCommandDeclaration:
             ("cfg.delete", "destructive"),  # a whole config folder
             ("demo.force", "destructive"),  # rewrites the demo config over its edits
             ("cfg.icon.remove", "mutable"),  # /cfg.icon makes it again
+            ("app.kill", "destructive"),  # ends other sessions, mid-work if need be
             ("exit", "mutable"),  # ends the session; nothing is lost
         ],
     )
     def test_each_command_declares_its_tier(self, host, command, expected):
-        """destructive-declared: a command that removes the user's files is destructive, one undone by a command is mutable."""
+        """A command that removes the user's files is destructive, one undone by a command is mutable."""
         # Act
         plugin = host.repl.plugin_for(command)
 
@@ -134,8 +137,8 @@ class TestMcpGate:
         assert "Confirmation required: '/zap' is destructive" in result["error"], (
             "names the command"
         )
-        assert result["value"]["needs_confirmation"] is True, "machine-readable marker"
-        assert result["value"]["safety"] == "destructive", "the tier is reported"
+        assert result["data"]["needs_confirmation"] is True, "machine-readable marker"
+        assert result["data"]["safety"] == "destructive", "the tier is reported"
 
     def test_destructive_runs_with_confirm(self, host):
         """Passing confirm=true lets a destructive command through to its handler."""
@@ -146,7 +149,13 @@ class TestMcpGate:
     def test_level_suffix_does_not_dodge_the_gate(self, host):
         """A .silent suffix resolves to the gated command, so it still needs confirm."""
         result = _run(host, "/zap.silent")
-        assert result["value"]["needs_confirmation"] is True, "resolved like dispatch resolves it"
+        assert result["data"]["needs_confirmation"] is True, "resolved like dispatch resolves it"
+
+    @pytest.mark.parametrize("name", ["/zap.json", "/zap.json.silent"])
+    def test_json_suffix_does_not_dodge_the_gate(self, host, name):
+        """A .json suffix, alone or with a level, resolves to the gated command too."""
+        result = _run(host, name)
+        assert result["data"]["needs_confirmation"] is True, "resolved like dispatch resolves it"
 
     def test_mem_write_is_destructive(self, host):
         """/mem.write is gated before dispatch, so the refusal arrives even with no port."""
@@ -155,27 +164,29 @@ class TestMcpGate:
         result = _run(host, "/mem.write gTemp 1B00")
 
         # Assert
-        assert result["value"]["needs_confirmation"] is True, (
+        assert result["data"]["needs_confirmation"] is True, (
             "/mem.write pokes memory: confirm first"
         )
-        assert result["value"]["command"] == "/mem.write", "the resolved subcommand, prefixed"
+        assert result["data"]["command"] == "/mem.write", "the resolved subcommand, prefixed"
 
-    def test_cap_delete_waits_for_confirm(self, host, tmp_path):
-        """/cap.delete * refused without confirm deletes nothing; with confirm it deletes the captures."""
+    @pytest.mark.rule("destructive-declared")
+    def test_a_delete_is_refused_not_gated(self, host, tmp_path):
+        """/cap.delete is no one's to confirm under MCP, so it never asks and confirm=true unlocks nothing."""
         # Arrange
         capture = tmp_path / "cfg" / "cap" / "kept.txt"
         capture.write_text("data", encoding="utf-8")
 
-        # Act / Assert -- refused: the marker, and the file is still there
-        refused = _run(host, "/cap.delete *")
-        assert refused["value"]["needs_confirmation"] is True, "deleting captures asks first"
-        assert capture.exists(), "a refused delete deletes nothing"
-
-        # Act / Assert -- confirmed: the gate was the question, so the handler asks nothing more
+        # Act
+        asked = _run(host, "/cap.delete *")
         confirmed = _run(host, "/cap.delete *", confirm=True)
-        assert confirmed["success"] is True, confirmed["error"]
-        assert not capture.exists(), "the confirmed delete removed the capture"
 
+        # Assert
+        assert "interactive" in asked["error"], "the capability refusal, from dispatch"
+        assert not isinstance(asked["data"], dict), "a confirm request would invite a useless retry"
+        assert "interactive" in confirmed["error"], "and the same answer with confirm=true"
+        assert capture.exists(), "the capture is still there"
+
+    @pytest.mark.rule("destructive-declared")
     def test_a_command_mcp_cannot_run_is_refused_not_gated(self, host):
         """/demo.force needs a human, so MCP answers why it cannot run, never asks for confirm."""
         # Act
@@ -183,16 +194,16 @@ class TestMcpGate:
 
         # Assert
         assert "interactive" in result["error"], "the capability refusal, from dispatch"
-        assert (
-            not isinstance(result["value"], dict) or "needs_confirmation" not in result["value"]
-        ), "a confirm request would invite a retry that fails anyway"
+        assert not isinstance(result["data"], dict) or "needs_confirmation" not in result["data"], (
+            "a confirm request would invite a retry that fails anyway"
+        )
 
     def test_mem_dump_is_not_gated(self, host):
         """Readonly /mem.dump never asks for confirm; with no port it fails on that instead."""
         result = _run(host, "/mem.dump gTemp")
-        assert (
-            not isinstance(result["value"], dict) or "needs_confirmation" not in result["value"]
-        ), "a readonly command never asks for confirmation (it fails on 'not connected' instead)"
+        assert not isinstance(result["data"], dict) or "needs_confirmation" not in result["data"], (
+            "a readonly command never asks for confirmation (it fails on 'not connected' instead)"
+        )
 
     def test_safe_command_ignores_confirm(self, host):
         """A safe command like /help runs without confirm=true."""
@@ -206,9 +217,9 @@ class TestMcpGate:
         result = _run(host, "AT")
 
         # Assert
-        assert (
-            not isinstance(result["value"], dict) or "needs_confirmation" not in result["value"]
-        ), "the Command.safety gate only looks at slash commands"
+        assert not isinstance(result["data"], dict) or "needs_confirmation" not in result["data"], (
+            "the Command.safety gate only looks at slash commands"
+        )
 
 
 class TestCatalog:

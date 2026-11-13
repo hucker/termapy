@@ -10,18 +10,18 @@ real ``SerialTerminal`` on a throwaway DEMO config, the
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
-from pilot_wait import until
+from pilot_wait import has_link, steady, until
 from textual.widgets import Button, Input, OptionList, RichLog, Static
 
 from termapy.defaults import DEFAULT_CFG
-from termapy.dialogs import ConfirmDialog, FilenameDialog, PortPicker
+from termapy.dialogs import ConfirmDialog, FilenameDialog, PortPicker, ProtoPicker, ScriptPicker
 from termapy.dialogs.config_editor import ConfigEditor
 from termapy.dialogs.quick_setup import QuickSetup
 from termapy.port_control import reserved_serial
@@ -63,8 +63,16 @@ def app_factory(tmp_path):
 
 
 async def _submit(pilot, text: str) -> None:
-    """Type ``text`` into the prompt and press Enter."""
-    inp = pilot.app.query_one("#cmd", Input)
+    """Type ``text`` into the prompt and press Enter, once the prompt is there and the app idle.
+
+    Under load the prompt mounts a beat after ``run_test`` yields, and a line
+    typed while the previous command is still busy can be lost.
+    """
+    app = pilot.app
+    await until(
+        pilot, lambda: bool(app.query("#cmd")) and not getattr(app, "_busy", False), seconds=15
+    )
+    inp = app.query_one("#cmd", Input)
     inp.value = text
     inp.focus()
     await pilot.pause()
@@ -230,43 +238,64 @@ def _write_scripts(cfg_path: str, **scripts: str) -> None:
 
 
 class TestScriptOverlay:
+    @pytest.mark.rule("script-overlay-owns-bar")
     def test_a_typed_run_mounts_the_overlay_and_restores_the_bar(self, app_factory):
-        """A typed /run disables the prompt under a Stop overlay that names the script chain, then hands the bar and focus back."""
+        """A typed /run disables the prompt under a Stop overlay that names the script chain, then hands the bar and focus back.
+
+        Each script waits on a /confirm the test answers, so the overlay is
+        read while it shows that step.  Sampling a 300 ms /delay instead
+        missed the inner script under tox's parallel load (2026-10-17 and
+        2026-10-31, both on Python 3.13).  The label arrives as a message
+        while the dialog comes through call_from_thread, so the dialog can
+        be up a beat before the label names its step: each wait is for both.
+        """
+
+        def asking(app, message: str) -> bool:
+            screen = app.screen
+            return (
+                _confirm_ready(app)
+                and isinstance(screen, ConfirmDialog)
+                and screen.message == message
+            )
 
         async def scenario():
             app, _, path = app_factory()
-            _write_scripts(path, outer="/run inner\n/delay 300ms\n", inner="/delay 300ms\n")
+            _write_scripts(path, outer="/run inner\n/confirm second\n", inner="/confirm first\n")
             async with app.run_test() as pilot:
                 await pilot.pause()
                 bar = app.query_one("#bottom-bar")
                 inp = app.query_one("#cmd", Input)
-                labels: set[str] = set()
-                prompt_disabled_during = False
 
-                # Act -- type the run, then watch the overlay until it is gone
+                def label() -> str:
+                    return str(bar.query_one("#script-label", Static).render())
+
+                # Act -- answer each script's question once the overlay shows that step
                 await _submit(pilot, "/run outer")
-                assert await until(pilot, lambda: bool(bar.query("#script-stop"))), (
-                    "overlay mounted"
-                )
-                for _ in range(250):
-                    if not bar.query("#script-stop"):
-                        break
-                    labels.add(str(bar.query_one("#script-label", Static).render()))
-                    prompt_disabled_during = prompt_disabled_during or inp.disabled
-                    await pilot.pause(0.02)
+                assert await until(
+                    pilot, lambda: asking(app, "first") and "inner.run" in label()
+                ), f"the inner script asks, its overlay naming the chain: {label()}"
+                during_inner, prompt_disabled_during = label(), inp.disabled
+                await pilot.click("#confirm-yes")
+                assert await until(
+                    pilot, lambda: asking(app, "second") and "inner.run" not in label()
+                ), f"then the outer script, its overlay naming it alone: {label()}"
+                during_outer = label()
+                await pilot.click("#confirm-yes")
+                assert await until(pilot, lambda: not bar.query("#script-stop")), "the overlay goes"
                 assert await until(pilot, lambda: app.focused is inp), "focus returns to the prompt"
 
                 # Assert
-                assert any("outer.run" in label and "inner.run" not in label for label in labels), (
-                    f"the outer script alone, with its step counter: {labels}"
+                assert "outer.run → inner.run" in during_inner, during_inner
+                assert "outer.run" in during_outer and "inner.run" not in during_outer, (
+                    f"the outer script alone, with its step counter: {during_outer}"
                 )
-                assert any("outer.run → inner.run" in label for label in labels), labels
                 assert prompt_disabled_during is True, "the prompt is off while the script runs"
                 assert (inp.disabled, bar.disabled) == (False, False), "prompt and bar usable again"
                 assert all(child.display for child in bar.children), "the buttons are back"
 
         _run(scenario)
 
+    @pytest.mark.rule("script-overlay-owns-bar")
     def test_the_stop_button_ends_a_script(self, app_factory):
         """Clicking the overlay's Stop after a TYPED /run ends the script at the next line.
 
@@ -344,8 +373,9 @@ class TestConfigPicked:
 
         _run(scenario)
 
+    @pytest.mark.rule("port-present-one-decider")
     def test_load_by_serial_number_connects_without_asking_for_a_port(self, app_factory, tmp_path):
-        """port-present-one-decider: a config naming its port by serial number loads like a COM name, no picker."""
+        """A config naming its port by serial number loads like a COM name, no picker."""
 
         async def scenario():
             # Arrange: DEMO answers to its own serial number, so no hardware is needed
@@ -374,8 +404,9 @@ class TestConfigPicked:
 
         _run(scenario)
 
+    @pytest.mark.rule("port-display")
     def test_tooltips_show_the_device_as_port_and_the_number_as_serial(self, app_factory):
-        """port-display: a serial-number config's tooltips say port = the device, serial # = the number."""
+        """A serial-number config's tooltips say port = the device, serial # = the number."""
 
         async def scenario():
             # Arrange: DEMO answers to its own serial number, so no hardware is needed
@@ -508,8 +539,9 @@ class TestConfigPicked:
 
         _run(scenario)
 
+    @pytest.mark.rule("config-deleted-once")
     def test_delete_asks_first_and_deletes_the_folder_on_yes(self, app_factory, tmp_path):
-        """config-deleted-once: the picker's Delete is /cfg.delete; No keeps the config, Yes removes its folder."""
+        """The picker's Delete is /cfg.delete; No keeps the config, Yes removes its folder."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -551,8 +583,9 @@ class TestConfigPicked:
 
         _run(scenario)
 
+    @pytest.mark.rule("config-deleted-once")
     def test_deleting_the_active_config_is_refused(self, app_factory):
-        """config-deleted-once: the active config's folder holds the session's log, so Delete refuses it."""
+        """The active config's folder holds the session's log, so Delete refuses it."""
 
         async def scenario():
             app, _, path = app_factory()
@@ -578,8 +611,94 @@ class TestConfigPicked:
 
 
 class TestScriptPickedDelete:
+    @pytest.mark.rule("one-handler-per-command")
     def test_the_pickers_delete_is_run_delete(self, app_factory):
-        """one-handler-per-command: the Run picker's Delete is /run.delete, which asks, deletes and recounts the Scripts button."""
+        """The Run picker's Delete is /run.delete, which asks, deletes and recounts the Scripts; the picker stays open."""
+
+        async def scenario():
+            app, _, path = app_factory()
+            _write_scripts(path, x="/print hi\n", y="/print hi\n")
+            run = Path(path).parent / "run"
+
+            def _scripts_tooltip() -> str:
+                return str(app.query_one("#btn-scripts").tooltip)
+
+            async with app.run_test(size=(140, 40)) as pilot:
+                await pilot.pause()
+                assert "2 available" in _scripts_tooltip(), "precondition: two scripts counted"
+                app._btn_scripts()
+                await pilot.pause()
+                picker = app.screen
+                assert isinstance(picker, ScriptPicker), "the Run button's picker is open"
+
+                # Act -- delete one, answering the command's question yes
+                await pilot.click("#script-delete")
+                asked = await until(pilot, lambda: _confirm_ready(app))
+                await pilot.click("#confirm-yes")
+                one_left = await until(pilot, lambda: len(list(run.glob("*.run"))) == 1)
+                refreshed = await until(
+                    pilot,
+                    lambda: (
+                        app.screen is picker
+                        and picker.query_one("#script-list", OptionList).option_count == 2
+                    ),
+                )
+                recounted = await until(pilot, lambda: "1 available" in _scripts_tooltip())
+
+                # Assert
+                assert asked, "the command asks before deleting a script someone wrote"
+                assert one_left, "Yes deletes one script"
+                assert refreshed, (
+                    "the picker is back in front, listing the one left under its header"
+                )
+                assert recounted, "folder_changed refreshes the Scripts tooltip"
+
+        _run(scenario)
+
+    @pytest.mark.rule("one-handler-per-command")
+    def test_the_proto_pickers_rename_stays_open_on_the_new_name(self, app_factory):
+        """The Proto picker's Rename is /proto.rename; the picker stays open with the new name highlighted."""
+
+        async def scenario():
+            app, _, path = app_factory()
+            proto = Path(path).parent / "proto"
+            proto.mkdir()
+            (proto / "old.pro").write_text("# x\n", encoding="utf-8")
+
+            async with app.run_test(size=(140, 40)) as pilot:
+                await pilot.pause()
+                app._btn_proto()
+                await pilot.pause()
+                picker = app.screen
+                assert isinstance(picker, ProtoPicker), "the Proto button's picker is open"
+
+                # Act
+                await pilot.click("#proto-rename")
+                prompted = await until(pilot, lambda: isinstance(app.screen, FilenameDialog))
+                assert prompted, "Rename asks for the new name"
+                dialog = app.screen
+                assert isinstance(dialog, FilenameDialog), "the name dialog is in front"
+                dialog.query_one("#filename-input", Input).value = "new"
+                # OK and Enter both run submit(), as test_dialogs.py pins; calling it
+                # keeps a click that lands before the dialog's layout under load
+                # from deciding a test about the picker.
+                dialog.submit()
+                renamed = await until(pilot, lambda: (proto / "new.pro").exists(), seconds=15)
+                back = await until(pilot, lambda: app.screen is picker, seconds=15)
+                # The picker re-lists its folder once /proto.rename has finished,
+                # a beat after it is in front again.
+                ol = picker.query_one("#proto-list", OptionList)
+                await until(pilot, lambda: _highlighted_name(ol) == "new.pro", seconds=15)
+
+                # Assert
+                assert renamed, "and /proto.rename keeps the .pro"
+                assert back, "the picker is in front again"
+                assert _highlighted_name(ol) == "new.pro", "on the renamed script"
+
+        _run(scenario)
+
+    def test_the_command_alone_still_deletes(self, app_factory):
+        """With no picker, /run.delete is the same command the button runs: it asks, deletes and recounts the Scripts button."""
 
         async def scenario():
             app, _, path = app_factory()
@@ -594,7 +713,7 @@ class TestScriptPickedDelete:
                 assert "1 available" in _scripts_tooltip(), "precondition: one script counted"
 
                 # Act
-                app._on_script_picked(("delete", str(script)))
+                app._dispatch_on_thread(f"/run.delete {script.name}")
                 asked = await until(pilot, lambda: _confirm_ready(app))
                 await pilot.click("#confirm-yes")
                 gone = await until(pilot, lambda: not script.exists())
@@ -635,7 +754,7 @@ class TestHeadlessProto:
         _, path = _write_cfg(tmp_path)
         _write_pro(path, "smoke", _AT_PASS)
         with pytest.raises(SystemExit) as exit_info:
-            _run_proto_headless(SimpleNamespace(demo=False, config=path, proto="smoke"))
+            _run_proto_headless(argparse.Namespace(demo=False, config=path, proto="smoke"))
         assert exit_info.value.code == 0
         assert "1/1 PASS" in capsys.readouterr().out
 
@@ -646,7 +765,7 @@ class TestHeadlessProto:
         _, path = _write_cfg(tmp_path)
         _write_pro(path, "smoke", _AT_FAIL)
         with pytest.raises(SystemExit) as exit_info:
-            _run_proto_headless(SimpleNamespace(demo=False, config=path, proto="smoke"))
+            _run_proto_headless(argparse.Namespace(demo=False, config=path, proto="smoke"))
         assert exit_info.value.code == 1
         assert "0/1 FAIL" in capsys.readouterr().out
 
@@ -656,7 +775,7 @@ class TestHeadlessProto:
 
         _, path = _write_cfg(tmp_path)
         with pytest.raises(SystemExit) as exit_info:
-            _run_proto_headless(SimpleNamespace(demo=False, config=path, proto="nope"))
+            _run_proto_headless(argparse.Namespace(demo=False, config=path, proto="nope"))
         assert exit_info.value.code == 2
         assert "proto file not found" in capsys.readouterr().err
 
@@ -667,7 +786,7 @@ class TestHeadlessProto:
         broken = tmp_path / "broken.cfg"
         broken.write_text("{not json", encoding="utf-8")
         with pytest.raises(SystemExit) as exit_info:
-            _run_proto_headless(SimpleNamespace(demo=False, config=str(broken), proto="smoke"))
+            _run_proto_headless(argparse.Namespace(demo=False, config=str(broken), proto="smoke"))
         assert exit_info.value.code == 2
         assert "failed to load config" in capsys.readouterr().err
 
@@ -775,8 +894,9 @@ class TestSessionLogFollowsConfig:
 
         asyncio.run(scenario())
 
+    @pytest.mark.rule("prestart-before-start")
     def test_startup_load_report_is_in_the_session_log(self, app_factory):
-        """prestart-before-start: the log opens at pre-start, so the startup load table is in it."""
+        """The log opens at pre-start, so the startup load table is in it."""
 
         async def scenario():
             app, _, path = app_factory(name="first")
@@ -1048,10 +1168,46 @@ def _text_offset(app, text: str) -> tuple[int, int]:
     return x, y
 
 
+def _highlighted_name(option_list: OptionList) -> str:
+    """The file name of a picker list's highlighted row; empty while the list is being refilled."""
+    if option_list.option_count == 0:
+        return ""
+    return Path(str(option_list.get_option_at_index(option_list.highlighted or 0).id)).name
+
+
+async def _settled(pilot, app, polls: int = 3) -> None:
+    """Wait until the output pane stops growing, so an offset computed from it still holds.
+
+    A help page arrives in pieces; clicking while it still scrolls hits the
+    wrong line.  Found 2026-10-31 under tox's parallel load, where a click
+    on a help link landed between links and ran nothing.
+    """
+    await steady(pilot, lambda: len(_screen(app)), polls)
+
+
 async def _click_text(pilot, app, text: str) -> None:
-    """Click the first visible occurrence of ``text`` in the output pane with the mouse."""
+    """Click the first visible occurrence of ``text`` in the output pane, once it has settled."""
+    await _settled(pilot, app)
     await pilot.click("#output", offset=_text_offset(app, text))
     await pilot.pause()
+
+
+async def _click_until(pilot, app, text: str, done, tries: int = 3) -> None:
+    """Click ``text`` until ``done()`` holds, at most ``tries`` times.
+
+    Under load a click can land between links and run nothing; another click
+    is then harmless, while a click on the wrong link still fails the
+    caller's check.  Each try waits ``until``'s whole window first, so a slow
+    click that did land is never repeated.  It returns once the command the
+    click ran has finished: a test that leaves ``run_test`` while it is still
+    busy tears the screen down under its busy-look timer, which then fails
+    looking for the prompt.
+    """
+    for _ in range(tries):
+        await _click_text(pilot, app, text)
+        if await until(pilot, done):
+            break
+    await until(pilot, lambda: not getattr(app, "_busy", False), seconds=15)
 
 
 async def _hover_text(pilot, app, text: str) -> None:
@@ -1060,8 +1216,9 @@ async def _hover_text(pilot, app, text: str) -> None:
     await pilot.pause()
 
 
+@pytest.mark.rule("links-are-data")
 class TestClickableOutput:
-    """links-are-data: a clicked list entry runs as if typed; links live in a bounded table."""
+    """A clicked list entry runs as if typed; links live in a bounded table."""
 
     def test_clicking_a_listed_script_runs_it_twice_like_typing(self, app_factory):
         """A click on /run.list's NAME runs the script, echoed and into history, and again on a second click."""
@@ -1075,16 +1232,55 @@ class TestClickableOutput:
                 await until(pilot, lambda: any("hello.run" in line for line in _screen(app)))
 
                 # Act
-                await _click_text(pilot, app, "hello.run")
-                await until(pilot, lambda: sum("clicked-ok" in line for line in _screen(app)) == 1)
-                await until(pilot, lambda: not app.query_one("#bottom-bar").disabled)
-                await _click_text(pilot, app, "hello.run")
-                await until(pilot, lambda: sum("clicked-ok" in line for line in _screen(app)) == 2)
+                await _click_until(
+                    pilot,
+                    app,
+                    "hello.run",
+                    lambda: sum("clicked-ok" in line for line in _screen(app)) == 1,
+                )
+                await until(pilot, lambda: not app._busy)
+                await _click_until(
+                    pilot,
+                    app,
+                    "hello.run",
+                    lambda: sum("clicked-ok" in line for line in _screen(app)) == 2,
+                )
 
                 # Assert
                 runs = sum("clicked-ok" in line for line in _screen(app))
                 assert runs == 2, "each click runs the script, the second as well as the first"
                 assert app.history[-1] == "/run hello.run", "the click went into history as typed"
+
+        asyncio.run(scenario())
+
+    def test_the_link_under_a_shortened_state_answer_runs_the_command(self, app_factory):
+        """CURRENT STATE stops at twenty lines; the link under it runs the command, as typed, for the whole answer."""
+
+        async def scenario():
+            from termapy.plugins import CmdResult
+
+            def long_answer(ctx, args):
+                """Answer more lines than the page shows."""
+                return CmdResult.ok(value="\n".join(f"row{i}" for i in range(25)))
+
+            app, _, _ = app_factory()
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                app.repl.register_hook("longstate", "", "h", long_answer, state=True)
+                app._submit_line("/help longstate")
+                await until(pilot, lambda: not app._busy, seconds=5.0)
+                link_id = next(
+                    link_id
+                    for link_id, link in app._links.items()
+                    if link.run and link.command == "longstate"
+                )
+
+                # Act
+                app.action_click_link(link_id)
+                await until(pilot, lambda: not app._busy and app.history[-1] == "/longstate")
+
+                # Assert
+                assert app.history[-1] == "/longstate", "the click ran it, into history as typed"
 
         asyncio.run(scenario())
 
@@ -1125,8 +1321,12 @@ class TestClickableOutput:
                 )
 
                 # Act
-                await _click_text(pilot, app, "/help?")
-                await until(pilot, lambda: any("-- Terminal --" in line for line in _screen(app)))
+                await _click_until(
+                    pilot,
+                    app,
+                    "/help?",
+                    lambda: any("-- Terminal --" in line for line in _screen(app)),
+                )
 
                 # Assert
                 assert app.history[-1] == "/help", "the click ran the fixed command, into history"
@@ -1227,8 +1427,9 @@ class TestClickableOutput:
                 await until(pilot, lambda: any("!cfg.loaded " in line for line in _screen(app)))
 
                 # Act
-                await _click_text(pilot, app, "!cfg.loaded ")
-                await until(pilot, lambda: app.history[-1] == "!help cfg.loaded")
+                await _click_until(
+                    pilot, app, "!cfg.loaded ", lambda: app.history[-1] == "!help cfg.loaded"
+                )
 
                 # Assert
                 assert app.history[-1] == "!help cfg.loaded", (
@@ -1255,8 +1456,9 @@ class TestClickableOutput:
                 # Act
                 await _click_text(pilot, app, "/run - ")
                 filled = app.query_one("#cmd", Input).value
-                await _click_text(pilot, app, "Run picker")
-                await until(pilot, lambda: isinstance(app.screen, ScriptPicker))
+                await _click_until(
+                    pilot, app, "Run picker", lambda: isinstance(app.screen, ScriptPicker)
+                )
 
                 # Assert
                 assert filled == "/run ", "the name waits in the input line, ready for a file"
@@ -1278,8 +1480,12 @@ class TestClickableOutput:
                 row = next(line for line in _screen(app) if "hello.run" in line)
 
                 # Act
-                await _click_text(pilot, app, "hello.run")
-                await until(pilot, lambda: any("clicked-ok" in line for line in _screen(app)))
+                await _click_until(
+                    pilot,
+                    app,
+                    "hello.run",
+                    lambda: any("clicked-ok" in line for line in _screen(app)),
+                )
 
                 # Assert
                 assert row.startswith("  hello.run"), "in the page's column, not flush left"
@@ -1312,7 +1518,8 @@ class TestClickableOutput:
 
                 # Assert
                 assert isinstance(over, Text), "a Text: a command's [brackets] stay literal"
-                assert over.plain == "Click to run: /run hello.run", "the command, as typed"
+                assert over.plain.endswith("Click to run: /run hello.run"), "the command, as typed"
+                assert over.plain != "Click to run: /run hello.run", "and what /run is, above it"
                 assert shown, "Textual displays it once the mouse rests, not just holds it"
                 assert off is None, "plain text has no tooltip"
 
@@ -1334,12 +1541,109 @@ class TestClickableOutput:
                 fill = log.tooltip
 
                 # Assert
-                assert fill is not None and fill.plain == "Click to fill the input: /run", (
+                assert fill is not None, "the name has a tooltip"
+                assert fill.plain.endswith("Click to fill the input: /run"), (
                     "nothing runs: Enter does"
                 )
-                assert app._describe_link(10**9) == app._EXPIRED_LINK_MSG, (
+                assert "--json" in fill.plain, "and it says what any command also takes"
+                assert app._describe_link(10**9).plain == app._EXPIRED_LINK_MSG, (
                     "an old link says so before the click, not after"
                 )
+
+        asyncio.run(scenario())
+
+    def test_a_tooltip_shows_its_parts_in_their_styles(self, app_factory):
+        """Rendered in the tooltip itself: the definition bold, the level and flags colored, the click line dim."""
+
+        def styled(tooltip, text: str):
+            """The style the tooltip draws the start of ``text`` in, from the cells on screen."""
+            for strip in tooltip.render_lines(tooltip.outer_size.region):
+                for segment in strip:
+                    if segment.text.lstrip().startswith(text):
+                        return segment.style
+            raise AssertionError(f"{text!r} is not in the tooltip")
+
+        async def scenario():
+            from textual.widgets import Tooltip
+
+            app, _, _ = app_factory(quiet_start=True)
+            async with app.run_test(size=(120, 60), tooltips=True) as pilot:
+                await pilot.pause()
+                await _submit(pilot, "/help run")
+                await until(pilot, lambda: any("Run picker" in line for line in _screen(app)))
+                tooltip = app.screen.get_child_by_type(Tooltip)
+
+                # Act
+                await _hover_text(pilot, app, "/run - ")
+                await until(pilot, lambda: tooltip.display, seconds=2)
+                await pilot.pause()
+
+                # Assert
+                assert styled(tooltip, "Run a script").bold, "the definition leads"
+                body = styled(tooltip, "Status:").color
+                # Textual draws dim as a blended color, not as the dim attribute.
+                assert styled(tooltip, "Click to fill").color != body, "the click line recedes"
+                assert styled(tooltip, "stable").color != body, "the level has its color"
+                assert styled(tooltip, "--json").color != body, "and so do the flags"
+
+        asyncio.run(scenario())
+
+    def test_a_tooltip_follows_term_color(self, app_factory):
+        """With /term.color off a tooltip loses its colors, as the pane does, and keeps its weights."""
+
+        async def scenario():
+            from rich.style import Style
+
+            app, _, _ = app_factory(quiet_start=True)
+            async with app.run_test(size=(120, 60)) as pilot:
+                await pilot.pause()
+                await _submit(pilot, "/help run")
+                # Wait for the link itself, and for /help run to finish, so the
+                # next line never waits behind it for the dispatch guard.
+                assert await until(pilot, lambda: has_link(app, "run"), seconds=15), (
+                    "the /help run page registered its links"
+                )
+                assert await until(pilot, lambda: not app._busy, seconds=15), "/help run finished"
+                link_id = next(key for key, link in app._links.items() if link.command == "run")
+
+                # Act
+                colored = app._describe_link(link_id)
+                await _submit(pilot, "/term.color off")
+                assert await until(pilot, lambda: not app._color_on(), seconds=15), (
+                    "/term.color off took effect"
+                )
+                plain = app._describe_link(link_id)
+                # Leave only once the worker is done, or its tail runs against a
+                # torn-down screen.
+                await until(pilot, lambda: not app._busy)
+
+                # Assert
+                assert plain.plain == colored.plain, "the same words"
+                as_style = [Style.parse(str(span.style)) for span in colored.spans]
+                assert any(style.color for style in as_style), "color on: the level is colored"
+                as_style = [Style.parse(str(span.style)) for span in plain.spans]
+                assert not any(style.color for style in as_style), "color off: nothing is"
+                assert any(style.bold for style in as_style), "the bold stays"
+
+        asyncio.run(scenario())
+
+    def test_a_tips_text_stays_literal(self, app_factory):
+        """A tip reaches no markup parser, as a string or as pieces, so [brackets] read as written."""
+
+        async def scenario():
+            from termapy.plugins.views import Link, Piece
+
+            app, _, _ = app_factory(quiet_start=True)
+            async with app.run_test(size=(120, 60)):
+                # Act
+                as_string = app._describe_link(app._register_link(Link("x", tip="a [red]b[/]")))
+                as_pieces = app._describe_link(
+                    app._register_link(Link("x", tip=(Piece("a [red]b[/]", None, "yellow"),)))
+                )
+
+                # Assert
+                assert "a [red]b[/]" in as_string.plain, "a string, as written"
+                assert "a [red]b[/]" in as_pieces.plain, "pieces, as written"
 
         asyncio.run(scenario())
 
@@ -1355,8 +1659,7 @@ class TestClickableOutput:
                 inp = app.query_one("#cmd", Input)
 
                 # Act
-                await _click_text(pilot, app, "/cfg.loaded - ")
-                await until(pilot, lambda: inp.has_focus)
+                await _click_until(pilot, app, "/cfg.loaded - ", lambda: inp.has_focus)
                 filled = inp.value
                 await pilot.press("x")
 

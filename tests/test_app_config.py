@@ -1,9 +1,12 @@
 """Tests for app.py config utilities, custom buttons, and script editor."""
 
+import contextlib
 import copy
 import json
+import os
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -25,6 +28,7 @@ from termapy.config import (
     ordered_cfg,
     prepare_cfg_folder,
     reveal_command,
+    spy_log_url,
     validate_config,
 )
 from termapy.defaults import CFG_CHOICES, DEFAULT_CFG, SCRIPT_TEMPLATE
@@ -75,8 +79,9 @@ def _cfg_with(**overrides) -> dict:
 
 
 class TestCfgDataDir:
+    @pytest.mark.rule("reads-never-write")
     def test_cfg_data_dir_writes_nothing(self, tmp_path):
-        """reads-never-write: the lookup returns the folder and leaves it exactly as found.
+        """The lookup returns the folder and leaves it exactly as found.
 
         An old-layout sidecar stays put and no ``.gitignore`` appears, so a
         listing or an MCP query can ask about any config without changing it.
@@ -414,8 +419,9 @@ class TestLoadConfig:
         assert len(actual["custom_buttons"]) == 1, "custom buttons not replaced"
         assert actual["custom_buttons"][0]["enabled"] is True, "custom value kept"
 
+    @pytest.mark.rule("cfg-written-in-order")
     def test_a_migrated_config_is_written_in_the_standard_order(self, tmp_path):
-        """cfg-written-in-order: a scrambled v31 file is rewritten in DEFAULT_CFG's order, an unknown key last."""
+        """A scrambled v31 file is rewritten in DEFAULT_CFG's order, an unknown key last."""
         # Arrange
         config_path = tmp_path / "dev" / "dev.cfg"
         config_path.parent.mkdir()
@@ -600,8 +606,9 @@ class TestExpandEnvCfg:
         )
         assert actual["log_file"] == "SECRET.log", "ordinary cfg values still expand"
 
+    @pytest.mark.rule("bool-one-vocabulary")
     def test_a_templated_bool_key_reads_as_a_real_bool(self, monkeypatch):
-        """bool-one-vocabulary: a $(env.X) in a boolean key is read with the vocabulary, so the cfg holds a bool, not the text."""
+        """A $(env.X) in a boolean key is read with the vocabulary, so the cfg holds a bool, not the text."""
         # Arrange
         monkeypatch.setenv("CFG_BOOL_TEST", "yes")
         cfg = {
@@ -645,9 +652,13 @@ class TestBoolKeysAreTyped:
     @pytest.mark.parametrize(
         ("path", "value", "expected"),
         [
-            (("echo",), "false", "echo: expected bool, got str"),
-            (("timestamps",), 1, "timestamps: expected bool, got int"),
-            (("serial", "custom_baud"), "yes", "serial.custom_baud: expected bool, got str"),
+            (("echo",), "false", 'echo: must be true or false, got "false"'),
+            (("timestamps",), 1, "timestamps: must be true or false, got 1"),
+            (
+                ("serial", "custom_baud"),
+                "yes",
+                'serial.custom_baud: must be true or false, got "yes"',
+            ),
         ],
     )
     def test_a_non_bool_in_a_bool_key_warns_by_path(self, path, value, expected):
@@ -769,7 +780,7 @@ class TestCfgChoice:
         [
             ("custom_buttons_side", "Right", "right"),
             ("parity", "e", "E"),
-            ("json_style", "INDENT", "indent"),
+            ("indent", "4", 4),
             ("byte_size", 7, 7),
         ],
     )
@@ -939,7 +950,7 @@ class TestValidateConfig:
 
         # Assert
         assert len(actual) == 1, "exactly one warning"
-        assert "expected bool" in actual[0], "type error"
+        assert "must be true or false" in actual[0], "type error"
 
     def test_standard_baud_rate_ok(self):
         """A standard rate like 9600 needs no custom_baud and draws no warning."""
@@ -965,7 +976,7 @@ class TestValidateConfig:
         assert "positive" in actual[0], "clear message"
 
     def test_baud_rate_wrong_type(self):
-        """A string baud_rate gets a type warning naming the expected int."""
+        """A string baud_rate gets a warning saying it must be a positive integer."""
         # Arrange
         cfg = _cfg_with(baud_rate="fast")
 
@@ -974,7 +985,7 @@ class TestValidateConfig:
 
         # Assert
         assert len(actual) == 1, "exactly one warning"
-        assert "expected int" in actual[0], "type error message"
+        assert "must be a positive integer" in actual[0], "type error message"
 
     def test_invalid_encoding(self):
         """An encoding Python has no codec for is flagged."""
@@ -1200,9 +1211,7 @@ class TestValidateConfig:
         # Assert
         assert len(actual) == 1, f"exactly one warning, got {actual}"
         assert "port" in actual[0], f"identifies the field; got {actual[0]!r}"
-        assert "str" in actual[0] or "int" in actual[0], (
-            f"describes the type mismatch; got {actual[0]!r}"
-        )
+        assert "must be text" in actual[0], f"says what it must be; got {actual[0]!r}"
 
 
 # -- load_config: malformed JSON handling -------------------------------------
@@ -1350,6 +1359,116 @@ class TestOpenSerialUrl:
 
         # Assert
         assert data == b"test\r", "loopback returns written bytes"
+
+
+@pytest.mark.rule("spy-log-in-cap")
+class TestSpyLogUrl:
+    """pyserial's ``file=`` takes only a path relative to the config's ``cap/``."""
+
+    def test_a_relative_file_lands_in_cap(self, tmp_path):
+        """A bare name and a subfolder both land under cap/, which is created for them."""
+        # Arrange
+        cap = tmp_path / "cap"
+
+        for name, expected in (
+            ("traffic.txt", cap / "traffic.txt"),
+            ("wire/traffic.txt", cap / "wire" / "traffic.txt"),
+        ):
+            # Act
+            actual = spy_log_url(f"spy://COM3?file={name}", cap)
+
+            # Assert
+            assert actual.startswith("spy://COM3?"), "the port stays as written"
+            query = parse_qs(urlsplit(actual).query)
+            assert query["file"] == [str(expected.resolve())], "pyserial is handed the path in cap/"
+            assert expected.parent.is_dir(), "the folder is there for pyserial to write in"
+
+    @pytest.mark.parametrize(
+        "name",
+        ["../x.txt", "sub/../../x.txt", "wire/../x.txt", "%2E%2E%2Fx.txt", "", ".", "wire/.."],
+    )
+    def test_a_name_outside_cap_is_refused(self, tmp_path, name):
+        """Any "..", encoded or not, even one that ends back in cap/, and a name that is cap/ itself write nothing."""
+        # Arrange
+        cap = tmp_path / "cap"
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="Invalid spy file"):
+            spy_log_url(f"spy://COM3?file={name}", cap)
+        assert not cap.exists(), "a refused log creates no folder"
+
+    def test_an_absolute_path_is_refused_even_inside_cap(self, tmp_path):
+        """Only a relative path is taken, so a full path fails wherever it points."""
+        # Arrange
+        cap = tmp_path / "cap"
+
+        for path in (tmp_path / "x.txt", cap / "x.txt"):
+            # Act / Assert
+            with pytest.raises(ValueError, match="Invalid spy file"):
+                spy_log_url(f"spy://COM3?file={path}", cap)
+
+    @pytest.mark.skipif(os.name != "nt", reason="these are plain file names on POSIX")
+    @pytest.mark.parametrize("name", ["\\x.txt", "/x.txt", "Z:x.txt"])
+    def test_the_windows_forms_that_are_not_absolute_are_refused(self, tmp_path, name):
+        """\\x and D:x pass an is_absolute check and still leave the folder, so the real path is what counts."""
+        # Act / Assert
+        with pytest.raises(ValueError, match="Invalid spy file"):
+            spy_log_url(f"spy://COM3?file={name}", tmp_path / "cap")
+
+    def test_every_file_option_is_held_to_it(self, tmp_path):
+        """A second file= cannot carry a path past the first."""
+        # Act / Assert
+        with pytest.raises(ValueError, match="Invalid spy file"):
+            spy_log_url("spy://COM3?file=ok.txt&file=../x.txt", tmp_path / "cap")
+
+    def test_no_config_refuses_a_log_file(self):
+        """With no config there is no cap/, and the working folder is never the fallback."""
+        # Act / Assert
+        with pytest.raises(ValueError, match="needs a config"):
+            spy_log_url("spy://COM3?file=traffic.txt", None)
+
+    @pytest.mark.parametrize(
+        "port", ["COM3", "/dev/ttyUSB0", "rfc2217://host:1234", "socket://host:1234", "spy://COM3"]
+    )
+    def test_any_other_port_passes_untouched(self, port):
+        """Only a spy:// port with a file= is rewritten, so no other port needs a config."""
+        # Act
+        actual = spy_log_url(port, None)
+
+        # Assert
+        assert actual == port
+
+    def test_a_posix_device_and_other_options_survive(self, tmp_path):
+        """The device path keeps its three slashes and pyserial's other options still arrive."""
+        # Act
+        actual = spy_log_url("spy:///dev/ttyUSB0?file=x.txt&color", tmp_path / "cap")
+
+        # Assert
+        assert actual.startswith("spy:///dev/ttyUSB0?"), "pyserial still finds the device"
+        assert "color" in parse_qs(urlsplit(actual).query, True), "the option is kept"
+
+    def test_open_serial_writes_the_log_in_cap(self, tmp_path):
+        """The rule is on the open: pyserial writes in cap/ even when the port then fails to open."""
+        # Arrange
+        import serial
+
+        cap = tmp_path / "cap"
+        cfg = _cfg_with(port="spy://NO-SUCH-PORT?file=traffic.txt")
+
+        # Act / Assert
+        with pytest.raises(serial.SerialException):
+            open_serial(cfg, cap_folder=cap)
+        assert (cap / "traffic.txt").exists(), "the log landed in cap/"
+
+    def test_open_serial_without_a_folder_refuses_a_log(self, tmp_path):
+        """A caller that passes no folder is refused, so nothing is written to the working folder."""
+        # Arrange
+        cfg = _cfg_with(port="spy://NO-SUCH-PORT?file=traffic.txt")
+
+        # Act / Assert
+        with contextlib.chdir(tmp_path), pytest.raises(ValueError, match="needs a config"):
+            open_serial(cfg)
+        assert not (tmp_path / "traffic.txt").exists(), "the working folder stays clean"
 
 
 class TestOpenSerialRxBuffer:
@@ -1554,8 +1673,9 @@ class TestOnConnectChainMigration:
         assert actual == ["on_connect.run"], "one script, however often the config loads"
         assert cfg["on_connect_cmd"] == "/run on_connect", "the field still runs it"
 
+    @pytest.mark.rule("reads-never-write")
     def test_listing_a_v29_chain_writes_nothing(self, tmp_path):
-        """reads-never-write: /cfg.list migrates in memory, so no run file and no rewrite."""
+        """/cfg.list migrates in memory, so no run file and no rewrite."""
         # Arrange
         config_path = _v29_cfg(tmp_path, on_connect_cmd="/print a\n/print b")
         before = config_path.read_text(encoding="utf-8")

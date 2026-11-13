@@ -14,7 +14,7 @@ Phase 3 deliverable.  When ``termapy --mcp [config]`` runs:
 **Architecture:**
 
 - Stdout is reserved for MCP protocol frames.  Never ``print()`` to
-  stdout.  Logging goes to ``<cfg_dir>/mcp/session.log``.
+  stdout.  The session log is ``<cfg_dir>/<cfg>.mcp.log`` (``session_log``).
 - ``--mcp-verbose`` mirrors log events to stderr in real time for
   dev observability.  Stderr is safe; only stdout is wire-sacred.
 - A per-call output buffer (contextvars.ContextVar) collects every
@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import os
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -36,11 +37,18 @@ from datetime import UTC
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from termapy import load_report
+from termapy import diag_log, load_report
 from termapy.capture import CaptureEngine, format_capture_result
-from termapy.config import mcp_dir, mcp_log_path, on_connect_commands, open_serial
+from termapy.config import (
+    cfg_dir,
+    config_files,
+    config_names,
+    mcp_log_path,
+    on_connect_commands,
+)
+from termapy.defaults import cfg_value
 from termapy.folder_ops import file_record
-from termapy.folders import PROFILE_SUFFIX
+from termapy.folders import PROFILE_SUFFIX, inside, is_inside
 from termapy.markup import markup_to_plain
 from termapy.mcp.catalog import (
     catalog_json,
@@ -51,12 +59,13 @@ from termapy.plugins import (
     CmdResult,
     PluginContext,
 )
-from termapy.plugins.capabilities import attainable
+from termapy.plugins.capabilities import STATE_MESSAGES, attainable
 from termapy.plugins.command import interpolate_help
 from termapy.repl import ReplEngine
 from termapy.scripting import format_duration, strip_ansi
 from termapy.serial_engine import SerialEngine
-from termapy.terminal_host import SESSION_END, SESSION_START, TerminalHost
+from termapy.session_log import STATUS_MARKER, SessionLog
+from termapy.terminal_host import TerminalHost
 
 if TYPE_CHECKING:
     import argparse
@@ -69,6 +78,10 @@ _INSTALL_HINT = (
     "An environment pinned to mcp 1.x lands here too: 1.x has no\n"
     "mcp.server.MCPServer, so reinstall the extra to upgrade."
 )
+
+# Claude Code sets this to the project root in a server's environment, so a
+# server need not depend on its working folder.
+PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 
 
 # ── Per-call output buffer (contextvars; safe under asyncio) ────────────────
@@ -90,11 +103,40 @@ class MCPHost(TerminalHost):
 
     Parallel to CLITerminal: same engine + repl + ctx, different
     output sinks.  Output goes to a per-call buffer (the run_command
-    response) and to ``<cfg_dir>/mcp/session.log``.  Optionally tees
+    response) and to the session log, ``<cfg>.mcp.log``.  Optionally tees
     log events to stderr when ``--mcp-verbose`` is set.
     """
 
     front_end = "mcp"
+    # A request to leave is answered once ``run_mcp_stdio`` is serving,
+    # not at the start.
+    _watch_stop_at_start = False
+
+    def shut_down(self) -> None:
+        """The server's teardown, at every end: ``on_app_stop``, close the port, end the session log."""
+        self.repl.fire_lifecycle("on_app_stop")
+        if self.engine.is_connected:
+            self._disconnect()
+        self._end_session_log()
+
+    def _leave_on_request(self, by: int) -> None:
+        """Another termapy asked this server to stop: tear down as at any shutdown, then end.
+
+        On the stop watch's thread.  A running script is stopped and the
+        teardown queued behind the command in flight, on the one command
+        worker, so it never runs beside a dispatch.  The process then ends
+        with ``os._exit``: the SDK's stdio loop waits on a thread blocked
+        reading stdin, which neither an interrupt nor closing the handle
+        wakes on Windows (tried 2026-11-12), so a normal unwind would hang
+        until the client wrote again.  What ``os._exit`` skips is done
+        here or by the asker: the port and log are closed above, and
+        ``stop_sessions`` deletes the breadcrumb of a session that is gone.
+        """
+        self._log_line("!", f"stop requested by termapy PID {by}; shutting down")
+        self.repl._script_stop.set()
+        _command_executor(self).submit(self.shut_down).result()
+        diag_log.info("process exit: stopped by termapy PID %s", by)
+        os._exit(0)
 
     # Lazily attached by ``_serialize_lock`` (created on first
     # ``run_command_async`` call so the lock binds to whichever event
@@ -104,6 +146,8 @@ class MCPHost(TerminalHost):
     # Lazily attached by ``_command_executor``: ONE dispatch worker for the
     # life of the host.  See that function for why it is not per-call.
     _cmd_executor: ThreadPoolExecutor | None = None
+    # What the launch decided and the agent should hear, set by run_mcp_stdio.
+    start_note: str = ""
 
     def __init__(
         self,
@@ -115,20 +159,18 @@ class MCPHost(TerminalHost):
         self.cfg = cfg
         self.config_path = config_path
         self.verbose = verbose
-        self.prefix = cfg.get("cmd_prefix", "/")
+        self.prefix = cfg_value(cfg, "cmd_prefix")
         self._xfer_cancel = threading.Event()
 
-        # Resolve mcp/ state directory and log path -- both follow the
-        # cfg, per termapy convention.  When no cfg is loaded (zero-config
-        # slot waiting for /cfg.load), both are None and file logging is
-        # suppressed; stderr tee under --mcp-verbose still works.
-        self._mcp_dir: Path | None = None
-        self._log_path: Path | None = None
-        self._log_lock = threading.Lock()
+        # The session log, <cfg>.mcp.log, follows the cfg.  With no cfg
+        # loaded (a zero-config slot waiting for /cfg.load) it stays closed,
+        # and the --mcp-verbose copy to stderr still works.
+        self.session_log = SessionLog()
+        if verbose:
+            self.session_log.tee = self._tee_to_stderr
         # Set at pre-start: from then on a /cfg.load that moves the log
         # ends the old file and starts the new one.
         self._session_started = False
-        self._refresh_log_paths()
 
         # device_state tracking (served by termapy://device_state.json).
         # Updated by run_command_async after each dispatch.  expect_history
@@ -159,7 +201,7 @@ class MCPHost(TerminalHost):
         self._engine = SerialEngine(
             cfg=cfg,
             capture=self.capture,
-            open_fn=open_serial,
+            open_fn=self._open_serial,
             log=self._log,
         )
         # ReplEngine.write goes through self.write so the engine's own
@@ -169,67 +211,53 @@ class MCPHost(TerminalHost):
 
         self._setup_context()
 
-    # -- mcp/ state directory --------------------------------------------------
-
-    def _resolve_mcp_dir(self) -> Path | None:
-        """Return the per-config mcp/ state directory, or None if no cfg.
-
-        Lives under the same parent as the config file so logs and
-        cached profiles travel with the config -- termapy's standard
-        convention.  When the slot has no cfg loaded yet, returns None
-        and the caller suppresses file logging (stderr tee still works
-        under ``--mcp-verbose``).
-        """
-        if self.config_path:
-            return mcp_dir(self.config_path)
-        return None
+    # -- Session log ------------------------------------------------------------
 
     def _refresh_log_paths(self) -> None:
-        """Recompute ``_mcp_dir`` and ``_log_path`` from ``config_path``.
+        """Move the session log to the config just loaded, once the session has started.
 
-        Called at construction and after each ``/cfg.load`` (via
-        ``_switch_to_cfg_path``) so a slot's log routes to the active
-        cfg's ``mcp/`` directory.  Idempotent: safe to call any time.
-        Once the session has started, a call that moves the log ends the
-        old file and starts the new one (:meth:`_follow_session_log`).
+        Run by ``_setup_context``, which ``_switch_to_cfg_path`` calls BEFORE
+        the auto-connect, so the on-connect lines land in the new config's
+        log.  The old file gets where the session went and its ``Session
+        End`` (``TerminalHost._follow_session_log``).
         """
-        previous = self._log_path
-        self._mcp_dir = self._resolve_mcp_dir()
-        if self._mcp_dir is not None:
-            self._mcp_dir.mkdir(parents=True, exist_ok=True)
-            self._log_path = mcp_log_path(self.config_path)
-        else:
-            self._log_path = None
-        if self._session_started and self._log_path != previous:
-            self._follow_session_log(previous)
+        if self._session_started:
+            self._follow_session_log(self.session_log.path)
 
     def _on_app_prestart(self) -> None:
-        """Start the session in its log: the MCP log needs no opening, only its marker."""
+        """Open the session log from its ``Session Start``."""
         self._session_started = True
-        self._log_line(SESSION_START)
+        self._open_log()
 
-    def _follow_session_log(self, previous: Path | None) -> None:
-        """A ``/cfg.load`` moved the session to another config's log: end the old, start the new.
+    @staticmethod
+    def _tee_to_stderr(line: str) -> None:
+        """``--mcp-verbose``: every session-log line to stderr too.  Never stdout, the MCP wire."""
+        print(line, file=sys.stderr, flush=True)
 
-        The TUI's ``_follow_session_log`` for a log written one open per
-        call: the old file gets where the session went and its
-        ``Session End``, the new one its ``Session Start``.  A bare slot
-        (no previous file) only starts the new one.
+    def _resolve_config_name(self, name: str) -> str | None:
+        """Any config in the project's folder, by bare name: an agent names a config, never a path.
+
+        The working folder is the project's, so a path or a stray file in it
+        (``plain.json``, ``elsewhere/x.cfg``) must not read as a config.  The
+        name is looked up among the real configs, so ``LEFT`` means ``left``
+        on every OS and the session holds the name as it is on disk.
         """
-        with self._log_lock:
-            self._append_log(
-                previous,
-                [f"Switched to config: {Path(self.config_path).stem}", SESSION_END],
-            )
-        self._log_line(SESSION_START)
+        wanted = name.removesuffix(".cfg").casefold()
+        for path in config_files(cfg_dir()):
+            if path.stem.casefold() == wanted:
+                return str(path)
+        return None
 
-    def _end_session_log(self) -> None:
-        """End the session in its log: the server's last line, after the disconnect."""
-        self._log_line(SESSION_END)
+    def available_configs_text(self) -> str:
+        """The configs an agent may load, as a sentence; ``""`` when it may load none."""
+        names = config_names()
+        if not names:
+            return ""
+        return f"Configs in this project: {', '.join(names)}. Load one with {self.prefix}cfg.load <name>."
 
     def session_log_path(self) -> Path | None:
-        """The MCP server's session log, ``mcp/session.log``: /log.* over MCP reads the agent's own."""
-        return self._log_path
+        """The MCP server's session log, ``<cfg>.mcp.log``: /log.* over MCP reads the agent's own."""
+        return mcp_log_path(self.config_path) if self.config_path else None
 
     def _active_cap_dir(self) -> Path | None:
         """Return the captures directory, or None when no cfg is loaded.
@@ -241,7 +269,7 @@ class MCPHost(TerminalHost):
         capture resources would expose arbitrary files (``.env``,
         ``.pypirc``, keys) from the launch directory.  A bare slot
         therefore has NO captures surface until a cfg is loaded, exactly
-        as ``_mcp_dir``/logging are suppressed until then.  Gate on
+        as its session log stays closed until then.  Gate on
         ``config_path`` (set reliably by ``_switch_to_cfg_path``), not
         on ``cap_dir.exists()`` -- CWD always exists.
         """
@@ -273,9 +301,8 @@ class MCPHost(TerminalHost):
             raise FileNotFoundError(
                 f"No captures available: load a cfg first ({self.prefix}cfg.load <name>)."
             )
-        cap_dir = active.resolve()
-        target = (cap_dir / filename).resolve()
-        if not target.is_relative_to(cap_dir):
+        target = inside(active, filename)
+        if target is None:
             raise ValueError(f"Path traversal blocked: {filename!r}")
         if not target.exists():
             raise FileNotFoundError(f"Capture not found: {filename!r}")
@@ -288,7 +315,7 @@ class MCPHost(TerminalHost):
     # Note: ``_setup_context`` runs ``_refresh_log_paths`` (see below).
     # ``_setup_context`` is invoked by ``_switch_to_cfg_path`` BEFORE the
     # auto-connect, so on-connect log entries (echo off, mcp_on_connect_cmd)
-    # land in the new cfg's mcp/ directory rather than the old one.
+    # land in the new cfg's log rather than the old one's.
 
     def write(self, text: str, color: str = "") -> None:
         """Capture into the active per-call buffer; log; tee to stderr if verbose."""
@@ -296,7 +323,7 @@ class MCPHost(TerminalHost):
         if buf is not None:
             buf.append({"level": "text", "text": text, "color": color or ""})
         # Always log so post-mortem review has the full picture.
-        self._log_line(f"  {text}")
+        self._log_line(STATUS_MARKER, text)
 
     def write_markup(self, text: str) -> None:
         """Capture markup output as a separate entry kind, flattened to its text.
@@ -310,62 +337,18 @@ class MCPHost(TerminalHost):
         buf = _buffer.get()
         if buf is not None:
             buf.append({"level": "markup", "text": plain, "color": ""})
-        self._log_line(f"  {plain}")
+        self._log_line(STATUS_MARKER, plain)
 
     def status(self, text: str, color: str = "") -> None:
         """Status message: same buffer sink as write, indented in the log."""
         buf = _buffer.get()
         if buf is not None:
             buf.append({"level": "text", "text": text, "color": color or "dim"})
-        self._log_line(f"  {text}")
+        self._log_line(STATUS_MARKER, text)
 
     def _log(self, direction: str, text: str) -> None:
         """SerialEngine log callback.  ``direction`` is ``>`` (TX) or ``<`` (RX)."""
-        self._log_line(f"{direction} {text}")
-
-    def _log_line(self, line: str) -> None:
-        """Append one line to the session log (see ``_log_lines``)."""
-        self._log_lines([line])
-
-    def _log_lines(self, lines: list[str]) -> None:
-        """Append lines to the session log, one open per call.  Tee to stderr if verbose.
-
-        The reader logs a whole batch through one call, so a burst of
-        received lines costs one open, not one per line.
-
-        NEVER writes to stdout -- stdout is the MCP wire.  Asserts at
-        runtime that no log path resolves to ``sys.stdout`` so a future
-        misconfiguration fails fast.
-
-        When ``_log_path`` is None (zero-config slot, no cfg loaded
-        yet), file logging is suppressed and only the stderr tee
-        applies.  Once ``/cfg.load`` runs, ``_refresh_log_paths`` wires
-        the file logger to the new cfg's ``mcp/`` directory.
-        """
-        if not lines:
-            return
-        with self._log_lock:
-            self._append_log(self._log_path, lines)
-            if self.verbose:
-                for line in lines:
-                    print(line.rstrip("\n"), file=sys.stderr, flush=True)
-
-    @staticmethod
-    def _append_log(path: Path | None, lines: list[str]) -> None:
-        """Append lines to one log file; None writes nothing.  Callers hold ``_log_lock``."""
-        if path is None:
-            return
-        # Defensive: ensure the log file isn't aliased to stdout.  In
-        # normal operation the path is a regular file under the cfg's
-        # mcp/ dir; the check here is cheap insurance.
-        assert path != Path("/dev/stdout"), (
-            "MCP session log MUST NOT alias stdout (would corrupt protocol)"
-        )
-        try:
-            with path.open("a", encoding="utf-8") as f:
-                f.writelines(line.rstrip("\n") + "\n" for line in lines)
-        except OSError:
-            pass  # logging is non-critical
+        self._log_line(direction, text)
 
     def _record_async_event(self, line: str, *, source: str) -> None:
         """Append an async serial event with a UTC timestamp and source tag.
@@ -409,7 +392,7 @@ class MCPHost(TerminalHost):
             on_lines=self._on_lines,
             on_clear=lambda: None,
             on_capture_done=lambda: self._stop_capture(),
-            on_error=lambda detail: self._log_line(f"! Serial error: {detail}"),
+            on_error=lambda detail: self._log_line("!", f"Serial error: {detail}"),
             on_disconnect=self._on_reader_disconnect,
             on_hex=self._on_hex,
             hex_view=self._hex_view,
@@ -417,7 +400,7 @@ class MCPHost(TerminalHost):
 
     def _on_reader_disconnect(self) -> None:
         """The reader lost the port: log it, then the shared port-lost teardown."""
-        self._log_line("! Serial disconnected")
+        self._log_line("!", "Serial disconnected")
         self._port_lost()
 
     def _on_lines(self, lines: list[str]) -> None:
@@ -448,9 +431,9 @@ class MCPHost(TerminalHost):
             lines: The decoded lines.
             rows: The hex view's rows, or ``None`` in the text view.
         """
-        self._feed_rx_consumers(lines, [strip_ansi(line) for line in lines])
+        self._feed_rx_consumers(lines)
         texts = [self._rx_text(line) for line in lines]
-        self._log_lines([f"< {text}" for text in texts])
+        self._log_lines("<", texts)
         if self._call_active.is_set():
             return
         for text in texts if rows is None else rows:
@@ -470,7 +453,7 @@ class MCPHost(TerminalHost):
         files live with the cfg.  Refreshing here means on-connect
         commands that fire AFTER context setup but BEFORE
         ``_switch_to_cfg_path`` returns get logged into the *new*
-        cfg's mcp/ directory, not the old one.
+        cfg's log, not the old one's.
         """
         self._refresh_log_paths()
         internal_handle = self._build_internal_handle()
@@ -491,14 +474,15 @@ class MCPHost(TerminalHost):
         # unless the operator opts in per-class from the server's shell
         # (secure default, power by opt-in -- same shape as the /env and
         # /os gates).
-        from termapy.env_flags import MCP_FS_UNCONFINED, MCP_NET_EGRESS
+        from termapy.env_flags import MCP_FS_UNCONFINED, MCP_HOST_INFO, MCP_NET_EGRESS
 
         self.ctx.capabilities = CapabilitySet(
             block_until=True,
-            # mcp/session.log, the agent's own (config.mcp_log_path).
+            # <cfg>.mcp.log, the agent's own (config.mcp_log_path).
             session_log=True,
             filesystem_unconfined=MCP_FS_UNCONFINED,
             network_egress=MCP_NET_EGRESS,
+            host_info=MCP_HOST_INFO,
         )
         self.ctx.environment = "MCP"  # ENVIRONMENTS column; /help marks it (current)
         # The MCP consumer is an agent: it reads ``CmdResult.data``
@@ -515,8 +499,12 @@ class MCPHost(TerminalHost):
         # agent receives (/term.color on, or the autostart, re-enables it).
         # Default output_level "quiet" so Claude gets results, not
         # progress chatter.  Per-call override via run_command(output=...).
-        self._init_flags(echo_repl=False, device_echo_allowed=False, color=False)
-        self.ctx.ns("flags")["output_level"] = "quiet"
+        self._init_flags(
+            echo_repl=False,
+            device_echo_allowed=False,
+            color=False,
+            output_level="quiet",
+        )
 
     # Profile-load (file) + banner-watch + user on_connect_cmd fire
     # from _on_connected (the TerminalHost override below).  We
@@ -577,7 +565,7 @@ class MCPHost(TerminalHost):
         the load report's profile row (``/cfg.loaded``) until the
         disconnect clears it.
         """
-        explicit = ctx.cfg.get("profile_path", "")
+        explicit = cfg_value(ctx.cfg, "profile_path")
         candidate: Path | None = None
         if explicit and isinstance(explicit, str):
             candidate = Path(explicit)
@@ -589,28 +577,33 @@ class MCPHost(TerminalHost):
         if candidate is None:
             return
         if not candidate.exists():
-            self._log_line(f"! auto-load profile: not found: {candidate}")
+            self._log_line("!", f"auto-load profile: not found: {candidate}")
             return
-        self._log_line(f"$ {self.prefix}profile.load {candidate}  (auto-load on connect)")
-        try:
-            result = self.repl.dispatch(f"profile.load {candidate}")
-        except Exception as exc:  # noqa: BLE001 -- boundary
-            self._log_line(f"! auto-load profile failed: {exc}")
-            return
-        if not result.success:
-            self._log_line(f"! auto-load profile: {result.error}")
-            return
+        # The config's own profile goes by its name in the config's folder:
+        # the command takes that, and refuses an absolute path as an escape.
         layer = ""
         file = str(candidate)
         if self.config_path:
             cfg_path = Path(self.config_path)
             layer = cfg_path.stem
             folder = cfg_path.parent.resolve()
-            if candidate.resolve().is_relative_to(folder):
+            if is_inside(candidate, folder):
                 file = candidate.resolve().relative_to(folder).as_posix()
+        self._log_line("$", f"{self.prefix}profile.load {file}  (auto-load on connect)")
+        try:
+            result = self.repl.dispatch(f"profile.load {file}")
+        except Exception as exc:  # boundary: an auto-load must not stop the connect
+            diag_log.exception("auto-load profile failed: %s", file)
+            self._log_line("!", f"auto-load profile failed: {exc}{diag_log.traceback_note()}")
+            return
+        if not result.success:
+            diag_log.warning("auto-load profile failed: %s: %s", file, result.error)
+            self._log_line("!", f"auto-load profile: {result.error}")
+            return
         record = load_report.profile_record(
             ctx.ns("active_profile"), file=file, path=str(candidate.resolve()), layer=layer
         )
+        diag_log.info("loaded %s", load_report.diag_line(record))
         self.repl.load_report.put(load_report.PROFILE, [record])
 
     def _on_connect_run_commands(self, ctx: PluginContext) -> None:
@@ -634,7 +627,7 @@ class MCPHost(TerminalHost):
         a warning but doesn't block the connect.
         """
         for label, cmd in on_connect_commands(ctx.cfg, "mcp_on_connect_cmd"):
-            self._log_line(f"$ {cmd}  ({label})")
+            self._log_line("$", f"{cmd}  ({label})")
             try:
                 result = self.repl.dispatch_full(
                     cmd,
@@ -644,11 +637,12 @@ class MCPHost(TerminalHost):
                     serial_write=self._serial_write,
                     is_connected=lambda: self.engine.is_connected,
                 )
-            except Exception as exc:  # noqa: BLE001 -- boundary
-                self._log_line(f"! {label} ({cmd!r}) failed: {exc}")
+            except Exception as exc:  # boundary: one bad on-connect command must not stop the rest
+                diag_log.exception("%s %r raised", label, cmd)
+                self._log_line("!", f"{label} ({cmd!r}) failed: {exc}{diag_log.traceback_note()}")
                 continue
             if not result.success:
-                self._log_line(f"! {label} ({cmd!r}): {result.error}")
+                self._log_line("!", f"{label} ({cmd!r}): {result.error}")
 
     def _on_connect_banner_watch(self, ctx: PluginContext) -> None:
         """Spawn a 2-second watcher for the active profile's startup banner.
@@ -681,15 +675,16 @@ class MCPHost(TerminalHost):
                     return bool(compiled.search(line))
 
                 match = ctx.wait_for_match(predicate, timeout=2.0)
-            except Exception as exc:  # noqa: BLE001 -- boundary thread
-                self._log_line(f"! banner watcher error: {exc}")
+            except Exception as exc:  # boundary: the watcher's thread must end quietly
+                diag_log.exception("banner watcher raised")
+                self._log_line("!", f"banner watcher error: {exc}{diag_log.traceback_note()}")
                 return
             if match:
                 self._banner_seen = True
                 self._banner_text = match
-                self._log_line(f"  banner: {match}")
+                self._log_line(STATUS_MARKER, f"banner: {match}")
             else:
-                self._log_line(f"! banner not seen within 2s (pattern: {pattern!r})")
+                self._log_line("!", f"banner not seen within 2s (pattern: {pattern!r})")
 
         threading.Thread(target=watch, daemon=True, name="mcp-banner-watch").start()
 
@@ -748,10 +743,9 @@ class MCPHost(TerminalHost):
                 loop = asyncio.get_running_loop()
 
                 def _run_sync() -> CmdResult:
-                    self._log_line(f"$ {command}  ({level})")
-                    # Apply the per-call output level via ctx slot (replaces
-                    # the old --<level> text append).  Save/restore matches
-                    # the pattern in ReplEngine.dispatch.
+                    self._log_line("$", f"{command}  ({level})")
+                    # The per-call output level, saved and restored as
+                    # ReplEngine.dispatch does.
                     saved_call_level = self.ctx._call_level
                     if level != "normal":
                         self.ctx._call_level = level
@@ -842,6 +836,12 @@ class MCPHost(TerminalHost):
             # legacy empty-string default -- never stringify dicts.
             value: Any = result.value if result.value not in (None, "") else ""
 
+            # "No config loaded." is where an agent with no config first learns
+            # it has one to choose, so the reply says what the choices are.
+            error = result.error or ""
+            if error == STATE_MESSAGES["config_loaded"]:
+                error = f"{error} {self.available_configs_text()}".rstrip()
+
             # Deliver async events exactly once.  Lines that arrived between
             # MCP calls (or were drained by _dispatch_via_profile pre-send)
             # accumulated on self._async_events.  Snapshot + clear here so
@@ -862,7 +862,7 @@ class MCPHost(TerminalHost):
             return {
                 "cmd": command,
                 "success": bool(result.success),
-                "error": result.error or "",
+                "error": error,
                 "value": value,
                 "data": result.data,
                 "elapsed_s": float(result.elapsed_s or 0.0),
@@ -873,6 +873,14 @@ class MCPHost(TerminalHost):
 
 
 # ── MCP server wiring (lazy, only when --mcp runs) ──────────────────────────
+
+
+def _start_instructions(host: MCPHost) -> str:
+    """What an agent is told on connecting: the config it has, what launch decided, the choices."""
+    name = Path(host.config_path).stem if host.config_path else ""
+    state = f"Active config: {name}." if name else "No config is loaded."
+    parts = (state, host.start_note, host.available_configs_text())
+    return " ".join(part for part in parts if part)
 
 
 def _build_server(host: MCPHost) -> Any:
@@ -890,7 +898,7 @@ def _build_server(host: MCPHost) -> Any:
     """
     from mcp.server import MCPServer
 
-    server: Any = MCPServer("termapy")
+    server: Any = MCPServer("termapy", instructions=_start_instructions(host))
 
     # ── run_command tool ────────────────────────────────────────────────────
     @server.tool()
@@ -922,8 +930,11 @@ def _build_server(host: MCPHost) -> Any:
                 parameter.
 
         Returns:
-            JSON-able dict with ``cmd``, ``success``, ``error``, ``value``,
-            ``elapsed_s``, ``output_lines``, ``captured_artifacts``.
+            JSON-able dict with ``cmd``, ``success``, ``error``, ``value``
+            (one scalar in its own type: a count is a number, a switch a
+            boolean), ``data`` (the structured answer, or null),
+            ``elapsed_s``, ``output_lines``, ``captured_artifacts`` and
+            ``async_events``.
         """
         return await host.run_command_async(command, output, timeout_s, confirm=confirm)
 
@@ -1088,7 +1099,7 @@ def _confirmation_required(
         )
     return CmdResult.fail(
         msg=msg,
-        value={
+        data={
             "needs_confirmation": True,
             "command": name,
             "safety": safety,
@@ -1186,7 +1197,7 @@ def _dispatch_via_profile(
                 f"Command {name!r} is disabled in the active profile. "
                 "Edit the profile and set enabled=true after auditing."
             ),
-            value={
+            data={
                 "disabled": True,
                 "command": name,
                 "help": spec.get("help", ""),
@@ -1231,7 +1242,7 @@ def _dispatch_via_profile(
             if not outcome.ok:
                 return CmdResult.fail(
                     msg=(f"Arg {arg_name!r} invalid for {name!r}: {outcome.error}"),
-                    value={
+                    data={
                         "arg": arg_name,
                         "type": arg_type,
                         "value": bound[arg_name],
@@ -1246,10 +1257,9 @@ def _dispatch_via_profile(
 
     # Wire-level settings come from cfg, not the profile.  The cfg is
     # the user's session ("how I'm wired up"); the profile is the
-    # device contract ("what commands you accept").
-    encoding = host.cfg.get("encoding", "utf-8")
-    eol_send = host.cfg.get("eol", "\r")
-    default_response_timeout_ms = int(host.cfg.get("default_response_timeout_ms", 1000) or 1000)
+    # device contract ("what commands you accept").  ctx.serial.send
+    # reads the line ending, encoding and transmit delays itself.
+    default_response_timeout_ms = int(cfg_value(host.cfg, "default_response_timeout_ms") or 1000)
     raw_response = spec.get("response") or {}
     response = raw_response if isinstance(raw_response, dict) else {}
     fmt = response.get("format", "none")
@@ -1286,12 +1296,10 @@ def _dispatch_via_profile(
         idle_gap_s = 0.05
 
     rr = request_response(
-        serial_write=host._serial_write,
+        send=host.ctx.serial.send,
         drain_recent_lines=host.repl.drain_recent_lines,
         wait_for_lines=host.repl.wait_for_lines,
         command=command_text,
-        encoding=encoding,
-        line_ending=eol_send,
         timeout_s=timeout_s,
         terminator=terminator,
         idle_gap_s=idle_gap_s,
@@ -1385,6 +1393,108 @@ def _dispatch_via_profile(
 # ── Entry point ────────────────────────────────────────────────────────────
 
 
+def _enter_project_folder() -> Path:
+    """Stand in the project's folder, so nothing depends on where the client started us.
+
+    Claude Code names the project in ``CLAUDE_PROJECT_DIR``, and its docs
+    leave the working folder unstated.  Another client sets no such variable
+    and the working folder it gave stands.
+
+    Returns:
+        The project's folder, now the working folder.
+    """
+    project = os.environ.get(PROJECT_DIR_ENV)
+    if project and Path(project).is_dir():
+        os.chdir(project)
+    return Path.cwd()
+
+
+def _use_project_cfg_root(project: Path, named: str | None) -> None:
+    """Point ``cfg_dir()`` at the config folder, unless the user named one.
+
+    The command line comes first and the rest is convenience: ``--cfg-dir``,
+    then ``TERMAPY_CFG_DIR``, then the folder of a config named by its path,
+    so its siblings are the ones an agent may load, and only then the search.
+    With no folder in the project it names where one would be, because the
+    fallback ``cfg_dir()`` otherwise takes is the OS folder, whose configs
+    and global plugins are not this project's.
+
+    Args:
+        project: The project's folder.
+        named: The config the launch named, if any.
+    """
+    import termapy.config as config_module
+    from termapy.config_resolve import find_mcp_root
+
+    if config_module.CFG_DIR is not None or os.environ.get("TERMAPY_CFG_DIR"):
+        return
+    path = Path(named).resolve() if named else None
+    if path is not None and path.is_file() and config_module.is_config_file(path):
+        config_module.CFG_DIR = str(path.parent.parent)
+        return
+    root = find_mcp_root(project)
+    config_module.CFG_DIR = str((root or project / config_module._LOCAL_DIR_NAME).resolve())
+    config_module.CFG_DIR_MAY_BE_ABSENT = root is None
+
+
+def _choose_start_configs(named: str | None) -> tuple[list[str], str]:
+    """The configs to try at launch, in order, and what to tell the agent if there are none.
+
+    Args:
+        named: The config the launch named, or None to choose by the rules
+            of ``config_resolve.choose_mcp_configs``.
+
+    Returns:
+        ``(paths, note)``.  More than one path is a chain to walk.
+
+    Raises:
+        SystemExit: The named config does not exist.  A name given at launch
+            is the first choice and the only one, so a typo is reported
+            instead of landing on another device's config, as ``--cfg-dir``
+            naming a missing folder is.
+    """
+    from termapy.config_resolve import choose_mcp_configs, resolve_config
+    from termapy.matching import closest, did_you_mean
+
+    if named:
+        resolved = resolve_config(named)
+        if resolved is None:
+            hint = did_you_mean(closest(named, config_names()))
+            raise SystemExit(f"termapy --mcp: No config matching {named!r} in {cfg_dir()}{hint}")
+        return [resolved], ""
+    paths, reason = choose_mcp_configs(cfg_dir())
+    return [str(path) for path in paths], reason
+
+
+def _start_on_first_open(host: MCPHost, paths: list[str]) -> str:
+    """Walk the configs and stay on the first whose port opens.
+
+    So ``mcp_cfg1`` and ``mcp_cfg2`` serve two servers: the second finds the
+    first's port busy and moves on.  Each config is loaded before its port
+    is tried, rather than trial-opening them all first, because an open and
+    close can reset a board through DTR.  With none open it stays on the
+    first, not connected, so ``/port.connect`` works when the device returns.
+
+    Args:
+        host: A host with no config yet.
+        paths: The configs to try, in order.
+
+    Returns:
+        What to tell the agent: what was skipped and why; ``""`` for the first.
+    """
+    skipped: list[str] = []
+    for path in paths:
+        loaded = host._switch_to_cfg_path(path)
+        if not loaded.success:
+            skipped.append(f"{Path(path).stem}: {loaded.error}")
+        elif host.engine.is_connected or host._connect(report=False):
+            return f"Skipped {'; '.join(skipped)}." if skipped else ""
+        else:
+            skipped.append(f"{Path(path).stem}: {host._open_error()}")
+    host._switch_to_cfg_path(paths[0])
+    return f"No port opened: {'; '.join(skipped)}."
+
+
 def run_mcp_stdio(args: argparse.Namespace) -> None:
     """Run the MCP stdio server.  Called by ``termapy --mcp``.
 
@@ -1418,24 +1528,16 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
 
     # Lazy-import config helpers so termapy.mcp.server stays cheap.
     from termapy.config import load_config
-    from termapy.config_resolve import find_config, resolve_config
 
-    cfg_arg = getattr(args, "config", None)
-    cfg_path = ""
-    if cfg_arg:
-        resolved = resolve_config(cfg_arg)
-        if resolved:
-            cfg_path = resolved
-    else:
-        # No positional config: try to auto-detect a single .cfg in cwd.
-        auto, _ = find_config()
-        if auto:
-            cfg_path = auto
+    named = getattr(args, "config", None)
+    _use_project_cfg_root(_enter_project_folder(), named)
+    paths, start_note = _choose_start_configs(named)
 
-    if cfg_path:
+    if len(paths) == 1:
+        cfg_path = paths[0]
         cfg = load_config(cfg_path)
     else:
-        # Zero-config fallback: in-memory defaults.
+        # No config yet, or a chain to walk: in-memory defaults until one loads.
         from termapy.defaults import default_cfg
 
         cfg = default_cfg()
@@ -1446,7 +1548,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
 
     if verbose:
         print(
-            f"termapy --mcp: host built; cfg={cfg_path or '(none)'}, mcp_dir={host._mcp_dir}",
+            f"termapy --mcp: host built; cfg={cfg_path or '(none)'}, log={host.session_log_path()}",
             file=sys.stderr,
         )
 
@@ -1458,11 +1560,17 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
 
     # Auto-connect if a port is configured.  Failure to open a port
     # doesn't abort the server -- Claude can /port.connect later.
-    if cfg["serial"]["port"]:
+    if len(paths) > 1:
+        start_note = _start_on_first_open(host, paths)
+    elif cfg["serial"]["port"]:
         try:
             host._connect()
-        except (OSError, Exception) as exc:  # noqa: BLE001 -- boundary
-            host._log_line(f"! Auto-connect failed: {exc}")
+        except Exception as exc:  # boundary: the server runs on without a port
+            diag_log.exception("MCP auto-connect raised")
+            host._log_line("!", f"Auto-connect failed: {exc}{diag_log.traceback_note()}")
+    host.start_note = start_note
+    if start_note:
+        print(f"termapy --mcp: {start_note}", file=sys.stderr)
 
     server = _build_server(host)
 
@@ -1474,7 +1582,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
     import signal as _signal
 
     def _term_handler(signum: int, _frame: Any) -> None:
-        host._log_line(f"! signal {signum} received; shutting down")
+        host._log_line("!", f"signal {signum} received; shutting down")
         raise KeyboardInterrupt
 
     _orig_handlers: dict[int, Any] = {}
@@ -1486,6 +1594,8 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
         except (ValueError, OSError):  # noqa: PERF203 -- small set
             # Not in main thread on Windows, etc.  Skip.
             pass
+    # Now a request to leave can unwind through the handler above.
+    host._watch_for_stop()
 
     try:
         # MCPServer.run() blocks until the stdio peer disconnects.  No
@@ -1496,6 +1606,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
         # Clean shutdown: fall through to finally.
         pass
     finally:
+        host._stop_watching()
         # Restore signal handlers so we don't leave the process in
         # an unexpected state if termapy is invoked from a parent
         # that owns SIGINT.
@@ -1504,7 +1615,4 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
                 _signal.signal(sig, old)
             except (ValueError, OSError):
                 pass
-        host.repl.fire_lifecycle("on_app_stop")
-        if host.engine.is_connected:
-            host._disconnect()
-        host._end_session_log()
+        host.shut_down()

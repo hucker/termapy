@@ -73,6 +73,7 @@ class TestHelpConfigExamples:
         _find_tagged_json_blocks(),
         ids=[f"{p.name}:{line}" for p, line, _ in _find_tagged_json_blocks()],
     )
+    @pytest.mark.rule("demo-cfg-mirrors-defaults")
     def test_config_example_keys(self, file_path, tag_line, json_text):
         """Tagged config examples must have all keys from DEFAULT_CFG."""
         from termapy.defaults import DEFAULT_CFG

@@ -159,23 +159,28 @@ _ROW_SPLIT = re.compile(r"(?<!\\)\|")  # split on unescaped pipes
 _REF_SKIP = {"config_version"}
 
 
+# Sections whose keys are set one at a time (/cfg baud_rate, /term.json_fmt.indent)
+# get a row per key; any other section is one row.
+_REF_EXPANDED = {"serial", "json_fmt"}
+
+
 def _flat_default_map() -> dict:
-    """Display-key -> default value.  serial.* is expanded to dotted keys."""
+    """Display-key -> default value.  An expanded section's keys are dotted keys."""
     from termapy.defaults import DEFAULT_CFG
 
     out: dict = {}
     for k, v in DEFAULT_CFG.items():
         if k in _REF_SKIP:
             continue
-        if k == "serial" and isinstance(v, dict):
+        if k in _REF_EXPANDED and isinstance(v, dict):
             for sk, sv in v.items():
-                out[f"serial.{sk}"] = sv
+                out[f"{k}.{sk}"] = sv
         else:
             out[k] = v
     return out
 
 
-def _fmt_default(v) -> str:
+def _fmt_default(v: object) -> str:
     """Render a default value for a table cell (escapes shown, containers short)."""
     if isinstance(v, bool):
         return "true" if v else "false"
@@ -198,7 +203,7 @@ def _esc_cell(s: str) -> str:
     return s.replace("|", r"\|")
 
 
-def _sync_reference_table(path, write: bool = True) -> str | None:
+def _sync_reference_table(path: Path, write: bool = True) -> str | None:
     text = path.read_text(encoding="utf-8")
     mstart = REF_START_RE.search(text)
     if not mstart or REF_END not in text:

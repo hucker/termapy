@@ -17,7 +17,7 @@ lands in its group, not at the end of the user's file.
 import re
 from collections.abc import Callable
 
-CURRENT_CONFIG_VERSION = 33
+CURRENT_CONFIG_VERSION = 39
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -55,7 +55,7 @@ DEPRECATED_CFG: dict[str, str] = {
     "auto_connect_cmd": "renamed to on_connect_cmd in v6",
     "inter_cmd_delay_ms": "renamed to cmd_delay_ms in v6",
     "show_eol": "renamed to show_line_endings in v6",
-    "exception_traceback": "renamed to show_traceback in v6",
+    "exception_traceback": "renamed to show_traceback in v6, removed in v37",
     "app_border_color": "renamed to border_color in v6",
     "repl_prefix": "renamed to cmd_prefix in v6",
     "read_only": "renamed to config_read_only in v6",
@@ -82,6 +82,13 @@ DEPRECATED_CFG: dict[str, str] = {
         "removed in v25 (was never wired to a consumer); use echo_input "
         "for device-command echo, and /term.echo_repl for REPL-command echo"
     ),
+    # v36 -> v37: removal
+    "show_traceback": (
+        "removed in v37 (was never wired to a consumer); every traceback now "
+        "goes to the diagnostic log, and the error names the file"
+    ),
+    # v37 -> v38: one enum split in two
+    "json_style": "replaced in v38 by json_fmt.highlight and json_fmt.indent",
 }
 
 # Migration functions: {from_version: callable(cfg) -> cfg}
@@ -398,9 +405,8 @@ def _migrate_v19_to_v20(cfg: dict) -> dict:
 
     The CLI-only ``/color`` toggle was renamed to ``/term.color`` to
     sit alongside its display-toggle siblings (``/term.echo``,
-    ``/term.line_no``, ``/term.timestamps``, ...).  A hidden legacy
-    alias keeps ``/color`` working at runtime, so user .run scripts,
-    shell aliases, and muscle memory continue to work.
+    ``/term.line_no``, ``/term.timestamps``, ...).  The old name is gone
+    (decision 2026-11-09): typed, it answers with the new name suggested.
 
     This migration is cosmetic: it walks the four ``*_on_connect_cmd``
     cfg fields and rewrites any ``/color`` command-verb occurrences in
@@ -500,10 +506,9 @@ def _migrate_v22_to_v23(cfg: dict) -> dict:
     """Rewrite ``/ver`` -> ``/app.ver`` in on-connect command chains.
 
     ``/ver`` moved under ``/app`` (``/app.ver``, ``/app.ver.latest``,
-    ``/app.ver.info``) to group the app-info commands.  A hidden legacy
-    alias keeps ``/ver`` working at runtime, so this migration is
-    cosmetic: it updates the four ``*_on_connect_cmd`` chains so
-    ``/cfg.dump`` shows the canonical name and the user learns it.
+    ``/app.ver.info``) to group the app-info commands.  This migration
+    updates the four ``*_on_connect_cmd`` chains; the old name itself is
+    gone (decision 2026-11-09).
     """
     for key in (
         "on_connect_cmd",
@@ -748,6 +753,86 @@ def _migrate_v32_to_v33(cfg: dict) -> dict:
 
 
 MIGRATIONS[32] = _migrate_v32_to_v33
+
+
+def _migrate_v33_to_v34(cfg: dict) -> dict:
+    """Add ``tx_char_delay_ms`` and ``tx_line_delay_ms``, both 0 (off).
+
+    TeraTerm's transmit delay: a device line can go out paced, one
+    character at a time, for a device that drops bytes arriving back to
+    back.  Off by default, so nothing a config sends changes.
+    """
+    cfg.setdefault("tx_char_delay_ms", 0)
+    cfg.setdefault("tx_line_delay_ms", 0)
+    return cfg
+
+
+MIGRATIONS[33] = _migrate_v33_to_v34
+
+
+def _migrate_v34_to_v35(cfg: dict) -> dict:
+    """Add ``control_keys`` (on): Ctrl+C, Ctrl+D, Ctrl+Z and Escape reach the device.
+
+    In the TUI, a key the prompt has no use for -- Ctrl+C with nothing
+    selected, Ctrl+D, Ctrl+Z or Escape on an empty prompt -- now goes to
+    the device, as in any terminal; off keeps them termapy's.
+    """
+    cfg.setdefault("control_keys", True)
+    return cfg
+
+
+MIGRATIONS[34] = _migrate_v34_to_v35
+
+
+def _migrate_v35_to_v36(cfg: dict) -> dict:
+    """Add ``color`` (on) and ``output_level`` (normal): a config now starts every session flag."""
+    cfg.setdefault("color", True)
+    cfg.setdefault("output_level", "normal")
+    return cfg
+
+
+MIGRATIONS[35] = _migrate_v35_to_v36
+
+
+def _migrate_v36_to_v37(cfg: dict) -> dict:
+    """Remove ``show_traceback``: nothing read it, and every traceback now goes to the diagnostic log."""
+    cfg.pop("show_traceback", None)
+    return cfg
+
+
+MIGRATIONS[36] = _migrate_v36_to_v37
+
+
+def _migrate_v37_to_v38(cfg: dict) -> dict:
+    """Replace ``json_style`` with the ``json_fmt`` section: ``highlight`` and ``indent``.
+
+    ``indent`` keeps the indent and drops the highlighting; ``color`` keeps
+    both.  ``compact`` was the default every config was written with, so it
+    takes the new defaults, highlighted and indented by 2: a pipe still gets
+    one line per JSON value, whatever the section says.
+    """
+    style = cfg.pop("json_style", "compact")
+    json_cfg = cfg.setdefault("json_fmt", {})
+    json_cfg.setdefault("highlight", style != "indent")
+    json_cfg.setdefault("indent", 2)
+    return cfg
+
+
+MIGRATIONS[37] = _migrate_v37_to_v38
+
+
+def _migrate_v38_to_v39(cfg: dict) -> dict:
+    """Add ``tx_chunking`` (on): a large send reaches the driver in 192-byte pieces.
+
+    Measured 2026-11-10 on an FT232R: 4 KB writes lost lines at 750000
+    baud and up, 192-byte writes lost none.  On by default; off sends each
+    write whole, as before.
+    """
+    cfg.setdefault("tx_chunking", True)
+    return cfg
+
+
+MIGRATIONS[38] = _migrate_v38_to_v39
 
 
 def migrate_config(cfg: dict) -> dict:

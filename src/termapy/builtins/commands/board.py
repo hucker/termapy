@@ -84,7 +84,7 @@ def _long_help(ctx: PluginContext) -> str:
     """The boards, live from the table, then the workflow."""
     rows = [f"{board.name}: {board.title}, {board.runtime.name}. {board.flash}" for board in BOARDS]
     return compose(
-        "Starter projects for real dev boards:",
+        "Boards:",
         "\n".join(rows),
         "{prefix}board.firmware <board> copies the code that runs on the board "
         "into the config's firmware/ folder (folder= names another; a relative "
@@ -115,9 +115,7 @@ def _board_or_fail(ctx: PluginContext) -> Board | CmdResult:
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """``/board``: the boards termapy ships starters for, and which is plugged in."""
-    records = [_record(board) for board in BOARDS]
-    names = "\n".join(record["name"] for record in records)
-    return CmdResult.table("boards", "board", _COLUMNS, records, value=names)
+    return CmdResult.table("boards", "board", _COLUMNS, [_record(board) for board in BOARDS])
 
 
 def _handler_new(ctx: PluginContext, args: str) -> CmdResult:
@@ -180,6 +178,11 @@ COMMAND = Command(
     name="board",
     maturity="prototype",
     help="Starter projects for real dev boards: list, new, firmware.",
+    intro=(
+        "Starter projects for real dev boards: the code that runs on the board, a "
+        "host config and a device profile, so a new board answers a REPL and an MCP "
+        "agent on day one."
+    ),
     long_help=_long_help,
     bare_sub="list",
     sub_commands={

@@ -151,6 +151,8 @@ FOLDER_MIGRATIONS = [
 HISTORY_FILE = ".cmd_history.txt"
 HISTORY_SUFFIX = ".history"
 LOG_SUFFIX = ".log"
+# The MCP server's session log, beside the TUI's <stem>.log (session_log).
+MCP_LOG_SUFFIX = ".mcp.log"
 # The /cfg.info project report, also written at exit.
 INFO_REPORT_SUFFIX = ".md"
 # The v2 device profile the MCP host auto-loads by convention.
@@ -173,10 +175,53 @@ PROFILE_TMP_GLOB = f"{PROFILE_TMP_PREFIX}*{FOLDER_EXTS[RUN]}"
 SIDECARS: tuple[tuple[str, str | None], ...] = (
     (HISTORY_SUFFIX, None),
     (LOG_SUFFIX, None),
+    (MCP_LOG_SUFFIX, None),
     (INFO_REPORT_SUFFIX, None),
     (PROFILE_SUFFIX, None),
     (SYMBOLS_SUFFIX, SYM),
 )
+
+# -- Containment: whether a path stays in a folder ----------------------------
+
+
+def inside(folder: Path | str, name: Path | str) -> Path | None:
+    """``name`` under ``folder``, resolved, or ``None`` when it lands outside ``folder``.
+
+    The one test of whether a path stays in a folder (registry
+    ``path-inside-one-check``).  ``..`` is collapsed and links are followed
+    before asking, so a climb out, an absolute path (which replaces
+    ``folder`` when joined) and the Windows forms that are not absolute yet
+    leave it (``\\x``, ``D:x``) all answer ``None``; ``folder`` itself
+    counts as inside.  A path the OS cannot resolve answers ``None`` too.
+
+    Args:
+        folder: The folder the path must stay in; it need not exist.
+        name: A name relative to ``folder``, or any path.
+
+    Returns:
+        The resolved path, or ``None``.
+    """
+    try:
+        root = Path(folder).resolve()
+        path = (root / name).resolve()
+    except OSError:
+        return None
+    return path if path.is_relative_to(root) else None
+
+
+def is_inside(path: Path | str, folder: Path | str) -> bool:
+    """Whether ``path``, resolved where it stands, is in ``folder``.
+
+    For a path that already means a place: a relative one is measured from
+    the working folder, as ``open`` would.  A name meant relative to
+    ``folder`` is :func:`inside`'s.
+    """
+    try:
+        resolved = Path(path).resolve()
+    except OSError:
+        return False
+    return inside(folder, resolved) is not None
+
 
 # -- Lifecycle: how a data folder comes and goes ------------------------------
 

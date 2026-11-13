@@ -43,13 +43,19 @@ terminals, columns drop in this order until the row fits: speed, chip,
 VID:PID, driver, vendor, PRODUCT, SERIAL #, IF, location.  PORT, MFG and
 DESCRIPTION always stay.
 
-Filter to a single port by name:
+Give a pattern to show only the ports with any field that contains it:
+the maker, a serial number, the chip, VID:PID or the port name.  Case is
+ignored, and a wildcard (`*`, `?`, `[`) makes a glob that must match a
+whole field:
 
 ```sh
-termapy --ports=COM4
+termapy --ports FTDI            # every FTDI adapter
+termapy --ports Microchip
+termapy --ports BG03U7VTA       # which COM is this adapter?
+termapy --ports "COM[1]"        # COM1 alone; plain COM1 also finds COM10-COM19
 ```
 
-Exits 0 on match, 1 on "not found" or "no ports" (script-friendly).
+Exits 0 on match, 1 on no match or no ports (script-friendly).
 
 `--ports` lists physical ports only — the ones the OS reports via
 pyserial's `comports()`.  Termapy also accepts pyserial URL handlers
@@ -170,22 +176,13 @@ you to open an issue so the lookup table can grow.
 Exits 0 if at least one port was printed, 1 if the named port wasn't
 found or no ports are connected.
 
-## Filtering and JSON output
+## JSON output
 
-`--ports` accepts these script-friendly filters (AND together):
-
-| Flag        | Effect                                                              |
-| ----------- | ------------------------------------------------------------------- |
-| `--vid HEX` | Only USB devices matching this VID. Hex with or without `0x`.       |
-| `--pid HEX` | Only USB devices matching this PID.                                 |
-| `--mfg STR` | Manufacturer substring match (case-insensitive).                    |
-| `--sn STR`  | Exact serial-number match (case-insensitive).                       |
-| `--json`    | Emit a JSON array instead of the column table; also for `--chips` and `--usb`. |
-
-Example:
+`--json` emits a JSON array instead of the column table, for `--ports`,
+`--chips` and `--usb`.  Filter it with the tool you script in:
 
 ```sh
-termapy --ports --vid 0403 --json | jq '.[].device'
+termapy --ports --json | jq -r '.[] | select(.vid_pid == "0403:6001") | .device'
 ```
 
 Each `--ports --json` record has a stable schema:
@@ -205,6 +202,7 @@ Each `--ports --json` record has a stable schema:
   "vid_pid": "0403:6001",
   "serial_number": "AL01ABCD",
   "in_use": false,
+  "session": null,
   "driver": "ftdi_sio",
   "location": "Hub_#0009.Port_#0004",
   "interface_number": null
@@ -228,10 +226,20 @@ driver — a Microchip USB-serial chip running on Microsoft's
 benefit from seeing all three.
 
 Numeric fields stay numeric; missing values are `null` (not omitted).
-`vid_pid` is the canonical lowercase-hex form for literal matching.
-`driver` is the kernel module name on Linux (`ftdi_sio`, `cdc_acm`,
-`ch341`, `cp210x`, ...) and the Windows service name (`FTDIBUS`,
-`usbser`, `silabser`, ...). On macOS `driver` is `null` for now.
+`vid_pid` is the canonical uppercase-hex form (`10C4:EA60`) for literal
+matching.  `driver` is the kernel module name on Linux (`ftdi_sio`,
+`cdc_acm`, `ch341`, `cp210x`, ...) and the Windows service name
+(`FTDIBUS`, `usbser`, `silabser`, ...).  On macOS `driver` is `null` for
+now.
+
+`session` is the termapy session holding the port, from the breadcrumb
+every running termapy leaves: `"termapy mcp, PID 17140"`, or `null` when
+no termapy holds it.  Only termapy sessions are seen there, on every OS,
+so `null` does not mean free: PuTTY or another program may have it.
+`in_use` is `true` or `false` only when something checked (the in-use
+probe `--ports --json` runs, or a session's breadcrumb), and `null` when
+nothing did.  At a terminal `--ports` colors a port another termapy
+session holds yellow.
 
 ### Hardware-free CI: `--ports DEMO`
 
@@ -249,19 +257,76 @@ Bare `--ports` (no filter) does NOT include `DEMO` in the listing --
 it only appears when you specifically ask for it, the same way
 pyserial's `loop://` URL handler is reachable but not enumerated.
 
+## `--alive` and `--kill`: see and stop sessions
+
+Every running termapy -- a TUI, a CLI, an MCP server an editor started, a
+`--web` server -- leaves a breadcrumb in the app state folder
+(`%LOCALAPPDATA%\termapy\running\` on Windows) naming its config and the
+port it has open.  `--alive` lists them:
+
+```text
+$ termapy --alive
+running termapys - 2 sessions
+PID    MODE  CONFIG  PORT  SETTINGS    VERSION  STARTED              STARTED BY
+-----  ----  ------  ----  ----------  -------  -------------------  --------------------
+21552  mcp   m3_bin  COM4  115200 8N1  0.80.0   2026-10-27 16:38:45  pwsh.exe 20112
+28172  tui   demo    DEMO  115200 8N1  0.80.0   2026-10-31 08:56:24  powershell.exe 17604
+```
+
+SETTINGS is the open port's baud and frame.  STARTED BY is the program
+that started the session, past python, termapy and uv.  A one-shot (`-e`,
+`--run`) records no version or starter, which take a tenth of a second to
+read.  A narrow terminal drops STARTED BY first.
+
+`--kill` stops them, after a yes; bare, it lists them as `--alive` does.
+Each session is asked to leave and leaves as `/exit` does: its terminal
+restored, its port closed, its history saved, its session log ended.
+termapy never ends a session itself.  One still running when `timeout=`
+is up (3 s unless you give one), hung, partway through a firmware write,
+or started by an older termapy, keeps running, and the reply names the
+command that ends it (`taskkill -PID 22056 -F` on Windows, which works in
+cmd, PowerShell and Git Bash alike, `kill -9 22056` elsewhere):
+
+```sh
+termapy --kill all      # every termapy, say before an update
+termapy --kill 21552    # the session with that PID, as --alive lists it
+termapy --kill COM4     # whichever session holds COM4
+termapy --kill m3_bin   # the sessions on that config (m3* picks several)
+termapy --kill all timeout=10s   # give them longer to leave
+termapy --kill all -y            # no question: yes (-y / --yes)
+```
+
+Inside termapy the same two are `/app.alive` and `/app.kill <target>`:
+`/app.kill others` stops every session but the one you type it in,
+`/app.kill all` that one too, and `/app.kill me` that one alone, which is
+`/exit`.  When a target picks the session you type it in, that one goes
+last, through `/exit`, so it saves its history.
+`/app.alive.json` adds what does not fit a row: the config, the Python
+executable, the folder the session started in and its session log, each
+an absolute path, and the open port's serial number.
+
+With no terminal to answer on (a pipe), the answer is no.  A session you
+end with `taskkill` or `kill` writes no `Session End` to its log, and a TUI
+ended that way leaves its window as the TUI had it: close the window.  A
+session started before breadcrumbs existed is not listed: end that one
+from Task Manager or `kill`, once.
+
 ## Other flags worth knowing
 
 | Flag              | What it does                                                  |
 | ----------------- | ------------------------------------------------------------- |
 | `--chips`         | Dump the full USB-serial chip lookup table (VID:PID → model). |
-| `--chips=ftdi`    | Filter the table (case-insensitive substring match).          |
-| `--usb`           | Whole USB tree with serial ports marked (Windows and Linux); pairs with `--json`. |
+| `--chips=ftdi`    | Only the chips any column of which contains it (`ftdi`, `0403`, `high`); a wildcard makes a glob. |
+| `--usb`           | Whole USB tree with serial ports marked, in color at a terminal (Windows and Linux); pairs with `--json`. |
 | `--check`         | Validate your config, print JSON status, exit.                |
 | `--version`       | Print the installed version and exit.                         |
 | `--demo`          | Set up (if needed) and start the demo device config.          |
 | `--board BOARD`   | Start a dev board's starter config, creating it on first use from the attached board (see [Dev boards](boards.md)). |
 | `--new NAME PORT [SETTING ...]` | Create config NAME for PORT and start it connected (see [Quick setup](getting-started.md#quick-setup)). |
+| `PORT [SETTING ...]` | Not a flag: a port where the config goes opens the port with its own config, kept in your user folder (see [Quick open](getting-started.md#quick-open-just-a-port)). |
 | `--vt100`         | Start in VT100 passthrough mode (see [VT100 mode](vt100.md)). |
+| `--web [[HOST:]PORT]` | Serve the TUI in a browser: `http://localhost:8000`, this machine only, unless `9000`, `192.168.1.50` or `192.168.1.50:9000` says otherwise. A network address opens it to other computers, with no login; `/cli` and `/vt100` are not available in the browser. |
+| `-y`, `--yes`     | Answer yes to the command line's questions: `--kill`, `--new`'s overwrite, a CLI session's. Not the TUI's dialogs; never under `--mcp`. |
 | `--no-color`      | Plain output without ANSI color (implied by `-e`).            |
 | `--cfg-dir PATH`  | Override the default config directory for this run.           |
 | `--cli`           | Plain-text mode instead of the TUI.  Default form is an interactive REPL; pair with `--run` or `--exec` for one-shot.  With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |
@@ -359,9 +424,9 @@ if your one-shot needs init steps, write a `.run` file and use
 
 **Pair with `request_mode=true`** in cfg to emit a JSON envelope
 (`{cmd, success, error, elapsed_s, result}`) instead of plain text.
-Each envelope is one line, so a consumer can read stdout line by line;
-`json_style` (`/term.json`) set to `indent` or `color` pretty-prints it
-for a human instead.
+Piped or captured, each envelope is one line, so a consumer can read
+stdout line by line. At a terminal termapy lays it out for a person, as
+`json_fmt.indent` and `json_fmt.highlight` say (`/term.json_fmt`).
 
 **Mutual exclusion.** `--exec` and `--run` can't both be set; passing
 both exits with an argparse error.

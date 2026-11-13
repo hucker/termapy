@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from textual import on
+from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
@@ -101,10 +101,11 @@ class QuickSetup(ModalScreen[tuple | None]):
         self.dismiss(None)
 
     def compose(self) -> ComposeResult:
-        from serial.tools.list_ports import comports
         from textual.widgets import Static
 
-        self._ports = sorted(comports(), key=lambda p: p.device)
+        from termapy.port_control import system_ports
+
+        self._ports = sorted(system_ports(), key=lambda p: p.device)
         dialog = Vertical(id="qs-dialog")
         dialog.border_title = self._title
         with dialog:
@@ -209,9 +210,9 @@ class QuickSetup(ModalScreen[tuple | None]):
         "Connect" / "No Ports" states so the button label tells the
         truth about whether clicking it will do anything.
         """
-        from serial.tools.list_ports import comports
+        from termapy.port_control import system_ports
 
-        fresh = sorted(comports(), key=lambda p: p.device)
+        fresh = sorted(system_ports(), key=lambda p: p.device)
         if [p.device for p in fresh] == [p.device for p in self._ports]:
             return
         self._ports = fresh
@@ -231,7 +232,7 @@ class QuickSetup(ModalScreen[tuple | None]):
             btn.variant = "error"
             btn.disabled = True
 
-    def on_resize(self, _event) -> None:
+    def on_resize(self, _event: events.Resize) -> None:
         """Re-render the port list when the terminal/dialog resizes.
 
         Without this, columns dropped while the screen was narrow

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy import load_report
+from termapy import diag_log, load_report, port_control
 from termapy.builtins.commands._cfg_icon import (
     _FLAGS as _ICON_FLAGS,
     _LONG_HELP as _ICON_LONG_HELP,
@@ -17,25 +18,37 @@ from termapy.builtins.commands._cfg_icon import (
     retire_launcher,
 )
 from termapy.config import (
+    CONFIG_GLOB,
     ConfigExistsError,
     cfg_choice,
     cfg_data_dir,
     cfg_dir,
     cfg_history_path,
     cfg_path_for_name,
+    cfg_value_text,
+    check_cfg_value,
     config_names,
     config_summary,
     create_config,
     delete_config,
     delete_config_question,
     global_plugins_dir,
+    is_config_file,
     new_config_from_args,
     open_with_system,
     rename_config,
 )
 from termapy.config_resolve import resolve_config
+from termapy.defaults import CFG_CHOICES, cfg_key, cfg_slot, cfg_value
 from termapy.folder_ops import FILE_COLUMNS, edit_cfg_command, file_record, list_entries
-from termapy.folders import FOLDER_PATTERNS, FOLDERS, INFO_REPORT_SUFFIX, PLUGIN, file_suggestion
+from termapy.folders import (
+    FOLDER_PATTERNS,
+    FOLDERS,
+    INFO_REPORT_SUFFIX,
+    PLUGIN,
+    file_suggestion,
+    inside,
+)
 from termapy.help_dynamic import cfg_status, compose
 from termapy.matching import closest, did_you_mean
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
@@ -54,14 +67,26 @@ if TYPE_CHECKING:
 # ── /cfg handler ───────────────────────────────────────────────────────────────
 
 
-def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    """Show all config, a single key, or set a key with confirmation.
+def _cfg_answer(val: object) -> CmdResult:
+    """A key's value as the answer: ``data`` with its JSON type, ``value`` the same when it is a scalar.
 
-    With no arguments, prints every key/value pair. With a key only,
-    prints that key's current value. With key and value, validates the
+    A switch, a number or text is the value itself (registry
+    ``value-typed``); a container, which a value cannot be, is compact JSON
+    the way the config file spells it (``config.cfg_value_text``).
+    """
+    scalar = val is None or isinstance(val, (bool, int, float, str))
+    return CmdResult.ok(value=val if scalar else cfg_value_text(val), data=val)
+
+
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
+    """Show a single key, or set a key with confirmation.
+
+    Bare never arrives (the picker or ``/cfg.list`` runs).  With a key
+    only, prints that key's current value.  With key and value, validates the
     type against the existing value, then asks the frontend to confirm
     and answers after it does (Cancel fails), or applies directly where
-    the frontend has no dialog.
+    the frontend has no dialog.  Every answer carries the key's value as
+    ``data``, with its JSON type.
 
     Args:
         ctx: Plugin context for config access and output.
@@ -79,23 +104,24 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not parts:
         raise UsageError()
     key = parts[0]
-    container = _find_cfg_container(ctx.cfg, key)
-    if container is None:
+    slot = cfg_slot(ctx.cfg, key)
+    if slot is None:
         return _unknown_key(ctx.cfg, key)
+    container, leaf = slot
     # /cfg key - show value
     if len(parts) == 1:
-        val = container[key]
-        ctx.io.result(str(val))
-        return CmdResult.ok(value=str(val))
+        val = container[leaf]
+        ctx.io.result(cfg_value_text(val))
+        return _cfg_answer(val)
     # /cfg key value - validate and delegate for confirmation
     try:
-        new_val = _typed_value(container, key, parts[1])
+        new_val = _typed_value(ctx, container, leaf, parts[1])
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
-    old_val = container[key]
+    old_val = container[leaf]
     if new_val == old_val:
         ctx.io.output(f"{key} is already {old_val!r}")
-        return CmdResult.ok(value=str(old_val))
+        return _cfg_answer(old_val)
     # The TUI asks first and answers only after the dialog does, so a
     # script line after /cfg sees the outcome (review 2026-10-15, D7).
     if ctx.internal.confirm_save_cfg:
@@ -103,56 +129,46 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.fail(msg="Canceled.")
     else:
         ctx.internal.apply_cfg(key, new_val)
-    return CmdResult.ok(value=str(new_val))
+    return _cfg_answer(new_val)
 
 
-def _typed_value(container, key: str, value_str: str) -> object:
-    """``value_str`` as ``key``'s type, and for a fixed-value key spelled as the config has it.
+def _typed_value(ctx: PluginContext, container: Mapping, key: str, value_str: str) -> object:
+    """``value_str`` as the value ``key`` will hold, checked by the schema's one validator.
+
+    A key the schema does not hold takes the type of what the config has.
 
     Raises:
-        ValueError: The text is not the key's type (a ``Type error``), or
-            not one of its choices.
+        ValueError: The key is termapy's own, the text is not the key's type
+            (a ``Type error``), or the check refuses the value.
+        MissingCapability: A path value escapes the MCP sandbox.
     """
+    record = cfg_key(key)
+    if record is not None and record.managed:
+        raise ValueError(f"Managed key: {key} (termapy writes it)")
+    if record is not None and record.kind == "path" and value_str:
+        # A path key turns a later read or load into a file primitive
+        # (log_file -> /log.dump), so it is held to the MCP sandbox.
+        ctx.fs.guard_external_path(value_str, f"cfg {key}")
+    if key in CFG_CHOICES:
+        return cfg_choice(key, value_str)
     try:
-        value = coerce_to_type(value_str, container[key])
+        value = coerce_to_type(value_str, record.default if record else container[key])
     except (ValueError, TypeError) as e:
         raise ValueError(f"Type error: {e}") from e
-    return cfg_choice(key, value)
+    finding = check_cfg_value(key, value, ctx.cfg)
+    if finding is not None:
+        raise ValueError(f"Invalid {key}: {value_str} ({finding.reason})")
+    return value
 
 
-def _unknown_key(cfg, key: str) -> CmdResult:
+def _unknown_key(cfg: Mapping, key: str) -> CmdResult:
     """The failure for a key the config does not have, naming the nearest keys it does."""
-    serial = cfg.get("serial", {})
-    keys = [*cfg, *(serial if isinstance(serial, dict) else ())]
+    leaves = [leaf for value in cfg.values() if isinstance(value, Mapping) for leaf in value]
+    keys = [*cfg, *leaves]
     return CmdResult.fail(msg=f"Unknown config key: {key}{did_you_mean(closest(key, keys))}")
 
 
-def _find_cfg_container(cfg, key: str):
-    """Return the dict that owns ``key`` (top-level or under cfg["serial"]).
-
-    Lets ``/cfg port`` keep working post-v22 even though port now lives
-    under ``cfg["serial"]``.  ``None`` means the key isn't known.  Only
-    looks one level deep (top + serial sub-dict); deeper nesting would
-    require dotted-path support.
-
-    ``cfg`` is typed loosely (``MappingProxyType | dict`` in callers)
-    so the helper just relies on duck-typed ``in`` / ``get``.
-    """
-    if key in cfg:
-        return cfg
-    serial = cfg.get("serial", {})
-    if isinstance(serial, dict) and key in serial:
-        return serial
-    return None
-
-
 # ── /cfg.auto handler ─────────────────────────────────────────────────────────
-
-# Cfg keys whose value is a filesystem path.  Setting one to an
-# out-of-sandbox path turns a later read/load into an arbitrary-file
-# primitive (e.g. log_file -> /log.dump), so they are contained under
-# the MCP sandbox like any other caller-supplied path.
-_PATH_VALUED_CFG_KEYS = frozenset({"log_file", "profile_path"})
 
 
 def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
@@ -163,17 +179,16 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     """
     key = ctx.arg("key")
     value_str = ctx.arg("value")
-    container = _find_cfg_container(ctx.cfg, key)
-    if container is None:
+    slot = cfg_slot(ctx.cfg, key)
+    if slot is None:
         return _unknown_key(ctx.cfg, key)
-    if key in _PATH_VALUED_CFG_KEYS and value_str:
-        ctx.fs.guard_external_path(value_str, f"cfg {key}")
+    container, leaf = slot
     try:
-        new_val = _typed_value(container, key, value_str)
+        new_val = _typed_value(ctx, container, leaf, value_str)
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
     ctx.internal.apply_cfg(key, new_val)
-    return CmdResult.ok(value=str(new_val))
+    return _cfg_answer(new_val)
 
 
 # ── /cfg.list handler ─────────────────────────────────────────────────────────
@@ -182,23 +197,35 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     """List the configs newest first: the Cfg picker's rows, ``*`` on the loaded one.
 
-    ``value`` is the config names (what ``/cfg.load`` takes); each data
-    record is the file's ``file_record`` plus ``file``, ``active`` and
-    ``config.config_summary``'s port, baud and title.
+    Each data record is the file's ``file_record`` plus ``name`` (what
+    ``/cfg.load`` takes), ``file``, ``active``, ``config.config_summary``'s
+    port, baud and title, and ``device``: the device the port names, which
+    the PORT column shows (registry ``port-display``). ``port`` stays the
+    file's spelling, a serial number or a fallback chain included, so an
+    agent sees both; the devices are resolved once for the whole list,
+    the active config showing the port this session has open.
 
     Args:
         ctx: Plugin context for output.
         args: Unused.
     """
     root = cfg_dir()
-    paths = list_entries(root, "*/*.cfg")
+    paths = [path for path in list_entries(root, CONFIG_GLOB) if is_config_file(path)]
+    summaries = {path: config_summary(path) for path in paths}
+    ser = ctx.internal.port()
+    devices = port_control.listing_devices(
+        {str(path): summary["port"] for path, summary in summaries.items()},
+        active=ctx.config_path or None,
+        open_device=str(getattr(ser, "port", "") or "") if ser is not None else "",
+    )
     records = [
         {
             **file_record(path),
             "name": path.stem,
             "file": f"{path.parent.name}/{path.name}",
             "active": str(path) == ctx.config_path,
-            **config_summary(path),
+            **summaries[path],
+            "device": devices[str(path)],
         }
         for path in paths
     ]
@@ -209,12 +236,11 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
             run=lambda record: f"cfg.load {record['name']}",
         ),
         *FILE_COLUMNS[1:],
-        Column("PORT", lambda record: record["port"]),
+        Column("PORT", lambda record: record["device"]),
         Column("BAUD", lambda record: str(record["baud_rate"] or ""), right=True),
         Column("TITLE", lambda record: record["title"]),
     )
-    names = "\n".join(path.stem for path in paths)
-    return CmdResult.table(f"{root.name}/", "config", columns, records, value=names)
+    return CmdResult.table(f"{root.name}/", "config", columns, records)
 
 
 # ── /cfg.loaded handler ───────────────────────────────────────────────────
@@ -411,10 +437,10 @@ def _handler_file(ctx: PluginContext, args: str) -> CmdResult:
     name = ctx.arg("name")
     root = Path(ctx.config_path).parent.resolve()
     rel = Path(name)
-    path = (root / rel).resolve()
+    path = inside(root, rel)
     # One refusal for every way out: an absolute name, any "..", and a
     # symlink that resolves outside the folder.
-    if rel.is_absolute() or ".." in rel.parts or not path.is_relative_to(root):
+    if rel.is_absolute() or ".." in rel.parts or path is None:
         return CmdResult.fail(msg=f"Path must be relative to the config folder: {name}")
     if not path.is_file():
         # The folder is the cfg root or one under it: the containment check passed.
@@ -626,7 +652,7 @@ def write_info_report(ctx: PluginContext, *, trigger: str) -> tuple[Path, str]:
     colored_tree, plain_tree = _build_tree(ctx.config_path, sections, global_names)
 
     cfg_display = {k: v for k, v in ctx.cfg.items() if k != "custom_buttons"}
-    buttons = ctx.cfg.get("custom_buttons", [])
+    buttons = cfg_value(ctx.cfg, "custom_buttons")
     active = [button for button in buttons if button.get("enabled")]
     config_name = Path(ctx.config_path).stem
 
@@ -683,9 +709,6 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         if ctx.flag("--display"):
             open_with_system(str(report_path))
     except OSError as e:
-        # File write / directory scan failure -- most likely real
-        # failure mode.  Reports the underlying OS message ("Permission
-        # denied", "No such file or directory") to the user.
         return CmdResult.fail(msg=f"Info error: {e}")
     except TypeError as e:
         # json.dumps() hit a non-serializable value in the config.
@@ -708,7 +731,7 @@ def on_app_stop(ctx: PluginContext) -> None:
     try:
         write_info_report(ctx, trigger="at exit")
     except (OSError, TypeError, RuntimeError):
-        pass
+        diag_log.exception("info report at exit failed")
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────
@@ -722,8 +745,10 @@ Three modes:
 The value is read as the key's current type (int, float, bool,
 string). Bool accepts:
   {BOOL_TOKENS_HELP}
-A key with a fixed set of values (parity, json_style,
+A key with a fixed set of values (parity, json_fmt.indent,
 custom_buttons_side, ...) takes one of them in any case.
+A key inside a section is named by its path (json_fmt.indent) or,
+when no other section has one, its own name (baud_rate).
 A change lasts for this session; to keep it, set it in the
 config editor.
 
@@ -742,6 +767,11 @@ COMMAND = Command(
     name="cfg",
     args="{key {value}}",
     help="Show or set config values.",
+    intro=(
+        "A config is one device's settings: a JSON file in its own folder, with that "
+        "device's scripts, logs and captures beside it. Create, load, edit and change"
+        " configs here."
+    ),
     long_help=_cfg_long_help,
     handler=_handler,
     picker="cfg",
@@ -767,10 +797,19 @@ COMMAND = Command(
             help="List all config files.",
             handler=_handler_list,
             shows=True,
+            state=True,
         ),
         "load": Command(
             args="<name>",
             help="Load a different config in this session (hot-swap).",
+            long_help=(
+                "Puts the session where a fresh start on that config would: what "
+                "this session changed is gone, including settings, user variables, "
+                "{prefix}env.set values, counters and the device profile.  A capture or a "
+                "recording stops.  The port opens only if the config says "
+                "auto_connect.  What you asked for at launch, such as --no-color or "
+                "--quiet, still holds."
+            ),
             handler=_handler_load,
         ),
         "loaded": Command(
@@ -788,6 +827,7 @@ COMMAND = Command(
             ),
             handler=_handler_loaded,
             shows=True,
+            state=True,
         ),
         "new": Command(
             args="<name> <port> {baud} {mode}",
@@ -814,13 +854,13 @@ COMMAND = Command(
             help="Delete a config and its whole folder (asks first).",
             long_help=(
                 "Delete config <name> and everything in its folder: the .cfg, "
-                "run scripts, profile, logs and captures.  Asks first in the "
-                "TUI and CLI; MCP needs confirm=true.  The active config "
-                "cannot be deleted -- load another first.  A config that "
-                "another program holds open is refused with nothing removed.  "
-                "Its desktop launcher, if any, goes too."
+                "run scripts, profile, logs and captures.  Asks first.  The "
+                "active config cannot be deleted -- load another first.  A "
+                "config that another program holds open is refused with "
+                "nothing removed.  Its desktop launcher, if any, goes too."
             ),
             handler=_handler_delete,
+            needs=CapabilitySet.INTERACTIVE,
             safety="destructive",
         ),
         "rename": Command(
@@ -835,13 +875,14 @@ COMMAND = Command(
                 "{prefix}cfg.icon makes a new one."
             ),
             handler=_handler_rename,
+            needs=CapabilitySet.INTERACTIVE,
         ),
         "info": Command(
             args="",
             flags={"--display": "Open full report in the system viewer."},
             help="Print project summary (tree + config + buttons).",
             handler=_handler_info,
-            shows=True,
+            cfg={"custom_buttons": "the enabled buttons, in the report"},
             needs=CapabilitySet.CONFIG_LOADED,
         ),
         "explore": Command(
@@ -891,14 +932,20 @@ COMMAND = Command(
         "icon": Command(
             args="{--force}",
             help="Create a desktop / menu launcher for the current cfg.",
+            intro=(
+                "A desktop or menu launcher that opens this config directly: create one, list"
+                " them, or remove one."
+            ),
             long_help=_ICON_LONG_HELP,
             handler=_handler_icon,
+            cfg={"title": "names the launcher"},
             flags=_ICON_FLAGS,
             needs=CapabilitySet.CONFIG_GUI_APPS,
             sub_commands={
                 "remove": Command(
                     help="Delete the launcher for the current cfg.",
                     handler=_handler_icon_remove,
+                    cfg={"title": "names the launcher it removes"},
                     needs=CapabilitySet.CONFIG_GUI_APPS,
                     safety="mutable",
                 ),

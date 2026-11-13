@@ -88,8 +88,9 @@ class TestTable:
                 assert source_path(target, name).is_file(), f"{target.name}: {name} is missing"
                 assert source_text(target, name), f"{target.name}: {name} is empty"
 
+    @pytest.mark.rule("firmware-ascii-only")
     def test_shipped_sources_are_ascii(self):
-        """firmware-ascii-only: Every device-side file /firmware or /board ships is pure ASCII; a rule is --.
+        """Every device-side file /firmware or /board ships is pure ASCII; a rule is --.
 
         The sources are compiled by toolchains, run on boards, read in build
         logs and editors that mishandle UTF-8, and travel in a JSON envelope
@@ -226,6 +227,7 @@ class TestCommands:
         assert bad_lang.error == "Unknown language: rust (use c)"
         assert not (tmp_path / "out").exists(), "nothing is created for a bad request"
 
+    @pytest.mark.rule("writes-in-cfg-folder")
     def test_firmware_copy_defaults_to_the_config_folder(self, env: Env, tmp_path):
         """With no folder= the files go in the config's firmware/ folder, never the working directory."""
         # Act
@@ -240,6 +242,7 @@ class TestCommands:
         )
         assert not Path("termapy_mem.c").exists(), "the working directory is never written"
 
+    @pytest.mark.rule("writes-in-cfg-folder")
     def test_firmware_copy_relative_folder_is_under_the_config(self, env: Env, tmp_path):
         """A relative folder= lands under the config's folder, not the process working directory."""
         result = env.engine.dispatch("firmware.copy json folder=fw")
@@ -264,8 +267,13 @@ class TestCommands:
         assert inside.success, "the config's own firmware/ is inside the sandbox"
 
     def test_firmware_dump_prints_one_file(self, env: Env):
-        """/firmware.dump <name> <file> prints the file and makes its text the value, with the facts as data."""
+        """/firmware.dump <name> <file> is a record page: the file's lines print, its text is the value, the facts the data."""
+        from termapy.markup import markup_to_plain
+
         expected = source_text(find_target("mem"), "termapy_mem.h")
+        # A record page prints through the markup channel, which a bare engine drops.
+        page: list[str] = []
+        env.engine.ctx.io._write_markup = page.append
 
         result = env.engine.dispatch("firmware.dump mem termapy_mem.h")
 
@@ -273,7 +281,18 @@ class TestCommands:
         assert result.value == expected, "the file's text is the scriptable value"
         assert result.data["file"] == "termapy_mem.h"
         assert result.data["bytes"] == len(expected.encode("utf-8")), "bytes is the UTF-8 size"
-        assert env.output[-1] == expected.splitlines()[-1], "every line reached the terminal"
+        shown = [markup_to_plain(line)[2:] for line in page]
+        assert shown == expected.splitlines(), "every line reached the terminal, as written"
+
+    @pytest.mark.rule("view-is-the-answer")
+    def test_firmware_dump_shows_at_quiet(self, env: Env):
+        """The file is the answer, so .quiet prints it too."""
+        page: list[str] = []
+        env.engine.ctx.io._write_markup = page.append
+
+        env.engine.dispatch("firmware.dump.quiet mem termapy_mem.h")
+
+        assert page, "the page printed at quiet"
 
     def test_firmware_dump_needs_a_file_name_for_a_pair(self, env: Env):
         """A module shipping two files will not guess which one to print."""

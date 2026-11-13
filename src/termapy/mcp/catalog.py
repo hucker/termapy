@@ -83,12 +83,6 @@ def build_catalog(ctx: PluginContext) -> dict[str, Any]:
     # ``attainable``, not filters: until 2026-10-16 this read the static
     # set, and every command that needs a port (/mem.*, /ping, /cap.*)
     # was missing from the catalog an agent discovers commands by.
-    #
-    # The ``hidden`` flag is intentionally NOT a filter.  ``hidden``
-    # is a UI-discoverability concern (don't list in /help) used for
-    # legacy aliases -- it doesn't speak to MCP appropriateness.
-    # Hidden plugins still appear in the catalog with ``hidden: true``
-    # so MCP clients that want to skip them can do it themselves.
     capabilities = getattr(ctx, "capabilities", None)
     reachable = attainable(capabilities) if capabilities is not None else None
     cmd_list: list[dict[str, Any]] = []
@@ -310,7 +304,6 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
         "long_help": long_help_text,
         "flags": dict(plugin.flags) if plugin.flags else {},
         "needs": _needs_list(plugin.needs),
-        "hidden": bool(plugin.hidden),
         "source": plugin.source or "built-in",
         "raw_args": bool(plugin.raw_args),
     }
@@ -322,6 +315,11 @@ def _command_descriptor(plugin: PluginInfo, ctx: PluginContext) -> dict[str, Any
     # agent knows which commands may change (registry maturity-declared-once).
     if plugin.maturity != "stable":
         entry["maturity"] = plugin.maturity
+    # The config keys it depends on and how it uses each, as /help's CONFIG
+    # section shows them; omitted when it declares none (registry
+    # cfg-declared).
+    if plugin.cfg:
+        entry["cfg"] = {path: interpolate_help(use, ctx.prefix) for path, use in plugin.cfg.items()}
     # Structured, typed argument schema for commands that declare params --
     # parity with device commands' ``typed_args``.  Omitted (not empty) for
     # commands that haven't been migrated, so their entry shape is unchanged.

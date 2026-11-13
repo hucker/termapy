@@ -11,10 +11,13 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
+import pytest
 from packaging.requirements import Requirement
 
 from termapy.credits_data import CREDITS, credits_of, tooltip_credits
 from termapy.help_tooltip import build_help_tooltip
+
+pytestmark = pytest.mark.rule("credits-single-source")
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PYPROJECT = _REPO_ROOT / "pyproject.toml"

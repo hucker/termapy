@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import difflib
+import os
 import re
 import subprocess
 import sys
@@ -48,8 +49,12 @@ def _run_cli_script(script_name: str, tmp_path: Path) -> subprocess.CompletedPro
             "from termapy.entry import main; main()",
         ],
         capture_output=True,
+        # gui_apps as on the desktop the gold was recorded on, so a headless
+        # runner answers /log.diag.show with its name check, not the gate.
+        env={**os.environ, "TERMAPY_GUI": "1"},
         text=True,
-        timeout=30,
+        # About 15 s idle; past 30 s under tox's parallel load on Python 3.11.
+        timeout=120,
     )
 
 
@@ -68,6 +73,11 @@ _ELAPSED_RE = re.compile(r'"elapsed_s": \d+(?:\.\d+)?')
 # the listing runs ("just now").
 _SIZE_RE = re.compile(r"\s+\d+(?:\.\d)? +(?:B|KB|MB)\b")
 
+# /term.info's rx_bytes counts what the reader has drained when the line
+# runs, and the DEMO's last reply may still be in flight; mask the number.
+# tx_bytes stays exact: every write finishes before the next script line.
+_RX_BYTES_RE = re.compile(r"^(\s*rx_bytes\s*: )\d+$")
+
 
 def _normalize(text: str) -> list[str]:
     """Normalize output for comparison.
@@ -76,6 +86,7 @@ def _normalize(text: str) -> list[str]:
     - 'Running script:' lines (path varies by platform/location)
     - Verbose timing lines like '[1/3] AT (0.015s)' (nondeterministic)
     - ``"elapsed_s": <n>`` inside JSON envelopes -> ``"elapsed_s": 0``
+    - ``/term.info``'s ``rx_bytes`` count -> ``<N>`` (the last reply may still be arriving)
     - File sizes in listings (``1.2 KB``) -> ``<SIZE>`` (CRLF/LF checkouts differ),
       and a listing's header padding and dash row, whose widths follow them
     - Absolute paths replaced with <CFG_DIR>/demo/
@@ -92,6 +103,7 @@ def _normalize(text: str) -> list[str]:
         if _VERBOSE_RE.match(line):
             continue
         line = _ELAPSED_RE.sub('"elapsed_s": 0', line)
+        line = _RX_BYTES_RE.sub(r"\1<N>", line)
         line = _SIZE_RE.sub("  <SIZE>", line)
         line = _collapse_listing_header(line)
         line = _collapse_listing_separator(line)
@@ -214,6 +226,8 @@ def _assert_gold(script_name: str, expected_name: str, tmp_path: Path) -> None:
 
 
 class TestCliGold:
+    @pytest.mark.rule("param-gold-tests")
+    @pytest.mark.rule("no-crash-to-trace")
     def test_cli_basic(self, tmp_path):
         """Run cli_test.run and compare to cli_test.expected."""
         _assert_gold("cli_test.run", "cli_test.expected", tmp_path)

@@ -66,6 +66,7 @@ class TestRenameConfig:
         assert Path(actual) == tmp_path / "xm" / "xm.cfg"
         assert (tmp_path / "xm" / "xm.cfg").is_file()
 
+    @pytest.mark.rule("sidecars-listed-once")
     def test_non_standard_layout_renames_only_the_file(self, tmp_path):
         """A folder not named after the config is left alone; only the .cfg is renamed."""
         # Arrange -- folder named differently from the config
@@ -159,8 +160,9 @@ class TestRenameCarriesEverySidecar:
         assert left == [], f"nothing keeps the old name: {left}"
 
 
+@pytest.mark.rule("config-deleted-once")
 class TestDeleteConfig:
-    """config-deleted-once: ``delete_config`` removes a config's whole folder, or only its own files."""
+    """``delete_config`` removes a config's whole folder, or only its own files."""
 
     def test_the_standard_layout_loses_its_whole_folder(self, tmp_path):
         """The folder named after the config goes with the .cfg, run script and all."""

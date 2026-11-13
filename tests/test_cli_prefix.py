@@ -28,7 +28,7 @@ import pytest
 
 from termapy.defaults import DEFAULT_CFG
 
-pytestmark = pytest.mark.slow  # subprocess-spawning CLI prefix-substitution tests
+pytestmark = [pytest.mark.slow, pytest.mark.rule("prefix-never-hardcoded")]
 
 
 def _run_cli(
@@ -101,18 +101,18 @@ class TestPrefixDispatchShapes:
     """
 
     def test_bare_command_dispatches(self, tmp_path):
-        """The shortest shape, a bare !ver with no arguments, reaches the version handler."""
-        # Arrange -- `!ver` is the shortest possible REPL invocation.
+        """The shortest shape, a bare !app.ver with no arguments, reaches the version handler."""
+        # Arrange -- `!app.ver` is the shortest REPL invocation with a stable answer.
         result = _run_cli(
             tmp_path,
             cfg_overrides={"cmd_prefix": "!"},
-            script_lines=["!ver"],
+            script_lines=["!app.ver"],
         )
 
         # Assert
         actual = result.stdout
         assert result.returncode == 0, f"stderr: {result.stderr}"
-        assert "termapy v" in actual, f"!ver didn't dispatch the version handler: {actual!r}"
+        assert "termapy v" in actual, f"!app.ver didn't dispatch the version handler: {actual!r}"
 
     def test_positional_string_dispatches(self, tmp_path):
         """A free-text argument after the ! prefix reaches !print as the whole rest of the line."""
@@ -156,10 +156,10 @@ class TestPrefixDispatchShapes:
             ],
         )
 
-        # Assert -- the set took effect (value reads back as False).
+        # Assert -- the set took effect (value reads back as off).
         actual = result.stdout
         assert result.returncode == 0, f"stderr: {result.stderr}"
-        assert "False" in actual, f"!cfg.auto set didn't take effect: {actual!r}"
+        assert "\n  off\n" in actual, f"!cfg.auto set didn't take effect: {actual!r}"
 
     def test_device_command_unprefixed_still_reaches_serial(self, tmp_path):
         """A line with no prefix still falls through to the device and gets the demo OK."""
@@ -264,7 +264,7 @@ class TestPrefixOutputFlowThrough:
         # listing line must NOT begin with a `/`-prefixed command.
         # A "  /cfg " on a listing line would be the smoking-gun
         # shape for a hardcoded prefix in the help-listing renderer.
-        for cmd in ("help", "cfg", "print", "ver", "echo"):
+        for cmd in ("help", "cfg", "print", "app", "term"):
             assert f"  /{cmd} " not in actual and f"  /{cmd}\n" not in actual, (
                 f"/help listing contains hardcoded '/{cmd}' in the "
                 f"command-name column: the listing renderer isn't "

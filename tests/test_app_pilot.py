@@ -15,6 +15,7 @@ faithfully.  So these cover STATE TRANSITIONS, not input-focus behavior.
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import shutil
 import threading
@@ -62,7 +63,7 @@ def _write_cfg(tmp_path, name: str = "proj", **overrides) -> tuple[dict, str]:
     serial = DEFAULT_CFG["serial"]
     assert isinstance(serial, dict), "DEFAULT_CFG['serial'] is a dict"
     cfg = {
-        **DEFAULT_CFG,
+        **copy.deepcopy(DEFAULT_CFG),
         "serial": {**serial, "port": "DEMO"},
         # No auto-connect: these tests are about app state, and chasing a
         # port would make them depend on the demo device's timing.
@@ -94,6 +95,41 @@ def app_factory(tmp_path):
 
 class TestAppBoots:
     """Booting the real app is itself coverage: __init__ and compose run."""
+
+    @pytest.mark.rule("kill-asks-first")
+    def test_a_request_to_leave_exits_as_exit_does(self, app_factory, tmp_path, monkeypatch):
+        """Another termapy's request ends the TUI through its own teardown: history, Session End."""
+        # Arrange
+        import os
+
+        from termapy import breadcrumbs
+
+        monkeypatch.setenv("TERMAPY_STATE_DIR", str(tmp_path / "state"))
+        app, _, _ = app_factory()
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                own = breadcrumbs.Crumb(
+                    pid=os.getpid(),
+                    token=breadcrumbs.process_token(os.getpid()) or "",
+                    started="",
+                    frontend="tui",
+                )
+
+                # Act
+                breadcrumbs.request_stop(own, by=99)
+                await until(pilot, lambda: app._shutting_down, seconds=10)
+
+        _run(scenario)
+
+        # Assert
+        log_path = app.session_log_path()
+        assert log_path is not None, "the TUI keeps a session log"
+        log = log_path.read_text(encoding="utf-8")
+        assert app._shutting_down is True, "the app went through on_unmount"
+        assert "Stop requested by termapy PID 99" in log, "the log says why it ended"
+        assert "Session End" in log, "the session log was ended, as /exit ends it"
 
     def test_a_tui_on_a_terminal_has_its_console(self, app_factory):
         """Not served in a browser, the TUI has a terminal that /cli and /vt100 can take over."""
@@ -207,8 +243,9 @@ class TestCustomButtons:
 
         _run(scenario)
 
+    @pytest.mark.rule("widget-text-literal")
     def test_a_bracketed_name_and_tooltip_render_as_typed(self, app_factory):
-        """widget-text-literal: a button named [Rec] shows [Rec]; as markup it was an empty box (2026-05-22)."""
+        """A button named [Rec] shows [Rec]; as markup it was an empty box (2026-05-22)."""
 
         async def scenario():
             from textual.widgets import Button
@@ -618,8 +655,9 @@ class TestInputLine:
 
         _run(scenario)
 
+    @pytest.mark.rule("file-arg-declared")
     def test_right_accepts_a_suggested_file_name(self, app_factory):
-        """file-arg-declared: a started /run argument ghost-completes to the run/ file; Right takes it."""
+        """A started /run argument ghost-completes to the run/ file; Right takes it."""
 
         async def scenario():
             from textual.widgets import Input
@@ -647,8 +685,9 @@ class TestInputLine:
 
         _run(scenario)
 
+    @pytest.mark.rule("file-arg-declared")
     def test_tui_hooks_keep_their_file_declarations(self, app_factory):
-        """file-arg-declared: the commands the TUI re-registers still declare their folders."""
+        """The commands the TUI re-registers still declare their folders."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -742,17 +781,16 @@ class TestFindBar:
         # Arrange -- drive the real plugin so current_state() builds a
         # genuine snapshot to compare shapes against
         from termapy.builtins.commands import find
+        from termapy.plugins import PluginContext
 
-        find._active = find._Active(
+        ctx = PluginContext()
+        ctx.ns("find")["active"] = find._Active(
             pattern="beta",
             matches=[(2, "beta line")],
             current=0,
             scrollback_text="alpha line\nbeta line\ngamma line",
         )
-        try:
-            real = find.current_state()
-        finally:
-            find._active = None
+        real = find.current_state(ctx)
 
         # Assert -- same keys, so a contract change fails HERE rather than
         # silently diverging from what the UI actually receives
@@ -902,8 +940,9 @@ class TestFindBar:
 
         _run(scenario)
 
+    @pytest.mark.rule("widget-text-literal")
     def test_a_character_class_pattern_shows_as_typed(self, app_factory):
-        """widget-text-literal: the status shows the regex [a-z]+x; as markup the class was a tag and vanished."""
+        """The status shows the regex [a-z]+x; as markup the class was a tag and vanished."""
 
         async def scenario():
             from textual.widgets import Label
@@ -922,8 +961,9 @@ class TestFindBar:
 
         _run(scenario)
 
+    @pytest.mark.rule("markup-escape")
     def test_the_frozen_view_keeps_bracketed_text_on_unmatched_lines(self, app_factory):
-        """markup-escape: an unmatched scrollback line reaches the frozen view as Text, so [ok] survives."""
+        """An unmatched scrollback line reaches the frozen view as Text, so [ok] survives."""
 
         async def scenario():
             from textual.widgets import RichLog
@@ -963,6 +1003,7 @@ class TestSerialRxHandoff:
     guaranteed to time out (docs/review/2026-08-19-v0.74.0-opus-5.md, T2/T15).
     """
 
+    @pytest.mark.rule("rx-never-blocks")
     def test_enqueue_never_blocks_and_posts_one_wakeup(self, app_factory):
         """Back-to-back RX events share one pending wake-up, then all drain and render."""
 
@@ -992,6 +1033,7 @@ class TestSerialRxHandoff:
 
         _run(scenario)
 
+    @pytest.mark.rule("rx-never-blocks")
     def test_capture_echo_rides_the_rx_queue(self, app_factory):
         """A capture echo line is queued like RX, never a blocking call into main from the reader.
 
@@ -1045,8 +1087,9 @@ class TestSerialRxHandoff:
 
         _run(scenario)
 
+    @pytest.mark.rule("hex-view-wire-bytes")
     def test_a_hex_batch_renders_rows_and_feeds_lines(self, app_factory):
-        """hex-view-wire-bytes: a toggle mid-drain keeps each batch in its view; hex-view lines are logged and fed, not shown."""
+        """A toggle mid-drain keeps each batch in its view; hex-view lines are logged and fed, not shown."""
 
         async def scenario():
             from textual.widgets import RichLog
@@ -1072,8 +1115,8 @@ class TestSerialRxHandoff:
                 assert list(app.repl._recent_lines)[-3:] == ["TEXT-1", "HEX-1", "TEXT-2"], (
                     "the expect watcher gets every decoded line, whichever view showed it"
                 )
-                assert app.log_fh is not None, "a config on disk opens a log"
-                log_text = Path(app.log_fh.name).read_text(encoding="utf-8")
+                assert app.session_log.fh is not None, "a config on disk opens a log"
+                log_text = Path(app.session_log.fh.name).read_text(encoding="utf-8")
                 assert "< HEX-1" in log_text, "the session log keeps the decoded line"
 
         _run(scenario)
@@ -1092,7 +1135,7 @@ class TestSerialRxHandoff:
                 app.repl.ctx.ns("flags")["hex"] = True
 
                 # Act -- DEMO answers AT with OK CR LF
-                app._serial_send("AT")
+                app.ctx.serial.send("AT")
                 for _ in range(250):
                     if "4F 4B 0D 0A" in app._get_screen_text():
                         break
@@ -1108,8 +1151,9 @@ class TestSerialRxHandoff:
 
         _run(scenario)
 
+    @pytest.mark.rule("rx-every-line-delivered")
     def test_a_flood_reaches_every_consumer_and_renders_only_max_lines(self, app_factory, tmp_path):
-        """rx-every-line-delivered: a flood is logged and captured whole; the pane renders only what it keeps.
+        """A flood is logged and captured whole; the pane renders only what it keeps.
 
         2100 events is past the 2000 the old cap held: it dropped the oldest
         before ``_write_batch``, so they missed the session log and the
@@ -1147,8 +1191,8 @@ class TestSerialRxHandoff:
                 expected = [f"flood {i}" for i in range(total)]
                 actual_captured = cap_path.read_text(encoding="utf-8").splitlines()
                 assert actual_captured == expected, "text capture gets every line, in order"
-                assert app.log_fh is not None, "a config on disk opens a log"
-                log_lines = Path(app.log_fh.name).read_text(encoding="utf-8").splitlines()
+                assert app.session_log.fh is not None, "a config on disk opens a log"
+                log_lines = Path(app.session_log.fh.name).read_text(encoding="utf-8").splitlines()
                 actual_logged = [line.split("] < ", 1)[1] for line in log_lines if "] < " in line]
                 assert actual_logged == expected, "the session log gets every line, in order"
                 assert app.repl._recent_lines[-1] == "flood 2099", "the expect watcher was fed"
@@ -1157,8 +1201,9 @@ class TestSerialRxHandoff:
 
         _run(scenario)
 
+    @pytest.mark.rule("port-lost-tears-down")
     def test_a_lost_port_stops_the_capture_and_resets_the_ui(self, app_factory, tmp_path):
-        """port-lost-tears-down: a disconnect from the reader stops a running capture, frees its claim and resets DTR/RTS."""
+        """A disconnect from the reader stops a running capture, frees its claim and resets DTR/RTS."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -1226,6 +1271,7 @@ class TestSerialRxHandoff:
 
         _run(scenario)
 
+    @pytest.mark.rule("reader-owned-by-engine")
     def test_disconnect_leaves_no_reader_thread_behind(self, app_factory):
         """Teardown joins the reader instead of hoping it stopped.
 
@@ -1326,6 +1372,31 @@ class TestMultilinePaste:
 
         _run(scenario)
 
+    def test_a_pasted_transcript_runs_only_its_commands(self, app_factory):
+        """A copied transcript runs the prompted lines without the prompt; its output lines never reach the port."""
+
+        async def scenario():
+            # Arrange -- the config is "proj", so the echo's prompt is "proj> "
+            app, _, _ = app_factory(multiline_paste_delay_ms=0)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert app._connect() is True, "DEMO port should connect"
+                port = _RecordingPort()
+                app._engine._serial_port = port
+
+                # Act
+                _paste(app, "proj> /print transcript-marker\ntranscript-marker\nproj> AT\nOK\n")
+                await until(pilot, lambda: len(port.written) == 1)
+                await until(pilot, lambda: "transcript-marker" in app._get_screen_text())
+
+                # Assert
+                assert port.written == [b"AT\r"], "only the prompted device line, not the output"
+                text = app._get_screen_text()
+                assert "running its 2 commands, skipping 2 lines of output" in text, text
+                app._disconnect()
+
+        _run(scenario)
+
     def test_escape_stops_the_rest_and_the_next_paste_sends_all(self, app_factory):
         """Escape ends a paste part way; a paste after it is not stopped by the old Escape."""
 
@@ -1337,13 +1408,11 @@ class TestMultilinePaste:
                 assert app._connect() is True, "DEMO port should connect"
                 port = _RecordingPort()
                 app._engine._serial_port = port
-                bar = app.query_one("#bottom-bar")
-
                 # Act -- a long paste, stopped after its first line
                 _paste(app, "\n".join(f"L{i}" for i in range(20)))
                 await until(pilot, lambda: len(port.written) >= 1)
                 app.action_stop_script()
-                await until(pilot, lambda: not bar.disabled)
+                await until(pilot, lambda: not app._busy)
                 stopped_at = len(port.written)
                 # Act -- the next paste
                 _paste(app, "A\nB")
@@ -1369,11 +1438,9 @@ class TestMultilinePaste:
                 assert app._connect() is True, "DEMO port should connect"
                 port = _RecordingPort()
                 app._engine._serial_port = port
-                bar = app.query_one("#bottom-bar")
-
                 # Act
                 _paste(app, "A\nB")
-                await until(pilot, lambda: len(port.written) == 2 and not bar.disabled)
+                await until(pilot, lambda: len(port.written) == 2 and not app._busy)
                 _paste(app, "C\nD")
                 await until(pilot, lambda: len(port.written) == 4)
 
@@ -1402,6 +1469,158 @@ class TestMultilinePaste:
                 actual = text.count(STATE_MESSAGES["serial_connected"])
                 assert actual == 1, f"one refusal, not one per line: {text!r}"
                 assert "Paste stopped after 0 of 3 lines." in text, "the stop says how far it got"
+
+        _run(scenario)
+
+    @staticmethod
+    def _write_script(path: str, name: str, text: str) -> None:
+        """A run script in the config's run/ folder."""
+        folder = Path(path).parent / "run"
+        folder.mkdir(exist_ok=True)
+        (folder / f"{name}.run").write_text(text, encoding="utf-8")
+
+    @pytest.mark.rule("table-fits-the-frontend")
+    def test_the_output_panes_width_reaches_dispatch(self, app_factory):
+        """After layout, IOHandle.width() is the output pane's row width, the scrollbar reserved."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory()
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                output = app.query_one("#output")
+
+                # Act
+                actual = app.repl.ctx.io.width()
+
+                # Assert
+                expected = output.content_size.width - output.styles.scrollbar_size_vertical
+                assert actual == expected and actual > 0, "the pane told the app its width"
+
+        _run(scenario)
+
+    @pytest.mark.rule("paste-waits-for-on-connect")
+    def test_a_pasted_connect_finishes_its_on_connect_script_before_the_next_line(
+        self, app_factory
+    ):
+        """The script runs whole, then the next pasted line, with its echo."""
+
+        async def scenario():
+            # Arrange
+            app, _, path = app_factory(tui_on_connect_cmd="/run setup")
+            self._write_script(path, "setup", "/print step1\n/delay 300ms\n/print step2\n")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+
+                # Act
+                _paste(app, "/port.connect\n/print after\n")
+                await until(pilot, lambda: "after" in app._get_screen_text(), seconds=10.0)
+                text = app._get_screen_text()
+                # The paste worker finishes its tail after the last line shows;
+                # leave only once it has, or it runs against a torn-down screen.
+                await until(pilot, lambda: not app._busy)
+                app._disconnect()
+
+                # Assert
+                assert text.index("step2") < text.index("after"), f"interleaved:\n{text}"
+                assert "> /print after" in text, f"the pasted line lost its echo:\n{text}"
+
+        _run(scenario)
+
+    @pytest.mark.rule("paste-waits-for-on-connect")
+    def test_plain_on_connect_commands_come_first_too(self, app_factory):
+        """A command that is not a script is waited for as well, across the settling pause."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory(tui_on_connect_cmd="/print hook")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+
+                # Act
+                _paste(app, "/port.connect\n/print after\n")
+                await until(pilot, lambda: "after" in app._get_screen_text(), seconds=10.0)
+                text = app._get_screen_text()
+                # The paste worker finishes its tail after the last line shows;
+                # leave only once it has, or it runs against a torn-down screen.
+                await until(pilot, lambda: not app._busy)
+                app._disconnect()
+
+                # Assert
+                assert text.index("hook") < text.index("after"), f"interleaved:\n{text}"
+
+        _run(scenario)
+
+    @pytest.mark.rule("paste-waits-for-on-connect")
+    def test_two_connects_in_one_paste_each_wait(self, app_factory):
+        """The wait holds for each connect, and the count returns to none."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory(tui_on_connect_cmd="/print hook")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                lines = "/port.connect\n/print one\n/port.disconnect\n/port.connect\n/print two\n"
+
+                # Act
+                _paste(app, lines)
+                await until(pilot, lambda: "two" in app._get_screen_text(), seconds=15.0)
+                await until(pilot, lambda: not app._busy, seconds=5.0)
+                text = app._get_screen_text()
+                runs = app._on_connect_runs
+                app._disconnect()
+
+                # Assert
+                first, second = text.index("hook"), text.rindex("hook")
+                assert first < text.index("one") < second < text.index("two"), text
+                assert runs == 0, "every run is counted out"
+
+        _run(scenario)
+
+    @pytest.mark.rule("paste-waits-for-on-connect")
+    def test_escape_during_the_wait_stops_the_script_and_the_paste(self, app_factory):
+        """Escape ends the wait as it ends the script, so the rest of the paste never goes."""
+
+        async def scenario():
+            # Arrange
+            app, _, path = app_factory(tui_on_connect_cmd="/run setup")
+            self._write_script(path, "setup", "/delay 30s\n")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                _paste(app, "/port.connect\n/print after\n")
+                await until(pilot, lambda: app.repl.in_script, seconds=10.0)
+
+                # Act
+                app.action_stop_script()
+                await until(pilot, lambda: not app._busy, seconds=10.0)
+                text = app._get_screen_text()
+                app._disconnect()
+
+                # Assert
+                assert "Paste stopped after 1 of 2 lines" in text, text
+                assert "> /print after" not in text, "the rest of the paste did not go"
+
+        _run(scenario)
+
+    @pytest.mark.rule("paste-waits-for-on-connect")
+    def test_a_buttons_sequence_waits_too(self, app_factory):
+        """Several commands from one button have the same shape as a paste and take the same wait."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory(tui_on_connect_cmd="/print hook")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+
+                # Act
+                worker = app._dispatch_sequence_on_thread(["/port.connect", "/print after"])
+                await worker.wait()
+                await pilot.pause()
+                text = app._get_screen_text()
+                app._disconnect()
+
+                # Assert
+                assert text.index("hook") < text.index("after"), f"interleaved:\n{text}"
 
         _run(scenario)
 
@@ -1449,6 +1668,165 @@ class TestMultilinePaste:
         _run(scenario)
 
 
+class TestBusyLook:
+    """A typed command greys the bar only if it is still running after _BUSY_LOOK_DELAY_S."""
+
+    @staticmethod
+    async def _enter(pilot, app, line: str) -> list[bool]:
+        """Type ``line``, press Enter, wait for it to finish; return every value the bar's disabled took."""
+        from textual.widgets import Input
+
+        seen: list[bool] = []
+
+        def record(value: bool) -> None:
+            seen.append(value)
+
+        app.watch(app.query_one("#bottom-bar"), "disabled", record, init=False)
+        inp = app.query_one("#cmd", Input)
+        inp.value = line
+        inp.focus()
+        await pilot.pause()
+        await pilot.press("enter")
+        await until(pilot, lambda: not app._busy, seconds=5.0)
+        await pilot.pause(0.3)
+        return seen
+
+    def test_a_quick_command_never_greys_the_bar(self, app_factory):
+        """A command that finishes at once leaves the buttons alone: greying them made them flash."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            # The delay is wall-clock time, and under tox's parallel load even
+            # /print can outlast the real 150 ms.  What is pinned is that a
+            # command finishing inside the delay never greys the bar, not how
+            # fast /print runs, so this app waits 3 s.
+            app._BUSY_LOOK_DELAY_S = 3.0
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                seen = await self._enter(pilot, app, "/print quick")
+
+                # Assert
+                assert seen == [], "a quick command greyed the bar: the buttons flash"
+                assert app.query_one("#cmd").placeholder != "Running... escape to cancel", (
+                    "a quick command showed the busy placeholder"
+                )
+
+        _run(scenario)
+
+    @pytest.mark.timing
+    def test_a_slow_command_greys_the_bar_and_restores_it(self, app_factory):
+        """A command still running after the delay greys the bar, and it comes back when it ends."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                seen = await self._enter(pilot, app, "/delay 600ms")
+
+                # Assert
+                assert seen == [True, False], "greyed while it ran, then back"
+                assert not app.query_one("#bottom-bar").disabled
+
+        _run(scenario)
+
+    @pytest.mark.rule("ui-timer-stale-fire")
+    def test_a_busy_look_timer_firing_after_its_command_ended_changes_nothing(self, app_factory):
+        """A stopped timer can still fire once (Textual's Windows sleep): after _end_busy, its fire leaves the bar usable.
+
+        Found 2026-11-01: a help page that rendered in about
+        _BUSY_LOOK_DELAY_S greyed the bar after it ended, and every click
+        answered Busy until the app was restarted.
+        """
+        from textual.widgets import Input
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                bar = app.query_one("#bottom-bar")
+                inp = app.query_one("#cmd", Input)
+                placeholder = inp.placeholder
+
+                # Arrange -- a command begins and ends before its busy look is due
+                app._begin_busy("Running... escape to cancel")
+                stale = app._busy_generation
+                app._end_busy()
+
+                # Act -- the timer set for that command fires anyway
+                app._show_busy_look(stale, "Running... escape to cancel")
+                await pilot.pause()
+
+                # Assert
+                actual = (app._busy, bar.disabled, app._busy_look_shown, inp.placeholder)
+                expected = (False, False, False, placeholder)
+                assert actual == expected, (
+                    "a late busy look greyed the bar: every click answers Busy"
+                )
+
+        _run(scenario)
+
+
+class TestRunLast:
+    """What the prompt keeps for /run.last: a line typed and Entered, never a pasted one."""
+
+    def test_enter_keeps_the_line_and_run_last_replays_it(self, app_factory):
+        """A line Entered at the prompt is kept, and /run.last 1 runs it again on screen."""
+
+        async def scenario():
+            from textual.widgets import Input
+
+            # Arrange
+            app, _, path = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                inp = app.query_one("#cmd", Input)
+
+                def kept() -> list[str]:
+                    return [line.text for line in app.repl.typed_lines.lines(path)]
+
+                # Act
+                inp.value = "/print typed-once"
+                inp.focus()
+                await pilot.pause()
+                await pilot.press("enter")
+                await until(pilot, lambda: kept() and not app._busy)
+                inp.value = "/run.last 1"
+                await pilot.pause()
+                await pilot.press("enter")
+                await until(pilot, lambda: app._get_screen_text().count("typed-once") == 4)
+
+                # Assert
+                actual = app._get_screen_text().count("typed-once")
+                assert actual == 4, "the echo and output of the typed line, then of its replay"
+                assert kept() == ["/print typed-once"], "the typed line is kept, /run.last is not"
+
+        _run(scenario)
+
+    @pytest.mark.rule("typed-lines-one-feed")
+    def test_a_paste_is_not_kept(self, app_factory):
+        """The lines a paste runs are never kept, so /run.last never replays a paste."""
+
+        async def scenario():
+            # Arrange
+            app, _, path = app_factory(multiline_paste_delay_ms=0)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                _paste(app, "/print pasted-one\n/print pasted-two\n")
+                await until(pilot, lambda: "pasted-two" in app._get_screen_text())
+
+                # Assert
+                assert "pasted-two" in app._get_screen_text(), "the paste ran"
+                assert app.repl.typed_lines.lines(path) == [], "a paste feeds nothing"
+
+        _run(scenario)
+
+
 class _RaisingPort:
     """A SerialPort whose write() fails, e.g. the adapter is unplugged mid-send.
 
@@ -1474,8 +1852,9 @@ class TestSharedStateRaces:
     which is what the uncaught exception rode in on.
     """
 
+    @pytest.mark.rule("tx-only-what-went-out")
     def test_write_failure_is_reported_not_raised(self, app_factory):
-        """tx-only-what-went-out: a send the port refuses is a failed command on screen, not an exception in the worker."""
+        """A send the port refuses is a failed command on screen, not an exception in the worker."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -1503,8 +1882,9 @@ class TestSharedStateRaces:
 
         _run(scenario)
 
+    @pytest.mark.rule("tx-only-what-went-out")
     def test_missing_port_fails_the_send_and_logs_no_tx(self, app_factory):
-        """tx-only-what-went-out: with the port nulled by teardown a send fails visibly and logs no TX line."""
+        """With the port nulled by teardown a send fails visibly and logs no TX line."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -1532,7 +1912,7 @@ class TestSharedStateRaces:
         _run(scenario)
 
     def test_log_line_survives_a_handle_closed_under_it(self, app_factory):
-        """``/log.delete`` closes ``log_fh`` from a dispatch worker.
+        """``/log.delete`` closes the session log from a dispatch worker.
 
         The reader thread can already be inside ``_log_line`` when that
         happens: the write then lands on a closed file, which raises
@@ -1545,8 +1925,8 @@ class TestSharedStateRaces:
                 await pilot.pause()
                 # Arrange
                 app._open_log()
-                assert app.log_fh is not None, "a config on disk opens a log"
-                app.log_fh.close()  # the close half of /log.delete
+                assert app.session_log.fh is not None, "a config on disk opens a log"
+                app.session_log.fh.close()  # the close half of /log.delete
 
                 # Act / Assert -- reaching the next line is the assertion
                 app._log_line("<", "arrives after the close")
@@ -1585,6 +1965,7 @@ class TestSharedStateRaces:
         _run(scenario)
 
 
+@pytest.mark.timing
 class TestDispatchContention:
     """D3: a refused dispatch is not a delayed command, it is a lost one.
 
@@ -1594,6 +1975,7 @@ class TestDispatchContention:
     than dropping the line on the floor.
     """
 
+    @pytest.mark.rule("dispatch-guard-main-never-parks")
     def test_a_worker_waits_for_the_guard_instead_of_dropping_the_line(self, app_factory):
         """An off-main dispatch blocks while the guard is held, then runs once it frees."""
 
@@ -1646,6 +2028,7 @@ class TestDispatchContention:
 
         _run(scenario)
 
+    @pytest.mark.rule("dispatch-guard-main-never-parks")
     def test_the_main_thread_is_refused_immediately(self, app_factory):
         """Deadlock-freedom, pinned.
 
@@ -1714,6 +2097,7 @@ class TestMarshalling:
 
         _run(scenario)
 
+    @pytest.mark.rule("output-helpers-marshal")
     def test_status_from_a_worker_reaches_the_screen(self, app_factory):
         """The id is only useful if it still routes a worker's output."""
 
@@ -1744,6 +2128,7 @@ class TestMarshalling:
 
         _run(scenario)
 
+    @pytest.mark.rule("output-helpers-marshal")
     def test_find_bar_updates_are_marshalled(self, app_factory):
         """T12: the one internal-handle slot wired without marshalling.
 
@@ -1786,8 +2171,9 @@ class TestMarshalling:
 
         _run(scenario)
 
+    @pytest.mark.rule("output-helpers-marshal")
     def test_connection_hooks_from_a_worker_run_on_main(self, tmp_path):
-        """output-helpers-marshal: /port.connect and /port.disconnect run on a worker; their UI hooks run on main."""
+        """/port.connect and /port.disconnect run on a worker; their UI hooks run on main."""
 
         async def scenario():
             from termapy.app import SerialTerminal
@@ -1834,9 +2220,11 @@ class TestMarshalling:
         _run(scenario)
 
 
+@pytest.mark.rule("reconnect-survives-connect-attempts")
 class TestAutoReconnect:
-    """reconnect-survives-connect-attempts: each reconnect run owns its cancel token."""
+    """Each reconnect run owns its cancel token."""
 
+    @pytest.mark.timing
     def test_a_failed_connect_while_retrying_leaves_it_retrying(self, app_factory):
         """A connect attempt that fails during auto-reconnect neither ends nor replaces the run."""
 
@@ -1871,6 +2259,7 @@ class TestAutoReconnect:
 
         _run(scenario)
 
+    @pytest.mark.timing
     def test_a_successful_connect_ends_the_retrying(self, app_factory):
         """A connect that succeeds while retrying ends the run, and no spinner frame paints over Connected."""
 
@@ -1899,8 +2288,9 @@ class TestAutoReconnect:
 
         _run(scenario)
 
+    @pytest.mark.rule("reconnect-opens-once")
     def test_a_live_run_finishes_the_connection_it_opened(self, app_factory):
-        """reconnect-opens-once: the TUI finishes the port a run opened -- reader started, Connected shown -- without reopening it."""
+        """The TUI finishes the port a run opened -- reader started, Connected shown -- without reopening it."""
 
         async def scenario():
             from textual.widgets import Button
@@ -1927,8 +2317,9 @@ class TestAutoReconnect:
 
         _run(scenario)
 
+    @pytest.mark.rule("reconnect-opens-once")
     def test_a_cancelled_run_closes_only_the_port_it_opened(self, app_factory):
-        """reconnect-opens-once: a run cancelled while its open was in flight closes its own port and never another."""
+        """A run cancelled while its open was in flight closes its own port and never another."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -1958,7 +2349,6 @@ class TestSessionLog:
 
     def test_markup_output_is_logged_as_text_and_its_echo_is_not(self, app_factory):
         """A command's markup output reaches the log as rendered text under #; its echo stays out (the > line has it)."""
-        from termapy.variables import unset_user_var
 
         async def scenario():
             app, _, _ = app_factory()
@@ -1985,10 +2375,7 @@ class TestSessionLog:
                 )
                 assert log.count(command) == 1, f"the command is logged once, as its > line:\n{log}"
 
-        try:
-            _run(scenario)
-        finally:
-            unset_user_var("MARKUP_TAG")  # user variables are process-global
+        _run(scenario)
 
     def test_log_commands_work_on_the_tuis_own_log(self, app_factory):
         """/log.dump reads the TUI's own log, and /log.delete closes the open file before removing it."""
@@ -2020,7 +2407,7 @@ class TestSessionLog:
                 assert results["dump"].success, results["dump"].error
                 assert results["delete"].value == str(log_path), "the TUI's own log was deleted"
                 assert not log_path.exists(), "the file is gone"
-                assert app.log_fh is None, "the TUI let go of the file before the delete"
+                assert app.session_log.fh is None, "the TUI let go of the file before the delete"
 
         _run(scenario)
 
@@ -2082,6 +2469,7 @@ class TestConfirmIsStopAware:
     teardown joins the threads workers run on.
     """
 
+    @pytest.mark.rule("confirm-off-main")
     def test_a_script_stop_releases_a_waiting_confirm(self, app_factory):
         """A script stop with the modal up releases the waiting worker, failing closed (False)."""
 
@@ -2171,6 +2559,46 @@ class TestBatchedOutputIsEquivalent:
 
         _run(scenario)
 
+    @pytest.mark.rule("color-off-is-all-color")
+    def test_color_off_writes_termapy_lines_plain_with_their_links(self, app_factory):
+        """With color off a status line, a markup line and a linked row render with no color, and the link still carries its click action."""
+        from rich.style import Style
+        from textual.widgets import RichLog
+
+        from termapy.plugins.views import Link, Piece
+        from termapy.widgets import LINK_META
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                log = app.query_one("#output", RichLog)
+                app.repl.ctx.ns("flags")["color"] = False
+
+                # Act
+                app._status("a status line", "green")
+                app._write_output_markup("[bold red]a markup line[/]")
+                app._write_link_segments([Piece("/help", Link("help"), "cyan")], color=None)
+                await pilot.pause()
+
+                # Assert
+                written = log.lines[-3:]
+                colored = [
+                    segment.text
+                    for strip in written
+                    for segment in strip
+                    if segment.style is not None and (segment.style.color or segment.style.bgcolor)
+                ]
+                assert colored == [], f"color off, yet these segments carry a color: {colored}"
+                link = next(segment for segment in written[-1] if segment.text == "/help")
+                assert isinstance(link.style, Style) and LINK_META in link.style.meta, (
+                    "the link lost its click action"
+                )
+                assert link.style.underline, "the link lost its underline"
+                assert "".join(segment.text for segment in written[0]).startswith("a status line")
+
+        _run(scenario)
+
     def test_the_batch_logs_one_entry_per_line(self, app_factory):
         """One batched log write still yields one RX-prefixed log line per received line."""
 
@@ -2221,6 +2649,134 @@ class TestBatchedOutputIsEquivalent:
         _run(scenario)
 
 
+class TestScreenshots:
+    """/ss.svg saves a new file every time, and its .silent form says nothing."""
+
+    def test_two_screenshots_in_one_second_are_two_files(self, app_factory):
+        """/ss.svg x then /ss.svg.silent x, back to back, leave two files: the second does not replace the first."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                folder = Path(app.repl.ss_dir)
+
+                # Act
+                first = app._dispatch_single("/ss.svg twice")
+                second = app._dispatch_single("/ss.svg.silent twice")
+                await pilot.pause()
+
+                # Assert
+                assert first.success and second.success, (first.error, second.error)
+                actual = sorted(path.name for path in folder.glob("twice_*.svg"))
+                assert len(actual) == 2, f"one file per screenshot: {actual}"
+                assert first.value != second.value, "each command answers with its own file"
+
+        _run(scenario)
+
+
+class TestPortBanners:
+    """A quiet command's connection banner stays off the pane and in the session log."""
+
+    def test_a_quiet_disconnect_is_logged_not_shown(self, app_factory):
+        """/port.disconnect --quiet puts no banner in the pane; the session log still records it."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                app._open_log()
+                assert app._connect() is True, "DEMO port should connect"
+                await pilot.pause()
+
+                # Act
+                result = app._dispatch_single("/port.disconnect --quiet")
+                await pilot.pause()
+
+                # Assert
+                assert result.success is True, result.error
+                text = app._get_screen_text()
+                assert "Disconnected" not in text, f"the banner reached the pane:\n{text}"
+                logged = Path(app.session_log_path()).read_text(encoding="utf-8")
+                assert "# Disconnected: DEMO" in logged, "the log keeps what happened"
+
+        _run(scenario)
+
+
+class TestReceivedJson:
+    """A device's JSON line is laid out on screen by json.* and stays as it arrived everywhere else."""
+
+    LINE = '{"result":{"temp":21.4,"id":"E665"}}'
+
+    def test_the_default_lays_the_line_out_and_the_log_keeps_it(self, app_factory):
+        """By default (indent 2) the pane shows the JSON over several lines; the session log has the line as it arrived."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                app._open_log()
+
+                # Act
+                app._write_batch([self.LINE, "plain text"])
+                await pilot.pause()
+
+                # Assert
+                text = app._get_screen_text()
+                assert '    "temp": 21.4,' in text.splitlines(), f"laid out:\n{text}"
+                assert "plain text" in text, "a line that is not JSON shows as it came"
+                logged = Path(app.session_log_path()).read_text(encoding="utf-8")
+                assert self.LINE in logged, "the log keeps the line as received"
+
+        _run(scenario)
+
+    def test_indent_zero_without_highlight_shows_the_line_as_it_arrived(self, app_factory):
+        """With json_fmt.indent 0 and json_fmt.highlight off the JSON line shows on one line as received."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                app.repl.store_cfg("json_fmt.indent", 0)
+                app.repl.store_cfg("json_fmt.highlight", False)
+
+                # Act
+                app._write_batch([self.LINE])
+                await pilot.pause()
+
+                # Assert
+                text = app._get_screen_text()
+                assert self.LINE in text.replace("\n", ""), f"one line, as received:\n{text}"
+
+        _run(scenario)
+
+    def test_line_numbers_count_received_lines(self, app_factory):
+        """With line numbers on, a laid-out JSON line is one received line: the next line is numbered after it."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                app.repl.ctx.ns("flags")["line_no"] = True
+                start = app._line_counter
+
+                # Act
+                app._write_batch([self.LINE, "after"])
+                await pilot.pause()
+
+                # Assert
+                text = app._get_screen_text()
+                assert f"{start + 1:>5} | {{" in text, "the JSON line keeps its number"
+                assert f"{start + 2:>5} | after" in text, "the next line counts one more"
+
+        _run(scenario)
+
+
 class TestPickersNeedAConfig:
     """With no config loaded, run/ and proto/ resolve to the current
     directory, so the Run and Proto buttons (and bare ``/run`` / ``/proto``,
@@ -2263,6 +2819,7 @@ class TestFailureReportedOnce:
     2026-10-16); the CLI-rig tests could not see it.
     """
 
+    @pytest.mark.rule("failure-reported-once")
     def test_a_failed_capture_answers_with_the_inner_error_once(self, app_factory):
         """$(B) <- a refused command fails with the inner error, shown once on screen."""
 
@@ -2342,9 +2899,112 @@ class TestLineNumbers:
                 await pilot.pause()
 
                 # Assert
-                assert result.value == "on", result.error
+                assert result.value is True, result.error
                 assert info.data["line_no"] is True, "/term.info reads the flag the setter wrote"
                 assert "| numbered line" in app._get_screen_text(), "the pane numbers the line"
+
+        _run(scenario)
+
+
+class TestTrafficCounts:
+    """``/term.traffic`` shows the engine's TX/RX counts in a bar of their own beside the status line."""
+
+    def test_the_setting_reads_like_every_toggle(self, app_factory):
+        """Bare queries, on/off set, toggle flips, and anything else is refused; /term.info follows the flag."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                bare = app.repl.dispatch("term.traffic")
+                on = app.repl.dispatch("term.traffic on")
+                info = app.repl.dispatch("term.info")
+                flipped = app.repl.dispatch("term.traffic toggle")
+                flipped_back = app.repl.dispatch("term.traffic toggle")
+                refused = app.repl.dispatch("term.traffic 2")
+
+                # Assert
+                assert bare.value is False, "a load starts with the counts hidden"
+                assert on.value is True, on.error
+                assert info.data["traffic"] is True, "/term.info reads the flag the setter wrote"
+                assert (flipped.value, flipped_back.value) == (False, True), (
+                    "toggle flips each time"
+                )
+                assert refused.success is False, "an unknown token never flips the setting"
+                assert refused.error.startswith("Invalid value: 2"), refused.error
+
+        _run(scenario)
+
+    def test_on_shows_the_counts_and_off_hides_them(self, app_factory):
+        """With /term.traffic on, a DEMO exchange shows the engine's counts in #traffic-bar; off hides the bar."""
+
+        async def scenario():
+            from termapy.scripting import format_size
+            from termapy.widgets import StatusBar
+
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                assert app._connect("DEMO") is True, "the DEMO port opens"
+                bar = app.query_one("#traffic-bar", StatusBar)
+
+                def engine_text() -> str:
+                    tx, rx = app._engine.byte_counts()
+                    return f"TX {format_size(tx)}  RX {format_size(rx)}"
+
+                # Act
+                on, _ = await _dispatch_on_worker(pilot, app, "/term.traffic on")
+                await _dispatch_on_worker(pilot, app, "AT")
+                await _await_until(
+                    lambda: (
+                        app._engine.byte_counts()[1] > 0
+                        and str(bar.render()).strip() == engine_text()
+                    ),
+                    "the bar shows the engine's counts after the reply",
+                )
+                tx, rx = app._engine.byte_counts()
+                off, _ = await _dispatch_on_worker(pilot, app, "/term.traffic off")
+                await _await_until(lambda: not bar.has_class("visible"), "the bar hid")
+                app._disconnect()
+
+                # Assert
+                assert on.value is True, on.error
+                assert tx > 0 and rx > 0, "the command went out and the reply came back"
+                assert off.value is False, off.error
+
+        _run(scenario)
+
+    @pytest.mark.rule("config-load-deterministic")
+    def test_a_config_load_hides_the_counts(self, app_factory, tmp_path):
+        """/cfg.load turns /term.traffic off, and the bar hides with no hook."""
+
+        async def scenario():
+            from termapy.widgets import StatusBar
+
+            app, _, _ = app_factory()
+            _, second_path = _write_cfg(tmp_path, name="second")
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                bar = app.query_one("#traffic-bar", StatusBar)
+                # Arrange
+                app.repl.dispatch("term.traffic on")
+                await _await_until(lambda: bar.has_class("visible"), "the bar showed")
+
+                # Act
+                loaded = app.repl.dispatch(f"cfg.load {second_path}")
+                await _await_until(
+                    lambda: not bar.has_class("visible"), "the bar hid after the load"
+                )
+                state = app.repl.dispatch("term.traffic")
+
+                # Assert
+                assert loaded.success, loaded.error
+                assert state.value is False, (
+                    "the load started the new config with the counts hidden"
+                )
 
         _run(scenario)
 
@@ -2439,6 +3099,7 @@ class TestCfgWaitsForConfirm:
 
         _run(scenario)
 
+    @pytest.mark.rule("confirm-off-main")
     def test_an_escape_pressed_at_idle_does_not_cancel_a_later_dialog(self, app_factory):
         """A stop set outside a script stays set until a script starts; /cfg still waits for its own answer."""
 
@@ -2504,11 +3165,12 @@ class TestDelayHook:
 
                 # Assert
                 assert result.success, result.error
-                assert result.value == "1.0", "value is the seconds waited"
+                assert result.value == 1.0, "value is the seconds waited, a number"
                 assert "Delay 1s done." in app._get_screen_text()
 
         _run(scenario)
 
+    @pytest.mark.timing
     def test_silent_delay_waits(self, app_factory):
         """/delay.silent waits its full duration in the TUI and prints nothing."""
 
@@ -2537,8 +3199,9 @@ class TestEditHooks:
     <name>`` raised AttributeError -- the ``TestDelayHook`` defect again.
     """
 
+    @pytest.mark.rule("file-name-default-ext")
     def test_edit_run_opens_the_script_editor_from_a_stem(self, app_factory):
-        """file-name-default-ext: /edit.run foo opens run/foo.run in the script editor."""
+        """/edit.run foo opens run/foo.run in the script editor."""
 
         async def scenario():
             from termapy.dialogs import ScriptEditor
@@ -2589,8 +3252,9 @@ class TestEditHooks:
 
         _run(scenario)
 
+    @pytest.mark.rule("bare-declared")
     def test_bare_picker_commands_open_their_picker(self, app_factory):
-        """bare-declared: every picker= command opens its button's picker when bare, and the TUI opens every PICKERS name."""
+        """Every picker= command opens its button's picker when bare, and the TUI opens every PICKERS name."""
 
         async def scenario():
             from termapy.dialogs import ConfigPicker, ProtoPicker, QuickSetup, ScriptPicker
@@ -2781,8 +3445,9 @@ class TestEditHooks:
 
         _run(scenario)
 
+    @pytest.mark.rule("one-handler-per-command")
     def test_cfg_load_switches_before_it_returns(self, app_factory, tmp_path):
-        """one-handler-per-command: /cfg.load from a worker returns after the TUI's switch, not before it.
+        """/cfg.load from a worker returns after the TUI's switch, not before it.
 
         The TUI's own /cfg.load scheduled the switch on main and returned at
         once, so a script line after it ran against the old config.

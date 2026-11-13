@@ -1,9 +1,17 @@
-"""Default config values and file templates.
+"""The config schema, one table, and the file templates.
+
+``CFG_KEYS`` holds every key once: its default, its kind and what bounds it,
+and its help.  ``DEFAULT_CFG``, ``CFG_HELP``, ``CFG_CHOICES`` and
+``MANAGED_CFG_KEYS`` are views of it, so a new key is one row (registry
+``cfg-schema-one-table``); ``config.check_cfg_value`` reads the kinds.
 
 Pure data - no logic, no I/O, no dependencies beyond migration version.
 """
 
-from collections.abc import Collection, Mapping
+import copy
+from collections.abc import Callable, Collection, Mapping
+from dataclasses import dataclass
+from typing import Any
 
 from termapy.migration import CURRENT_CONFIG_VERSION
 
@@ -31,27 +39,22 @@ VALID_BYTE_SIZES = {5, 6, 7, 8}
 VALID_PARITIES = {"N", "E", "O", "M", "S"}
 VALID_STOP_BITS = {1, 1.5, 2}
 VALID_FLOW_CONTROLS = {"none", "rtscts", "xonxoff", "manual"}
-# How termapy prints JSON (request mode, --json): one line, indented, or
-# indented and highlighted.  The order is /term.json's cycle order.
-JSON_STYLES = ("compact", "indent", "color")
+# The spaces per level JSON is indented by on screen; 0 is one line.  The
+# order is /term.json_fmt.indent's cycle order.
+JSON_INDENTS = (0, 2, 4)
+# How loud commands are, quietest first.  The order is /term.output's cycle order.
+OUTPUT_LEVELS = ("silent", "quiet", "normal", "verbose")
+DEFAULT_OUTPUT_LEVEL = "normal"
 # Where the custom buttons sit: in the bottom bar, or a column down the
 # left or right edge of the output pane (room for many more).
 CUSTOM_BUTTON_SIDES = ("bottom", "left", "right")
 # The frontends ``default_ui`` can start in.
 UI_MODES = ("tui", "cli", "vt100")
-# Every cfg key whose value is one of a fixed set, spelled as the file
-# holds it: validate_config warns on anything else, the config editor
-# marks it red, and /cfg matches a typed value in any case
-# (config.cfg_choice).
-CFG_CHOICES: dict[str, Collection[object]] = {
-    "byte_size": VALID_BYTE_SIZES,
-    "parity": VALID_PARITIES,
-    "stop_bits": VALID_STOP_BITS,
-    "flow_control": VALID_FLOW_CONTROLS,
-    "default_ui": UI_MODES,
-    "json_style": JSON_STYLES,
-    "custom_buttons_side": CUSTOM_BUTTON_SIDES,
-}
+# How device output is split into lines (TeraTerm's Receive newline:
+# AUTO/CR/LF/CR+LF).
+RX_NEWLINE_MODES = ("auto", "cr", "lf", "crlf")
+# The wire format the device speaks.
+PROTOCOLS = ("text", "ndjson")
 
 # Single source of truth for the REPL command prefix default.  Used
 # in DEFAULT_CFG, the ``cmd_prefix(cfg)`` helper, and as the default
@@ -60,155 +63,7 @@ CFG_CHOICES: dict[str, Collection[object]] = {
 # everywhere without a textual search for literal "/".
 DEFAULT_CMD_PREFIX = "/"
 
-# The defaults, and the layout of every config file: termapy writes a config
-# in this order (``config.ordered_cfg``), so a file reads group by group,
-# the settings edited most first and the long button list last.  Related
-# settings are grouped by order, not nested (decision 2026-10-30); only the
-# pyserial arguments sit in a dict of their own.
-DEFAULT_CFG = {
-    "config_version": CURRENT_CONFIG_VERSION,
-    # Identity
-    "title": "",
-    "border_color": "",
-    # Port -- pyserial constructor arguments
-    "serial": {
-        "port": "",
-        "baud_rate": 115200,
-        "custom_baud": False,
-        "byte_size": 8,
-        "parity": "N",
-        "stop_bits": 1,
-        "flow_control": "none",
-    },
-    # Connecting
-    "auto_connect": False,
-    "auto_reconnect": False,
-    "on_connect_cmd": "",
-    "tui_on_connect_cmd": "",
-    "cli_on_connect_cmd": "",
-    "mcp_on_connect_cmd": "",
-    # Line text: what goes out, how it comes back
-    "encoding": "utf-8",
-    "eol": "\r",
-    # Receive newline: how incoming device output is split into lines.
-    # "auto" treats CR, LF, and CRLF all as line terminators (TeraTerm's
-    # Receive=AUTO -- works for any device); cr/lf/crlf force a single
-    # terminator for the rare device that sends a stray CR/LF as data.
-    "eol_rx": "auto",
-    "eol_markers": False,
-    "send_bare_enter": False,
-    "cmd_delay_ms": 0,
-    # A paste of several lines into the prompt sends them all, one after
-    # another as if typed, this many ms apart (TeraTerm's paste, and its
-    # PasteDelayPerLine default); off, only the first line lands.
-    "multiline_paste": True,
-    "multiline_paste_delay_ms": 10,
-    # Input echo of device commands sent to the wire (bare lines +
-    # /term.send).  A separate session-only flag, echo_repl, governs echo
-    # of REPL/slash commands (/cfg, /help, ...) -- it has no cfg key
-    # because its default is per-host (see TerminalHost._init_flags).
-    # (Device-side echo, where the device parrots your bytes, is a device
-    # concern and not modeled here.)
-    "echo": False,
-    "echo_fmt": "[purple]$(CFG)> {cmd}[/]",
-    # Display
-    "timestamps": False,
-    "line_no": False,
-    "hex": False,
-    "max_lines": 10000,
-    "max_grep_lines": 100,
-    # Device replies
-    "protocol": "text",
-    "ndjson_field_routing": {
-        "response_id": "id",
-        "error_field": "error",
-        "event_field": "event",
-    },
-    "request_mode": False,
-    "request_err_pattern": r"(?i)^(ERROR|ERR|FAULT)\b",
-    # Half-duplex devices echo the command back before answering.  When on,
-    # a request_mode response drops a leading line that matches the sent
-    # command.  Off by default -- opt in per device, since a device that
-    # doesn't echo could in theory emit a first line matching the command.
-    "strip_device_echo": False,
-    "json_style": "compact",
-    # Device profile
-    "profile_path": "",
-    "validate_typed_args": False,
-    "default_response_timeout_ms": 1000,
-    # Files
-    "log_file": "",
-    "file_xfer_root": "",
-    # Protocol tests
-    "proto_frame_gap_ms": 50,
-    "proto_results_template": "{name}_results.json",
-    # Startup and frontends
-    "default_ui": "tui",
-    "quiet_start": True,
-    "vt100_hint": True,
-    "cmd_prefix": DEFAULT_CMD_PREFIX,
-    "cli_prompt": "$(CFG)> ",
-    "cli_completion": True,
-    "show_traceback": False,
-    # Buttons: the title bar's, Record next to the REPL prompt (toggles
-    # /run.record), the pickers' Edit, then the custom buttons.
-    "cfg_enabled": True,
-    "run_enabled": True,
-    "proto_enabled": True,
-    "record_enabled": True,
-    "config_read_only": False,
-    "custom_buttons_side": "bottom",
-    "custom_buttons": [
-        {
-            "enabled": True,
-            "name": "Info",
-            "command": "{prefix}cfg.info",
-            "tooltip": "Project info",
-        },
-        {"enabled": False, "name": "Btn2", "command": "", "tooltip": "Custom button 2"},
-        {"enabled": False, "name": "Btn3", "command": "", "tooltip": "Custom button 3"},
-        {"enabled": False, "name": "Btn4", "command": "", "tooltip": "Custom button 4"},
-    ],
-}
-
-
-def default_cfg() -> dict:
-    """Return a fresh deep-copy of ``DEFAULT_CFG``.
-
-    Use this instead of ``dict(DEFAULT_CFG)`` for any cfg that will
-    be mutated.  Shallow ``dict(...)`` copies leave the nested
-    sub-dicts (``serial``, ``ndjson_field_routing``) shared with
-    the module-level ``DEFAULT_CFG``, so mutations like
-    ``cfg["serial"]["port"] = "COM3"`` would corrupt the global
-    default.  ``deepcopy`` is the correct primitive.
-    """
-    import copy
-
-    return copy.deepcopy(DEFAULT_CFG)
-
-
-def cmd_prefix(cfg: Mapping) -> str:
-    """Return ``cfg["cmd_prefix"]`` with the project default as fallback.
-
-    Replaces the repeated ``cfg.get("cmd_prefix", "/")`` idiom scattered
-    across 15+ call sites.  Both this helper and ``DEFAULT_CMD_PREFIX``
-    resolve from the same constant, so the literal ``"/"`` lives in
-    exactly one place.
-    """
-    return cfg.get("cmd_prefix", DEFAULT_CMD_PREFIX)
-
-
-def quiet_start(cfg: Mapping) -> bool:
-    """True when the startup shows only the connection and any problem.
-
-    ``cfg["quiet_start"]`` with the project default as fallback, read by
-    everything the setting quiets (the load report, the connect line), so
-    a cfg dict built without the key still behaves like a loaded one.
-    """
-    return bool(cfg.get("quiet_start", DEFAULT_CFG["quiet_start"]))
-
-
-# ── Config field help (description, valid values or callable) ──────────────────
+# ── What the schema's rows call ─────────────────────────────────────────────
 
 
 def _list_ports() -> str:
@@ -217,9 +72,9 @@ def _list_ports() -> str:
     # ImportError covers a pyserial install without list_ports support
     # on this platform.
     try:
-        from serial.tools.list_ports import comports
+        from termapy.port_control import system_ports
 
-        ports = sorted(port.device for port in comports())
+        ports = sorted(port.device for port in system_ports())
         return "Available: " + (", ".join(ports) if ports else "(no ports found)")
     except (OSError, ImportError):
         return "(cannot list ports)"
@@ -308,11 +163,11 @@ def _preview_color(raw_val: str) -> str:
     if not color:
         return ""
     resolved = resolve_color(color)
+    from rich.color import Color, ColorParseError
+
     from termapy.markup import escape_markup
 
     try:
-        from rich.color import Color
-
         parsed = Color.parse(resolved)
         # Get truecolor hex for reliable rendering
         triplet = parsed.get_truecolor()
@@ -320,7 +175,7 @@ def _preview_color(raw_val: str) -> str:
         if resolved != color:
             return f"[green]Color: {escape_markup(color)} -> {escape_markup(hex_color)}[/]"
         return f"[green]Color: {escape_markup(hex_color)}[/]"
-    except Exception:
+    except ColorParseError:
         return f"[bold red]????[/] unknown color: {escape_markup(color)}"
 
 
@@ -329,274 +184,789 @@ def _preview_markup(raw_val: str) -> str:
     fmt = raw_val.strip().strip('"').strip()
     if not fmt:
         return ""
-    try:
-        preview = fmt.replace("{cmd}", "AT+INFO")
-        return f"Preview: {preview}"
-    except Exception:
-        return ""
+    return f"Preview: {fmt.replace('{cmd}', 'AT+INFO')}"
 
 
-# (description, valid_values_or_callable, optional_preview_callable)
-CFG_HELP: dict[str, tuple] = {
-    # Serial
-    "serial": (
-        "pyserial connection parameters (edit the nested keys below).",
-        "Nested: port, baud_rate, byte_size, parity, stop_bits, flow_control.",
+# ── The schema ──────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class CfgKey:
+    """One config key: everything termapy knows about it, in one place.
+
+    Attributes:
+        path: The key as a dotted path (``serial.baud_rate``); a section's
+            row comes before its leaves.
+        default: The value a config without the key has; ``None`` for a
+            section, whose default is its leaves.
+        kind: Which of ``config.check_cfg_value``'s checks it gets:
+            ``bool``, ``int``, ``str``, ``enum``, ``path``, ``regex``,
+            ``encoding``, ``command``, ``port``, ``baud``, ``eol``,
+            ``section`` or ``list``.
+        choices: An ``enum``'s values, spelled as the file holds them.
+        min: The least an ``int`` may be; ``None`` for no bound.
+        help: One line on what it does, for the config editor and
+            ``/help <key>``.  At most 70 characters, shown with ``{prefix}`` filled in.
+        hint: Its valid values in one line, or a callable that lists them.
+        preview: Shows a typed value in the config editor (a color, a format).
+        managed: termapy writes it, never the user: the editor heads its
+            help line with a red DO NOT EDIT and ``/cfg`` refuses it.
+        session_flag: The key starts the session flag of the same name
+            (``ctx.ns("flags")``): every load seeds the flag from it, and
+            ``/cfg`` sets both, so the key is what its setter reports.
+    """
+
+    path: str
+    default: Any
+    kind: str
+    choices: Collection[object] = ()
+    min: int | None = None
+    help: str = ""
+    hint: str | Callable[[], str] = ""
+    preview: Callable[[str], str] | None = None
+    managed: bool = False
+    session_flag: bool = False
+
+
+# Every key, and the layout of every config file: termapy writes a config in
+# this order (``config.ordered_cfg``), so a file reads group by group, the
+# settings edited most first and the long button list last.  Related settings
+# are grouped by order, not nested (decision 2026-10-30); only the pyserial
+# arguments sit in a dict of their own.  A new key goes in its group here.
+CFG_KEYS: tuple[CfgKey, ...] = (
+    CfgKey(
+        "config_version",
+        CURRENT_CONFIG_VERSION,
+        "int",
+        help="Config format version; termapy updates it when it migrates the file.",
+        hint="Current version: " + str(CURRENT_CONFIG_VERSION),
+        managed=True,
     ),
-    "port": (
-        "Serial port: device name, USB serial number, fallback chain, DEMO, or URL.",
-        _list_ports,
+    # Identity
+    CfgKey(
+        "title",
+        "",
+        "str",
+        help="Text in the center of the title bar.",
+        hint="Empty = config filename. Supports $(env.NAME).",
     ),
-    "baud_rate": (
-        "Serial baud rate. Non-standard rates require custom_baud = true.",
-        "Standard: 300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600",
+    CfgKey(
+        "border_color",
+        "",
+        "str",
+        help="Color of the title bar and the output border.",
+        hint="CSS name (blue, red, green) or hex (#ff6600). Empty = blue.",
+        preview=_preview_color,
     ),
-    "custom_baud": (
-        "Allow non-standard baud rates (modern drivers accept arbitrary rates).",
-        "true, false",
+    # Port -- pyserial constructor arguments
+    CfgKey(
+        "serial",
+        None,
+        "section",
+        help="pyserial connection settings; edit the nested keys below.",
+        hint="Nested: port, baud_rate, byte_size, parity, stop_bits, flow_control.",
     ),
-    "byte_size": ("Data bits per byte.", "5, 6, 7, 8"),
-    "parity": (
-        "Parity bit.",
-        "N (None), E (Even), O (Odd), M (Mark), S (Space)",
+    CfgKey(
+        "serial.port",
+        "",
+        "port",
+        help="Port name, USB serial number, SN|COM3 fallback, DEMO, or a URL.",
+        hint=_list_ports,
     ),
-    "stop_bits": ("Stop bits.", "1, 1.5, 2"),
-    "flow_control": (
-        "Flow control mode.",
-        "none, rtscts, xonxoff, manual (shows DTR/RTS/Break buttons)",
+    CfgKey(
+        "serial.baud_rate",
+        115200,
+        "baud",
+        help="Line speed in bits per second; must match the device.",
+        hint="Standard: 110 to 921600, 115200 most common. Others: custom_baud.",
     ),
-    "encoding": (
-        "Character encoding for serial data (set: {prefix}term.encoding).",
-        "Common: utf-8, latin-1, ascii, cp437",
+    CfgKey(
+        "serial.custom_baud",
+        False,
+        "bool",
+        help="Allow a baud_rate off the standard list; without it one is refused.",
+        hint="true, false",
     ),
-    "eol": (
-        "Appended to each sent command (set: {prefix}term.eol).",
-        r'"\r" (CR), "\n" (LF), "\r\n" (CRLF), or a combination; also \0 \x03 \x04.',
+    CfgKey(
+        "serial.byte_size",
+        8,
+        "enum",
+        choices=VALID_BYTE_SIZES,
+        help="Data bits per character; 8 for nearly every modern device.",
+        hint="5, 6, 7, 8. Default: 8",
     ),
-    "eol_rx": (
-        "How received device output is split into lines (set: {prefix}term.eol.rx).",
-        "auto (CR/LF/CRLF all break), cr, lf, or crlf. Default: auto",
+    CfgKey(
+        "serial.parity",
+        "N",
+        "enum",
+        choices=VALID_PARITIES,
+        help="Parity bit on each character; must match the device, usually N.",
+        hint="N (None), E (Even), O (Odd), M (Mark), S (Space). Default: N",
     ),
-    "cmd_delay_ms": (
-        "Delay in ms between commands in multi-command input.",
-        "0 = no delay. Positive integer.",
+    CfgKey(
+        "serial.stop_bits",
+        1,
+        "enum",
+        choices=VALID_STOP_BITS,
+        help="Stop bits ending each character; must match the device, usually 1.",
+        hint="1, 1.5, 2. Default: 1",
     ),
-    "multiline_paste": (
-        "A paste of several lines into the prompt sends every line, as if typed.",
-        "true/false. Off: only the first line lands in the prompt. Escape stops a paste.",
+    CfgKey(
+        "serial.flow_control",
+        "none",
+        "enum",
+        choices=VALID_FLOW_CONTROLS,
+        help="How the port paces data: RTS/CTS wires, XON/XOFF bytes, or neither.",
+        hint="none, rtscts, xonxoff, manual (shows DTR/RTS/Break buttons)",
     ),
-    "multiline_paste_delay_ms": (
-        "Delay in ms between the lines of a multi-line paste.",
-        "0 = no delay. Non-negative integer. Default: 10 (TeraTerm's).",
+    # Connecting
+    CfgKey(
+        "auto_connect",
+        False,
+        "bool",
+        help="Open the port as soon as termapy starts.",
+        hint="true, false",
     ),
-    "protocol": (
-        "Wire format the device speaks.",
-        '"text" (default, line-oriented), "ndjson" (one JSON object per line).',
+    CfgKey(
+        "auto_reconnect",
+        False,
+        "bool",
+        help="Retry every 2.5 s when the port drops or fails to open.",
+        hint="true, false",
     ),
-    "ndjson_field_routing": (
-        "NDJSON: which inbound JSON fields the MCP bridge routes on.",
-        "Keys response_id/error_field/event_field; override for non-default fields.",
+    CfgKey(
+        "on_connect_cmd",
+        "",
+        "command",
+        help="Command run after every connect, in every frontend.",
+        hint="One command; for several, a .run file. Example: {prefix}run welcome",
     ),
-    "response_id": (
-        "NDJSON field name carrying a reply's correlation id.",
-        "Default: id",
+    CfgKey(
+        "tui_on_connect_cmd",
+        "",
+        "command",
+        help="Extra command after connecting in the TUI, after on_connect_cmd.",
+        hint="One command; for several, a .run file. For TUI-only setup.",
     ),
-    "error_field": (
-        "NDJSON field name that marks a message as an error.",
-        "Default: error",
+    CfgKey(
+        "cli_on_connect_cmd",
+        "",
+        "command",
+        help="Extra command after connecting in the CLI, after on_connect_cmd.",
+        hint="One command; for several, a .run file. For CLI-only setup.",
     ),
-    "event_field": (
-        "NDJSON field name that marks an unsolicited event.",
-        "Default: event",
+    CfgKey(
+        "mcp_on_connect_cmd",
+        "",
+        "command",
+        help="Extra command after connecting under MCP, after on_connect_cmd.",
+        hint="One command; for several, a .run file. Common: device echo off.",
     ),
-    "default_response_timeout_ms": (
-        "Fallback response wait for profile commands lacking response.timeout_ms.",
-        "Positive integer ms.  Per-command response.timeout_ms always wins.",
+    # Line text: what goes out, how it comes back
+    CfgKey(
+        "encoding",
+        "utf-8",
+        "encoding",
+        help="Turns device bytes into text and back (set: {prefix}term.encoding).",
+        hint="Common: utf-8, latin-1, ascii, cp437. Default: utf-8",
     ),
-    # Connection
-    "auto_connect": (
-        "Connect to the port automatically on startup.",
-        "true, false    ",
+    CfgKey(
+        "eol",
+        "\r",
+        "eol",
+        help="Line ending added to each line sent to the device ({prefix}term.eol).",
+        hint=r'"\r" CR (default), "\n" LF, "\r\n" CRLF; also \0 \x03 \x04.',
     ),
-    "auto_reconnect": (
-        "Retry connection every 2.5s if the port drops or fails to open.",
-        "true, false",
+    # Transmit delay (TeraTerm's msec/char and msec/line): a device line
+    # goes out one character at a time, this many ms apart, and waits this
+    # long after its line ending.  For a device that drops bytes arriving
+    # back to back.  Binary (file transfers, /proto, /raw) is never paced.
+    CfgKey(
+        "tx_char_delay_ms",
+        0,
+        "int",
+        min=0,
+        help="Pause in ms after each character of a line sent to the device.",
+        hint="0 = off. For a device that drops bytes sent back to back.",
     ),
-    "on_connect_cmd": (
-        "Command to run after connecting (all frontends).",
-        "One command; for several, a .run file. Example: {prefix}run welcome",
+    CfgKey(
+        "tx_line_delay_ms",
+        0,
+        "int",
+        min=0,
+        help="Pause in ms after each line sent to the device.",
+        hint="0 = off. Lines only: binary sends are never paced.",
     ),
-    "tui_on_connect_cmd": (
-        "Extra command to run after connecting in TUI mode (after on_connect_cmd).",
-        "One command; for several, a .run file. Useful for interactive-only setup.",
+    # A write longer than serial_port.TX_CHUNK_BYTES (192) reaches the driver
+    # in pieces that size.  Measured 2026-11-10 on an FT232R: 4 KB writes lost
+    # lines at 750000 baud and up, 192-byte writes lost none.
+    CfgKey(
+        "tx_chunking",
+        True,
+        "bool",
+        help="Hand a large send to the driver in 192-byte pieces.",
+        hint="true (default) keeps large fast sends intact; false sends each whole.",
     ),
-    "cli_on_connect_cmd": (
-        "Extra command to run after connecting in CLI mode (after on_connect_cmd).",
-        "One command; for several, a .run file. Useful for interactive-only setup.",
+    # Receive newline: how incoming device output is split into lines.
+    # "auto" treats CR, LF, and CRLF all as line terminators (TeraTerm's
+    # Receive=AUTO -- works for any device); cr/lf/crlf force a single
+    # terminator for the rare device that sends a stray CR/LF as data.
+    CfgKey(
+        "eol_rx",
+        "auto",
+        "enum",
+        choices=RX_NEWLINE_MODES,
+        help="How device output is split into lines (set: {prefix}term.eol.rx).",
+        hint="auto (CR, LF and CRLF all end a line), cr, lf, crlf. Default: auto",
     ),
-    "mcp_on_connect_cmd": (
-        "Extra command to run after connecting in MCP mode (after on_connect_cmd).",
-        "One command; for several, a .run file. Common: 'echo off' to silence device echo.",
+    CfgKey(
+        "eol_markers",
+        False,
+        "bool",
+        help=r"Show dim \r \n markers in serial output ({prefix}term.eol.markers).",
+        hint="true, false. For tracking down line-ending problems.",
     ),
-    # Input
-    "send_bare_enter": (
-        "Send the line ending on an empty Enter (toggle: {prefix}term.send_bare_enter).",
-        "true, false",
+    CfgKey(
+        "send_bare_enter",
+        False,
+        "bool",
+        help="Enter on an empty prompt sends a line ending ({prefix}term.send_bare_enter).",
+        hint="true, false",
     ),
-    "echo": (
-        "Echo device commands sent to the wire (toggle: {prefix}term.echo).",
-        "true, false",
+    CfgKey(
+        "cmd_delay_ms",
+        0,
+        "int",
+        min=0,
+        help="Pause in ms after each of the TUI's on-connect commands.",
+        hint="0 = no pause. Non-negative integer.",
     ),
-    "echo_fmt": (
-        "Rich markup format for echoed commands.",
-        "{cmd} is replaced. Example: [purple]> {cmd}[/]",
-        _preview_markup,
+    # A paste of several lines into the prompt sends them all, one after
+    # another as if typed, this many ms apart (TeraTerm's paste, and its
+    # PasteDelayPerLine default); off, only the first line lands.
+    CfgKey(
+        "multiline_paste",
+        True,
+        "bool",
+        help="Pasting several lines into the prompt sends each one, as if typed.",
+        hint="true, false. Off: only the first line lands. Escape stops a paste.",
     ),
-    "default_ui": (
-        "Default UI mode when launching without a mode flag.",
-        "tui, cli, vt100. Default: tui",
+    CfgKey(
+        "multiline_paste_delay_ms",
+        10,
+        "int",
+        min=0,
+        help="Pause in ms between the lines of a multi-line paste.",
+        hint="0 = no pause. Non-negative integer. Default: 10 (TeraTerm's).",
     ),
-    "vt100_hint": (
-        "Show a VS Code key-capture tip in --vt100 mode.",
-        "true, false. VS Code terminals capture some keys before the device.",
+    # The TUI's Ctrl+C (nothing selected), Ctrl+D and Ctrl+Z (empty prompt)
+    # and Escape (nothing running, empty prompt) go to the device, as in
+    # any terminal.  false keeps them termapy's, for a device a stray
+    # control byte would upset.
+    CfgKey(
+        "control_keys",
+        True,
+        "bool",
+        help="Ctrl+C/D/Z and Esc go to the device when termapy has no use for them.",
+        hint="true, false ({prefix}term.control_keys). Off: copy, delete, clear only.",
     ),
-    "quiet_start": (
-        "Start quietly: show the connection and any problem, keep the detail in the log.",
-        "true, false. False also shows the load table and the full connect line.",
+    # Input echo of device commands sent to the wire (bare lines +
+    # /term.send).  A separate session-only flag, echo_repl, governs echo
+    # of REPL/slash commands (/cfg, /help, ...) -- it has no cfg key
+    # because its default is per-host (see TerminalHost._init_flags).
+    # (Device-side echo, where the device parrots your bytes, is a device
+    # concern and not modeled here.)
+    CfgKey(
+        "echo",
+        False,
+        "bool",
+        help="Show the lines you send to the device in the output ({prefix}term.echo).",
+        hint="true, false",
+        session_flag=True,
     ),
-    "cmd_prefix": (
-        "Prefix for local REPL commands.",
-        "Default: /. Example: ! would make commands like !help",
-    ),
-    "cli_prompt": (
-        "Prompt string for CLI mode input.",
-        "Default: '> '",
-    ),
-    "cli_completion": (
-        "Enable CLI tab completion, auto-suggest, and help toolbar.",
-        "true, false. Default: true",
+    CfgKey(
+        "echo_fmt",
+        "[purple]$(CFG)> {cmd}[/]",
+        "str",
+        help="Rich markup for a line shown by echo; {cmd} is the line sent.",
+        hint="{cmd} is replaced. Example: [purple]> {cmd}[/]",
+        preview=_preview_markup,
     ),
     # Display
-    "title": (
-        "Title bar center text.",
-        "Empty = config filename. Supports $(env.NAME).",
+    CfgKey(
+        "timestamps",
+        False,
+        "bool",
+        help="Prefix each line with [HH:MM:SS.mmm] (toggle: {prefix}term.timestamps).",
+        hint="true, false",
     ),
-    "border_color": (
-        "Title bar and border color.",
-        "CSS name (blue, red, green) or hex (#ff6600). Empty = blue.",
-        _preview_color,
+    CfgKey(
+        "line_no",
+        False,
+        "bool",
+        help="Show line numbers in serial output (toggle: {prefix}term.line_no).",
+        hint="true, false",
+        session_flag=True,
     ),
-    "max_lines": ("Scrollback buffer size.", "Positive integer. Default: 10000"),
-    "timestamps": (
-        "Prefix each line with [HH:MM:SS.mmm] (toggle: {prefix}term.timestamps).",
-        "true, false",
+    CfgKey(
+        "hex",
+        False,
+        "bool",
+        help="Show received bytes as hex instead of text (toggle: {prefix}term.hex).",
+        hint="true, false",
+        session_flag=True,
     ),
-    "eol_markers": (
-        "Show dim \\r \\n markers in serial output (toggle: {prefix}term.eol.markers).",
-        "true, false. Debug mode for line-ending issues.",
+    CfgKey(
+        "color",
+        True,
+        "bool",
+        help="Color in the output, termapy's and the device's ({prefix}term.color).",
+        hint="true, false",
+        session_flag=True,
     ),
-    "line_no": (
-        "Show line numbers in serial output (toggle: {prefix}term.line_no).",
-        "true, false",
+    CfgKey(
+        "output_level",
+        DEFAULT_OUTPUT_LEVEL,
+        "enum",
+        choices=OUTPUT_LEVELS,
+        help="How loud commands are ({prefix}term.output).",
+        hint="silent, quiet, normal, verbose",
+        session_flag=True,
     ),
-    "hex": (
-        "Display received bytes as hex instead of text (toggle: {prefix}term.hex).",
-        "true, false",
+    CfgKey(
+        "max_lines",
+        10000,
+        "int",
+        min=1,
+        help="Lines the output pane keeps; past this the oldest drop off.",
+        hint="Positive integer. Default: 10000",
     ),
-    "request_mode": (
-        "Session JSON mode: device exchanges AND termapy commands.",
-        "true/false. On: everything answers as a JSON envelope. See {prefix}term.request.",
+    CfgKey(
+        "max_grep_lines",
+        100,
+        "int",
+        min=1,
+        help="Most lines {prefix}grep shows for one search.",
+        hint="Positive integer. Default: 100",
     ),
-    "request_err_pattern": (
-        "Regex on request_mode responses that flags a device-side error.",
-        r"Match => success=false. Empty disables. Override: {prefix}term.request on err=<re>.",
+    # Device replies
+    CfgKey(
+        "protocol",
+        "text",
+        "enum",
+        choices=PROTOCOLS,
+        help="Wire format the device speaks.",
+        hint='"text" (default, line-oriented), "ndjson" (one JSON object per line).',
     ),
-    "json_style": (
-        "How JSON prints (request_mode, --json): compact, indent, or color.",
-        "compact = one line per answer; indent; color = indented + highlighted. {prefix}term.json",
+    CfgKey(
+        "ndjson_field_routing",
+        None,
+        "section",
+        help="NDJSON: which inbound JSON fields the MCP bridge routes on.",
+        hint="Keys response_id, error_field, event_field; change for other names.",
     ),
-    "strip_device_echo": (
-        "Drop a half-duplex device's echoed command from request_mode replies.",
-        "true/false. On: a reply's leading line matching the command is removed.",
+    CfgKey(
+        "ndjson_field_routing.response_id",
+        "id",
+        "str",
+        help="NDJSON field name carrying a reply's correlation id.",
+        hint="Default: id",
     ),
-    "max_grep_lines": (
-        "Maximum lines shown by {prefix}grep.",
-        "Positive integer. Default: 100",
+    CfgKey(
+        "ndjson_field_routing.error_field",
+        "error",
+        "str",
+        help="NDJSON field name that marks a message as an error.",
+        hint="Default: error",
     ),
-    "file_xfer_root": (
-        "Root directory for file transfers (empty = the config's cap/ folder).",
-        "Absolute path, or empty for the default.",
+    CfgKey(
+        "ndjson_field_routing.event_field",
+        "event",
+        "str",
+        help="NDJSON field name that marks an unsolicited event.",
+        hint="Default: event",
     ),
-    # Logging
-    "log_file": (
-        "The TUI's session log file path.",
-        "Empty = <name>.log in config subfolder. MCP logs to mcp/session.log; the CLI keeps none.",
+    CfgKey(
+        "request_mode",
+        False,
+        "bool",
+        help="Every answer, from the device or termapy, comes as a JSON envelope.",
+        hint="true, false. See {prefix}term.request.",
     ),
-    "show_traceback": ("Show full stack trace on serial errors.", "true, false"),
-    # Proto
-    "proto_frame_gap_ms": (
-        "Silence gap (ms) to detect end of a binary frame.",
-        "Positive integer. Default: 50",
+    CfgKey(
+        "request_err_pattern",
+        r"(?i)^(ERROR|ERR|FAULT)\b",
+        "regex",
+        help="Regex that marks a request_mode reply as a device-side error.",
+        hint="Match: success=false. Empty: off. {prefix}term.request on err=<re>",
     ),
-    "proto_results_template": (
-        "Filename template for proto test JSON results.",
-        "Placeholders: {name}, {proto_name}, {datetime}",
+    # Half-duplex devices echo the command back before answering.  When on,
+    # a request_mode response drops a leading line that matches the sent
+    # command.  Off by default -- opt in per device, since a device that
+    # doesn't echo could in theory emit a first line matching the command.
+    CfgKey(
+        "strip_device_echo",
+        False,
+        "bool",
+        help="Drop a half-duplex device's echoed command from request_mode replies.",
+        hint="true, false. On: a first reply line matching the command is dropped.",
     ),
-    # Access
-    "config_read_only": (
-        "Disable Edit button in pickers.",
-        "true, false. {prefix}cfg still changes in-memory values.",
+    CfgKey(
+        "json_fmt",
+        None,
+        "section",
+        help="How JSON shows on screen, termapy's and a device's.",
+        hint="Keys highlight, indent. A pipe always gets one line per JSON value.",
     ),
-    "profile_path": (
-        "Explicit path to a v2 device profile.  MCP-only: --mcp loads it on connect.",
-        'file path (e.g. "termapy_cfg/myrig/myrig.profile.json"), or empty.',
+    CfgKey(
+        "json_fmt.highlight",
+        True,
+        "bool",
+        help="Highlight JSON on screen ({prefix}term.json_fmt.highlight).",
+        hint="true, false. Shows only with color on ({prefix}term.color).",
     ),
-    "validate_typed_args": (
-        "Validate bare-command typed args against the active profile before sending.",
-        "true/false. Off = raw access (device errors are truth); on mirrors MCP.",
+    CfgKey(
+        "json_fmt.indent",
+        2,
+        "enum",
+        choices=JSON_INDENTS,
+        help="Spaces per level for JSON on screen ({prefix}term.json_fmt.indent).",
+        hint="0 (one line), 2 or 4.",
     ),
-    # Title-bar buttons
-    "cfg_enabled": (
-        "Show the Cfg button in the title bar.",
-        "true, false.",
+    # Device profile
+    CfgKey(
+        "profile_path",
+        "",
+        "path",
+        help="Device profile MCP loads on connect; empty = found by convention.",
+        hint='File path, e.g. "termapy_cfg/myrig/myrig.profile.json", or empty.',
     ),
-    "run_enabled": (
-        "Show the Run button in the title bar.",
-        "true, false.",
+    CfgKey(
+        "validate_typed_args",
+        False,
+        "bool",
+        help="Check typed device commands against the profile before sending.",
+        hint="true, false. Off: the device judges (raw access); on: as MCP does.",
     ),
-    "proto_enabled": (
-        "Show the Proto button in the title bar.",
-        "true, false.",
+    CfgKey(
+        "default_response_timeout_ms",
+        1000,
+        "int",
+        min=1,
+        help="Reply wait for a profile command that sets no response.timeout_ms.",
+        hint="Positive integer ms. Default: 1000. A command's own timeout wins.",
     ),
-    "record_enabled": (
-        "Show the Record button next to the REPL prompt (toggles {prefix}run.record).",
-        "true, false.",
+    # Files
+    CfgKey(
+        "log_file",
+        "",
+        "path",
+        help="The TUI's session log; empty = <config>.log in the config's folder.",
+        hint="MCP logs to <config>.mcp.log beside it; the CLI keeps no log.",
     ),
-    # Custom buttons (nested keys)
-    "enabled": ("Whether this button is visible in the toolbar.", "true, false"),
-    "name": ("Button display text.", "Short text shown on the button."),
-    "command": (
-        "Command to execute when clicked.",
-        r"Serial text, /repl command, or \n-separated sequence.",
+    CfgKey(
+        "file_xfer_root",
+        "",
+        "path",
+        help="Folder XMODEM/YMODEM use; empty = the config's cap/ folder.",
+        hint="Absolute path, or empty. Set: {prefix}xfer.root",
     ),
-    "tooltip": (
-        "Hover text for the button.",
-        "Shown when mouse hovers over the button.",
+    # Protocol tests
+    CfgKey(
+        "proto_frame_gap_ms",
+        50,
+        "int",
+        min=1,
+        help="Silence in ms that ends a binary frame in a protocol test.",
+        hint="Positive integer. Default: 50",
     ),
-    # Meta
-    "config_version": (
-        "[bold red]DO NOT EDIT[/] - schema version, managed automatically.",
-        "Current version: " + str(CURRENT_CONFIG_VERSION),
+    CfgKey(
+        "proto_results_template",
+        "{name}_results.json",
+        "str",
+        help="File name for a protocol test's JSON results.",
+        hint="Placeholders: {name}, {proto_name}, {datetime}, {date}, {time}",
     ),
-    "custom_buttons_side": (
-        "Where custom buttons sit: the bottom bar, or a column on the left or right edge.",
-        f"{', '.join(CUSTOM_BUTTON_SIDES)}. A column scrolls when it holds more than fit.",
+    # Startup and frontends
+    CfgKey(
+        "default_ui",
+        "tui",
+        "enum",
+        choices=UI_MODES,
+        help="Frontend to start in when no mode flag (--cli, --vt100) is given.",
+        hint="tui, cli, vt100. Default: tui",
     ),
-    "custom_buttons": (
-        "Array of custom toolbar button objects.",
-        "Each has: enabled, name, command, tooltip. See help: custom-buttons.",
+    CfgKey(
+        "quiet_start",
+        True,
+        "bool",
+        help="Show only the connection and any problem at start; detail in the log.",
+        hint="true, false. False also shows the load table and full connect line.",
     ),
+    CfgKey(
+        "vt100_hint",
+        True,
+        "bool",
+        help="In --vt100 mode under VS Code, show a tip about captured keys.",
+        hint="true, false. VS Code terminals capture some keys before the device.",
+    ),
+    CfgKey(
+        "cmd_prefix",
+        DEFAULT_CMD_PREFIX,
+        "str",
+        help="Starts a termapy command; any other line goes to the device.",
+        hint="Default: /. Example: ! makes commands like !help",
+    ),
+    CfgKey(
+        "cli_prompt",
+        "$(CFG)> ",
+        "str",
+        help="Prompt shown for input in CLI mode.",
+        hint="Default: '$(CFG)> ', the config name. $(...) variables expand.",
+    ),
+    CfgKey(
+        "cli_completion",
+        True,
+        "bool",
+        help="CLI tab completion, history auto-suggest and the help toolbar.",
+        hint="true, false. Default: true",
+    ),
+    # Buttons: the title bar's, Record next to the REPL prompt (toggles
+    # /run.record), the pickers' Edit, then the custom buttons.
+    CfgKey(
+        "cfg_enabled",
+        True,
+        "bool",
+        help="Show the Cfg button in the title bar.",
+        hint="true, false",
+    ),
+    CfgKey(
+        "run_enabled",
+        True,
+        "bool",
+        help="Show the Run button in the title bar.",
+        hint="true, false",
+    ),
+    CfgKey(
+        "proto_enabled",
+        True,
+        "bool",
+        help="Show the Proto button in the title bar.",
+        hint="true, false",
+    ),
+    CfgKey(
+        "record_enabled",
+        True,
+        "bool",
+        help="Show the Record button by the prompt (toggles {prefix}run.record).",
+        hint="true, false",
+    ),
+    CfgKey(
+        "config_read_only",
+        False,
+        "bool",
+        help="Grey out Edit, Rename and Delete in the cfg, run and proto pickers.",
+        hint="true, false. {prefix}cfg still changes in-memory values.",
+    ),
+    CfgKey(
+        "custom_buttons_side",
+        "bottom",
+        "enum",
+        choices=CUSTOM_BUTTON_SIDES,
+        help="Where custom buttons go: the bottom bar or a left or right column.",
+        hint=f"{', '.join(CUSTOM_BUTTON_SIDES)}. A column scrolls when it holds more than fit.",
+    ),
+    CfgKey(
+        "custom_buttons",
+        [
+            {
+                "enabled": True,
+                "name": "Info",
+                "command": "{prefix}cfg.info",
+                "tooltip": "Project info",
+            },
+            {"enabled": False, "name": "Btn2", "command": "", "tooltip": "Custom button 2"},
+            {"enabled": False, "name": "Btn3", "command": "", "tooltip": "Custom button 3"},
+            {"enabled": False, "name": "Btn4", "command": "", "tooltip": "Custom button 4"},
+        ],
+        "list",
+        help="Toolbar buttons of your own, each running a command.",
+        hint="Each has: enabled, name, command, tooltip. See help: custom-buttons.",
+    ),
+)
+
+# The fields of one custom button: help only, since they live inside a list
+# and so have no path.
+CUSTOM_BUTTON_FIELDS: tuple[CfgKey, ...] = (
+    CfgKey("enabled", False, "bool", help="Show this button on the toolbar.", hint="true, false"),
+    CfgKey("name", "", "str", help="Label shown on the button.", hint="Short text."),
+    CfgKey(
+        "command",
+        "",
+        "str",
+        help="What a click runs: text for the device or a termapy command.",
+        hint=r"One line, or several separated by \n.",
+    ),
+    CfgKey(
+        "tooltip",
+        "",
+        "str",
+        help="Hover text for the button.",
+        hint="Shown when the mouse rests on the button.",
+    ),
+)
+
+
+def _leaf(record: CfgKey) -> str:
+    """A record's name without its section (``baud_rate`` for ``serial.baud_rate``)."""
+    return record.path.rpartition(".")[2]
+
+
+def _default_cfg_view() -> dict[str, Any]:
+    """The defaults as a config holds them, nested by path."""
+    cfg: dict[str, Any] = {}
+    for record in CFG_KEYS:
+        section, _, leaf = record.path.rpartition(".")
+        if section:
+            cfg[section][leaf] = copy.deepcopy(record.default)
+        else:
+            cfg[leaf] = {} if record.kind == "section" else copy.deepcopy(record.default)
+    return cfg
+
+
+def _help_row(record: CfgKey) -> tuple:
+    """A record as ``CFG_HELP`` holds it: help, hint, and a preview if it has one."""
+    if record.preview is None:
+        return (record.help, record.hint)
+    return (record.help, record.hint, record.preview)
+
+
+# The views.  Each key's name in the file is its leaf, so these are by leaf.
+DEFAULT_CFG: dict[str, Any] = _default_cfg_view()
+CFG_HELP: dict[str, tuple] = {
+    _leaf(record): _help_row(record) for record in (*CFG_KEYS, *CUSTOM_BUTTON_FIELDS)
 }
+# Every key whose value is one of a fixed set: load warns on anything else,
+# the config editor marks it red, and /cfg matches a typed value in any case
+# (config.cfg_choice).
+CFG_CHOICES: dict[str, Collection[object]] = {
+    _leaf(record): record.choices for record in CFG_KEYS if record.kind == "enum"
+}
+# Keys termapy writes itself, never the user.
+MANAGED_CFG_KEYS = frozenset(_leaf(record) for record in CFG_KEYS if record.managed)
+# Keys that start a session flag of the same name.
+SESSION_FLAG_KEYS = frozenset(_leaf(record) for record in CFG_KEYS if record.session_flag)
+
+_RECORD_BY_PATH = {record.path: record for record in CFG_KEYS}
+_BUTTON_FIELD_BY_NAME = {record.path: record for record in CUSTOM_BUTTON_FIELDS}
+
+
+def default_cfg() -> dict:
+    """Return a fresh deep copy of ``DEFAULT_CFG``, for any cfg that will be mutated.
+
+    ``dict(DEFAULT_CFG)`` shares the nested dicts (``serial``, ...), so
+    ``cfg["serial"]["port"] = "COM3"`` would change the global default.
+    """
+    import copy
+
+    return copy.deepcopy(DEFAULT_CFG)
+
+
+def cfg_key_paths() -> tuple[str, ...]:
+    """Every config key as a dotted path, in ``CFG_KEYS`` order.
+
+    A top-level key is its own path; a section adds a path per leaf after
+    it (``serial``, then ``serial.port``, ``serial.baud_rate``, ...).  The
+    custom buttons are a list, so their fields are not paths.  The one
+    spelling of "a config key" for a declaration (``Command.cfg``), a
+    reader (``cfg_value``) and the bool table (``config.BOOL_CFG_PATHS``).
+    """
+    return tuple(record.path for record in CFG_KEYS)
+
+
+def cfg_key_path(name: str) -> str | None:
+    """The path a typed name means, or ``None`` when it names no key.
+
+    A known path is itself; a bare leaf of a nested key resolves when it
+    is unique (``baud_rate`` -> ``serial.baud_rate``); anything else,
+    including a leaf two dicts share, is ``None``.
+    """
+    paths = cfg_key_paths()
+    if name in paths:
+        return name
+    matches = [path for path in paths if "." in path and path.rpartition(".")[2] == name]
+    return matches[0] if len(matches) == 1 else None
+
+
+def cfg_key(name: str) -> CfgKey | None:
+    """The record a typed name means, or ``None`` when it names no key.
+
+    A path or a unique leaf (``baud_rate``), as ``cfg_key_path`` reads
+    them, or a custom button's field, which has no path.
+    """
+    path = cfg_key_path(name)
+    return _RECORD_BY_PATH[path] if path is not None else _BUTTON_FIELD_BY_NAME.get(name)
+
+
+def cfg_value(cfg: Mapping, path: str) -> Any:
+    """``cfg``'s value at ``path``, or ``DEFAULT_CFG``'s when the config lacks it.
+
+    The one reader of a config value with a default: the default is the
+    table's, never a literal at the call site.  A path ``DEFAULT_CFG``
+    has no entry for raises ``KeyError``: that is a typo in code, not a
+    user's file, so it fails loud.
+    """
+    parts = path.split(".")
+    default: Any = DEFAULT_CFG
+    for part in parts:
+        default = default[part]
+    node: Any = cfg
+    for part in parts:
+        if not isinstance(node, Mapping) or part not in node:
+            # A container default is copied, as default_cfg copies: a
+            # caller must never hold the table's own list or dict.
+            return copy.deepcopy(default) if isinstance(default, (dict, list)) else default
+        node = node[part]
+    return node
+
+
+def cfg_slot(cfg: Mapping, name: str) -> tuple[Mapping, str] | None:
+    """Where a typed key sits in ``cfg``: the dict that holds it and its name there.
+
+    A top-level key, the table's or one only the file has, is ``cfg``
+    itself; a path or a unique leaf of a nested key is its section's dict
+    (``baud_rate`` and ``serial.baud_rate`` both give ``cfg["serial"]``,
+    ``indent`` and ``json_fmt.indent`` give ``cfg["json_fmt"]``).  The one answer for
+    ``/cfg``, the session store and the TUI's confirm.
+
+    Returns:
+        ``(container, leaf)``, or None when ``cfg`` does not hold the key.
+    """
+    if name in cfg:
+        return cfg, name
+    path = cfg_key_path(name)
+    if path is None or "." not in path:
+        return None
+    section, _, leaf = path.rpartition(".")
+    container = cfg.get(section)
+    if isinstance(container, Mapping) and leaf in container:
+        return container, leaf
+    return None
+
+
+def cmd_prefix(cfg: Mapping) -> str:
+    """Return ``cfg["cmd_prefix"]``, the table's default when the key is unset."""
+    return cfg_value(cfg, "cmd_prefix")
+
+
+def quiet_start(cfg: Mapping) -> bool:
+    """True when the startup shows only the connection and any problem.
+
+    ``cfg["quiet_start"]`` with the project default as fallback, read by
+    everything the setting quiets (the load report, the connect line), so
+    a cfg dict built without the key still behaves like a loaded one.
+    """
+    return bool(cfg_value(cfg, "quiet_start"))
 
 
 SCRIPT_TEMPLATE = """\

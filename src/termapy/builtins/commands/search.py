@@ -19,6 +19,7 @@ from termapy.markup import underline_markup
 from termapy.plugins import (
     CmdResult,
     Command,
+    PluginInfo,
     UsageError,
     canonical_flags,
     escape_markup,
@@ -28,7 +29,13 @@ from termapy.plugins import (
 )
 
 if TYPE_CHECKING:
+    from types import SimpleNamespace
+
     from termapy.plugins import PluginContext
+
+    # What search indexes: a REPL command, or a device command's
+    # ``profile_command_view`` entry.
+    Indexed = PluginInfo | SimpleNamespace
 
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -44,14 +51,15 @@ _SEARCH_CONTEXT = 40
 
 # Fields searched, in priority order for tier ranking. An exact flag-name
 # hit is nearly as specific as a command-name hit, so flags sits right
-# after name.
-_FUZZY_FIELDS = ("name", "flags", "help", "args", "long_help")
+# after name; a declared config key (Command.cfg) is as specific, so a
+# search for a key finds the commands that use it.
+_FUZZY_FIELDS = ("name", "flags", "cfg", "help", "args", "long_help")
 
 _CMD = "cyan"
 _SEP = "dim"
 
 
-def _indexable_commands(ctx: PluginContext) -> dict:
+def _indexable_commands(ctx: PluginContext) -> dict[str, Indexed]:
     """Merged view of REPL plugins plus device commands from the active profile.
 
     The active-profile view is built by ``profile_command_view`` which
@@ -65,7 +73,7 @@ def _indexable_commands(ctx: PluginContext) -> dict:
     """
     from termapy.profile import profile_command_view
 
-    merged = dict(profile_command_view(ctx.ns("active_profile")))
+    merged: dict[str, Indexed] = dict(profile_command_view(ctx.ns("active_profile")))
     merged.update(ctx.internal.plugins)
     return merged
 
@@ -95,7 +103,7 @@ def _parse_search_terms(query: str) -> tuple[list[str], list[str]]:
     return positives, negatives
 
 
-def _field_text(name: str, plugin, field: str, ctx: PluginContext | None = None) -> str:
+def _field_text(name: str, plugin: Indexed, field: str, ctx: PluginContext | None = None) -> str:
     """Return the text body for a given searchable field on one plugin.
 
     ``long_help`` may be a callable; when ``ctx`` is supplied we resolve
@@ -110,10 +118,16 @@ def _field_text(name: str, plugin, field: str, ctx: PluginContext | None = None)
         for canonical, aliases, desc in canonical_flags(plugin.flags):
             parts.extend([canonical, *aliases, desc])
         return " ".join(parts)
+    if field == "cfg":
+        # A device command (profile_command_view) declares no cfg keys.
+        uses = getattr(plugin, "cfg", None) or {}
+        return "; ".join(f"{path}: {use}" for path, use in uses.items())
     if field == "docstring":
-        return getattr(plugin.handler, "__doc__", None) or ""
+        # A device command has no handler.
+        return getattr(getattr(plugin, "handler", None), "__doc__", None) or ""
     if field == "long_help":
-        if ctx is not None:
+        # A device command's long_help is its profile's text, as /help shows it.
+        if ctx is not None and isinstance(plugin, PluginInfo):
             return resolve_long_help(plugin, ctx)
         lh = plugin.long_help
         return lh if isinstance(lh, str) else ""
@@ -128,7 +142,11 @@ def _tier_fields(include_dev: bool) -> tuple[str, ...]:
 
 
 def _best_tier(
-    needle: str, name: str, plugin, fields: tuple[str, ...], ctx: PluginContext | None = None
+    needle: str,
+    name: str,
+    plugin: Indexed,
+    fields: tuple[str, ...],
+    ctx: PluginContext | None = None,
 ) -> tuple[int | None, str]:
     """Return the highest-priority (tier, field) where ``needle`` appears.
 
@@ -144,13 +162,16 @@ def _best_tier(
 
 
 def _fuzzy_matches(
-    query: str, plugins: dict, include_dev: bool = False, ctx: PluginContext | None = None
+    query: str,
+    plugins: dict[str, Indexed],
+    include_dev: bool = False,
+    ctx: PluginContext | None = None,
 ) -> list[tuple[str, str]]:
     """Return ``(command_name, field)`` pairs for a multi-term query.
 
     All positive terms must appear somewhere in the searched fields; any
     match on an excluded term drops the command. Field priority (name >
-    flags > help > args > long_help, plus docstring with ``include_dev``)
+    flags > cfg > help > args > long_help, plus docstring with ``include_dev``)
     comes from the *first* positive term, keeping ranking predictable
     when two terms could each hit different fields. Results sorted by
     that tier, then alphabetically.
@@ -205,7 +226,7 @@ def _highlight_markup(text: str, span: tuple[int, int]) -> str:
 
 
 def _search_fields(
-    name: str, plugin, include_dev: bool, ctx: PluginContext | None = None
+    name: str, plugin: Indexed, include_dev: bool, ctx: PluginContext | None = None
 ) -> list[tuple[str, str]]:
     """Return (field_label, field_text) pairs to search for one plugin.
 
@@ -215,21 +236,16 @@ def _search_fields(
     the callable is not invoked and a callable long_help contributes no
     search text.
     """
-    if ctx is not None:
-        long_help_text = resolve_long_help(plugin, ctx)
-    else:
-        lh = plugin.long_help
-        long_help_text = lh if isinstance(lh, str) else ""
     fields = [
         ("name", name),
         ("help", plugin.help or ""),
         ("args", plugin.args or ""),
         ("flags", _field_text(name, plugin, "flags")),
-        ("long_help", long_help_text),
+        ("cfg", _field_text(name, plugin, "cfg")),
+        ("long_help", _field_text(name, plugin, "long_help", ctx)),
     ]
     if include_dev:
-        docstring = getattr(plugin.handler, "__doc__", None) or ""
-        fields.append(("docstring", docstring))
+        fields.append(("docstring", _field_text(name, plugin, "docstring")))
     return fields
 
 
@@ -237,7 +253,7 @@ def _render_hit(
     ctx: PluginContext,
     prefix: str,
     name: str,
-    plugin,
+    plugin: Indexed,
     hit_fields: list[tuple[str, str, tuple[int, int]]],
     underlines: list[str] | None = None,
     is_target: bool = False,

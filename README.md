@@ -48,7 +48,13 @@ Low time commitment: about 1 minute from scratch, or under 10 seconds if you alr
     uv tool uninstall termapy
     ```
 
-For your own device, one line creates a config and connects:
+For your own device, name its port, as with `screen`. termapy keeps the settings for next time, in your user folder rather than the project:
+
+```sh
+termapy COM4 115200 8N1
+```
+
+When the device deserves a project of its own (scripts, plugins, a profile, MCP), one line creates its config here and connects:
 
 ```sh
 termapy --new my_device COM4 115200 8N1
@@ -89,11 +95,13 @@ PuTTY works. So does minicom, screen, and CoolTerm. Use them if they do what you
 
 - **Runs anywhere Python does.** Same tool on Windows, macOS, Linux. No GUI installer, no system dependencies.
 - **Session logging and screenshots.** Every session is logged. Ctrl+S saves an SVG screenshot you can paste into a report or email.
-- **Scripting.** Record a sequence of commands in a text file and replay it with one click. Add delays, prompts, and REPL commands.
+- **Scripting.** Record a sequence of commands in a text file and replay it with one click, or rerun the last few commands you typed with `/run.last`. Add delays, prompts, and REPL commands.
+- **Paste to run, no script file needed.** Paste a block of commands into the prompt and every line runs as if you typed it: device lines go to the device, `/` lines run as termapy commands, Escape stops the rest. Paste a copied session, prompts, replies and all, and only its commands run again; the replies are skipped, never sent to the device. Copy what you did, paste it, and it happens again. See [Pasting several lines](src/termapy/help/toolbar.md#pasting-several-lines).
 - **Data capture.** Capture serial text (timed) or binary data (by byte/record count) to files. Binary captures use the same format spec language as protocol testing to decode mixed-type records into CSV/TSV.
 - **Binary protocol testing.** Send raw hex, run scripted send/expect tests with pass/fail, decode Modbus and custom protocols with pluggable visualizers.
 - **Plugin system.** Add custom commands with a simple Python API. Drop a file in a folder, define a handler, done. Includes examples to get started.
 - **Everything in one folder.** Each device config gets its own subfolder with logs, screenshots, scripts, and plugins. Check it into git so the whole team has the same config.
+- **Line-based, so device code stays small.** Editing, history and type-ahead happen in termapy, and a line goes out only when you press Enter, so the device needs a line buffer and nothing more: no backspace, cursor or completion code. Name a C variable or a register and termapy sends the address. The same lines replay from a log or a paste and are what an MCP agent sends. See [Why termapy is line-based](docs/why-line-based.md).
 
 See the [detailed feature comparison](docs/comparison.md) against RealTerm, CoolTerm, Tera Term, Docklight, and HTerm.
 
@@ -111,7 +119,7 @@ See the [detailed feature comparison](docs/comparison.md) against RealTerm, Cool
 
 ## Feature status
 
-Termapy is in beta: everything not listed here is stable and ready for public testing. These parts work and are used daily, but they are still being developed, sit outside the compatibility promise, and may change in any release.
+Termapy is in beta: everything not listed here is stable and ready for public testing. These parts work and are used daily, but they are still being developed and may change in any release.
 
 | Feature | Commands | Status |
 | --- | --- | --- |
@@ -122,7 +130,7 @@ Termapy is in beta: everything not listed here is stable and ready for public te
 | Dev board starters | `/board` | prototype |
 | Device-side firmware | `/firmware` | prototype |
 
-**Preview** works but may change in any release; **prototype** is new and incomplete, and may change or be removed. `/help` shows each command's level in every listing and on its page, the MCP catalog carries it, and a prototype says so once a session when it first runs.
+**Preview** works but may change in any release; **prototype** is new and incomplete, and may change or be removed. `/help` states the level on the command's page and, in a listing, puts the name in italics with the level in its tooltip; the MCP catalog carries it, and a prototype says so once a session when it first runs.
 
 ## Security
 
@@ -131,10 +139,16 @@ Termapy runs with your privileges and does whatever you — or a connected MCP c
 | Host access (refused by default on the main routes) | Opt in with |
 | --- | --- |
 | Files outside the config directory | `TERMAPY_MCP_FS_UNCONFINED=1` |
-| Network sockets (`socket://`, `rfc2217://`) | `TERMAPY_MCP_NET_EGRESS=1` |
+| Serial ports | `TERMAPY_ALLOWED_PORTS` naming them |
+| Network sockets (`socket://`, `rfc2217://`) | `TERMAPY_MCP_NET_EGRESS=1`, and `TERMAPY_ALLOWED_PORTS` naming the host exactly |
 | Environment variables (`/env`, `$(env.X)`) | `TERMAPY_MCP_ENV_ENABLED=1` |
+| The machine beyond the allowed devices (whole USB bus, programs holding a port, `/log.fingerprint`, `/app.alive`) | `TERMAPY_MCP_HOST_INFO=1` |
 
-Each flag takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outside that vocabulary refuses to start, naming the variable, rather than silently meaning off.
+Each `TERMAPY_MCP_*` flag takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outside that vocabulary refuses to start, naming the variable, rather than silently meaning off.
+
+`TERMAPY_ALLOWED_PORTS` limits the ports termapy opens and lists in every frontend: one regular expression over port names and USB serial numbers (`COM7|BG03U7VTA`). Unset, the TUI and CLI may open any port and an MCP server none. Keep it where an agent can't edit it; see [Serial ports](src/termapy/help/ports.md#limiting-which-ports-termapy-may-open) and [MCP server](src/termapy/help/mcp-server.md#which-ports-it-may-open).
+
+No flag opens the rest to an MCP client: a shell (`/os`), renaming or deleting files, writing into `plugin/` or `viz/`, and replacing a file outside the config's folder. These limit termapy's own commands; a client that can write files some other way is outside them.
 
 <details>
 <summary><strong>The basics</strong> - keyboard shortcuts, title bar, REPL commands</summary>
@@ -147,12 +161,15 @@ Each flag takes any boolean token (`1`, `on`, `true`, `yes`, ...); a value outsi
 | Ctrl+S  | Save SVG screenshot                 |
 | Ctrl+T  | Save text screenshot                |
 | Ctrl+P  | Command palette                     |
-| Ctrl+C  | Copy the selected output text       |
+| Ctrl+C  | Copy the selected text; with nothing selected, send Ctrl-C to the device |
+| Ctrl+D  | On an empty prompt, send Ctrl-D to the device |
+| Ctrl+Z  | On an empty prompt, send Ctrl-Z to the device (an AT modem's send-SMS key) |
 | Ctrl+A  | Select all output (click it first)  |
+| Ctrl+F  | Find in the config editor (Alt+F in VS Code) |
 | Shift+Up | Select output lines from the prompt; then Shift+arrows grow it |
 | F1–F4   | Help / Cfg / Run / Proto buttons (Ctrl+Shift+1–4 in VS Code); F10 edits the config |
 | Up/Down | Cycle through command history       |
-| Escape  | Clear input / exit history browsing |
+| Escape  | Stop what is running; otherwise clear the prompt, or, when it is empty, send Esc to the device |
 | Right   | Accept type-ahead suggestion        |
 
 See [Environment and compatibility](src/termapy/help/environment.md)
@@ -202,11 +219,11 @@ The most common ones:
 | `/port {name}`                       | Open Port picker (bare TUI), list ports (bare CLI), or open by name           |
 | `/port.help`                         | Same as `/help port`                                                          |
 | `/port.list`                         | List available serial ports                                                   |
-| `/port.connect {name} {baud} {mode}` | Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81)        |
-| `/port.mode {baud} {mode}`           | Show or set serial mode (e.g. /port.mode 9600 N81)                            |
+| `/port.connect {name} {baud} {mode} {custom=<bool>}` | Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81); a non-standard rate needs `custom=true` |
+| `/port.mode {baud} {mode} {custom=<bool>}` | Show or set serial mode (e.g. /port.mode 9600 N81); a non-standard rate needs `custom=true` |
 | `/port.disconnect`                   | Disconnect from the serial port                                               |
 | `/port.info`                         | Show port status, serial parameters, and hardware lines                       |
-| `/port.baud_rate {value}`            | Show or set baud rate (hardware only)                                         |
+| `/port.baud_rate {value} {custom=<bool>}` | Show or set baud rate (hardware only): a standard one, or any from 300 with `custom=true` |
 | `/port.byte_size {value}`            | Show or set data bits (hardware only)                                         |
 | `/port.parity {value}`               | Show or set parity (hardware only)                                            |
 | `/port.stop_bits {value}`            | Show or set stop bits (hardware only)                                         |
@@ -244,22 +261,23 @@ The most common ones:
 | `/show <name>`                       | Show a file                                                                   |
 | `/show.cfg`                          | Show the current config file                                                  |
 | `/term`                              | Terminal display / session toggles (echo, line_no, timestamps, ...)           |
-| `/term.info`                         | Snapshot the state of every `/term.*` toggle                                  |
-| `/term.echo {on\|off\|toggle}`        | Local echo of device commands sent to the wire (persisted via cfg `echo`)     |
+| `/term.info`                         | Snapshot every `/term.*` toggle, and the bytes sent and received              |
+| `/term.echo {on\|off\|toggle}`        | Local echo of device commands to the wire; session only, seeded by cfg `echo` |
 | `/term.echo_repl {on\|off\|toggle}`   | Local echo of REPL (slash) commands, session only; off inside scripts         |
 | `/term.line_no {on\|off\|toggle}`     | Toggle line numbers in serial output (TUI only)                               |
 | `/term.eol.markers {on\|off\|toggle}` | Toggle visible `\r` `\n` markers for line-ending troubleshooting              |
 | `/term.output {level\|cycle}`        | Show or set output level (silent/quiet/normal/verbose)                        |
 | `/term.timestamps {on\|off\|toggle}`  | Toggle `[HH:MM:SS.mmm]` timestamp prefix                                      |
+| `/term.traffic {on\|off\|toggle}`     | Show live TX/RX byte counts in the bottom bar (TUI only)                      |
 | `/term.hex {on\|off\|toggle}`         | Toggle hex display of incoming bytes                                          |
 | `/term.encoding {name}`              | Show or set byte-decoding encoding (utf-8, latin-1, ...)                      |
-| `/term.json {compact\|indent\|color\|cycle}` | How JSON answers print: one line, indented, or indented and colored |
+| `/term.json_fmt {compact\|indent\|color\|cycle}` | How JSON answers print: one line, indented, or indented and colored |
 | `/term.send_bare_enter {on\|off\|toggle}` | Send line ending on empty Enter                                          |
 | `/edit <file>`                       | Edit a project file (`run/`, `proto/` or `plugin/`)                           |
 | `/edit.cfg`                          | Edit the current config file                                                  |
 | `/edit.log`                          | Open the session log in the system viewer                                     |
 | `/edit.info`                         | Open the info report in the system viewer                                     |
-| `/os <cmd>`                          | Run a shell command (10s timeout, requires `TERMAPY_OS_CMD_ENABLED=1` in env) |
+| `/os <cmd>`                          | Run a shell command (10s timeout, requires `TERMAPY_OS_CMD_ENABLED=1` in env); a nonzero exit stops a script |
 | `/grep <pattern>`                    | Search scrollback for regex matches (case-insensitive, skips own output)      |
 | `/cfg.info {--display}`              | Write and show the project report (folder tree, config, buttons, log and history tails); also written at exit; `--display` opens it |
 | `/proto`                             | Open Proto picker (bare TUI) or list proto/ (bare CLI)                        |
@@ -321,6 +339,7 @@ Everything termapy creates (configs, scripts, test files, plugins, logs) lives i
 ```text
 termapy_cfg/
 ├── plugin/                             # global plugins (all configs), once you add one
+├── log/                                # diagnostic log, one file per run: what went wrong, with tracebacks
 └── demo/
     ├── demo.cfg                        # config file
     ├── demo_legacy.profile.json        # /mem.* through the device's own `mem` grammar
@@ -435,7 +454,7 @@ Run `/run setup_modbus.run` then `/run test_registers.run`. The variables persis
 | `/var.set NAME val` | Set a variable (explicit command form) |
 | `/var.clear`        | Clear all variables                    |
 
-**Scope:** Variables persist for the interactive session. They are automatically cleared when a script is launched from the Run picker, but *not* when `/run` is typed interactively or called within a script. This lets you run a setup script to define variables, then run a test script that uses them. Use `/var.clear` to reset manually.
+**Scope:** Variables persist until a config loads, which starts clean. A script is not a load: it sees them however it was launched, and what it sets stays after it ends. This lets you run a setup script to define variables, then run a test script that uses them. Use `/var.clear` to reset manually.
 
 **Naming:** Variable names are case-sensitive (`$(PORT)` and `$(port)` are different variables). Names must start with a letter or underscore and contain only letters, digits, and underscores.
 
@@ -478,7 +497,7 @@ termapy --cfg-dir /path/to/configs
 
 ### Config validation
 
-Termapy validates config files on load and when saving from the editor. Invalid serial settings (baud rate, parity, data bits, stop bits, flow control, encoding) and unknown keys (typos) produce yellow warnings in the log window. Non-standard baud rates are flagged but allowed, since some hardware uses custom rates.
+Termapy checks every key the same way on load, in the config editor and at `/cfg`. A bad value (a parity that does not exist, `max_lines` of 0, a regex that does not compile) produces a yellow warning on load, turns red in the editor and blocks its Save, and is refused by `/cfg` and `/cfg.auto`. Unknown keys (typos) warn too. Non-standard baud rates are flagged but allowed, since some hardware uses custom rates.
 
 To validate a config from the command line without launching the UI:
 
@@ -552,7 +571,7 @@ Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in th
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 33,
+    "config_version": 39,
     "title": "",
     "border_color": "",
     "serial": {
@@ -572,17 +591,23 @@ Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in th
     "mcp_on_connect_cmd": "",
     "encoding": "utf-8",
     "eol": "\r",
+    "tx_char_delay_ms": 0,
+    "tx_line_delay_ms": 0,
+    "tx_chunking": true,
     "eol_rx": "auto",
     "eol_markers": false,
     "send_bare_enter": false,
     "cmd_delay_ms": 0,
     "multiline_paste": true,
     "multiline_paste_delay_ms": 10,
+    "control_keys": true,
     "echo": false,
     "echo_fmt": "[purple]$(CFG)> {cmd}[/]",
     "timestamps": false,
     "line_no": false,
     "hex": false,
+    "color": true,
+    "output_level": "normal",
     "max_lines": 10000,
     "max_grep_lines": 100,
     "protocol": "text",
@@ -594,7 +619,10 @@ Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in th
     "request_mode": false,
     "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
     "strip_device_echo": false,
-    "json_style": "compact",
+    "json_fmt": {
+        "highlight": true,
+        "indent": 2
+    },
     "profile_path": "",
     "validate_typed_args": false,
     "default_response_timeout_ms": 1000,
@@ -608,7 +636,6 @@ Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in th
     "cmd_prefix": "/",
     "cli_prompt": "$(CFG)> ",
     "cli_completion": true,
-    "show_traceback": false,
     "cfg_enabled": true,
     "run_enabled": true,
     "proto_enabled": true,
@@ -623,7 +650,7 @@ See the **[config field reference](src/termapy/help/config.md#config-field-refer
 
 **Note on `eol_markers`:** This is a debug mode for troubleshooting line-ending mismatches (`\r` vs `\n` vs `\r\n`). When enabled, dim `\r` and `\n` markers appear inline in serial output before the characters are consumed by line splitting. Sent commands also show the configured line ending. Since the markers use ANSI escape sequences, they may interfere with device ANSI color output, so turn `eol_markers` off when not actively debugging.
 
-**Note on device color (ANSI):** The TUI and CLI render ANSI color (SGR) from device output inline, so colored log lines appear colored. termapy is line-oriented by design and does **not** emulate cursor addressing or full-screen redraws in the TUI - for devices that drive the terminal that way (menus, `top`/`vi` on an embedded console, bootloader UIs), use `--vt100` (see the VT100 mode section below), which hands raw bytes to your own terminal to emulate. In the CLI, `--no-color` (or `/term.color off`) strips color for clean piping. Over MCP, color defaults **off** so device ANSI is stripped from the JSON an agent receives (`/term.color on` re-enables passthrough); silence it at the source with the device's own `color off` in `mcp_on_connect_cmd`.
+**Note on device color (ANSI):** The TUI and CLI render ANSI color (SGR) from device output inline, so colored log lines appear colored. termapy is line-oriented by design and does **not** emulate cursor addressing or full-screen redraws in the TUI - for devices that drive the terminal that way (menus, `top`/`vi` on an embedded console, bootloader UIs), use `--vt100` (see the VT100 mode section below), which hands raw bytes to your own terminal to emulate. `/term.color off` drops every color in either frontend, termapy's own included, and the CLI's `--no-color` starts it that way for clean piping. Over MCP, color defaults **off** so device ANSI is stripped from the JSON an agent receives (`/term.color on` re-enables passthrough); silence it at the source with the device's own `color off` in `mcp_on_connect_cmd`.
 
 </details>
 
@@ -665,6 +692,15 @@ Capture serial data to files without interrupting normal terminal display.
 ```sh
 /cap.bin raw.bin bytes=256 cmd=read_all
 ```
+
+**Raw traffic log** (every byte in both directions, through pyserial's `spy://`):
+
+```sh
+/port spy://COM3?file=traffic.txt                      # reopens the port and logs to cap/traffic.txt
+/port COM3                                             # reopens it again, and logging stops
+```
+
+Or put the URL in the config's `port` key. [Logging the raw traffic](src/termapy/help/ports.md#logging-the-raw-traffic) shows the format and what to expect.
 
 **Structured capture** (binary data decoded via format spec to CSV):
 
@@ -980,7 +1016,7 @@ termapy --vt100 --demo         # no hardware: an interactive ANSI menu/dashboard
 
 `--vt100 --demo` connects to a simulated VT100 device that draws a colored, cursor-addressed menu (arrow keys to move, Enter to open) and a live status dashboard - the quickest way to see what passthrough buys you over plain line output. Quit with Ctrl-].
 
-It's a peer of CLI and TUI mode: set `"default_ui": "vt100"` in a config to make it the default, and `--vt100` overrides the config the same way `--cli` does. The byte pump is the vendored pyserial `miniterm`, which enables VT processing on Windows 10+ automatically.
+It's a peer of CLI and TUI mode: set `"default_ui": "vt100"` in a config to make it the default, and `--vt100` overrides the config the same way `--cli` does. The port is termapy's own serial engine, as in every mode; the console is the vendored pyserial `miniterm`, which enables VT processing on Windows 10+ automatically. It writes the TUI's session log, `<cfg>.log`: received lines only, since in passthrough each key goes to the device as typed and the device's echo is the record.
 
 It's also a reversible toggle from inside the TUI, like `/cli` <-> `/tui`: `/vt100` hands the current device to a passthrough terminal, and `/demo.vt100` jumps to the widget tour. In both cases Ctrl-] returns you to the TUI (when launched from the shell with `--vt100`, Ctrl-] quits instead).
 
@@ -1005,12 +1041,13 @@ Add custom REPL commands by dropping a `.py` file in a plugin folder. No classes
 
 ```python
 # hello.py - drop into termapy_cfg/plugin/ or termapy_cfg/<config>/plugin/
-from termapy.plugins import Command, PluginContext
+from termapy.plugins import CmdResult, Command, PluginContext
 
 
-def _handler(ctx: PluginContext, args: str):
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     name = args.strip() or "world"
     ctx.io.result(f"Hello, {name}!")
+    return CmdResult.ok(value=name)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
@@ -1042,7 +1079,6 @@ See `examples/plugins/` for working examples:
 - **at_test.py:** send AT commands over serial
 - **timestamp.py:** print the current date/time
 - **ping.py:** send a command and measure response time
-- **traffic.py:** passive RX/TX byte tap (count, hexdump, rate, snoop) -- also shipped with `--demo`
 
 More complete examples ship with `--demo`: `probe.py` demonstrates the drain → write → read → parse cycle for device interaction; `traffic.py` (with `/traffic.count`, `/traffic.hexdump`, `/traffic.rate`, `/traffic.snoop`) demonstrates the passive RX/TX observer pattern via the `ctx.serial.rx_observer()` / `ctx.serial.tx_observer()` context managers. Run `/help probe` or `/help traffic` to see the documentation, or `/help.dev <name>` for the source docstrings.
 
@@ -1196,7 +1232,7 @@ Every command runs on a worker thread, the serial reader is the only long-lived 
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 5077 tests</summary>
+<summary><strong>Test coverage</strong> - 6993 tests</summary>
 
 Run the full suite with `uv run pytest`. (The count above is the one place it
 is tracked; `release_prep` refreshes it each release.) The coverage figure is

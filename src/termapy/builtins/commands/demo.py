@@ -54,6 +54,10 @@ COMMAND = Command(
     group="terminal",
     name="demo",
     help="Switch to the built-in demo device (creates its config if needed).",
+    intro=(
+        "A simulated device, so you can try termapy with no hardware attached. It "
+        "comes with its own config, scripts and plugins."
+    ),
     handler=_handler,
     needs=CapabilitySet.INTERACTIVE,
     sub_commands={

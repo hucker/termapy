@@ -1,4 +1,9 @@
-"""The demo traffic plugin's /traffic.snoop, on the per-config plugin path --demo uses.
+"""The demo traffic plugin's /traffic.count, .hexdump and .snoop, on the per-config plugin path --demo uses.
+
+``/traffic.count`` reported RX 0 for every device command until 2026-11-06: a
+device line returns as soon as it is written, and the count stopped watching
+before the reply arrived.  It now waits through ``ctx.serial.wait_idle``, the
+same wait ``/cap.wire`` uses, so the tests below pin the reply being counted.
 
 The demo plugins are what plugin authors copy, so they read bytes with the
 shared reader (``protocol.parse_data``: hex in any spelling or case, quoted
@@ -7,7 +12,7 @@ text) and print hex uppercase.  Until 2026-10-13 no test drove
 renamed variable in its match and timeout messages, caught only by ruff and
 ty.  The rig copies the plugin into the config's ``plugin/`` folder, where the
 engine loads it at config load exactly as ``--demo`` sets it up, and connects
-the DEMO port (the ``tests/test_port_commands.py`` shape).
+the DEMO port (``conftest.py``'s ``cli``, with the plugin added).
 """
 
 from __future__ import annotations
@@ -60,6 +65,112 @@ def _run_line(cli: CLITerminal, tmp_path: Path, line: str) -> None:
     script = tmp_path / "snoop.run"
     script.write_text(line + "\n", encoding="utf-8")
     cli.repl.dispatch_full(f"/run {script}")
+
+
+# AT+RAMP\r goes out (8 bytes) and the DEMO answers x.x\r\n (5 bytes).
+_RAMP = {"tx_bytes": 8, "rx_bytes": 5}
+
+
+class TestCount:
+    """/traffic.count waits for the reply: the DEMO answers after the command has returned."""
+
+    @pytest.mark.timing
+    def test_the_reply_is_counted(self, cli):
+        """With the default 50ms gap, AT+RAMP counts its 8 bytes out and its 5-byte reply."""
+        result = cli.repl.dispatch_full("/traffic.count AT+RAMP")
+        assert result.data == _RAMP, result.error
+
+    @pytest.mark.timing
+    def test_the_value_is_the_reply_size(self, cli):
+        """The scriptable value is a scalar, the RX byte count; both counts are the data."""
+        result = cli.repl.dispatch_full("/traffic.count wait_gap=200ms AT+RAMP")
+        assert result.value == 5, "the value is a scalar, never the data dict"
+
+    @pytest.mark.timing
+    def test_twice_in_a_row_each_counts_its_own_reply(self, cli):
+        """A second count sees its own reply and none of the first one's."""
+        # Act
+        first = cli.repl.dispatch_full("/traffic.count wait_gap=200ms AT+RAMP")
+        second = cli.repl.dispatch_full("/traffic.count wait_gap=200ms AT+RAMP")
+
+        # Assert
+        assert (first.data, second.data) == (_RAMP, _RAMP), "each count is its own exchange"
+
+    @pytest.mark.timing
+    @pytest.mark.parametrize(
+        "line",
+        ["/traffic.count wait_gap=200ms AT+RAMP", "/traffic.count AT+RAMP wait_gap=200ms"],
+    )
+    def test_wait_gap_goes_anywhere_on_the_line(self, cli, line):
+        """wait_gap= is read before or after the command, and never sent with it."""
+        result = cli.repl.dispatch_full(line)
+        assert result.data == _RAMP, result.error
+
+    def test_an_equals_sign_stays_in_the_command(self, cli):
+        """AT+NAME=probe is the device command, not an unknown keyword: all of it goes out."""
+        result = cli.repl.dispatch_full("/traffic.count wait_gap=200ms AT+NAME=probe")
+        assert result.data["tx_bytes"] == len(b"AT+NAME=probe\r"), result.error
+
+    def test_a_bad_wait_gap_is_refused(self, cli):
+        """A wait_gap= that is not a duration fails, and the error names it."""
+        # Act
+        result = cli.repl.dispatch_full("/traffic.count wait_gap=garbage AT+RAMP")
+
+        # Assert
+        assert result.success is False, "an unreadable gap never runs the command"
+        assert "wait_gap" in result.error, result.error
+
+    @pytest.mark.timing
+    def test_cap_wire_counts_the_same_bytes(self, cli):
+        """One wait for both: /cap.wire and /traffic.count see the same exchange for the same command."""
+        # Act
+        wire = cli.repl.dispatch_full("/cap.wire wait_gap=200ms cmd=AT+RAMP")
+        count = cli.repl.dispatch_full("/traffic.count wait_gap=200ms AT+RAMP")
+
+        # Assert
+        actual = {key: wire.data[key] for key in _RAMP}
+        assert actual == count.data == _RAMP, "the two commands disagree on one exchange"
+
+
+@pytest.mark.rule("writes-in-cfg-folder")
+def test_hexdump_lands_in_cap(cli, tmp_path):
+    """A relative name goes under the config's cap/, never the working folder, and the reply names it."""
+    # Act
+    result = cli.repl.dispatch_full("/traffic.hexdump wire.txt 50ms")
+
+    # Assert
+    assert result.success is True, result.error
+    expected = tmp_path / "rig" / "cap" / "wire.txt"
+    assert expected.exists(), "the file is in cap/"
+    assert result.value == str(expected.resolve()), "the reply names the full path"
+    assert result.data["path"] == result.value, "the data carries the same path"
+
+
+def test_rate_answers_a_scalar_and_its_data(cli):
+    """/traffic.rate's value is the RX rate, a number; the window's counts and rates are the data."""
+    # Act
+    result = cli.repl.dispatch_full("/traffic.rate 50ms")
+
+    # Assert
+    assert result.success is True, result.error
+    assert isinstance(result.value, float), "the value is a scalar, never the data dict"
+    actual = sorted(result.data)
+    expected = ["duration_s", "rx_bytes", "rx_rate_bps", "tx_bytes", "tx_rate_bps"]
+    assert actual == expected, "the data carries both directions' counts and rates"
+
+
+def test_hexdump_twice_replaces_for_a_person(cli, tmp_path):
+    """A person's second dump to one name starts it over, as it always has; only an MCP client is refused that."""
+    # Arrange
+    outside = tmp_path / "outside.txt"
+    outside.write_text("before\n", encoding="utf-8")
+
+    # Act
+    result = cli.repl.dispatch_full(f"/traffic.hexdump {outside} 50ms")
+
+    # Assert
+    assert result.success is True, result.error
+    assert outside.read_text(encoding="utf-8") == "", "an absolute path still works for a person"
 
 
 def test_snoop_matches_a_quoted_text_pattern(cli, tmp_path, capsys):

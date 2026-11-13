@@ -64,14 +64,46 @@ def format_symbol(
 
 
 def _value_text(symbol: Symbol, address_bits: int) -> str:
-    """The display tail: ``  = PORTC_DIR`` (alias), ``  -> 0x...`` (pointer), ``  = 4`` (value)."""
-    if symbol.alias_of:
-        return f"  = {symbol.alias_of}"
-    if symbol.value is None:
+    """The display tail of a line: two spaces and :func:`symbol_note`, or nothing."""
+    note = symbol_note(symbol_record(symbol, address_bits=address_bits), address_bits=address_bits)
+    return f"  {note}" if note else ""
+
+
+def symbol_note(record: dict[str, Any], *, address_bits: int = 32) -> str:
+    """What a symbol stands for: ``= PORTC_DIR`` (alias), ``-> 0x...`` (pointer), ``= 4`` (value), ``""`` for none.
+
+    The one phrasing: :func:`format_symbol`'s tail and the ``/sym.search``
+    table's NOTE column both read it, so the line and the table cannot drift.
+    """
+    if record["alias_of"]:
+        return f"= {record['alias_of']}"
+    if record["value"] is None:
         return ""
-    if symbol.pointee and isinstance(symbol.value, int):
-        return f"  -> {hex_addr(symbol.value, address_bits)}"
-    return f"  = {symbol.value}"
+    if record["pointee"] and isinstance(record["value"], int):
+        return f"-> {hex_addr(record['value'], address_bits)}"
+    return f"= {record['value']}"
+
+
+def symbol_columns(*, address_bits: int = 32) -> tuple[Column, ...]:
+    """The ``/sym.search`` table over :func:`symbol_record`: every fact :func:`format_symbol` shows, a column each.
+
+    Clicking a name runs ``/sym <name>``, a lookup that changes nothing.
+
+    Args:
+        address_bits: Address width for a pointer's target in NOTE.
+    """
+    return (
+        Column("ADDRESS", lambda record: record["addr_hex"]),
+        Column("NAME", lambda record: record["name"], run=lambda record: f"sym {record['name']}"),
+        Column("SECTION", lambda record: section_label(record["section"])),
+        Column("SIZE", lambda record: str(record["size"]) if record["size"] else "", right=True),
+        Column("FILE", lambda record: record["file"]),
+        Column(
+            "NOTE",
+            lambda record: symbol_note(record, address_bits=address_bits),
+            hide_empty=True,
+        ),
+    )
 
 
 def symbol_record(symbol: Symbol, *, address_bits: int = 32) -> dict[str, Any]:

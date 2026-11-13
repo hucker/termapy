@@ -125,6 +125,7 @@ class TestEnsureFolder:
 
 
 class TestPruneEmptyFolders:
+    @pytest.mark.rule("folders-ensure-only")
     def test_removes_only_empty_folders_named_in_folders(self, tmp_path):
         """Only empty FOLDERS entries go; a file or lone dotfile keeps one, foreign folders stay."""
         # Arrange -- every data folder empty except run/ (a file) and sym/ (a dotfile),
@@ -448,8 +449,9 @@ class TestTuiWritersCreateTheirFolder:
 
         _run(scenario)
 
+    @pytest.mark.rule("test-messages-through-owner")
     def test_ss_and_captures_shortcuts_with_no_config_open_nothing(self, tmp_path):
-        """test-messages-through-owner: with no config the shortcuts open nothing and say the gate's answer, as the buttons do."""
+        """With no config the shortcuts open nothing and say the gate's answer, as the buttons do."""
 
         async def scenario():
             from termapy.app import SerialTerminal

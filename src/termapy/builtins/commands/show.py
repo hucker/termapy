@@ -75,9 +75,8 @@ COMMAND = Command(
     name="show",
     args="<name>",
     help="Show a file.",
+    intro="Reads a file and prints its contents to the terminal.",
     long_help="""\
-Reads a file and prints its contents to the terminal.
-
 Regular filenames are resolved relative to the working directory.
 
 Examples:

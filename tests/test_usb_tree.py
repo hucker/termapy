@@ -18,7 +18,10 @@ from contextlib import redirect_stdout
 
 import pytest
 
+from termapy.plugins.views import Piece, PieceLine, RecordView
 from termapy.usb_tree import (
+    PORT_NAME_STYLE,
+    PORT_ROW_STYLE,
     UnsupportedPlatform,
     UsbNode,
     UsbRecord,
@@ -29,6 +32,7 @@ from termapy.usb_tree import (
     build_tree,
     gather_usb_tree,
     render_tree,
+    render_tree_pieces,
     tag_serial_ports,
     to_json_records,
 )
@@ -53,10 +57,11 @@ def _bus() -> list[UsbRecord]:
 class _Facts:
     """Stand-in for ChipFacts, carrying only what the tagger reads."""
 
-    def __init__(self, device, location, interface_number=None):
+    def __init__(self, device, location, interface_number=None, session=None):
         self.device = device
         self.location = location
         self.interface_number = interface_number
+        self.session = session
 
 
 class TestParentPath:
@@ -259,6 +264,77 @@ class TestRenderTree:
         hits = [line for line in lines if "-> COM3" in line]
         assert len(hits) == 1, f"exactly one line claims COM3; got {hits}"
         assert ":1" in hits[0], "and it is the interface line, not the device"
+
+    def test_a_port_row_and_its_name_are_picked_out(self):
+        """The node carrying a port is in the row style and its -> COM3 in the name style; no other line is styled."""
+        # Arrange
+        roots = build_tree(_bus())
+        tag_serial_ports(roots, [_Facts("COM3", "1-8.4", "1")])
+
+        # Act
+        lines = render_tree_pieces(roots)
+
+        # Assert
+        styled = [line for line in lines if any(piece.style for piece in line)]
+        assert len(styled) == 1, "only the port's line is styled"
+        actual = [(piece.text, piece.style) for piece in styled[0]][1:]
+        expected = [("  ", ""), ("-> COM3", PORT_NAME_STYLE)]
+        assert actual == expected, "a plain gap, then the port name in its own style"
+        assert styled[0][0].style == PORT_ROW_STYLE, "the row itself is in the row style"
+
+    def test_the_pieces_are_the_plain_drawing(self):
+        """Joined, each line of pieces is exactly render_tree's line, so --usb and piped output are unchanged."""
+        # Arrange
+        roots = build_tree(_bus())
+        tag_serial_ports(roots, [_Facts("COM3", "1-8.4", "1")])
+
+        # Act
+        joined = ["".join(piece.text for piece in line) for line in render_tree_pieces(roots)]
+
+        # Assert
+        assert joined == render_tree(roots)
+
+    @pytest.mark.parametrize(("no_color", "expected_codes"), [(False, True), (True, False)])
+    def test_usb_colors_a_terminal_and_nothing_else(self, no_color, expected_codes):
+        """--usb's styled print colors the port row and name at a terminal, and drops the color under NO_COLOR."""
+        # Arrange
+        from rich.console import Console
+
+        from termapy.cli_flags import print_styled
+
+        roots = build_tree(_bus())
+        tag_serial_ports(roots, [_Facts("COM3", "1-8.4", "1")])
+        out = io.StringIO()
+        console = Console(
+            file=out, force_terminal=True, no_color=no_color, width=200, soft_wrap=True
+        )
+
+        # Act
+        print_styled(render_tree_pieces(roots), console=console)
+
+        # Assert
+        text = out.getvalue()
+        assert ("[36m" in text) is expected_codes, "the row's cyan only when color is on"
+        assert "[1m1[0m" not in text, "no number is bolded by a highlighter"
+        assert "-> COM3" in text, "the drawing itself is there either way"
+
+    def test_the_page_escapes_each_piece(self):
+        """A record page draws a line of pieces as markup with every piece's text escaped and its style kept."""
+        # Arrange
+        line = PieceLine(
+            (
+                Piece("[x]", style=PORT_ROW_STYLE),
+                Piece("  "),
+                Piece("-> COM3", style=PORT_NAME_STYLE),
+            )
+        )
+
+        # Act
+        actual = RecordView((line,)).lines()
+
+        # Assert
+        expected = [f"  [{PORT_ROW_STYLE}]\\[x][/]  [{PORT_NAME_STYLE}]-> COM3[/]"]
+        assert actual == expected, "the device text cannot be read as a style tag"
 
     def test_an_empty_bus_says_so(self):
         """An empty bus renders an explicit no-devices line, not zero output."""

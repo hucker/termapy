@@ -100,8 +100,9 @@ class TestCatalog:
         # Assert
         assert "/term.send" in names, "/term.send present (Phase 2.5)"
 
+    @pytest.mark.rule("state-answered-by-gate")
     def test_the_catalog_lists_commands_a_config_or_port_unlocks(self, host):
-        """state-answered-by-gate: a command that needs an open port or a config is listed while the port is closed.
+        """A command that needs an open port or a config is listed while the port is closed.
 
         The catalog read the host's static capabilities until 2026-10-16, so
         every command needing a port (/mem.read, /ping) was missing from it.
@@ -244,7 +245,7 @@ class TestCatalog:
         cat = build_catalog(host.ctx)
         sample = next(command for command in cat["commands"] if command["name"] == "/help")
         # Assert
-        for key in ("name", "args", "help", "long_help", "flags", "needs", "hidden", "source"):
+        for key in ("name", "args", "help", "long_help", "flags", "needs", "source"):
             assert key in sample, f"command entry missing {key!r}"
 
     def test_catalog_json_parses_back(self, host):
@@ -263,16 +264,6 @@ class TestCatalog:
         # Assert
         assert cat["device"] == {}, "no profile = empty device block"
         assert cat["profile_revision"] == "", "no profile = empty revision"
-
-    def test_catalog_hidden_flag_is_bool(self, host):
-        """Every command's hidden flag is a real bool, never None or a string."""
-        # Arrange / Act
-        cat = build_catalog(host.ctx)
-        # Assert
-        for command in cat["commands"]:
-            assert isinstance(command["hidden"], bool), (
-                f"hidden flag must be bool, got {type(command['hidden']).__name__}"
-            )
 
     def test_catalog_filters_interactive_only_commands(self, host):
         """Plugins requiring ``interactive`` are filtered from MCP catalog."""
@@ -315,39 +306,6 @@ class TestCatalog:
                 f"{cmd} should be filtered (needs.gui_apps=True; MCP doesn't advertise gui_apps)"
             )
 
-    def test_hidden_and_capability_filter_are_independent(self, host):
-        """``hidden`` is a UI-discoverability flag, NOT a catalog filter.
-
-        Hidden plugins (legacy forwarders for human typing) appear in
-        the MCP catalog with ``hidden: true`` -- the LLM can choose to
-        skip them itself.  The catalog filter is purely capability-based.
-        This test stashes a synthetic hidden+capability-satisfied plugin
-        and verifies it shows up.
-        """
-        # Arrange -- synthetic hidden plugin with no needs (baseline only)
-        from termapy.plugins import CapabilitySet, PluginInfo
-
-        synthetic = PluginInfo(
-            name="__test_hidden_visible",
-            args="",
-            help="synthetic test plugin",
-            handler=lambda ctx, args: None,
-            hidden=True,
-            needs=CapabilitySet(),  # baseline only -- satisfied by every host
-        )
-        host.repl._plugins[synthetic.name] = synthetic
-        try:
-            # Act
-            cat = build_catalog(host.ctx)
-            cat_names = {command["name"] for command in cat["commands"]}
-            # Assert
-            prefixed = host.ctx.prefix + synthetic.name
-            assert prefixed in cat_names, (
-                "hidden=True with no restrictive needs should appear in catalog"
-            )
-        finally:
-            del host.repl._plugins[synthetic.name]
-
     def test_catalog_filters_tui_only_commands(self, host):
         """A registered tui_mode command such as /proto.debug is left out for MCP."""
         # Arrange — /proto.debug needs tui_mode; MCP doesn't have it
@@ -379,10 +337,11 @@ class TestCatalog:
 
 
 class TestSessionLog:
-    """D3: over MCP the session log is mcp/session.log, the agent's own, never the TUI's."""
+    """D3: over MCP the session log is <cfg>.mcp.log, the agent's own, never the TUI's."""
 
+    @pytest.mark.rule("session-log-one-owner")
     def test_log_commands_read_the_frontends_own_log(self, host):
-        """session-log-one-owner: /log.dump over MCP prints mcp/session.log, and $(CFG.LOG_FILE) names it.
+        """/log.dump over MCP prints <cfg>.mcp.log, and $(CFG.LOG_FILE) names it.
 
         Until 2026-10-16 every frontend's /log.dump read the TUI's <cfg>.log,
         so an agent saw another session's log (review 2026-10-15, D3).
@@ -401,7 +360,7 @@ class TestSessionLog:
         assert "agent-was-here" in text, "the agent's own log"
         assert "TUI-ONLY-LINE" not in text, "never the TUI's log"
         log_path = host.session_log_path()
-        assert log_path is not None and log_path.name == "session.log"
+        assert log_path is not None and log_path.name == "test.mcp.log", "beside the cfg, its stem"
         assert Path(named["value"]) == log_path.resolve(), "$(CFG.LOG_FILE) is the same file"
 
     @pytest.mark.parametrize("command", ["log.delete", "log.stop", "log.start"])
@@ -479,6 +438,7 @@ class TestRunCommandErrors:
         assert result["success"] is False, "no port = no send"
         assert STATE_MESSAGES["serial_connected"] in result["error"], "error says disconnected"
 
+    @pytest.mark.timing
     def test_timeout_returns_failure(self, host):
         """No longer slow: the timeout used to be followed by a join.
 
@@ -487,59 +447,65 @@ class TestRunCommandErrors:
         loop, so the call returned only when the /delay finished.  The
         symptom was annotated rather than diagnosed (T11).
         """
-        # Arrange / Act -- /delay 1s with timeout_s=0.2
+        # Arrange / Act -- /delay 5s with timeout_s=0.2: the join would hold
+        # the call for the whole 5 s, far past the 3 s bound, which a
+        # returning call stays under however loaded the machine.
         started = time.monotonic()
-        result = asyncio.run(host.run_command_async("/delay 1s", "normal", 0.2))
+        result = asyncio.run(host.run_command_async("/delay 5s", "normal", 0.2))
         elapsed = time.monotonic() - started
+        # The abandoned /delay sleeps on in the worker; stop it as Escape would.
+        host.ctx.internal.script_stop()
 
         # Assert
         assert result["success"] is False, "timeout fails"
         assert "timeout" in result["error"].lower(), "error names timeout"
-        assert elapsed < 0.7, (
+        assert elapsed < 3.0, (
             "the call must return on its timeout, not when the abandoned "
             f"dispatch finishes; took {elapsed:.2f}s for a 0.2s timeout"
         )
 
+    @pytest.mark.timing
     def test_the_event_loop_keeps_running_during_a_timeout(self, host):
         """The join starved everything else on the loop, not just the caller.
 
         async_events, other tool calls, and the MCP transport itself all
-        share this event loop.
-
-        The window is a full second (not the 0.3 s the sibling test uses):
-        tick DENSITY is the assertion, and over 0.3 s the executor-thread
-        spin-up plus coverage tracing under eight xdist workers cost enough
-        ticks to fail a live loop (3 ticks in 0.40 s, needing 4).  A longer
-        window makes the steady state dominate the sample.
+        share this event loop, so it must stay live for the whole call.
+        The join froze it from the timeout until the abandoned /delay
+        ended: here one silence of about 4.5 s.  A live loop's longest
+        silence is bounded by the call, which ends at its 0.5 s timeout, so
+        even a machine loaded enough to stall the process for a second (as
+        eight xdist workers on Python 3.11 did) stays well under 3 s.  A
+        tick count or density is no test: the first is met by ticks earned
+        before a freeze, the second fails a live loop on a loaded machine.
         """
 
         async def scenario():
-            ticks = 0
+            beats: list[float] = []
 
             async def ticker() -> None:
-                nonlocal ticks
                 while True:
                     await asyncio.sleep(0.05)
-                    ticks += 1
+                    beats.append(time.monotonic())
 
             beat = asyncio.create_task(ticker())
             started = time.monotonic()
-            result = await host.run_command_async("/delay 3s", "normal", 1.0)
-            elapsed = time.monotonic() - started
+            result = await host.run_command_async("/delay 5s", "normal", 0.5)
+            ended = time.monotonic()
             beat.cancel()
-            return result, ticks, elapsed
+            return result, started, beats, ended
 
         # Act
-        result, ticks, elapsed = asyncio.run(scenario())
+        result, started, beats, ended = asyncio.run(scenario())
+        # The abandoned /delay sleeps on in the worker; stop it as Escape would.
+        host.ctx.internal.script_stop()
 
-        # Assert -- density, not count.  A count alone proves nothing: the
-        # ticks earned before the timeout satisfy it whether or not the loop
-        # then froze for the rest of the call.
-        possible = elapsed / 0.05
+        # Assert
+        marks = [started, *[beat for beat in beats if beat <= ended], ended]
+        longest = max(later - earlier for earlier, later in zip(marks, marks[1:]))
         assert result["success"] is False, "the call still times out"
-        assert ticks >= possible * 0.5, (
-            f"the loop must stay live for the WHOLE call; got {ticks} ticks in "
-            f"{elapsed:.2f}s, which allows about {possible:.0f}"
+        assert longest < 3.0, (
+            f"the loop must stay live for the WHOLE call; it went {longest:.2f}s "
+            f"without a tick in a {ended - started:.2f}s call"
         )
 
 
@@ -616,6 +582,30 @@ class TestUnifiedEnvelope:
         assert data["user"] == {"PORT": "COM9"}, "set variable visible in data"
         assert data["launch"]["FRONT_END"] == "mcp", "launch namespace resolved into data"
 
+    @pytest.mark.rule("value-typed")
+    @pytest.mark.parametrize("value", [0, False, 7, True], ids=["zero", "false", "int", "true"])
+    def test_a_typed_value_reaches_the_agent_as_itself(self, host, value):
+        """An envelope carries a value in its own type; 0 and False are values, never emptied."""
+        # Arrange
+        from termapy.plugins import CmdResult, PluginInfo
+
+        host.repl._plugins["__probe"] = PluginInfo(
+            name="__probe",
+            args="",
+            help="synthetic test plugin",
+            handler=lambda ctx, args: CmdResult.ok(value=value),
+        )
+        try:
+            # Act
+            result = asyncio.run(host.run_command_async("/__probe", "normal", 5.0))
+        finally:
+            del host.repl._plugins["__probe"]
+
+        # Assert
+        assert result["value"] == value and type(result["value"]) is type(value), (
+            "the agent gets the value typed, not spelled"
+        )
+
     def test_mcp_info_returns_its_record_as_data_at_normal_level(self, host):
         """/mcp.info reaches an MCP client as one record of real values, pid first, and no rows of display text beside it."""
         # Act
@@ -632,7 +622,7 @@ class TestUnifiedEnvelope:
         assert (data["connected"], data["commands"] > 0) == (False, True), (
             "real types, not display strings"
         )
-        assert result["value"] == str(data["commands"]), "value stays the command count"
+        assert result["value"] == data["commands"], "value stays the command count"
         assert result["output_lines"] == [], "the facts ride once, as data"
 
     def test_var_data_mode_emits_no_prose_even_at_verbose(self, host):
@@ -649,7 +639,7 @@ class TestUnifiedEnvelope:
         )
 
     def test_port_list_returns_records_in_data(self, host, monkeypatch):
-        """/port.list returns per-port records in data and comma-joined names in value."""
+        """/port.list returns per-port records in data and their count in value."""
         # Arrange -- layer-2 fleet: the handler calls list_port_records()
         # with no source arg, so injection can't reach it; the env layer
         # exists exactly for a party outside the call (here, the test).
@@ -666,8 +656,8 @@ class TestUnifiedEnvelope:
         assert "vid" in first and "serial_number" in first, (
             "records carry the fixed facts_to_json_record schema"
         )
-        assert result["value"] == ",".join(actual_devices), (
-            "value is the scriptable scalar: comma-joined device names"
+        assert result["value"] == len(actual_devices), (
+            "value is the port count, an integer; the names are the records"
         )
 
 
@@ -724,17 +714,13 @@ class TestOutputBufferLevels:
         levels = {entry["level"] for entry in result["output_lines"]}
         assert "markup" in levels, "/help emits markup"
 
+    @pytest.mark.rule("markup-escape")
     def test_markup_entries_carry_the_text_a_terminal_shows(self, host):
-        """markup-escape: a markup entry is flattened for the agent: no Rich tags, no escapes, a bracketed value intact."""
-        from termapy.variables import unset_user_var
-
+        """A markup entry is flattened for the agent: no Rich tags, no escapes, a bracketed value intact."""
         # Arrange / Act -- /var.set echoes its row as markup even under MCP's wants_data
-        try:
-            result = asyncio.run(
-                host.run_command_async("/var.set MARKUP_TAG [ok] boot", "verbose", 5.0)
-            )
-        finally:
-            unset_user_var("MARKUP_TAG")  # user variables are process-global
+        result = asyncio.run(
+            host.run_command_async("/var.set MARKUP_TAG [ok] boot", "verbose", 5.0)
+        )
 
         # Assert
         actual = [entry["text"] for entry in result["output_lines"] if entry["level"] == "markup"]
@@ -905,12 +891,12 @@ class TestColorStripping:
         assert list(host.repl._recent_lines)[-3:] == ["first", "second", "third"], (
             "the expect watcher sees every line"
         )
-        assert host._log_path is not None, "the fixture's cfg gives the host a log"
-        logged = [
-            line
-            for line in host._log_path.read_text(encoding="utf-8").splitlines()
-            if line.startswith("< ")
+        log_path = host.session_log_path()
+        assert log_path is not None, "the fixture's cfg gives the host a log"
+        entries = [
+            line.partition("] ")[2] for line in log_path.read_text(encoding="utf-8").splitlines()
         ]
+        logged = [entry for entry in entries if entry.startswith("< ")]
         assert logged == ["< first", "< second", "< third"], "every line logged, in order"
 
     def test_on_lines_strips_ansi_into_async_events_when_color_off(self, host):
@@ -926,8 +912,9 @@ class TestColorStripping:
         event_lines = [event["line"] for event in host._async_events]
         assert event_lines == ["ERR: bad"], "device ANSI stripped from async_events when color off"
 
+    @pytest.mark.rule("rx-every-line-delivered")
     def test_on_lines_feeds_an_active_text_capture(self, host, tmp_path):
-        """rx-every-line-delivered: lines read while a text capture runs over MCP reach its file, plain."""
+        """Lines read while a text capture runs over MCP reach its file, plain."""
         # Arrange
         cap_path = tmp_path / "mcp_capture.txt"
         started = host.capture.start(path=cap_path, file_mode="w", mode="text", duration=60.0)
@@ -944,8 +931,9 @@ class TestColorStripping:
             "this host fed only the expect watcher, so /cap.text over MCP recorded nothing"
         )
 
+    @pytest.mark.rule("hex-view-wire-bytes")
     def test_on_hex_records_rows_and_feeds_the_lines(self, host):
-        """hex-view-wire-bytes: in the hex view the agent's async events carry the rows; the watcher gets the decoded line."""
+        """In the hex view the agent's async events carry the rows; the watcher gets the decoded line."""
         # Arrange
         host._async_events = []
 
@@ -957,8 +945,9 @@ class TestColorStripping:
         assert event_lines == ["4F 4B 0D 0A"], "MCP ignored /term.hex: the agent saw text"
         assert list(host.repl._recent_lines)[-1] == "OK", "the expect watcher gets the decoded line"
 
+    @pytest.mark.rule("port-lost-tears-down")
     def test_a_lost_port_stops_a_running_capture(self, host, tmp_path):
-        """port-lost-tears-down: when the reader loses the port, an MCP capture stops and frees its claim."""
+        """When the reader loses the port, an MCP capture stops and frees its claim."""
         # Arrange -- a binary capture, which claims the port
         started = host._start_capture(
             path=tmp_path / "lost.bin", file_mode="wb", mode="bin", target_bytes=1000
@@ -1016,9 +1005,12 @@ class TestLogCommandsAvailableInMCP:
         missing = list(plugin.needs.missing_from(attainable(host.ctx.capabilities)))
         assert missing == [], f"log.dump satisfied by MCP capabilities (missing={missing})"
 
-    def test_log_fingerprint_registered_and_mcp_callable(self, host):
-        """/log.fingerprint is a builtin whose needs MCP fully satisfies."""
+    @pytest.mark.rule("mcp-host-info-opt-in")
+    def test_log_fingerprint_registered_but_gated_on_host_info(self, host):
+        """/log.fingerprint describes the host, so MCP reaches it only with host_info (TERMAPY_MCP_HOST_INFO, decision 2026-11-12)."""
         # Arrange / Act
+        from dataclasses import replace
+
         from termapy.plugins.capabilities import attainable
 
         plugin = host.repl._plugins.get("log.fingerprint")
@@ -1026,7 +1018,9 @@ class TestLogCommandsAvailableInMCP:
         # Assert
         assert plugin is not None, "log.fingerprint registered as a builtin in MCP host"
         missing = list(plugin.needs.missing_from(attainable(host.ctx.capabilities)))
-        assert missing == [], f"log.fingerprint satisfied by MCP capabilities (missing={missing})"
+        assert missing == ["host_info"], "gated on the host view by default"
+        opted_in = attainable(replace(host.ctx.capabilities, host_info=True))
+        assert list(plugin.needs.missing_from(opted_in)) == [], "and satisfied once it is granted"
 
     def test_log_show_registered_but_gated_on_gui_apps(self, host):
         """/log.show is registered but stays unavailable to MCP for lack of gui_apps."""
@@ -1059,8 +1053,9 @@ class TestRunCommandsAvailableInMCP:
         missing = list(plugin.needs.missing_from(host.ctx.capabilities))
         assert missing == [], f"/run is callable from MCP (missing={missing})"
 
+    @pytest.mark.rule("bare-declared")
     def test_run_bare_lists_the_scripts(self, host):
-        """bare-declared: bare /run with no picker in MCP runs /run.list, so an agent gets the scripts, not a usage error."""
+        """Bare /run with no picker in MCP runs /run.list, so an agent gets the scripts, not a usage error."""
         # Act
         bare = host.repl.dispatch("run")
         listed = host.repl.dispatch("run.list")
@@ -1070,9 +1065,9 @@ class TestRunCommandsAvailableInMCP:
         assert bare.value == listed.value, "bare /run is /run.list"
 
     def test_run_list_dump_callable_from_mcp(self, host):
-        """run.list, run.dump and run.legacy are all callable under MCP capabilities, with its config loaded."""
+        """run.list and run.dump are callable under MCP capabilities, with its config loaded."""
         # Arrange / Act -- the gate's own set: the static one plus the live config
-        for name in ("run.list", "run.dump", "run.legacy"):
+        for name in ("run.list", "run.dump"):
             plugin = host.repl._plugins.get(name)
             missing = list(plugin.needs.missing_from(host.repl._effective_capabilities()))
 

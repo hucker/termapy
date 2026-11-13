@@ -24,6 +24,10 @@ COMMAND = Command(
     group="advanced",
     name="plugin",
     help="Plugin-folder tools: list, explore, show, dump, edit.",
+    intro=(
+        "Plugins are Python files that add your own commands to termapy. These "
+        "commands manage the ones in this config's plugin/ folder."
+    ),
     sub_commands={
         "edit": edit_command("plugin"),
         **build_folder_subcommands("plugin"),

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import io
 
+import pytest
 from rich.console import Console
 from rich.errors import MarkupError
 
@@ -144,8 +145,9 @@ class TestCliStatusEscapesUserText:
         out = buf.getvalue()
         assert "value contains" in out, f"the message text reached the console; got {out!r}"
 
+    @pytest.mark.rule("markup-escape")
     def test_write_uncolored_prints_text_literally(self):
-        """markup-escape: uncolored write() is text too; CLI notify's "[notice]" prefix and a tag both print as typed."""
+        """Uncolored write() is text too; CLI notify's "[notice]" prefix and a tag both print as typed."""
         # Arrange / Act -- markup goes through write_markup; write() is text
         cli, buf = self._make_cli()
         cli.write("[notice] [bold]hi[/]")

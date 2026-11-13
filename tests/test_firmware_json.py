@@ -30,6 +30,15 @@ HARNESS = Path(__file__).parent / "fixtures" / "firmware" / "json_host.c"
 # The module alone must be strict C99; the harness needs POSIX/Windows I/O.
 STRICT = ["-std=c99", "-pedantic", "-Wall", "-Wextra", "-Werror"]
 
+# Every C-compiling test runs on one xdist worker, so one compiler runs at a
+# time and each module's harness is built once, not once per worker.  On
+# 2026-11-10 eight workers launched MSYS2's cc in the same second under tox
+# and all eight sat for 25 minutes without starting cc1.  The timeouts turn
+# a stuck toolchain into a failure that names the command, not a stuck run.
+pytestmark = pytest.mark.xdist_group("c_toolchain")
+COMPILE_TIMEOUT_S = 120
+RUN_TIMEOUT_S = 30
+
 
 def _compiler() -> str:
     found = next((path for path in map(shutil.which, ("cc", "gcc", "clang")) if path), None)
@@ -45,6 +54,7 @@ def _strict(compiler: str, *defines: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         check=False,
+        timeout=COMPILE_TIMEOUT_S,
     )
 
 
@@ -71,6 +81,7 @@ def _build(compiler: str, folder: Path, *defines: str) -> Path:
         capture_output=True,
         text=True,
         check=False,
+        timeout=COMPILE_TIMEOUT_S,
     )
     assert link.returncode == 0, link.stderr
     return exe
@@ -88,6 +99,7 @@ def _run(exe: Path, directives: list[str]) -> list[str]:
         input="\n".join(directives).encode("ascii") + b"\n",
         capture_output=True,
         check=True,
+        timeout=RUN_TIMEOUT_S,
     )
     chunks = result.stdout.decode("ascii").split("--\n")
     assert len(chunks) == len(directives) + 1, "one chunk per directive, then a trailing empty"

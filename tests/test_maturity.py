@@ -1,4 +1,4 @@
-"""maturity-declared-once: each command says how settled it is, and every surface reads that one value.
+"""Each command says how settled it is, and every surface reads that one value.
 
 A family declares ``stable``, ``preview`` or ``prototype`` on its root
 ``Command``; subcommands inherit from the nearest ancestor that declares
@@ -28,6 +28,8 @@ from termapy.plugins import (
     PluginInfo,
 )
 from termapy.plugins.loader import _flatten_command
+
+pytestmark = pytest.mark.rule("maturity-declared-once")
 
 REPO = Path(__file__).parent.parent
 HELP = REPO / "src" / "termapy" / "help"
@@ -72,15 +74,17 @@ def _non_stable_roots(cli: CLITerminal) -> dict[str, str]:
 
 
 class TestTheTable:
+    @pytest.mark.rule("maturity-declared-once")
     def test_the_levels_their_colors_and_meanings_are_one_table(self):
-        """maturity-declared-once: three levels, each with a color and a meaning, nothing else."""
+        """Three levels, each with a color and a meaning, nothing else."""
         assert MATURITY_LEVELS == ("stable", "preview", "prototype")
         expected_colors = {"stable": "green", "preview": "yellow", "prototype": "red"}
         assert MATURITY_COLORS == expected_colors, "green, yellow, red"
         assert set(MATURITY_MEANINGS) == set(MATURITY_LEVELS), "every level has a meaning"
 
+    @pytest.mark.rule("maturity-declared-once")
     def test_an_unknown_level_fails_at_load(self):
-        """maturity-declared-once: a level outside the table fails where it is declared."""
+        """A level outside the table fails where it is declared."""
         with pytest.raises(ValueError, match="unknown maturity 'beta'"):
             Command(help="x", name="x", handler=_noop, maturity="beta")
         with pytest.raises(ValueError, match="unknown maturity 'beta'"):
@@ -88,8 +92,9 @@ class TestTheTable:
 
 
 class TestInheritance:
+    @pytest.mark.rule("maturity-declared-once")
     def test_subcommands_inherit_and_any_may_override(self):
-        """maturity-declared-once: the nearest declaration wins, in either direction."""
+        """The nearest declaration wins, in either direction."""
         # Arrange: a preview root; one child silent, one prototype with a
         # silent grandchild, one declared stable
         root = Command(
@@ -118,8 +123,9 @@ class TestInheritance:
         }
         assert levels == expected
 
+    @pytest.mark.rule("maturity-declared-once")
     def test_an_undeclared_root_is_stable(self):
-        """maturity-declared-once: a family that says nothing is stable, and so is everything under it."""
+        """A family that says nothing is stable, and so is everything under it."""
         root = Command(
             help="root", name="plain", sub_commands={"x": Command(help="x", handler=_noop)}
         )
@@ -128,8 +134,9 @@ class TestInheritance:
 
 
 class TestTheFamilies:
+    @pytest.mark.rule("maturity-declared-once")
     def test_the_built_in_families_declare_their_levels(self, cli):
-        """maturity-declared-once: MCP, devices, symbols and memory are preview; boards and firmware prototype."""
+        """MCP, devices, symbols and memory are preview; boards and firmware prototype."""
         actual = _non_stable_roots(cli)
         expected = {
             "mcp": "preview",
@@ -143,14 +150,16 @@ class TestTheFamilies:
             "a family changed level: update README, its page and the decision log"
         )
 
+    @pytest.mark.rule("maturity-declared-once")
     def test_the_readme_lists_every_family_that_is_not_stable(self, cli):
-        """maturity-declared-once: README's Feature status table names exactly the families the code marks."""
+        """README's Feature status table names exactly the families the code marks."""
         readme = (REPO / "README.md").read_text(encoding="utf-8")
         rows = dict(re.findall(r"^\| [^|]+ \| `/(\w+)` \| (preview|prototype) \|$", readme, re.M))
         assert rows == _non_stable_roots(cli), "the README table and the declarations disagree"
 
+    @pytest.mark.rule("maturity-declared-once")
     def test_each_family_page_carries_its_banner(self, cli):
-        """maturity-declared-once: every non-stable family's help page opens with its status banner."""
+        """Every non-stable family's help page opens with its status banner."""
         for family, level in _non_stable_roots(cli).items():
             assert family in FAMILY_PAGES, (
                 f"/{family} is {level}: add its help page to FAMILY_PAGES"
@@ -170,15 +179,13 @@ class TestSurfaces:
         assert "STATUS" in out, "the section is there"
         assert f"preview - {MATURITY_MEANINGS['preview']}" in out, "the level and what it means"
 
-    def test_every_listed_row_shows_its_level(self, cli, capsys):
-        """Every row of a listing names its level after the command, stable included, so none reads as unknown."""
+    def test_the_group_table_names_each_level(self, cli, capsys):
+        """/help.group is a table of levels, so its LEVEL column names each one, stable included."""
         # Arrange
         capsys.readouterr()
         # Act
         cli.repl.dispatch_full("/help.group devices")
         group = capsys.readouterr().out
-        cli.repl.dispatch_full("/help sym")
-        page = capsys.readouterr().out
         # Assert
         levels = {
             row.split()[0]: row.split()[1] for row in group.splitlines() if row.startswith("  /")
@@ -186,8 +193,31 @@ class TestSurfaces:
         assert levels["/board"] == "prototype", "a prototype family"
         assert levels["/sym"] == "preview", "a preview family"
         assert levels["/profile"] == "stable", "and a stable one says so too"
-        sub_rows = [row.split()[1] for row in page.splitlines() if row.startswith("  /sym.")]
-        assert sub_rows and set(sub_rows) == {"preview"}, "subcommand rows show the inherited level"
+
+    @pytest.mark.rule("maturity-declared-once")
+    def test_a_row_is_quiet_about_its_level(self, cli, capsys):
+        """A row carries no level in its text: italic and a tooltip mark one not yet stable."""
+        # Arrange
+        pieces: list = []
+        cli.repl.ctx.io._write_segments = lambda line, color: pieces.extend(line)
+
+        # Act
+        cli.repl.dispatch("help sym")
+        cli.repl.dispatch("help term")
+
+        # Assert
+        named = {piece.text: piece for piece in pieces if piece.link is not None}
+        preview, stable = named["sym.info"], named["term.hex"]
+        assert "italic" in preview.style, "the inherited level marks the row"
+        level, meaning = preview.link.tip
+        assert level.text == "preview", "and names it"
+        assert level.style == MATURITY_COLORS["preview"], "in its color"
+        assert meaning.text == f" - {MATURITY_MEANINGS['preview']}", "and says what it means"
+        assert "italic" not in stable.style, "stable is the rule, so it goes unmarked"
+        assert stable.link.tip == "", "and says nothing"
+        words = " ".join(piece.text for piece in pieces if piece.link is None).split()
+        assert "preview" not in words, "no row prints the word"
+        assert "stable" not in words, "or the other"
 
     def test_the_catalog_carries_each_level(self, cli):
         """The MCP catalog gives the server's level, every level's meaning, and each non-stable command's level."""

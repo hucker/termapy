@@ -97,7 +97,8 @@ The TUI captures mouse events, so the terminal's own click-and-drag
 selection does not work while termapy has focus.  It does not need
 to: drag across the output window to select, and **Ctrl+C** copies the
 selection through the terminal's OSC 52 channel (see **Copying text**
-on the Toolbar page).  If the copy does nothing, the terminal does not
+on the Toolbar page).  With nothing selected, **Ctrl+C** goes to the
+device instead.  If the copy does nothing, the terminal does not
 relay OSC 52; then bypass the TUI's mouse capture and use the
 terminal's own selection:
 
@@ -117,9 +118,10 @@ whole text.
 ### Ctrl-key capture (Windows + Linux)
 
 VS Code's integrated terminal on Windows and Linux captures
-`Ctrl+P` (Quick Open), `Ctrl+S` (Save), and `Ctrl+T` (Go to Symbol in Workspace) before
-they reach the shell.  Inside termapy that means those shortcuts
-never fire unless you rebind them in VS Code.
+`Ctrl+P` (Quick Open), `Ctrl+S` (Save), `Ctrl+T` (Go to Symbol in
+Workspace) and `Ctrl+F` (the terminal's own find) before they reach the
+shell.  Inside termapy that means those shortcuts never fire unless you
+rebind them in VS Code.
 
 **macOS VS Code** uses `Cmd+*` for those shortcuts, so `Ctrl+*`
 passes through normally there -- no fallback needed.
@@ -135,6 +137,7 @@ platform:
 | Save SVG        | Ctrl+S  | Alt+S        |
 | Save text       | Ctrl+T  | Alt+T        |
 | Command palette | Ctrl+P  | Alt+P        |
+| Find (config editor) | Ctrl+F | Alt+F   |
 
 VS Code rarely captures Alt-key combos, so the fallbacks survive.
 When termapy starts inside VS Code's terminal on Windows or Linux,
@@ -160,6 +163,11 @@ If you'd rather keep your `Ctrl+*` muscle memory, edit your VS Code
   {
     "key": "ctrl+t",
     "command": "-workbench.action.showAllSymbols",
+    "when": "terminalFocus"
+  },
+  {
+    "key": "ctrl+f",
+    "command": "-workbench.action.terminal.focusFind",
     "when": "terminalFocus"
   }
 ]
@@ -268,6 +276,11 @@ bundle is:
   VS Code; `"Apple_Terminal"` under Terminal.app; etc.)
 - Screenshot of the misbehavior (`Ctrl+S` inside termapy saves an
   SVG that captures the exact render)
+- The run's diagnostic log (`/log.diag` opens it, `/log.diag.list`
+  shows them all), `termapy_cfg/log/<date>_<time>-<pid>.log`
+  (the app state folder's `log/` when there is no `termapy_cfg/`): it
+  holds the command line and any traceback, with termapy's version
+  before the first one, and no device traffic
 
 Most environment issues reduce to "terminal doesn't forward the key"
 or "terminal doesn't support this escape sequence."  The diagnostic

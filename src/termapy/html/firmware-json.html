@@ -1,0 +1,1770 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+        <link rel="prev" href="./firmware.html">
+      
+      
+        <link rel="next" href="./boards.html">
+      
+      
+        
+      
+      
+      <link rel="icon" href="./assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.1.1">
+    
+    
+      
+        <title>JSON Integration - Termapy Help v0.80.0</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.ebb7f775.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="./assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+    <script>__md_scope=new URL(".",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./index.html" title="Termapy Help v0.80.0" class="md-header__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Termapy Help v0.80.0
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              JSON Integration
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./index.html" title="Termapy Help v0.80.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    Termapy Help v0.80.0
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./installation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Installation
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./environment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Environment & compatibility
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./demo.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Demo Mode
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./getting-started.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Getting Started
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./config.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Configuration
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./ports.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Serial Ports
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Command-Line Flags
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./vt100.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  VT100 Mode
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./custom-buttons.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Custom Buttons
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./toolbar.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Toolbar & Shortcuts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./commands.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  REPL Commands
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./variables.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Variables
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./scripting.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Scripting
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./serial-tools.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Serial Tools
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./protocol-testing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Protocol Testing
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./data-capture.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data Capture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./symbols.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Symbols
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./devices.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Devices
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Memory
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./firmware.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Firmware
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Integration
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="firmware-json.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Integration
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-module-is-and-is-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What the module is and is not
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-1-add-the-files-to-the-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step 1 — add the files to the build
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-2-inject-the-platform-at-boot" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step 2 — inject the platform at boot
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-3-add-the-mode-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step 3 — add the mode command
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-4-route-the-text-printer-through-the-passthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step 4 — route the text printer through the passthrough
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-5-convert-handlers-where-a-typed-value-is-worth-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step 5 — convert handlers where a typed value is worth it
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-6-tables-and-records-with-the-builder" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step 6 — tables and records with the builder
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-wire-contract-you-are-now-speaking" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The wire contract you are now speaking
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compile-time-knobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compile-time knobs
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checklist-before-you-call-it-done" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Checklist before you call it done
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pitfalls" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Pitfalls
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Reference
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./boards.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Dev Boards
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./file-transfer.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  File Transfer
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./writing-plugins.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Writing Plugins
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./device-help.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Device Help
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./authoring-profiles.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Authoring Profiles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./mcp-server.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MCP Server
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./using-git.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Using with Git
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./on-ai-assistance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  On AI Assistance
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./acknowledgments.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Acknowledgments
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-module-is-and-is-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What the module is and is not
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-1-add-the-files-to-the-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step 1 — add the files to the build
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-2-inject-the-platform-at-boot" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step 2 — inject the platform at boot
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-3-add-the-mode-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step 3 — add the mode command
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-4-route-the-text-printer-through-the-passthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step 4 — route the text printer through the passthrough
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-5-convert-handlers-where-a-typed-value-is-worth-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step 5 — convert handlers where a typed value is worth it
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-6-tables-and-records-with-the-builder" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step 6 — tables and records with the builder
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-wire-contract-you-are-now-speaking" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The wire contract you are now speaking
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compile-time-knobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compile-time knobs
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checklist-before-you-call-it-done" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Checklist before you call it done
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pitfalls" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Pitfalls
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Reference
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+
+<h1 id="integrating-termapy_json-into-a-device-monitor">Integrating <code>termapy_json</code> into a device monitor<a class="headerlink" href="#integrating-termapy_json-into-a-device-monitor" title="Permanent link">&para;</a></h1>
+<p>Written for: a coding assistant (Claude) adding termapy JSON support to an
+existing C firmware monitor.</p>
+<p>This guide is for wiring <code>termapy_json.c</code> / <code>termapy_json.h</code> into a device
+that already has a text command monitor (a receive loop, a command table, and
+handlers that print replies). After integration the same monitor answers a
+human at a text prompt AND an agent over termapy, choosing the framing with
+one boolean. You do not rewrite the command table, and you convert handlers
+only where a typed value is worth it.</p>
+<h2 id="what-the-module-is-and-is-not">What the module is and is not<a class="headerlink" href="#what-the-module-is-and-is-not" title="Permanent link">&para;</a></h2>
+<p>It owns the output mode (a boolean), the reply writers that replace
+<code>puts</code>/<code>printf</code> for a command's answer (scalar, structured and passthrough),
+and <code>TermapyJson_Init</code>. It does <strong>not</strong> own your command table, your line
+reader, or any command's meaning. Those stay yours. You call into this module
+at three points: once at boot, once per received line (to close the
+passthrough), and inside each converted handler where it used to print.</p>
+<p>The device decodes nothing by default. termapy's REPL and MCP server already
+turn a request into the plain command line your monitor understands, so the
+device only encodes replies. A <code>{"cmd":...}</code> / <code>{"method":...}</code> request
+extractor exists behind
+<code>TERMAPY_JSON_HAS_EXTRACT</code> for a monitor that wants symmetric JSON without a
+termapy host; it is on by default for parity with termapy's reference device
+and costs nothing when unreferenced under <code>--gc-sections</code>.</p>
+<p>Portable C99, no stdio, no malloc, no VLAs, and no floating point of its own.
+The platform dependencies are a <code>putchar</code>-style serial out you inject once
+and, optionally, a float formatter.</p>
+<h2 id="step-1-add-the-files-to-the-build">Step 1 — add the files to the build<a class="headerlink" href="#step-1-add-the-files-to-the-build" title="Permanent link">&para;</a></h2>
+<p><code>/firmware.copy json</code> writes <code>termapy_json.c</code> and <code>termapy_json.h</code> into the
+current folder (<code>folder=</code> names another; see <a href="firmware.html">Firmware</a>). Add
+<code>termapy_json.c</code> to the build (Makefile object list, CMake <code>target_sources</code>,
+IDE project). No other dependency. Confirm it compiles under the project's
+existing C flags; the module is clean under <code>-std=c99 -pedantic -Wall -Wextra
+-Werror</code>.</p>
+<h2 id="step-2-inject-the-platform-at-boot">Step 2 — inject the platform at boot<a class="headerlink" href="#step-2-inject-the-platform-at-boot" title="Permanent link">&para;</a></h2>
+<p>Once, before any reply, hand the module your byte-out function and, if the
+device has one, a float formatter:</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"termapy_json.h"</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">static</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">MyPut</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">Uart_Write</span><span class="p">((</span><span class="kt">uint8_t</span><span class="p">)</span><span class="n">c</span><span class="p">);</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">c</span><span class="p">;</span><span class="w"> </span><span class="p">}</span><span class="w">   </span><span class="cm">/* your UART */</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="cm">/* Optional.  Plain %.Nf, no padding: JSON numbers may not start with a space. */</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">static</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="nf">MyFmtFloat</span><span class="p">(</span><span class="kt">double</span><span class="w"> </span><span class="n">v</span><span class="p">,</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="n">decimals</span><span class="p">,</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">bufP</span><span class="p">,</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">cap</span><span class="p">)</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">{</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">snprintf</span><span class="p">(</span><span class="n">bufP</span><span class="p">,</span><span class="w"> </span><span class="n">cap</span><span class="p">,</span><span class="w"> </span><span class="s">"%.*f"</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">decimals</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">}</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="k">static</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">TermapyJson_Ops</span><span class="w"> </span><span class="n">sJsonOps</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">MyPut</span><span class="p">,</span><span class="w"> </span><span class="n">MyFmtFloat</span><span class="w"> </span><span class="p">};</span><span class="w">  </span><span class="cm">/* or { MyPut } */</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="cm">/* ... your existing init ... */</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="n">TermapyJson_Init</span><span class="p">(</span><span class="o">&amp;</span><span class="n">sJsonOps</span><span class="p">);</span><span class="w">   </span><span class="cm">/* add this line */</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="cm">/* ... your monitor loop ... */</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><code>MyPut</code> should verify the write: a UART ring that is full drops bytes, and a
+dropped byte is a truncated reply the host cannot repair. Retry with a bound
+rather than returning early. Until <code>Init</code> is called the writers emit nothing,
+so a reply before init is silent, not a crash. Leave <code>fmtFloat</code> NULL on a
+device without a float printer: the float replies then emit <code>null</code> and no
+float code is linked.</p>
+<h2 id="step-3-add-the-mode-command">Step 3 — add the mode command<a class="headerlink" href="#step-3-add-the-mode-command" title="Permanent link">&para;</a></h2>
+<p>Register a command that sets the framing. The module ships a bare toggle
+(<code>TermapyJson_ModeCmd</code>), but a monitor with <code>on|off</code> conventions writes its
+own two-liner so the command can also query:</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">CmdJson</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">argP</span><span class="p">)</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="p">{</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="n">argP</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="sc">'\0'</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">TermapyJson_SetMode</span><span class="p">(</span><span class="n">ParseBool</span><span class="p">(</span><span class="n">argP</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">TERMAPY_JSON_JSON</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">TERMAPY_JSON_TEXT</span><span class="p">);</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="n">TermapyJson_Reply</span><span class="p">(</span><span class="n">TermapyJson_GetMode</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">TERMAPY_JSON_JSON</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="s">"on"</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s">"off"</span><span class="p">);</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">}</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="cm">/* add { "json", CmdJson } to your command table */</span>
+</span></code></pre></div>
+<p><code>json on</code> is answered in JSON (the flip happens before the reply); <code>json off</code>
+answers the bare word <code>off</code>. A termapy profile sends <code>json on</code> on connect.</p>
+<h2 id="step-4-route-the-text-printer-through-the-passthrough">Step 4 — route the text printer through the passthrough<a class="headerlink" href="#step-4-route-the-text-printer-through-the-passthrough" title="Permanent link">&para;</a></h2>
+<p>This single step makes every command JSON-capable with zero handler changes.
+Wherever your text output layer emits a byte (the putc you gave <code>printf</code> or
+your color printer), send it through the passthrough in JSON mode, and close
+the envelope after each dispatched command:</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">MonitorPutc</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">ch</span><span class="p">)</span><span class="w">            </span><span class="cm">/* the putc your printer already uses */</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="p">{</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">TermapyJson_PassthroughPut</span><span class="p">(</span><span class="n">ch</span><span class="p">);</span><span class="w">  </span><span class="cm">/* text mode: forwards; json: escapes into an envelope */</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="p">}</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="kt">void</span><span class="w"> </span><span class="nf">OnLine</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">lineP</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">           </span><span class="cm">/* your per-line entry point */</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="n">Dispatch</span><span class="p">(</span><span class="n">lineP</span><span class="p">);</span><span class="w">                       </span><span class="cm">/* your existing verb/arg split + table */</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="n">TermapyJson_PassthroughEnd</span><span class="p">();</span><span class="w">          </span><span class="cm">/* closes the envelope if the handler printed */</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>In text mode <code>PassthroughPut</code> is the plain putc. In JSON mode the first byte a
+handler prints opens <code>{"result":"</code>, every byte is JSON-escaped, and
+<code>PassthroughEnd</code> writes the closing quote, the id tail and the newline. A
+<code>puts</code>-style <code>value\n</code> becomes <code>"value"</code> (one trailing newline is dropped);
+multi-line output becomes one string with <code>\n</code> inside. Two rules:</p>
+<ul>
+<li>Feed it <code>\n</code> only. If your text layer turns <code>\n</code> into <code>\r\n</code>, do that in
+  text mode, not before the passthrough, or the string carries <code>\r</code>.</li>
+<li>Turn ANSI color off in JSON mode, or the escape codes end up in the string.</li>
+</ul>
+<p>An unconverted command always answers with <code>result</code>, even when the text it
+printed is an error message. That is the trade for touching no handlers;
+convert the commands whose errors the host must see as an <code>error</code> object.</p>
+<h2 id="step-5-convert-handlers-where-a-typed-value-is-worth-it">Step 5 — convert handlers where a typed value is worth it<a class="headerlink" href="#step-5-convert-handlers-where-a-typed-value-is-worth-it" title="Permanent link">&para;</a></h2>
+<p>Find where a handler prints its answer and replace that print with one reply
+call. Text output stays byte-identical, so existing tests keep passing.</p>
+<table>
+<thead>
+<tr>
+<th>Handler does today</th>
+<th>Replace with</th>
+<th>JSON result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>prints a string</td>
+<td><code>TermapyJson_Reply(s)</code></td>
+<td><code>"s"</code> quoted, escaped</td>
+</tr>
+<tr>
+<td>prints an int</td>
+<td><code>TermapyJson_ReplyInt(v)</code> / <code>ReplyUInt(v)</code></td>
+<td><code>v</code></td>
+</tr>
+<tr>
+<td>prints a float</td>
+<td><code>TermapyJson_ReplyFloat(v, decimals)</code></td>
+<td><code>v</code> or <code>null</code></td>
+</tr>
+<tr>
+<td>prints a JSON value it built</td>
+<td><code>TermapyJson_ReplyRaw(s)</code></td>
+<td><code>s</code> verbatim</td>
+</tr>
+<tr>
+<td>prints an error</td>
+<td><code>TermapyJson_ReplyError(msg, code)</code></td>
+<td><code>error</code> object, no <code>result</code></td>
+</tr>
+</tbody>
+</table>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="cm">/* before */</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">CmdTick</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">argP</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">argP</span><span class="p">;</span><span class="w"> </span><span class="n">printf</span><span class="p">(</span><span class="s">"%lu</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="w"> </span><span class="n">TickGet</span><span class="p">());</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="cm">/* after */</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">CmdTick</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">argP</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">argP</span><span class="p">;</span><span class="w"> </span><span class="n">TermapyJson_ReplyUInt</span><span class="p">(</span><span class="n">TickGet</span><span class="p">());</span><span class="w"> </span><span class="p">}</span>
+</span></code></pre></div>
+<p>Convert every exit of a handler, not just the success line: a handler that
+prints <code>ERR: bad value</code> through the old path still answers with <code>result</code> until
+that print becomes <code>ReplyError</code>. A convention that works: negative codes for
+protocol and usage errors (JSON-RPC numbers, -32601 unknown command, -32602
+bad arguments), positive codes for a device error code passed straight
+through.</p>
+<p>A handler must call exactly one reply per invocation, and a converted handler
+must not also print through the passthrough, or the stream carries two
+envelopes for one request.</p>
+<h2 id="step-6-tables-and-records-with-the-builder">Step 6 — tables and records with the builder<a class="headerlink" href="#step-6-tables-and-records-with-the-builder" title="Permanent link">&para;</a></h2>
+<p>For a command that prints several values, stream a JSON array or object. The
+outermost <code>Begin</code> opens the envelope, the matching <code>End</code> closes it, and the
+module places every comma:</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">CmdHwm</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">argP</span><span class="p">)</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="p">{</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">argP</span><span class="p">;</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">TermapyJson_GetMode</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">TERMAPY_JSON_TEXT</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">PrintHwmTable</span><span class="p">();</span><span class="w"> </span><span class="k">return</span><span class="p">;</span><span class="w"> </span><span class="p">}</span><span class="w">  </span><span class="cm">/* keep your layout */</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="n">TermapyJson_ArrayBegin</span><span class="p">();</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">HwmEntry</span><span class="w"> </span><span class="o">*</span><span class="n">e</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sTable</span><span class="p">;</span><span class="w"> </span><span class="n">e</span><span class="o">-&gt;</span><span class="n">nameP</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span><span class="w"> </span><span class="n">e</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">        </span><span class="n">TermapyJson_ObjectBegin</span><span class="p">();</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">        </span><span class="n">TermapyJson_FieldString</span><span class="p">(</span><span class="s">"name"</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="o">-&gt;</span><span class="n">nameP</span><span class="p">);</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">        </span><span class="n">TermapyJson_FieldUInt</span><span class="p">(</span><span class="s">"used"</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="o">-&gt;</span><span class="n">get</span><span class="p">());</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">        </span><span class="n">TermapyJson_FieldUInt</span><span class="p">(</span><span class="s">"max"</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="o">-&gt;</span><span class="n">max</span><span class="p">());</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">        </span><span class="n">TermapyJson_ObjectEnd</span><span class="p">();</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">    </span><span class="n">TermapyJson_ArrayEnd</span><span class="p">();</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="p">}</span>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="cm">/* json: {"result":[{"name":"stack","used":812,"max":4096},...]} */</span>
+</span></code></pre></div>
+<p><code>FieldArrayBegin(key)</code> / <code>FieldObjectBegin(key)</code> open a named child inside an
+object. In text mode the containers print nothing and each <code>Item</code> / <code>Field</code>
+prints one plain line (<code>value</code> or <code>key value</code>), so the mode branch above is
+optional: drop it and the text form is that fallback layout. Nest at most
+<code>TERMAPY_JSON_MAX_DEPTH</code> (32) levels.</p>
+<h2 id="the-wire-contract-you-are-now-speaking">The wire contract you are now speaking<a class="headerlink" href="#the-wire-contract-you-are-now-speaking" title="Permanent link">&para;</a></h2>
+<p>In JSON mode a reply is one JSON object per line in the JSON-RPC 2.0 response
+shape, matching termapy's NDJSON contract so a termapy profile with a
+<code>"format": "json"</code> response parses it into typed <code>data</code>, and so a stock
+JSON-RPC client can talk to the device:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>success   {"result":&lt;value&gt;,"id":&lt;int&gt;}
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>error     {"error":{"code":&lt;int&gt;,"message":"&lt;msg&gt;"},"id":&lt;int&gt;}
+</span></code></pre></div>
+<p>Exactly one of <code>result</code> and <code>error</code> is present; a host checks for <code>error</code>
+first. <code>result</code> is any JSON value: string, number, <code>null</code>, array or object.
+<code>error.data</code> is reserved for structured detail (nothing emits it yet). Fields
+are compact (no spaces after <code>:</code> or <code>,</code>) and <code>id</code> is last. JSON lines end in
+<code>\n</code>; text lines end in <code>\r\n</code>.</p>
+<p>The <code>"jsonrpc":"2.0"</code> member is mirrored: a reply carries it, first, only
+when the request did. A tagged reply is a complete JSON-RPC response object
+and always carries <code>id</code>, <code>null</code> when the request had none. An untagged reply
+<strong>omits</strong> <code>id</code> entirely when no id was set, which keeps termapy's replies
+short. One deviation from the spec, forced by a serial link: a request
+without <code>id</code> (a JSON-RPC "notification") is still answered.</p>
+<p>With <code>TERMAPY_JSON_HAS_EXTRACT</code> on, the extractor also accepts:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>{"cmd":"&lt;name&gt;"}                               bare command
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>{"cmd":"&lt;name&gt;","args":"&lt;text&gt;"}               command with a string argument
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>{"cmd":"&lt;name&gt;","id":&lt;int&gt;}                    id echoed in the reply
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>{"method":"&lt;name&gt;","params":"&lt;text&gt;"}          JSON-RPC spelling, string params
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>{"method":"&lt;name&gt;","params":["&lt;a&gt;",&lt;n&gt;,...]}   flat array, joined by spaces
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>{"jsonrpc":"2.0","method":"&lt;name&gt;","id":&lt;int&gt;} tagged: reply is tagged too
+</span></code></pre></div>
+<p><code>cmd</code> wins over <code>method</code> and <code>args</code> over <code>params</code> when both are present.
+<code>args</code> must be a string; <code>params</code> may be a string or a flat array of strings
+and bare scalars (<code>[]</code> appends nothing). Run the extractor on each received
+line before dispatch; <code>IN_JSON</code> hands you the plain <code>cmd args</code> line and flips
+framing to JSON, <code>IN_BAD</code> wants a <code>ReplyError</code> (the tag and id were captured
+first, so even that reply is correctly addressed), <code>IN_TEXT</code> means dispatch
+the line as it came (and the pending id and tag are cleared). A value of the
+wrong type, an element that does not fit <code>TERMAPY_JSON_ARGS_MAX</code>, or a line
+that does not fit your buffer is <code>IN_BAD</code>, never silently dropped.</p>
+<h2 id="compile-time-knobs">Compile-time knobs<a class="headerlink" href="#compile-time-knobs" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Knob</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TERMAPY_JSON_HAS_EXTRACT</code></td>
+<td>1</td>
+<td>Compile the <code>{"cmd":...}</code> / <code>{"method":...}</code> extractor</td>
+</tr>
+<tr>
+<td><code>TERMAPY_JSON_ARGS_MAX</code></td>
+<td>64</td>
+<td>Size of the extractor's copy of <code>args</code> or of one <code>params</code> element</td>
+</tr>
+<tr>
+<td><code>TERMAPY_JSON_ID_MAX_DIGITS</code></td>
+<td>10</td>
+<td>Bound on a parsed <code>id</code></td>
+</tr>
+<tr>
+<td><code>TERMAPY_JSON_FLOAT_BUF</code></td>
+<td>24</td>
+<td>Buffer handed to the float formatter</td>
+</tr>
+<tr>
+<td><code>TERMAPY_JSON_TEXT_EOL</code></td>
+<td><code>"\r\n"</code></td>
+<td>Text-mode line ending</td>
+</tr>
+<tr>
+<td><code>TERMAPY_JSON_LINE_EOL</code></td>
+<td><code>"\n"</code></td>
+<td>JSON-mode line ending</td>
+</tr>
+</tbody>
+</table>
+<p>Unreferenced API (a typed reply you never call, the builder if you never use
+it) is removed by <code>--gc-sections</code> with <code>-ffunction-sections</code>; the knobs exist
+for code that would otherwise be reachable, and for making the footprint a
+deliberate choice rather than a linker side effect.</p>
+<h2 id="checklist-before-you-call-it-done">Checklist before you call it done<a class="headerlink" href="#checklist-before-you-call-it-done" title="Permanent link">&para;</a></h2>
+<ol>
+<li><code>termapy_json.c</code> is in the build; the project still compiles clean.</li>
+<li><code>TermapyJson_Init</code> runs once at boot, before any command.</li>
+<li>The text printer's putc goes through <code>PassthroughPut</code>, and the dispatcher
+   calls <code>PassthroughEnd</code> after every command.</li>
+<li><code>json on|off</code> is registered; a profile can switch framing on connect.</li>
+<li>Handlers whose values or errors the host must see use the typed replies;
+   each has exactly one reply per exit.</li>
+<li>Smoke test both framings: <code>fw</code> returns <code>SB_0_8</code>; after <code>json on</code>, <code>fw</code>
+   returns <code>{"result":"SB_0_8"}</code>, an unconverted command returns
+   <code>{"result":"&lt;its text&gt;"}</code>, a converted error returns an <code>error</code> object,
+   and <code>{"jsonrpc":"2.0","method":"fw","id":1}</code> returns
+   <code>{"jsonrpc":"2.0","result":"SB_0_8","id":1}</code>.</li>
+</ol>
+<h2 id="pitfalls">Pitfalls<a class="headerlink" href="#pitfalls" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><code>Reply</code> vs <code>ReplyRaw</code>.</strong> Human text is a JSON string; use <code>Reply</code>. Only a
+  genuine JSON value (number, bool, object) uses <code>ReplyRaw</code>. Getting this
+  wrong yields invalid JSON on the wire. Prefer the typed <code>ReplyInt</code> /
+  <code>ReplyFloat</code> over hand-formatting into <code>ReplyRaw</code>.</li>
+<li><strong>One reply per handler, one path.</strong> A typed reply plus text through the
+  passthrough in the same handler produces two envelopes.</li>
+<li><strong>Float formatter output must be a plain number.</strong> <code>%4.1f</code> pads with a
+  space, which the module rejects as not-a-number and replaces with <code>null</code>.
+  Use <code>%.*f</code> and let the host pad.</li>
+<li><strong>Line framing.</strong> The module writes the line ending itself (<code>\r\n</code> text,
+  <code>\n</code> JSON). Do not also print a newline in a converted handler.</li>
+<li><strong>Balance the builder.</strong> A missing <code>End</code> leaves the envelope open and every
+  later reply lands inside it. An extra <code>End</code> is ignored.</li>
+<li><strong>The extractor is a substring matcher, not a JSON parser.</strong> It finds
+  <code>"cmd"</code> / <code>"method"</code> / <code>"args"</code> / <code>"params"</code> / <code>"id"</code> / <code>"jsonrpc"</code> by
+  substring followed by a colon. A value equal to a key name is skipped, but a
+  string value that literally contains <code>"id":</code> is not. Your own well-formed
+  command lines are fine; do not rely on it for arbitrary nested JSON input.</li>
+</ul>
+<h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h2>
+<p>The full API is in the header comment of <code>termapy_json.h</code>
+(<code>/firmware.dump json termapy_json.h</code> prints it).
+The byte-exact behavior is pinned by <code>tests/test_firmware_json.py</code> in the
+termapy repo, which compiles this module against a host harness
+(<code>tests/fixtures/firmware/json_host.c</code>). For how the device then appears to an
+agent over MCP, see termapy's MCP server help (<code>/help mcp</code>) and a device
+profile with <code>"format": "json"</code> responses (<code>demo_ndjson.profile.json</code>).</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="./firmware.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: Firmware">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Firmware
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="./boards.html" class="md-footer__link md-footer__link--next" aria-label="Next: Dev Boards">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Dev Boards
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="./assets/javascripts/bundle.3cb411a8.min.js"></script>
+      
+    
+  </body>
+</html>

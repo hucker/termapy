@@ -91,7 +91,7 @@ class ScriptEditor(ModalScreen[str | None]):
         if self.edit_path:
             name = Path(self.edit_path).stem
             try:
-                content = Path(self.edit_path).read_text(encoding="utf-8")
+                content = Path(self.edit_path).read_text(encoding="utf-8-sig")
             except OSError:
                 content = f"# Error: could not read {self.edit_path}\n"
             title = f"Edit: {Path(self.edit_path).name}"

@@ -112,8 +112,9 @@ class TestWrite:
         assert logged[0][0] == ">", "TX direction"
         assert "01 02 FF" in logged[0][1], "uppercase hex representation"
 
+    @pytest.mark.rule("tx-only-what-went-out")
     def test_failed_write_logs_no_tx(self):
-        """tx-only-what-went-out: a write the port refuses raises and leaves no '>' log line."""
+        """A write the port refuses raises and leaves no '>' log line."""
 
         # Arrange -- a port that fails the way an unplugged adapter does
         class _UnpluggedPort:
@@ -281,6 +282,7 @@ class TestReadRaw:
 # -- Wait for Idle -------------------------------------------------------------
 
 
+@pytest.mark.timing
 class TestWaitForIdle:
     def test_wait_for_idle_returns_when_no_data(self, port_env):
         """A silent port reads idle after one gap, well before max_wait_s."""
@@ -538,8 +540,9 @@ class TestSerialReaderEOLMarkers:
 class TestSerialReaderHexView:
     """The hex view is cut from the raw bytes; the decoded lines ride beside it."""
 
+    @pytest.mark.rule("hex-view-wire-bytes")
     def test_hex_rows_are_the_wire_bytes(self):
-        """hex-view-wire-bytes: a row shows backspace, an undecodable byte and CR LF as sent, while lines stay decoded."""
+        """A row shows backspace, an undecodable byte and CR LF as sent, while lines stay decoded."""
         # Arrange
         reader = SerialReader(hex_display=True)
 
@@ -643,8 +646,9 @@ class TestSerialReaderHexView:
         assert result.clear_screen is False, "the pane is not cleared"
         assert result.hex_rows == ["1B 5B 32 4A 68 69 0A"], "the escape shows as its bytes"
 
+    @pytest.mark.rule("hex-view-wire-bytes")
     def test_a_claim_flushes_the_pending_row_and_shows_none_of_its_own(self):
-        """hex-view-wire-bytes: the row held when a claim starts is shown beside its line; the claimed bytes never reach a row."""
+        """The row held when a claim starts is shown beside its line; the claimed bytes never reach a row."""
         # Arrange
         claim = _Claim()
         reader = SerialReader(hex_display=True, serial_claimed=claim)
@@ -965,8 +969,9 @@ class TestSerialReaderCapture:
         # Assert
         assert result.lines == ["hello"], "passed through to display"
 
+    @pytest.mark.rule("rx-every-line-delivered")
     def test_a_binary_capture_flushes_the_partial_line_before_it(self):
-        """rx-every-line-delivered: a partial line held when a binary capture starts is flushed, not glued to the line after the capture."""
+        """A partial line held when a binary capture starts is flushed, not glued to the line after the capture."""
 
         # Arrange
         class MockCapture:
@@ -1019,8 +1024,9 @@ class TestSerialReaderClaimed:
         # Assert
         assert result.lines == ["hello"], "display normal when not claimed"
 
+    @pytest.mark.rule("rx-every-line-delivered")
     def test_a_partial_line_held_when_a_claim_starts_is_flushed(self):
-        """rx-every-line-delivered: text that arrived just before a claim reaches the consumers, and the claimed bytes do not."""
+        """Text that arrived just before a claim reaches the consumers, and the claimed bytes do not."""
         # Arrange
         claim = _Claim()
         reader = SerialReader(serial_claimed=claim)
@@ -1035,8 +1041,9 @@ class TestSerialReaderClaimed:
             "the line that arrived before the claim was dropped with the claimed bytes"
         )
 
+    @pytest.mark.rule("rx-every-line-delivered")
     def test_two_claims_in_a_row_each_flush_once_and_hold_nothing(self):
-        """rx-every-line-delivered: each claim flushes its own partial once, a long claimed run accumulates nothing, and the line after is clean."""
+        """Each claim flushes its own partial once, a long claimed run accumulates nothing, and the line after is clean."""
         # Arrange
         claim = _Claim()
         reader = SerialReader(serial_claimed=claim)
@@ -1075,6 +1082,7 @@ class TestSerialReaderReset:
         assert result.lines == ["new"], "no leftover from before reset"
 
 
+@pytest.mark.timing
 class TestWaitForIdleUsesTheReaderClock:
     """``in_waiting`` is not a silence signal while a reader is draining it.
 

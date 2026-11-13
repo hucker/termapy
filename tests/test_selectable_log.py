@@ -18,13 +18,16 @@ from __future__ import annotations
 import asyncio
 import json
 
+import pytest
+from pilot_wait import until
+from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.widgets import Input
 
 from termapy.defaults import DEFAULT_CFG
-from termapy.widgets import LinkLog, SelectableRichLog
+from termapy.widgets import LinkLog, SelectableRichLog, without_color
 
 
 class _Host(App[None]):
@@ -441,22 +444,29 @@ class TestSelectionLifetime:
         async def scenario():
             app = _Host()
             async with app.run_test(size=(40, 12)) as pilot:
-                # Arrange: 50 of a 60-line cap
+                # Arrange: 50 of a 60-line cap.  The writes auto-scroll to the
+                # end a frame after they land; scrolling home before that leaves
+                # the drag on the top line of the last page, so wait for the end.
                 log = app.query_one(SelectableRichLog)
                 _write_lines(log, 50)
-                await pilot.pause()
+                await until(
+                    pilot,
+                    lambda: len(log.lines) == 50 and 0 < log.max_scroll_y == log.scroll_y,
+                )
                 log.scroll_home(animate=False)
-                await pilot.pause()
+                await until(pilot, lambda: log.scroll_y == 0)
                 await _drag(pilot, log, (0, 1), (6, 1))
+                arranged = app.screen.get_selected_text()
                 # Act / Assert: five more lines fit under the cap
                 _write_lines(log, 5, first=50)
-                await pilot.pause()
+                await until(pilot, lambda: len(log.lines) == 55)
+                assert arranged == "line 01", "the drag selected line 01"
                 assert app.screen.get_selected_text() == "line 01", (
                     "lines appended below the cap leave the selection where it was"
                 )
                 # Act / Assert: ten more push the top off
                 _write_lines(log, 10, first=55)
-                await pilot.pause()
+                await until(pilot, lambda: log.text_selection is None)
                 assert log.text_selection is None, "a trim off the top drops the selection"
                 assert app.screen.get_selected_text() is None, "and nothing is left to copy"
 
@@ -639,3 +649,43 @@ class TestOutputPane:
                 )
 
         _run(scenario)
+
+
+class TestWithoutColor:
+    """without_color: what the pane writes with /term.color off keeps everything but the colors."""
+
+    @pytest.mark.rule("color-off-is-all-color")
+    def test_colors_go_and_attributes_stay(self):
+        """A colored, bold, underlined span comes back bold and underlined with no color on it."""
+        # Arrange
+        text = Text("hello", style="green")
+        text.stylize("bold underline red on blue", 0, 2)
+
+        # Act
+        plain = without_color(text)
+
+        # Assert
+        base = Style.parse(plain.style) if isinstance(plain.style, str) else plain.style
+        span = plain.spans[0].style
+        assert isinstance(span, Style), "a span style is a Style"
+        actual = (plain.plain, base.color, span.color, span.bgcolor, span.bold, span.underline)
+        expected = ("hello", None, None, None, True, True)
+        assert actual == expected, "colors dropped, text and attributes kept"
+
+    @pytest.mark.rule("color-off-is-all-color")
+    def test_a_link_keeps_its_click_action(self):
+        """The click meta a link carries survives, which Rich's own without_color would drop."""
+        # Arrange
+        meta = {"@click": "app.click_link(7)", "link": 7}
+        text = Text()
+        text.append("/help", style=Style(color="cyan", underline=True, meta=meta))
+
+        # Act
+        plain = without_color(text)
+
+        # Assert
+        span = plain.spans[0].style
+        assert isinstance(span, Style), "a span style is a Style"
+        assert (span.meta, span.underline, span.color) == (meta, True, None), (
+            "the link still clicks and is still underlined, without its color"
+        )

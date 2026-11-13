@@ -9,6 +9,7 @@ from textual import events
 from textual.strip import Strip
 from textual.widgets import SelectionList
 from textual.widgets._toggle_button import ToggleButton
+from textual.widgets.option_list import OptionDoesNotExist
 
 SelectionType = TypeVar("SelectionType")
 
@@ -57,11 +58,15 @@ class StrongSelectionList(SelectionList[SelectionType], Generic[SelectionType]):
         # ``_mouse_hovering_over``: that is read out of the style under
         # the cursor, which on the first move into a row still carries
         # the row before it, so the tooltip trailed the mouse by one.
-        _, scroll_y = self.scroll_offset
-        index = event.y + scroll_y
+        # Measured from the content area, not the widget's edge: a border
+        # puts row 0 one line down, and event.y counted the border as a row.
+        offset = event.get_content_offset(self)
         tip = None
-        if 0 <= index < self.option_count:
-            tip = tips.get(self.get_option_at_index(index).value)
+        if offset is not None:
+            _, scroll_y = self.scroll_offset
+            index = offset.y + scroll_y
+            if 0 <= index < self.option_count:
+                tip = tips.get(self.get_option_at_index(index).value)
         if tip != self.tooltip:
             self.tooltip = tip
 
@@ -82,7 +87,7 @@ class StrongSelectionList(SelectionList[SelectionType], Generic[SelectionType]):
         _, scroll_y = self.scroll_offset
         try:
             selection = self.get_option_at_index(scroll_y + y)
-        except Exception:
+        except OptionDoesNotExist:
             return strip
         glyph = "X" if selection.value in self._selected else " "
         if segments[1].text == glyph:

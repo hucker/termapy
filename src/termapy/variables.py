@@ -13,8 +13,8 @@ registration, and it holds no state of its own.  Same split as
 
 Four namespaces resolve here, in this order:
 
-  - **user vars** -- set by ``/var.set`` or ``$(NAME) = value``, cleared when
-    a top-level script starts.
+  - **user vars** -- set by ``/var.set`` or ``$(NAME) = value``, in
+    ``ctx.ns("vars")``, so a config load empties them.
   - **launch vars** -- plain strings frozen at startup (e.g. ``FRONT_END``).
   - **datetime vars** -- the dynamic clock (``DATE`` / ``TIME`` / ``DATETIME``)
     plus frozen moments (``LAUNCH_*``, ``SESSION_*``), each accepting an
@@ -22,9 +22,12 @@ Four namespaces resolve here, in this order:
   - **context vars** -- resolved through a callable at expansion time, which
     is how ``CFG.*`` tracks a config that can change mid-session.
 
-State is module level on purpose: one namespace per process, shared across
-every ``PluginContext`` in the session.  Nothing here imports Textual,
-pyserial, or anything under ``builtins/``.
+User variables are session state, so every function that touches them takes
+the ``ctx``.  The other three are the process's and stay module level: a
+frontend sets launch and context vars once at startup, and ``SESSION_*``
+belongs to the running script, of which a process has one and which outlasts
+a ``/cfg.load`` inside it.  Nothing here imports Textual, pyserial, or anything
+under ``builtins/``.
 """
 
 from __future__ import annotations
@@ -32,6 +35,14 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from datetime import datetime
+from typing import TYPE_CHECKING, Any
+
+from termapy.defaults import cfg_value
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from termapy.plugins import PluginContext
 
 # Match $(NAME) or $(NAME.SUB), with an optional :strftime format on
 # datetime-valued vars -- e.g. $(DATETIME:%Y%m%d_%H%M%S).  The format runs
@@ -39,8 +50,8 @@ from datetime import datetime
 # on the FIRST colon only; group(2) is None when no format is given.
 _VAR_REF_RE = re.compile(r"\$\(([A-Za-z_][A-Za-z0-9_.]*)(?::([^)]*))?\)")
 
-# Module-level variable storage - cleared on script start.
-_VARS: dict[str, str] = {}
+# The namespace holding user variables, name -> value.
+_VARS_NS = "vars"
 
 # Frozen datetime moments, keyed by concept.  LAUNCH is frozen when this
 # module loads (app start); SESSION is frozen by ``set_start_time_vars`` at
@@ -83,46 +94,55 @@ _RETIRED_PLACEHOLDERS = {
 # ── User variables ────────────────────────────────────────────────────────────
 
 
-def set_user_var(name: str, value: str) -> None:
+def set_user_var(ctx: PluginContext, name: str, value: str) -> None:
     """Set a user variable to a literal value.
 
     Args:
+        ctx: Plugin context holding the session's variables.
         name: Variable name (no ``$()`` delimiters).
         value: Value to store.
     """
-    _VARS[name] = value
+    ctx.ns(_VARS_NS)[name] = value
 
 
-def unset_user_var(name: str) -> None:
+def unset_user_var(ctx: PluginContext, name: str) -> None:
     """Remove one user variable, ignoring a name that is not set.
 
     Args:
+        ctx: Plugin context holding the session's variables.
         name: Variable name to drop.
     """
-    _VARS.pop(name, None)
+    ctx.ns(_VARS_NS).pop(name, None)
 
 
-def user_vars() -> dict[str, str]:
+def user_vars(ctx: PluginContext) -> dict[str, str]:
     """Return the live user-variable store.
 
     The dict is the real one, not a copy -- callers that only need to read
     should treat it as read-only and go through :func:`set_user_var` /
     :func:`unset_user_var` to mutate.
 
+    Args:
+        ctx: Plugin context holding the session's variables.
+
     Returns:
         Name -> value for every user variable currently set.
     """
-    return _VARS
+    return ctx.ns(_VARS_NS)
 
 
-def clear_vars() -> int:
+def clear_vars(ctx: PluginContext) -> int:
     """Clear all user variables.
+
+    Args:
+        ctx: Plugin context holding the session's variables.
 
     Returns:
         How many variables were cleared.
     """
-    count = len(_VARS)
-    _VARS.clear()
+    store = ctx.ns(_VARS_NS)
+    count = len(store)
+    store.clear()
     return count
 
 
@@ -157,12 +177,16 @@ def launch_vars() -> dict[str, str]:
 def set_start_time_vars() -> None:
     """Freeze the SESSION_* datetime moment.
 
-    Called once when a top-level script starts (Scripts button / Run menu).
-    Frozen here and NOT refreshed by interactive ``/run`` calls, so
-    $(SESSION_DATE/TIME/DATETIME) reflect the original session start.  The
-    moment is stored raw; format is applied on read (default or ``:fmt``).
+    Called when an outermost script starts, however it was launched; a nested
+    ``/run`` does not refresh it.  The moment is stored raw; format is applied
+    on read (default or ``:fmt``).
     """
     _FROZEN_MOMENTS["SESSION"] = datetime.now()
+
+
+def clear_start_time_vars() -> None:
+    """Forget the SESSION_* moment: a fresh start has none until a script freezes it."""
+    _FROZEN_MOMENTS.pop("SESSION", None)
 
 
 def resolve_datetime_var(name: str, fmt: str | None) -> str | None:
@@ -215,6 +239,16 @@ def context_vars() -> dict[str, Callable[[], str]]:
     return _CONTEXT_VARS
 
 
+def folder_var_name(folder: str) -> str:
+    """The context variable holding a data folder's path: ``run`` -> ``CFG.RUN_DIR``."""
+    return f"CFG.{folder.upper()}_DIR"
+
+
+def port_var_name(fact: str) -> str:
+    """The context variable holding one fact of the open port: ``vid_pid`` -> ``PORT.VID_PID``."""
+    return f"PORT.{fact.upper()}"
+
+
 def register_cfg_vars(
     get_config_path: Callable[[], str],
     get_cfg: Callable[[], dict],
@@ -232,30 +266,86 @@ def register_cfg_vars(
     from pathlib import Path
 
     from termapy.config import connection_string
+    from termapy.folders import FOLDER_NAMES
 
     def _resolve_cfg() -> Path:
         return Path(get_config_path()).resolve() if get_config_path() else Path(".")
 
     set_context_var("CFG.DIR", lambda: str(_resolve_cfg().parent))
     set_context_var("CFG.FILE", lambda: str(_resolve_cfg()))
-    set_context_var("CFG.RUN_DIR", lambda: str(_resolve_cfg().parent / "run"))
-    set_context_var("CFG.PROTO_DIR", lambda: str(_resolve_cfg().parent / "proto"))
-    set_context_var("CFG.PLUGIN_DIR", lambda: str(_resolve_cfg().parent / "plugin"))
-    set_context_var("CFG.SS_DIR", lambda: str(_resolve_cfg().parent / "ss"))
-    set_context_var("CFG.CAP_DIR", lambda: str(_resolve_cfg().parent / "cap"))
-    set_context_var("CFG.PROF_DIR", lambda: str(_resolve_cfg().parent / "prof"))
-    set_context_var("CFG.VIZ_DIR", lambda: str(_resolve_cfg().parent / "viz"))
+    # One per data folder, read from the folder table, so a new folder has one too.
+    for folder in FOLDER_NAMES:
+        set_context_var(
+            folder_var_name(folder), lambda folder=folder: str(_resolve_cfg().parent / folder)
+        )
     set_context_var(
         "CFG.LOG_FILE", lambda: str(Path(get_log_path()).resolve()) if get_log_path() else ""
     )
     # port / baud_rate live under cfg["serial"] post-v22.
-    set_context_var("CFG.PORT", lambda: get_cfg().get("serial", {}).get("port", ""))
-    set_context_var("CFG.BAUD", lambda: str(get_cfg().get("serial", {}).get("baud_rate", "")))
+    set_context_var("CFG.PORT", lambda: cfg_value(get_cfg(), "serial.port"))
+    set_context_var("CFG.BAUD", lambda: str(cfg_value(get_cfg(), "serial.baud_rate")))
     set_context_var("CFG.PORT_CFG", lambda: connection_string(get_cfg(), "short"))
     set_context_var("CFG.PORT_FULL", lambda: connection_string(get_cfg(), "medium"))
 
 
-def snapshot() -> dict[str, dict[str, str]]:
+def register_port_vars(
+    get_cfg: Callable[[], Mapping[str, Any]],
+    get_port: Callable[[], Any | None],
+) -> None:
+    """Register the PORT.* context variables: the open port as it is when expanded.
+
+    ``PORT.STATE`` is ``connected`` or ``disconnected``; every other one is
+    empty while no port is open, so none of them looks a port up or opens
+    one.  The rest are named from ``port_control``'s tables, as
+    ``/port.info`` reports them: the serial settings (from the session
+    config), the six modem lines (``1`` / ``0``, read from the open port)
+    and the chip fields a lookup fills without opening anything, which
+    leaves out the probed ``in_use`` and ``permissions``.
+
+    Args:
+        get_cfg: Returns the session config.
+        get_port: Returns the open serial object, or None.
+    """
+    from termapy.port_control import (
+        PORT_SETTINGS,
+        SIGNAL_LINES,
+        UNPROBED_CHIP_FIELDS,
+        gather_chip_facts,
+    )
+
+    def _name() -> str:
+        port = get_port()
+        return (getattr(port, "port", "") or "") if port is not None else ""
+
+    def _setting(key: str) -> str:
+        return str(cfg_value(get_cfg(), f"serial.{key}")) if get_port() is not None else ""
+
+    def _line(name: str) -> str:
+        port = get_port()
+        if port is None:
+            return ""
+        try:
+            return str(int(bool(getattr(port, name))))
+        except OSError:
+            return ""  # a port lost under us has no lines to read
+
+    def _chip(field_name: str) -> str:
+        name = _name()
+        facts = gather_chip_facts(name, name, fast=True, enrich=True) if name else None
+        value = getattr(facts, field_name, None) if facts is not None else None
+        return "" if value is None else str(value)
+
+    set_context_var("PORT.STATE", lambda: "connected" if get_port() is not None else "disconnected")
+    set_context_var("PORT.NAME", _name)
+    for key in PORT_SETTINGS:
+        set_context_var(port_var_name(key), lambda key=key: _setting(key))
+    for line in SIGNAL_LINES:
+        set_context_var(port_var_name(line), lambda line=line: _line(line))
+    for field_name in UNPROBED_CHIP_FIELDS:
+        set_context_var(port_var_name(field_name), lambda field_name=field_name: _chip(field_name))
+
+
+def snapshot(ctx: PluginContext) -> dict[str, dict[str, str]]:
     """Return every variable in every namespace, resolved, as plain data.
 
     The structured view of the whole ``$(NAME)`` namespace -- what
@@ -263,13 +353,16 @@ def snapshot() -> dict[str, dict[str, str]]:
     namespace, every value resolved at call time (context callables are
     invoked, datetime vars formatted with their defaults).
 
+    Args:
+        ctx: Plugin context holding the session's variables.
+
     Returns:
         ``{"user": {...}, "launch": {...}, "datetime": {...},
         "context": {...}}`` -- all values strings, sub-dicts empty when
         the namespace is.
     """
     return {
-        "user": dict(_VARS),
+        "user": dict(user_vars(ctx)),
         "launch": dict(_LAUNCH_VARS),
         "datetime": {
             name: resolve_datetime_var(name, None) or "" for name, _tag in datetime_var_names()
@@ -281,7 +374,17 @@ def snapshot() -> dict[str, dict[str, str]]:
 # ── Resolution and expansion ──────────────────────────────────────────────────
 
 
-def resolve_one(name: str, fmt: str | None = None) -> str | None:
+def variable_refs(text: str) -> list[str]:
+    """The names ``text`` references as ``$(NAME)`` or ``$(NAME:fmt)``, in order, each once.
+
+    A ``$(env.NAME)`` counts too (its name starts with ``env.``), so a
+    caller that expands the environment first (``config.expand_env_str``)
+    can tell an unset environment variable from a session variable.
+    """
+    return list(dict.fromkeys(match.group(1) for match in _VAR_REF_RE.finditer(text)))
+
+
+def resolve_one(ctx: PluginContext, name: str, fmt: str | None = None) -> str | None:
     """Resolve a single variable name to its value, or return None if unknown.
 
     Resolution order (no :fmt): user vars -> launch strings -> datetime vars
@@ -293,6 +396,7 @@ def resolve_one(name: str, fmt: str | None = None) -> str | None:
     dereference handlers that explicitly opt in.
 
     Args:
+        ctx: Plugin context holding the session's variables.
         name: Variable name (no $() delimiters, no :fmt suffix).
         fmt: Optional strftime format suffix (for datetime vars only).
 
@@ -302,7 +406,7 @@ def resolve_one(name: str, fmt: str | None = None) -> str | None:
     if fmt is not None:
         # A :fmt suffix is only meaningful on datetime vars.
         return resolve_datetime_var(name, fmt)
-    val = _VARS.get(name)
+    val = user_vars(ctx).get(name)
     if val is not None:
         return val
     val = _LAUNCH_VARS.get(name)
@@ -317,7 +421,7 @@ def resolve_one(name: str, fmt: str | None = None) -> str | None:
     return None
 
 
-def deref_ref(ref: str) -> str | None:
+def deref_ref(ctx: PluginContext, ref: str) -> str | None:
     """Resolve the inner text of one ``$(*NAME)`` / ``$(*NAME:fmt)`` reference.
 
     The arity-1 counterpart to ``expand_vars``' 0..N splice: same namespace and
@@ -326,16 +430,53 @@ def deref_ref(ref: str) -> str | None:
     value it returns is data -- the binder never re-splits or re-scans it.
 
     Args:
+        ctx: Plugin context holding the session's variables.
         ref: The text between ``$(*`` and ``)`` -- ``NAME`` or ``NAME:fmt``.
 
     Returns:
         The resolved value, or None when the name is undefined.
     """
     name, sep, fmt = ref.partition(":")
-    return resolve_one(name, fmt if sep else None)
+    return resolve_one(ctx, name, fmt if sep else None)
 
 
-def expand_vars(text: str) -> str:
+def variable_names(ctx: PluginContext) -> list[str]:
+    """Every name ``$(NAME)`` can expand right now: user, launch, clock and context variables."""
+    return [
+        *user_vars(ctx),
+        *_LAUNCH_VARS,
+        *(name for name, _tag in datetime_var_names()),
+        *_CONTEXT_VARS,
+    ]
+
+
+def unknown_names(ctx: PluginContext, text: str) -> list[str]:
+    """The ``$(NAME)`` references in ``text`` that name nothing, in order, each once.
+
+    What :func:`expand_vars` leaves as typed and would otherwise pass on
+    in silence.  An escaped ``\\$(NAME)`` is meant literally and is not
+    one; nor is a name with a ``:fmt`` (only a clock takes one, and
+    ``expand_vars`` leaves the rest literal by design), nor ``env.NAME``,
+    which the ``env`` transform expands.
+
+    Args:
+        ctx: Plugin context holding the session's variables.
+        text: A line before expansion.
+
+    Returns:
+        The unknown names, without ``$( )``.
+    """
+    found: list[str] = []
+    for match in _VAR_REF_RE.finditer(text.replace("\\$", _ESCAPE_SENTINEL)):
+        name, fmt = match.group(1), match.group(2)
+        if fmt is not None or name.startswith("env.") or name in found:
+            continue
+        if resolve_one(ctx, name) is None:
+            found.append(name)
+    return found
+
+
+def expand_vars(ctx: PluginContext, text: str) -> str:
     """Expand $(NAME) references in a string.
 
     Resolution order (no :fmt): user vars -> launch strings -> datetime vars
@@ -346,6 +487,7 @@ def expand_vars(text: str) -> str:
     Use ``\\$`` to escape a literal ``$`` (e.g. ``\\$(PORT)`` -> ``$(PORT)``).
 
     Args:
+        ctx: Plugin context holding the session's variables.
         text: String potentially containing $(NAME) references.
 
     Returns:
@@ -362,7 +504,7 @@ def expand_vars(text: str) -> str:
     def _replace(m: re.Match) -> str:
         name = m.group(1)
         fmt = m.group(2)
-        val = resolve_one(name, fmt)
+        val = resolve_one(ctx, name, fmt)
         return val if val is not None else m.group(0)
 
     text = _VAR_REF_RE.sub(_replace, text)

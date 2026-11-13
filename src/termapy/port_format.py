@@ -6,7 +6,11 @@ module must not pull in any GUI stack.
 
 Public API:
 
-- ``PORT_COLUMNS`` / ``COLUMN_HEADERS`` / ``DROP_ORDER`` -- data schema.
+- ``PORT_COLUMNS`` / ``COLUMN_HEADERS`` / ``DROP_ORDER`` /
+  ``OPTIONAL_COLUMNS`` -- data schema, one list of column facts.
+- ``PORT_TABLE_COLUMNS`` -- the same columns as a ``TableView`` over
+  ``facts_to_json_record`` records, for ``/port.list``: dispatch fits it
+  to the frontend's width by the same drop order.
 - ``row_from_facts(facts)`` -- build a ``(port_id, row_dict)`` pair from
   a ``ChipFacts`` instance.
 - ``active_columns(rows)`` -- drop purely-blank optional columns.
@@ -25,11 +29,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy.matching import matches
-from termapy.port_control import CHIP_FIELD_LABELS
+from termapy.plugins.views import Column
+from termapy.port_control import CHIP_FIELD_LABELS, port_state_style
 from termapy.usb import USB_SERIAL_CHIPS, ChipInfo, mfg as _mfg_alias
 from termapy.usb_tree import ascii_fold
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from termapy.port_control import ChipFacts
 
 
@@ -123,10 +130,33 @@ DROP_ORDER: tuple[str, ...] = (
     "location",
 )
 
+# Columns hidden when every port leaves them blank: common on built-in
+# COM1 / stock adapters, on macOS where ``driver`` isn't gathered yet, or
+# for non-USB ports where ``vendor`` doesn't apply.  Other columns like
+# chip / speed / vid_pid can also be unknown for non-USB ports but are
+# informative enough to always show.
+OPTIONAL_COLUMNS: tuple[str, ...] = (
+    "sn",
+    "driver",
+    "vendor",
+    "product",
+    "location",
+    "interface_number",
+)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Row construction
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+def display_description(description: str | None, device: str | None) -> str:
+    """The description a table shows: the redundant trailing ``(COMx)`` stripped, ``Serial port`` for none."""
+    port = device or _EMPTY
+    text = (description or "").strip()
+    if text.endswith(f"({port})"):
+        text = text[: -(len(port) + 3)].rstrip()
+    return text or "Serial port"
 
 
 def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
@@ -138,13 +168,7 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
     for missing data).
     """
     port = facts.device or _EMPTY
-
-    # Description, with the redundant trailing "(COMx)" stripped.
-    description = (facts.description or "").strip()
-    if description.endswith(f"({port})"):
-        description = description[: -(len(port) + 3)].rstrip()
-    if not description:
-        description = "Serial port"
+    description = display_description(facts.description, facts.device)
 
     # Folded to ASCII for the console, as the USB tree folds its names
     # ("MPLAB(R) PICkit 5" drops the sign); the JSON record keeps it as given.
@@ -209,18 +233,24 @@ def split_vid_pid(vid_pid: str | None) -> tuple[int | None, int | None]:
 
 
 def find_chips(pattern: str = "") -> list[tuple[int, int, ChipInfo]]:
-    """The known USB-serial chips whose model or speed matches ``pattern``, by VID:PID.
+    """The known USB-serial chips any column of which matches ``pattern``, by VID:PID.
 
     The one filter of ``/port.chip.list`` and ``--chips`` (registry
-    ``name-one-matcher``): ``ftdi`` finds the FTDI models, ``high`` the
-    high-speed chips, and an empty pattern every chip.
+    ``name-one-matcher``), over every column the table shows: ``ftdi``
+    finds the FTDI models, ``0403`` the chips with that vendor ID,
+    ``high`` the high-speed chips, and an empty pattern every chip.
     """
     rows = [
         (vid, pid, info)
         for (vid, pid), info in USB_SERIAL_CHIPS.items()
-        if matches(info.model, pattern) or matches(info.speed, pattern)
+        if any(matches(text, pattern) for text in (f"{vid:04X}:{pid:04X}", info.model, info.speed))
     ]
     return sorted(rows, key=lambda row: (row[0], row[1]))
+
+
+def _checked_in_use(in_use: str | None) -> bool | None:
+    """``ChipFacts.in_use`` as a record's ``in_use``: True or False when a probe checked, None when none did."""
+    return None if in_use is None else in_use.startswith("yes")
 
 
 def facts_to_json_record(facts: ChipFacts) -> dict:
@@ -267,7 +297,14 @@ def facts_to_json_record(facts: ChipFacts) -> dict:
         "pid": pid,
         "vid_pid": facts.vid_pid.upper() if facts.vid_pid and ":" in facts.vid_pid else None,
         "serial_number": facts.serial,
-        "in_use": (facts.in_use or "").startswith("yes"),
+        # True or False only when something checked: a probe (--ports
+        # --json, /port.info) or a termapy session's breadcrumb.  A listing
+        # does not check every port, so None means not checked, never "free".
+        "in_use": True if facts.session else _checked_in_use(facts.in_use),
+        # The termapy session holding it, when a listing asked
+        # (``port_control.fill_sessions``): "this session" or "termapy mcp,
+        # PID 17140".  Other programs are not seen here.
+        "session": facts.session,
         "driver": facts.driver,
         # Physical bus location, "1-2.3" -- bus, then one hop per hub
         # tier.  Disambiguates two devices with the same VID/PID and
@@ -315,11 +352,61 @@ def active_columns(rows: list[tuple[str, dict]]) -> tuple[str, ...]:
     ports but are informative enough to always show.
     """
     cols = list(PORT_COLUMNS)
-    optional = ("sn", "driver", "vendor", "product", "location", "interface_number")
-    for col in optional:
+    for col in OPTIONAL_COLUMNS:
         if rows and all(not row[col] or row[col] == _EMPTY for _, row in rows):
             cols.remove(col)
     return tuple(cols)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# The same columns as a TableView, for /port.list
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _unknown(value: object) -> str:
+    """A required column's cell: the value, or ``?`` when the fact is missing."""
+    return str(value) if value else _EMPTY
+
+
+# The cell of each PORT_COLUMNS column over a ``facts_to_json_record``
+# record.  A required column shows ``?`` for a missing fact, as
+# ``row_from_facts`` does; an OPTIONAL_COLUMNS column shows ``""`` so the
+# table can hide it when every port leaves it blank (``Column.hide_empty``).
+_RECORD_CELLS: dict[str, Callable[[dict], str]] = {
+    "port": lambda record: _unknown(record["device"]),
+    "manufacturer": lambda record: _unknown(record["manufacturer"]),
+    "vendor": lambda record: _mfg_alias(record["vendor"]) or "",
+    "description": lambda record: display_description(record["description"], record["device"]),
+    "product": lambda record: ascii_fold(record["product"] or ""),
+    "chip": lambda record: _unknown(record["chip"]),
+    "speed": lambda record: _unknown(record["speed"]),
+    "vid_pid": lambda record: _unknown(record["vid_pid"]),
+    "sn": lambda record: record["serial_number"] or "",
+    "driver": lambda record: record["driver"] or "",
+    "location": lambda record: record["location"] or "",
+    "interface_number": lambda record: record["interface_number"] or "",
+}
+
+
+def _port_column(name: str) -> Column:
+    """One ``/port.list`` column from the schema's facts: header, cell, drop rank, optionality."""
+    return Column(
+        COLUMN_HEADERS[name],
+        _RECORD_CELLS[name],
+        # A click puts the connect in the input line rather than running it:
+        # opening a port toggles DTR, which resets an auto-reset board.
+        prefill=(lambda record: f"port.connect {record['device']}") if name == "port" else None,
+        # The port's name is colored by who holds it (port_state_style).
+        style=(lambda record: port_state_style(record["session"])) if name == "port" else None,
+        drop=(len(DROP_ORDER) - DROP_ORDER.index(name)) if name in DROP_ORDER else 0,
+        hide_empty=name in OPTIONAL_COLUMNS,
+    )
+
+
+# The port table as ``/port.list`` answers it (registry list-one-format),
+# built from the one schema above so the picker, ``--ports`` and the list
+# agree on columns, headers and which column goes first on a narrow screen.
+PORT_TABLE_COLUMNS: tuple[Column, ...] = tuple(_port_column(name) for name in PORT_COLUMNS)
 
 
 def compute_widths(

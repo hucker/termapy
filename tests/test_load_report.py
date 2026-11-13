@@ -8,8 +8,12 @@ they share: one record shape, one table, one replace rule.
 
 from __future__ import annotations
 
+import pytest
+
 from termapy import load_report
 from termapy.load_report import DEVICE, PLUGIN, PROFILE, SYMBOLS, LoadReport, load_record
+
+pytestmark = pytest.mark.rule("load-report-one-table")
 
 
 def _symbols_row(status: str) -> dict:
@@ -132,6 +136,7 @@ class TestStartupLines:
 
 
 class TestResult:
+    @pytest.mark.rule("data-structured-twin")
     def test_table_and_data_are_the_same_rows(self):
         """The prose table and the JSON data come from one list of records."""
         # Arrange
@@ -146,7 +151,7 @@ class TestResult:
         # Assert
         assert result.data == records, "data is the rows"
         assert result.view.records == tuple(records), "the table shows the same rows"
-        assert result.value == "plugin/x.py", "value is the files that loaded"
+        assert result.value == 2, "the value counts every row, the failed one too"
         assert result.view.lines()[0] == ("Loaded - 2 files", ""), "titled with the file count"
 
     def test_empty_report_reads_empty(self):

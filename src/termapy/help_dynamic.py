@@ -2,6 +2,8 @@
 
 A plugin's ``Command.long_help`` may be a ``(PluginContext) -> str`` callable
 that is invoked every time ``/help <cmd>`` renders its DESCRIPTION section.
+A command whose bare form answers the fact declares ``Command.state`` instead,
+and ``/help`` shows the answer; these are for a summary no command gives.
 The functions in this module are small, pure utilities for the common
 shapes those callables take:
 
@@ -66,9 +68,10 @@ def is_state_line(line: str) -> bool:
 def state_line(label: str, value: Any) -> str:
     """Format a single green status line: ``Current <label> = <value>``.
 
-    This is the canonical shape for every "single value" dynamic help --
-    baud rate, bytesize, active profile, etc. Using it consistently keeps
-    the visual signal uniform across commands.
+    This is the canonical shape for a "single value" summary on a family's
+    page -- the symbol table, the devices.  Using it consistently keeps the
+    visual signal uniform across commands.  A value the command itself
+    answers declares ``Command.state`` instead.
     """
     return green(f"Current {label} = {value}")
 

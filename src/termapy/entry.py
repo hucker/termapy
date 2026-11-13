@@ -23,6 +23,10 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
 
 
 class _Version(argparse.Action):
@@ -33,10 +37,18 @@ class _Version(argparse.Action):
     the MCP server for a string only ``--version`` prints.
     """
 
-    def __init__(self, option_strings, dest=argparse.SUPPRESS, **kwargs) -> None:
+    def __init__(
+        self, option_strings: Sequence[str], dest: str = argparse.SUPPRESS, **kwargs: Any
+    ) -> None:
         super().__init__(option_strings, dest, nargs=0, default=argparse.SUPPRESS, **kwargs)
 
-    def __call__(self, parser, namespace, values, option_string=None):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
         from importlib.metadata import PackageNotFoundError, version
 
         try:
@@ -58,7 +70,13 @@ class _OneCommand(argparse.Action):
     file, the one multi-command format.
     """
 
-    def __call__(self, parser, namespace, values, option_string=None):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
         if getattr(namespace, self.dest) is not None:
             parser.error(
                 f"{option_string} takes one command; put several in a .run file and use --run"
@@ -140,7 +158,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "config",
         nargs="?",
         default=None,
-        help="Path to config file (auto-detects single .cfg in termapy_cfg/)",
+        metavar="CONFIG|PORT",
+        help="A config by name or path (auto-detects a single .cfg in termapy_cfg/), "
+        "else a port: a device name (COM3, /dev/ttyUSB0), a USB serial number or "
+        "a URL, opened with its own quick config in your user folder",
+    )
+    parser.add_argument(
+        "settings",
+        nargs="*",
+        metavar="SETTING",
+        help="After a port, /port.connect's settings: baud, frame (8N1), "
+        "cr|lf|crlf, echo|noecho; saved with the port's quick config",
     )
     parser.add_argument(
         "--cfg-dir",
@@ -237,6 +265,35 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--alive",
+        action="store_true",
+        help=(
+            "List the termapys running on this machine: mode, config, port and its "
+            "settings, version and what started each (/app.alive)"
+        ),
+    )
+    parser.add_argument(
+        "--kill",
+        nargs="*",
+        default=None,
+        metavar="TARGET [timeout=DUR]",
+        help=(
+            "Stop the termapys a TARGET picks -- all, a PID, a port (COM3) or a "
+            "config name -- after a yes (/app.kill), waiting timeout= (default 3s) "
+            "for them to leave.  Bare, list them as --alive does"
+        ),
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help=(
+            "Answer yes to the command line's questions: --kill, --new's overwrite, "
+            "and a CLI session's (--cli, -e, --run).  Not the TUI's dialogs, and "
+            "never under --mcp"
+        ),
+    )
+    parser.add_argument(
         "--no-color",
         action="store_true",
         help="Strip ANSI color codes from output (CLI mode)",
@@ -284,9 +341,10 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="?",
         const="*",
         default=None,
-        metavar="PORT",
+        metavar="PATTERN",
         help="List serial ports one line per port and exit.  "
-        "Optional PORT name filters to a single device.",
+        "Optional PATTERN shows the ports any field of which contains it "
+        "(FTDI, Microchip, a serial number, COM4); a wildcard makes a glob.",
     )
     parser.add_argument(
         "--watch",
@@ -305,36 +363,16 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="?",
         const="*",
         default=None,
-        metavar="FILTER",
+        metavar="PATTERN",
         help="Dump the USB-serial chip lookup table and exit.  "
-        "Optional FILTER substring narrows to matching chip models.",
+        "Optional PATTERN shows the chips any column of which contains it "
+        "(ftdi, 0403, high); a wildcard makes a glob.",
     )
     parser.add_argument(
         "--json",
         action="store_true",
         help="Emit JSON instead of a column-aligned table.  "
         "Applies to --ports, --chips, and --usb.",
-    )
-    parser.add_argument(
-        "--vid",
-        default=None,
-        help="Filter --ports to USB devices matching this VID (hex, with or without 0x).",
-    )
-    parser.add_argument(
-        "--pid",
-        default=None,
-        help="Filter --ports to USB devices matching this PID (hex, with or without 0x).",
-    )
-    parser.add_argument(
-        "--mfg",
-        default=None,
-        help="Filter --ports to devices whose manufacturer string contains "
-        "this substring (case-insensitive).",
-    )
-    parser.add_argument(
-        "--sn",
-        default=None,
-        help="Filter --ports to the device with this exact serial number (case-insensitive).",
     )
     parser.add_argument(
         "--validate-profile",
@@ -356,7 +394,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Run as a stdio MCP (Model Context Protocol) server, a preview "
         "that may change in any release.  Stdout "
         "is reserved for protocol frames; session log goes to "
-        "<cfg_dir>/mcp/session.log.  Requires the 'mcp' extra: "
+        "<cfg_dir>/<name>.mcp.log.  Requires the 'mcp' extra: "
         "pip install termapy[mcp].",
     )
     parser.add_argument(
@@ -412,15 +450,51 @@ def _run_validate_profile(path_str: str, strict: bool = False) -> None:
 
 
 def _no_terminal_to_confirm(question: str) -> bool:
-    """``--new``'s overwrite answer when stdin is not a terminal: always No."""
+    """The answer to ``--new``'s and ``--kill``'s question when stdin is not a terminal: always No."""
     print(f"termapy: {question} No terminal to answer on, so no.", file=sys.stderr)
     return False
+
+
+def _flag_confirm(args: argparse.Namespace) -> Callable[[str], bool]:
+    """How ``--kill`` and ``--new`` ask: yes under ``--yes``, else on stdin, else no."""
+    from termapy.cli_flags import assume_yes, confirm_on_stdin
+
+    if args.yes:
+        return assume_yes
+    return confirm_on_stdin if sys.stdin.isatty() else _no_terminal_to_confirm
+
+
+def _resolve_port_positional(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    """Turn a positional that names a port into its quick config's path (``cli_flags.run_quick``).
+
+    A ``.cfg``, ``.run`` or ``.pro`` name, or one ``resolve_config`` finds,
+    is left as it is; a ``--demo`` launch ignores the positional, as it
+    always has, and ``--mcp`` finds the config it names by its own rule, in
+    the project's folder (``config_resolve.find_mcp_root``), and never opens
+    a port for one.  Settings are refused after anything but a port.
+    """
+    from termapy.folders import FOLDER_EXTS, PROTO, RUN
+
+    target = args.config
+    file_types = (".cfg", FOLDER_EXTS[RUN], FOLDER_EXTS[PROTO])
+    if target and not (args.demo or args.mcp) and Path(target).suffix.lower() not in file_types:
+        from termapy.config_resolve import resolve_config
+
+        if resolve_config(target) is None:
+            from termapy.cli_flags import run_quick
+
+            args.config = str(run_quick(target, args.settings, usage_error=parser.error))
+            return
+    if args.settings:
+        parser.error(f"settings follow a port, not a config: {' '.join(args.settings)}")
 
 
 def main() -> None:
     """Argparse + dispatch.  Print-and-exit flags run Textual-free."""
     parser = _build_parser()
-    args = parser.parse_args()
+    # Intermixed: a flag may sit between the positionals too
+    # (`termapy COM3 9600 --quiet 8N1`), which plain parse_args refuses.
+    args = parser.parse_intermixed_args()
 
     # The environment booleans are read once, at import (env_flags); a
     # value outside the vocabulary is refused here, by name, before any
@@ -454,6 +528,14 @@ def main() -> None:
         from termapy.cli_flags import run_chips
 
         run_chips(args)
+    if args.alive:
+        from termapy.cli_flags import run_alive
+
+        run_alive()
+    if args.kill is not None:
+        from termapy.cli_flags import run_kill
+
+        run_kill(args, confirm=_flag_confirm(args))
     if args.validate_profile is not None:
         _run_validate_profile(args.validate_profile, strict=args.strict)
 
@@ -471,10 +553,9 @@ def main() -> None:
     if args.new is not None:
         if args.config or args.demo:
             parser.error("--new cannot be combined with a config or --demo")
-        from termapy.cli_flags import confirm_on_stdin, run_new
+        from termapy.cli_flags import run_new
 
-        confirm = confirm_on_stdin if sys.stdin.isatty() else _no_terminal_to_confirm
-        args.config = str(run_new(args.new, confirm=confirm, usage_error=parser.error))
+        args.config = str(run_new(args.new, confirm=_flag_confirm(args), usage_error=parser.error))
 
     # --board starts a dev board's starter config the same way: found or
     # created, then handed on as the positional config.
@@ -484,6 +565,11 @@ def main() -> None:
         from termapy.cli_flags import run_board
 
         args.config = str(run_board(args.board, usage_error=parser.error))
+
+    # A positional that names no config names a port: `termapy COM3 9600 8N1`
+    # opens that port's quick config, made at first use and kept.  A config
+    # wins the name, as an ssh_config alias does; settings follow a port only.
+    _resolve_port_positional(args, parser)
 
     # Normalize positional arg by extension - infer intent.  This
     # matters for --run and --proto; done here so both TUI and CLI
@@ -635,6 +721,9 @@ def main() -> None:
             break
         prev_mode = mode
         mode = result
+        from termapy import diag_log
+
+        diag_log.info("frontend switch: %s -> %s", prev_mode, mode)
         args.cli = mode == "cli"
         args.run = None  # don't re-run a script on switch
         args.exec_cmd = None  # don't re-run an exec command on switch

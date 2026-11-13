@@ -5,15 +5,18 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
 from termapy.folder_ops import build_folder_subcommands
 from termapy.folders import ensure_folder
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
 from termapy.plugins.params import EnumValue, ParamSpec
 from termapy.protocol import get_crc_registry, parse_format_spec
-from termapy.scripting import parse_bool, parse_duration, resolve_seq_filename
+from termapy.scripting import parse_bool, parse_duration, resolve_seq_filename, value_text
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from termapy.plugins import PluginContext
 
 # Shared enum vocabularies for the declarative-param capture subcommands.
@@ -104,15 +107,26 @@ def _parse_mode(sections: dict[str, str]) -> str | None:
     return None
 
 
-def _resolve_path(ctx: PluginContext, filename: str) -> Path:
+def _resolve_path(ctx: PluginContext, filename: str, file_mode: str) -> Path:
     """Resolve a capture filename to a contained path under ``cap/``.
 
     Routes through ``ctx.fs.resolve`` so an absolute path or ``..`` is
     refused under the MCP sandbox (raises ``MissingCapability``, which the
     dispatcher converts to a clean failure); the operator at a CLI/TUI
     (``filesystem_unconfined``) keeps host-wide capture paths as before.
+    An MCP client also never writes a code folder, and replaces a file
+    only inside the config's folder.
+
+    Args:
+        ctx: The plugin context, for the sandbox and its guards.
+        filename: The capture file as the user named it.
+        file_mode: The mode the capture opens it in; ``w`` replaces.
     """
-    return ctx.fs.resolve(filename, "cap")
+    path = ctx.fs.resolve(filename, "cap")
+    ctx.fs.guard_code_folder(path.parent)
+    if file_mode.startswith("w"):
+        ctx.fs.guard_replace(path)
+    return path
 
 
 # ── Handlers ─────────────────────────────────────────────────────────────────
@@ -140,7 +154,7 @@ def _handler_text(ctx: PluginContext, args: str) -> CmdResult:
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
 
-    path = _resolve_path(ctx, filename)
+    path = _resolve_path(ctx, filename, file_mode)
 
     started = ctx.internal.start_capture(
         path=path,
@@ -176,7 +190,7 @@ def _handler_bin(ctx: PluginContext, args: str) -> CmdResult:
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
 
-    path = _resolve_path(ctx, filename)
+    path = _resolve_path(ctx, filename, file_mode)
 
     started = ctx.internal.start_capture(
         path=path,
@@ -306,7 +320,7 @@ def _handler_structured(ctx: PluginContext, args: str, hex_mode: bool = False) -
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
 
-    path = _resolve_path(ctx, filename)
+    path = _resolve_path(ctx, filename, raw_file_mode)
 
     started = ctx.internal.start_capture(
         path=path,
@@ -432,10 +446,12 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
                     break
             else:
                 return CmdResult.fail(msg=f"Cannot find free filename near {p}")
+        ctx.fs.guard_code_folder(p.parent)
+        ctx.fs.guard_replace(p)  # only --overwrite can still name a file that exists
         path = p
         ensure_folder(path.parent)
 
-    encoding = ctx.cfg.get("encoding", "utf-8")
+    encoding = cfg_value(ctx.cfg, "encoding")
     cmd_prefix = ctx.prefix
 
     def extract(raw: str) -> str:
@@ -453,7 +469,9 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
                 if len(parts) > 1:
                     silent += " " + parts[1]
             result = ctx.dispatch(silent)
-            raw = result.value if result.success else ""
+            # A CSV cell is text: a typed value is spelled at this boundary
+            # (registry value-typed).
+            raw = value_text(result.value) if result.success else ""
         else:
             if not ctx.serial.is_connected():
                 return ""
@@ -563,7 +581,7 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.output(f"Poll complete: {path} ({samples_written} samples)", "green")
         return CmdResult.ok(value=path)
     ctx.io.output(f"Poll complete ({samples_written} samples)", "green")
-    return CmdResult.ok(value=str(samples_written))
+    return CmdResult.ok(value=samples_written)
 
 
 # ── /cap.stop handler ────────────────────────────────────────────────────────
@@ -595,11 +613,10 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     Async response handling: ``ctx.dispatch()`` returns immediately
     after writing TX bytes; the RX response arrives later via the
     on_lines pipeline and the rx_observer.  After dispatch returns,
-    we stay inside the with-block and poll a "last byte arrival" timer
-    until the device's RX has been quiet for ``wait_gap`` (default
-    50ms) -- the same idle-gap settling pattern used by
-    ``request_response.py`` and the profile executor.  Capped by a
-    5-second hard deadline.
+    we stay inside the with-block in ``ctx.serial.wait_idle`` until the
+    device's RX has been quiet for ``wait_gap`` (default 50ms) after the
+    command -- the published idle-gap wait the demo's ``/traffic.count``
+    shares.  Capped at 5 seconds so a chatty device cannot hold it.
 
     Args (parameters first, ``cmd=`` last as the rest-keyword that
     consumes the rest of the line so the wrapped command can contain
@@ -613,34 +630,18 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
     actually does, but the response gets eaten by a terminator
     mismatch.  ``/cap.wire`` makes the mismatch immediately visible.
     """
-    import time as _time
-
     cmd = ctx.arg("cmd")
     wait_gap_s = ctx.arg("wait_gap")  # float seconds
 
     tx = bytearray()
     rx = bytearray()
-    last_arrival = [_time.monotonic()]
 
-    def cap_rx(data: bytes) -> None:
-        rx.extend(data)
-        last_arrival[0] = _time.monotonic()
-
-    def cap_tx(data: bytes) -> None:
-        tx.extend(data)
-
-    with ctx.serial.rx_observer(cap_rx), ctx.serial.tx_observer(cap_tx):
+    with ctx.serial.rx_observer(rx.extend), ctx.serial.tx_observer(tx.extend):
         ctx.dispatch(cmd)
-        # Settle on idle-gap: wait until rx has been quiet for wait_gap_s.
-        # Hard-capped at 5s so a chatty device can't hang us forever.
-        if wait_gap_s > 0:
-            deadline = _time.monotonic() + 5.0
-            while _time.monotonic() < deadline:
-                if (_time.monotonic() - last_arrival[0]) >= wait_gap_s:
-                    break
-                _time.sleep(0.01)
+        # Settle on idle-gap: one quiet wait_gap after the command, 5 s at most.
+        ctx.serial.wait_idle(round(wait_gap_s * 1000), 5.0)
 
-    encoding = ctx.cfg.get("encoding", "utf-8")
+    encoding = cfg_value(ctx.cfg, "encoding")
     tx_decoded = bytes(tx).decode(encoding, errors="replace")
     rx_decoded = bytes(rx).decode(encoding, errors="replace")
 
@@ -663,15 +664,19 @@ def _handler_wire(ctx: PluginContext, args: str) -> CmdResult:
         f"{escape_markup(bytes(rx).hex(' ').upper())}  [dim]{escape_markup(repr(rx_decoded))}[/]",
     )
 
+    # The scalar is the reply's bytes, terminators and all: what a line-ending
+    # check compares.  Both directions in full are the data.
+    rx_hex = bytes(rx).hex().upper()
     return CmdResult.ok(
-        value={
+        value=rx_hex,
+        data={
             "tx_bytes": len(tx),
             "rx_bytes": len(rx),
             "tx_hex": bytes(tx).hex().upper(),
-            "rx_hex": bytes(rx).hex().upper(),
+            "rx_hex": rx_hex,
             "tx_text": tx_decoded,
             "rx_text": rx_decoded,
-        }
+        },
     )
 
 
@@ -683,7 +688,7 @@ def _cap_folder_line(ctx: PluginContext) -> str:
     return folder_line(ctx, "cap")
 
 
-def _cap_long_help_with_prose(prose: str):
+def _cap_long_help_with_prose(prose: str) -> Callable[[PluginContext], str]:
     """Build a callable that prepends the cap/ file count to a fixed prose body."""
 
     def _long(ctx: PluginContext) -> str:
@@ -742,7 +747,7 @@ _CAP_POLL_PROSE = (
     "response as a row.  With `file=`, also writes to CSV or JSONL.\n"
     "\n"
     "cmd= is newline-separated for multiple columns:\n"
-    "  {prefix}cap.poll cmd=AT+BAT\\nAT+TEMP\n"
+    "  {prefix}cap.poll cmd=AT+TEMP\\nAT+RAMP\n"
     "\n"
     "Without regex=, the first sample must be numeric or the command\n"
     "aborts.  With regex=, non-matching responses become empty values."
@@ -798,6 +803,10 @@ COMMAND = Command(
     group="terminal",
     name="cap",
     help="Data capture tools.",
+    intro=(
+        "Save device output to a file in the config's cap/ folder, as text, as raw "
+        "binary or as decoded values, and manage the captures kept there."
+    ),
     long_help=_cap_folder_line,
     handler=None,
     # Bare /cap does what the Cap button does: open cap/.
@@ -887,6 +896,7 @@ COMMAND = Command(
             help="Poll commands on a schedule, display (and optionally save) results.",
             long_help=_cap_long_help_with_prose(_CAP_POLL_PROSE),
             handler=_handler_poll,
+            cfg={"encoding": "decodes each polled reply"},
             # raw_args keeps cmd= literal (device commands, no $(VAR) expansion);
             # params still parse the keywords + rest (raw_args skips only transforms).
             raw_args=True,
@@ -941,6 +951,7 @@ COMMAND = Command(
             # would be misleading.
             long_help=_CAP_WIRE_PROSE,
             handler=_handler_wire,
+            cfg={"encoding": "decodes the captured bytes"},
             # raw_args keeps cmd= literal (no $(VAR) expansion); params still
             # parse it (raw_args skips only transforms, not param parsing).
             raw_args=True,

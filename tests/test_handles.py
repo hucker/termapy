@@ -74,6 +74,7 @@ class TestHandlesAreAttached:
         assert isinstance(ctx.internal, InternalHandle), "ctx.internal is an InternalHandle"
 
 
+@pytest.mark.rule("prefix-never-hardcoded")
 class TestPrefixProperty:
     """ctx.prefix derives the REPL prefix live from cfg."""
 
@@ -167,16 +168,18 @@ class TestIOHandle:
 class TestSerialHandle:
     """SerialHandle delegates to wired callables and provides ctx managers."""
 
-    def test_send_delegates(self):
-        """ctx.serial.send passes the exact text, terminator included, to the host."""
-        sent = []
+    @pytest.mark.rule("tx-text-one-path")
+    def test_send_writes_the_line_with_the_contexts_ending(self):
+        """ctx.serial.send writes the text, the context's line ending added and encoded, through write."""
+        written: list[bytes] = []
         ctx = PluginContext(
-            serial=SerialHandle(send=lambda text: sent.append(text)),
+            serial=SerialHandle(write=written.append),
+            cfg={"eol": "\r\n", "encoding": "utf-8"},
         )
-        ctx.serial.send("AT+VER\r")
-        actual = sent
-        expected = ["AT+VER\r"]
-        assert actual == expected, "send goes to the wired callable"
+        ctx.serial.send("AT+VER")
+        actual = written
+        expected = [b"AT+VER\r\n"]
+        assert actual == expected, "one write, the eol read from the context's cfg"
 
     def test_io_context_manager_calls_claim_and_release(self):
         """serial.io() claims the port before the block and releases it after."""

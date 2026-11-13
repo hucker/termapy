@@ -1,4 +1,4 @@
-"""--vt100 passthrough mode: a raw, Textual-free serial terminal.
+"""--vt100 passthrough mode: a raw, Textual-free serial terminal on the engine.
 
 This is a peer of CLI and TUI mode, not a separate runtime. When the
 output surface is *already* a terminal, the right move is to hand it the
@@ -7,10 +7,19 @@ addressed menus, vi, top, bootloader UIs, etc. render correctly. We do
 *not* run an emulator here (that's Phase 2, for non-terminal surfaces
 like MCP/snapshots).
 
-The byte pump is the vendored pyserial miniterm, which already solves the
-OS-specific raw-console hard parts (incl. enabling VT processing on
-Windows 10+). We open the raw pyserial object via the shared ``open_serial``
-path -- no termapy SerialReader; miniterm owns the read loop in passthrough.
+The port is ``SerialEngine``'s, as in every frontend (registry
+``vt100-on-engine``): its reader hands each raw chunk to the console
+through an RX observer, byte for byte, and its line path feeds the session
+log, the same ``<cfg>.log`` the TUI writes.  A key goes to the device
+through ``SerialPort.write``.  The vendored pyserial miniterm is kept for
+the console only: raw single-key input, VT processing on Windows 10+, and
+the writer thread that pumps keys to the port; its own reader never starts
+(``_KeyPump``).
+
+What the log holds: received lines, ANSI stripped, under ``<``, and ``#``
+for the session's own events; no ``>`` lines, because in passthrough
+nothing on this side holds a line: each key goes as typed, and the
+device's echo is the record of what it accepted (decision 2026-11-09).
 
 No Textual import: dropping the TUI layer is the whole point (it avoids a
 third key-interception layer; see docs/vt100-build-plan.md sections 3/6).
@@ -18,9 +27,23 @@ third key-interception layer; see docs/vt100-build-plan.md sections 3/6).
 
 from __future__ import annotations
 
+import codecs
 import os
 import sys
+import threading
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from termapy import diag_log
+from termapy.config import cap_folder_of, open_serial, session_log_file
+from termapy.defaults import cfg_value
+from termapy.scripting import strip_ansi
+from termapy.session_log import STATUS_MARKER, SessionLog
+from termapy.vendor.serial.tools.miniterm import Miniterm, Transform
+
+if TYPE_CHECKING:
+    import argparse
+    from collections.abc import Callable
 
 
 def _miniterm_settings(cfg: dict) -> dict:
@@ -36,9 +59,9 @@ def _miniterm_settings(cfg: dict) -> dict:
         ``{"echo": bool, "eol": str, "encoding": str}``.
     """
     return {
-        "echo": cfg.get("echo", False),
-        "eol": cfg.get("eol", "\r"),
-        "encoding": cfg.get("encoding", "utf-8"),
+        "echo": cfg_value(cfg, "echo"),
+        "eol": cfg_value(cfg, "eol"),
+        "encoding": cfg_value(cfg, "encoding"),
     }
 
 
@@ -58,7 +81,7 @@ def _vscode_key_hint(cfg: dict) -> str | None:
         The tip string (newline-terminated), or None when disabled via
         ``vt100_hint`` or not running under VS Code.
     """
-    if not cfg.get("vt100_hint", True):
+    if not cfg_value(cfg, "vt100_hint"):
         return None
     if os.environ.get("TERM_PROGRAM") != "vscode":
         return None
@@ -70,34 +93,161 @@ def _vscode_key_hint(cfg: dict) -> str | None:
     )
 
 
-def _passthrough_transforms(line_ending: str):
-    """Build miniterm ``(rx, tx)`` transform lists for raw VT100 passthrough.
+def _tx_transforms(line_ending: str) -> list[Transform]:
+    """Build the miniterm ``tx`` transform list for raw VT100 passthrough.
 
-    VT100 passthrough must be byte-transparent: the device's bytes have to
-    reach the terminal *unchanged*, or cursor control and bare-``\\r`` redraws
-    (progress bars, spinners) get corrupted. miniterm's default EOL transform
-    rewrites ``\\r``/``\\n`` -- e.g. ``eol='cr'`` (what a cfg ``line_ending`` of
-    ``"\\r"`` would select) turns every received ``\\r`` into ``\\n``, doubling
-    ``\\r\\n`` lines and breaking in-place redraws. So we replace it:
-
-    - **rx**: empty -- received bytes pass through verbatim.
-    - **tx**: translate only Enter (``\\n``) to the cfg ``line_ending``; every
-      other typed byte (letters, arrow-key escape sequences) is left as-is.
+    Only Enter (``\\n``) is translated, to the cfg ``line_ending``; every
+    other typed byte (letters, arrow-key escape sequences) is left as-is.
+    miniterm's default EOL transform would rewrite every ``\\r``/``\\n``, so
+    it is replaced.  Received bytes take no transform at all: the engine's
+    RX observer hands them to the console as decoded (``PassthroughSession``).
 
     Returns:
-        ``(rx_transformations, tx_transformations)`` to assign onto a
-        ``Miniterm`` instance (overriding its EOL-derived defaults).
+        The ``tx_transformations`` to assign onto a ``Miniterm`` instance.
     """
-    from termapy.vendor.serial.tools.miniterm import Transform
 
     class _EnterEOL(Transform):
-        def tx(self, text):
+        def tx(self, text: str) -> str:
             return text.replace("\n", line_ending)
 
-    return [], [_EnterEOL()]
+    return [_EnterEOL()]
 
 
-def _resolve_cfg(args) -> dict:
+class PassthroughSession:
+    """The engine side of ``--vt100``: one port, raw bytes to the console, lines to the session log.
+
+    Built on a ``SerialEngine`` so passthrough reads and writes as every
+    frontend does.  ``start`` opens the log and the engine's reader;
+    ``write`` is what the key pump calls for each key (the session is the
+    pump's ``serial``); ``close`` joins the reader, closes the port and ends
+    the log.  Writes to the log come from the reader thread, so the log's
+    own lock orders them.
+
+    Args:
+        cfg: Loaded config dict.
+        config_path: The config's path, or None for an in-memory config
+            (``--demo``), which keeps no log.
+        open_fn: Opens the port from the cfg; the default is
+            ``config.open_serial`` with the config's ``cap/`` folder for a
+            ``spy://`` port.  A test hands in its own.
+    """
+
+    def __init__(
+        self,
+        cfg: dict,
+        config_path: str | None,
+        open_fn: Callable[[dict], Any] | None = None,
+    ) -> None:
+        from termapy.capture import CaptureEngine
+        from termapy.serial_engine import SerialEngine
+
+        self.cfg = cfg
+        self.config_path = config_path
+        cap_folder = cap_folder_of(config_path or "")
+        self.engine = SerialEngine(
+            cfg=cfg,
+            capture=CaptureEngine(),
+            open_fn=open_fn or (lambda c: open_serial(c, cap_folder=cap_folder)),
+        )
+        self.session_log = SessionLog()
+        self._decoder = codecs.getincrementaldecoder(cfg_value(cfg, "encoding"))("replace")
+        self._console_write: Callable[[str], None] | None = None
+        self._on_lost: Callable[[str], None] | None = None
+        self._lost_reported = False
+
+    def session_log_path(self) -> Path | None:
+        """The file this frontend writes: the TUI's, ``log_file`` or ``<cfg>.log`` (registry ``session-log-one-owner``)."""
+        return session_log_file(self.cfg, self.config_path)
+
+    def connect(self) -> bool:
+        """Open the port; False leaves the reason in ``engine.last_error``."""
+        return self.engine.connect()
+
+    def start(self, console_write: Callable[[str], None], on_lost: Callable[[str], None]) -> None:
+        """Open the session log and start the engine's reader.
+
+        Args:
+            console_write: Gets every received chunk as text, on the reader
+                thread; the console's ``write``.
+            on_lost: Called once, on the reader thread, when the port is
+                lost or a write fails, with the reason; the caller stops
+                the key pump.
+        """
+        self._console_write = console_write
+        self._on_lost = on_lost
+        path = self.session_log_path()
+        if path is not None:
+            try:
+                self.session_log.open(path)
+            except OSError as e:
+                # The transcript never stops the session; the person is told once.
+                diag_log.warning("session log not opened: %s", e)
+                sys.stderr.write(f"termapy: session log not opened: {e}\n")
+        self.session_log.write(STATUS_MARKER, [f"VT100 passthrough: {self.engine.open_device}"])
+        self.engine.add_rx_observer(self._on_rx)
+        self.engine.start_reader(
+            on_lines=self._on_lines,
+            on_error=lambda detail: self._lost(f"Serial error: {detail}"),
+            on_disconnect=lambda: self._lost("Serial disconnected"),
+        )
+
+    def write(self, data: bytes) -> None:
+        """The key pump's ``serial.write``: each key to the device through the engine's port."""
+        import serial as _serial
+
+        port = self.engine.serial_port
+        if port is None:
+            return
+        try:
+            port.write(data)
+        except (OSError, _serial.SerialException) as e:
+            self._lost(f"Serial write failed: {e}")
+
+    def close(self) -> None:
+        """Stop the reader, close the port and end the log, in that order, so every line lands first."""
+        self.engine.remove_rx_observer(self._on_rx)
+        self.engine.disconnect()
+        self.session_log.end()
+
+    def _on_rx(self, data: bytes) -> None:
+        """Reader thread: every raw chunk to the console as decoded text, nothing else.
+
+        The incremental decoder carries a multi-byte character split across
+        chunks, and ``replace`` keeps a bad byte from ever stopping the
+        stream.
+        """
+        text = self._decoder.decode(data)
+        if text and self._console_write is not None:
+            self._console_write(text)
+
+    def _on_lines(self, lines: list[str]) -> None:
+        """Reader thread: the engine's lines into the log under ``<``, ANSI stripped as the TUI logs them."""
+        self.session_log.write("<", [strip_ansi(line) for line in lines])
+
+    def _lost(self, detail: str) -> None:
+        """Record a lost port once and tell the caller; a read failure reports two ways and a write may race it."""
+        if self._lost_reported:
+            return
+        self._lost_reported = True
+        self.session_log.write(STATUS_MARKER, [detail])
+        if self._on_lost is not None:
+            self._on_lost(detail)
+
+
+class _KeyPump(Miniterm):
+    """miniterm as console and key pump only: the engine's reader reads the port, so its own never starts.
+
+    Everything else is miniterm's: the OS console in raw single-key mode,
+    the writer thread that pumps each key to ``serial.write`` (the
+    ``PassthroughSession``), the exit key.  Only ``join(True)``, the
+    writer's, is ever called; there is no receiver thread to join.
+    """
+
+    def _start_reader(self) -> None:
+        """No reader of its own: ``SerialEngine`` owns the one reader (registry ``reader-owned-by-engine``)."""
+
+
+def _resolve_cfg(args: argparse.Namespace) -> dict:
     """Resolve the config for vt100 mode (mirrors the cli.py resolution).
 
     demo -> in-memory cfg on the interactive ``DEMO_VT100`` device;
@@ -149,18 +299,23 @@ def _resolve_cfg(args) -> dict:
         config_path = path
 
     try:
-        return load_config(config_path)
+        cfg = load_config(config_path)
     except CONFIG_LOAD_ERRORS as e:
         print(f"termapy: failed to load config: {e}", file=sys.stderr)
         sys.exit(1)
+    # The path rides along, as the headless proto runner's does, so the
+    # breadcrumb and the session log can name the config.
+    cfg["_config_path"] = str(config_path)
+    return cfg
 
 
-def run_vt100_mode(args) -> str | None:
-    """Run --vt100 passthrough: raw serial <-> host terminal via miniterm.
+def run_vt100_mode(args: argparse.Namespace) -> str | None:
+    """Run --vt100 passthrough: raw serial <-> host terminal, the engine reading, miniterm typing.
 
-    Opens the raw pyserial object (no termapy SerialReader) and hands it to
-    the vendored ``Miniterm`` pump, which copies device->console and
-    console->device until the user hits the exit key.
+    Opens the port through a ``PassthroughSession`` (``SerialEngine``) and
+    hands the session to the ``_KeyPump``, which copies console->device
+    until the user hits the exit key; the engine's reader copies
+    device->console and logs the lines.
 
     Args:
         args: Parsed argparse namespace.
@@ -172,20 +327,32 @@ def run_vt100_mode(args) -> str | None:
         (the ``--vt100`` launch case). Matches ``_run_cli_mode`` /
         ``_run_tui_mode`` so entry.py's mode loop can switch on the value.
     """
-    import serial as _serial
-
-    from termapy.config import open_serial
-    from termapy.vendor.serial.tools.miniterm import Miniterm
-
     return_to = getattr(args, "_vt100_return_to", None)
     cfg = _resolve_cfg(args)
     settings = _miniterm_settings(cfg)
+    config_path = cfg.get("_config_path") or None
 
-    try:
-        port = open_serial(cfg)
-    except (_serial.SerialException, OSError, ValueError) as e:
-        print(f"termapy: cannot open serial port: {e}", file=sys.stderr)
+    # vt100 is not a TerminalHost, so its session is announced here.
+    diag_log.start("vt100", config_path or "")
+    session = PassthroughSession(cfg, config_path)
+    if not session.connect():
+        print(f"termapy: cannot open serial port: {session.engine.last_error}", file=sys.stderr)
         sys.exit(1)
+    port = session.engine.port_obj
+    from termapy import breadcrumbs
+    from termapy.config import port_settings
+    from termapy.port_control import serial_number
+
+    breadcrumbs.leave(
+        "vt100",
+        config=config_path or "",
+        port=str(cfg_value(cfg, "serial.port") or ""),
+        open_port=session.engine.open_device,
+        settings=port_settings(cfg),
+        port_serial=serial_number(session.engine.open_device),
+        log=str(session.session_log_path() or ""),
+        detailed=True,
+    )
 
     # miniterm's Windows Console swaps sys.stdout/sys.stderr for UTF-8 wrappers
     # and never restores them (its own main() exits the process, so it never
@@ -194,53 +361,72 @@ def run_vt100_mode(args) -> str | None:
     # .buffer -- and crash. Save and restore them around the session. On POSIX
     # this is a harmless no-op (that Console doesn't touch sys.stdout).
     saved_stdout, saved_stderr = sys.stdout, sys.stderr
-    term = None
+    pump: _KeyPump | None = None
+    # Set when another termapy asks this session to leave (``on_stop``).
+    stop_asked = threading.Event()
+    stop_handler: Callable[[int], None] | None = None
     try:
-        term = Miniterm(port, echo=settings["echo"])
-        # Miniterm.__init__ leaves rx_decoder/tx_encoder UNSET; reader()/
-        # writer() AttributeError on the first byte unless we set both here
-        # (miniterm's own main() does the same before start()).
-        term.set_rx_encoding(settings["encoding"])
-        term.set_tx_encoding(settings["encoding"])
-        # Raw byte-transparent passthrough: device bytes reach the terminal
-        # verbatim (no CR/LF rewriting); only Enter is translated to the cfg
-        # line ending. Replaces miniterm's EOL transform -- see
-        # _passthrough_transforms.
-        term.rx_transformations, term.tx_transformations = _passthrough_transforms(settings["eol"])
-        term.exit_character = chr(0x1D)  # Ctrl-]  -> exit / back to the TUI
+        pump = key_pump = _KeyPump(session, echo=settings["echo"])
+        # Miniterm.__init__ leaves tx_encoder UNSET; writer() AttributeErrors
+        # on the first key unless it is set here (miniterm's own main() does
+        # the same before start()).  The rx side is the engine's.
+        key_pump.set_tx_encoding(settings["encoding"])
+        # Only Enter is translated, to the cfg line ending; every other key
+        # goes out as typed.  Replaces miniterm's EOL transform.
+        key_pump.tx_transformations = _tx_transforms(settings["eol"])
+        key_pump.exit_character = chr(0x1D)  # Ctrl-]  -> exit / back to the TUI
         # Disable miniterm's Ctrl-T settings menu so nothing pyserial-flavored
         # leaks: set the menu key to a value the user won't type, so Ctrl-T
         # (and every other key) passes straight through to the device. Keeps
         # the passthrough reading as a native termapy view.
-        term.menu_character = chr(0x00)
+        key_pump.menu_character = chr(0x00)
 
         # Clean, termapy-branded banner on stderr (stdout is the device
         # stream); no mention of miniterm or its menu.
         exit_hint = "Ctrl+] returns to termapy" if return_to == "tui" else "Ctrl+] to exit"
         sys.stderr.write(
-            f"termapy VT100  |  {port.name} {port.baudrate} "
-            f"{port.bytesize}{port.parity}{port.stopbits}  |  {exit_hint}\n"
+            f"termapy VT100  |  {getattr(port, 'name', '')} {getattr(port, 'baudrate', '')} "
+            f"{getattr(port, 'bytesize', '')}{getattr(port, 'parity', '')}"
+            f"{getattr(port, 'stopbits', '')}  |  {exit_hint}\n"
         )
         hint = _vscode_key_hint(cfg)
         if hint:
             sys.stderr.write(hint)
 
-        term.start()
+        def on_lost(detail: str) -> None:
+            # Reader thread.  Stop the writer and wake its blocking getkey(),
+            # as miniterm's own reader does when the port goes.
+            sys.stderr.write(f"\n{detail}\n")
+            key_pump.stop()
+            key_pump.console.cancel()
+
+        def on_stop(by: int) -> None:
+            # The stop watch's thread: another termapy asked this session to
+            # leave.  Leave as a lost port does, and end the process rather
+            # than return to the TUI.
+            stop_asked.set()
+            on_lost(f"Stop requested by termapy PID {by}")
+
+        breadcrumbs.on_stop_request(on_stop)
+        stop_handler = on_stop
+        session.start(console_write=key_pump.console.write, on_lost=on_lost)
+        key_pump.start()
         try:
-            term.join(True)  # wait on the transmitter until Ctrl-]
+            key_pump.join(True)  # wait on the transmitter until Ctrl-] or a lost port
         except KeyboardInterrupt:
             pass
-        term.join()  # then drain/stop the receiver
-        sys.stderr.write("\nreturning to termapy...\n" if return_to == "tui" else "\nexit\n")
+        returning = return_to == "tui" and not stop_asked.is_set()
+        sys.stderr.write("\nreturning to termapy...\n" if returning else "\nexit\n")
     finally:
-        if term is not None:
+        # The reader first, so no chunk reaches a console being restored.
+        session.close()
+        if pump is not None:
             try:
-                term.console.cleanup()  # restore termios on POSIX (no-op on Win)
+                pump.console.cleanup()  # restore termios on POSIX (no-op on Win)
             except Exception:
                 # Teardown is best-effort; never crash on console restore.
-                pass
-            term.close()  # closes the serial port
-        else:
-            port.close()  # Miniterm never took ownership of the port
+                diag_log.exception("vt100 console restore raised")
         sys.stdout, sys.stderr = saved_stdout, saved_stderr
-    return return_to
+        if stop_handler is not None:
+            breadcrumbs.release_stop_request(stop_handler)
+    return None if stop_asked.is_set() else return_to

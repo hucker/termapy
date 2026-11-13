@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from rich.text import Text
 from textual import events, on
@@ -18,9 +19,11 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, OptionList, Static
 
 from termapy.config import (
+    CONFIG_GLOB,
     cfg_dir,
     config_summary,
     file_manager_name,
+    is_config_file,
     open_with_system,
 )
 from termapy.dialogs._common import (
@@ -36,27 +39,50 @@ from termapy.dialogs._common import (
 )
 from termapy.folder_ops import list_entries
 
+if TYPE_CHECKING:
+    from termapy.port_control import PortSource
+
 
 def _config_info(path: Path) -> tuple[str, str, str]:
-    """``("COM4", "115200", "Bench board")`` for a picker row.
+    """``("A1B2C3D4", "115200", "Bench board")`` for a picker row: the file's facts.
 
     The facts are ``config.config_summary``'s, the ones ``/cfg.list``
-    shows; all empty if the file won't load.
+    shows, the port as the file spells it; all empty if the file won't
+    load.  ``_config_details`` turns the port into the device it names.
     """
     summary = config_summary(path)
     baud = summary["baud_rate"]
     return summary["port"], "" if baud is None else str(baud), summary["title"]
 
 
-def _config_details(paths: list[Path]) -> tuple[dict[Path, str], str]:
+def _config_details(
+    paths: list[Path],
+    *,
+    active: Path | None = None,
+    open_device: str = "",
+    port_source: PortSource | None = None,
+) -> tuple[dict[Path, str], str]:
     """Per-config detail text plus its header, one ``load_config`` per file.
 
     Three columns -- ``PORT`` (left-aligned, padded to the widest port so a
     macOS device name and ``COM4`` share a column), ``BAUD`` (right-aligned,
     it is a number), ``TITLE`` -- with the header padded the same way so
-    it sits over them.
+    it sits over them.  ``PORT`` is the device each config's port names,
+    never its serial number or fallback chain as the file spells it
+    (``port_control.listing_devices``, one enumeration for the whole list;
+    registry ``port-display``); ``active`` shows ``open_device`` when the
+    session holds one.
     """
+    from termapy import port_control
+
     infos = {path: _config_info(path) for path in paths}
+    devices = port_control.listing_devices(
+        {str(path): port for path, (port, _, _) in infos.items()},
+        active=None if active is None else str(active),
+        open_device=open_device,
+        source=port_source,
+    )
+    infos = {path: (devices[str(path)], baud, title) for path, (_, baud, title) in infos.items()}
     port_width = max((len(port) for port, _, _ in infos.values()), default=0)
     port_width = max(port_width, len("PORT"))
     baud_width = max((len(baud) for _, baud, _ in infos.values()), default=0)
@@ -136,12 +162,21 @@ class ConfigPicker(ModalScreen[tuple | None]):
         gui_apps: bool = True,
         web: bool = False,
         opener: Callable[[str], None] = open_with_system,
+        open_device: str = "",
+        port_source: PortSource | None = None,
     ) -> None:
         """Build the picker.
 
         Args:
             current_path: The active config, highlighted on open.
             read_only: Disable Edit / Rename / Delete.
+            open_device: The device this session has open, ``""`` when none;
+                the active config's PORT cell shows it (registry
+                ``port-display``).
+            port_source: A substitute port list for the PORT column's
+                resolution, as ``port_control.resolve_port`` takes it;
+                injected so a test can show a serial number's device
+                without owning the machine's ports.
             gui_apps: Whether this process can show a desktop app the user
                 will see (``ctx.capabilities.gui_apps``, SSH-aware).  False
                 disables Explore with a tooltip naming the ``TERMAPY_GUI``
@@ -159,14 +194,24 @@ class ConfigPicker(ModalScreen[tuple | None]):
         self.gui_apps = gui_apps
         self.web = web
         self._opener = opener
+        self._open_device = open_device
+        self._port_source = port_source
         # "Explorer", "Finder", "Files"...: the button is the app's own name,
         # because a verb like Explore reads as Windows to everyone else.
         self._manager = file_manager_name()
 
     def compose(self) -> ComposeResult:
         d = cfg_dir()
-        json_files = list_entries(d, "*/*.cfg")  # newest first
-        details, detail_header = _config_details(json_files)
+        json_files = [  # newest first
+            path for path in list_entries(d, CONFIG_GLOB) if is_config_file(path)
+        ]
+        active = next((path for path in json_files if str(path) == self.current_path), None)
+        details, detail_header = _config_details(
+            json_files,
+            active=active,
+            open_device=self._open_device,
+            port_source=self._port_source,
+        )
         with Vertical(id="picker-dialog") as dialog:
             with Horizontal(id="picker-header"):
                 yield Static(_TITLE, id="picker-title")

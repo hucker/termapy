@@ -17,6 +17,8 @@ from termapy.folder_ops import build_folder_subcommands
 from termapy.plugins import CapabilitySet, InternalHandle, IOHandle, PluginContext, UsageError
 from termapy.plugins.handles.ui import UIHandle
 
+pytestmark = pytest.mark.rule("destructive-declared")
+
 
 def _ctx(cfg_file, *, answer: bool | None = None, changed: list[str] | None = None):
     """A ctx on ``cfg_file``; ``answer`` is the user's reply, None for a host that cannot ask."""
@@ -73,10 +75,11 @@ class TestGeneratedFile:
         result = _delete("cap")(ctx, "a.txt")
 
         # Assert
-        assert result.value == "1", result.error
+        assert result.value == 1, result.error
         assert _names(data_dir) == [".gitignore", "b.txt"], "only the named file is gone"
         assert questions == [], "one generated file is not asked about"
 
+    @pytest.mark.rule("file-name-default-ext")
     def test_the_extension_is_optional(self, tmp_path):
         """/run.profile.delete boot finds boot.csv, the folder's extension added."""
         # Arrange
@@ -105,6 +108,7 @@ class TestGeneratedFile:
         assert first.success, first.error
         assert second.error.startswith("File not found: a.txt"), second.error
 
+    @pytest.mark.rule("path-inside-one-check")
     def test_a_name_outside_the_folder_is_refused(self, tmp_path):
         """../outside.txt escapes cap/, so it is refused and the file stays."""
         # Arrange
@@ -119,6 +123,7 @@ class TestGeneratedFile:
         assert (tmp_path / "cfg" / "outside.txt").exists(), "nothing outside the folder is touched"
 
 
+@pytest.mark.rule("name-one-matcher")
 class TestPattern:
     def test_a_yes_deletes_what_the_pattern_matches(self, tmp_path):
         """/cap.delete adc_* asks with the count, then deletes the matches and nothing else."""
@@ -130,7 +135,7 @@ class TestPattern:
         result = _delete("cap")(ctx, "adc_*")
 
         # Assert
-        assert result.value == "2", "both matches deleted, case ignored"
+        assert result.value == 2, "both matches deleted, case ignored"
         assert questions == ["Delete 2 files from cap/ (adc_*)? This cannot be undone."]
         assert _names(data_dir) == [".gitignore", "notes.txt"], "what the pattern missed stays"
 
@@ -144,7 +149,7 @@ class TestPattern:
         result = _delete("cap")(ctx, "*")
 
         # Assert
-        assert result.value == "2", "both files deleted"
+        assert result.value == 2, "both files deleted"
         assert _names(data_dir) == [".gitignore"], "the dotfile is left"
 
     def test_a_no_deletes_nothing(self, tmp_path):
@@ -170,7 +175,7 @@ class TestPattern:
         result = _delete("cap")(ctx, "*")
 
         # Assert
-        assert result.value == "2", "both files deleted"
+        assert result.value == 2, "both files deleted"
         assert questions == [], "there was no one to ask"
 
     def test_matching_nothing_fails_the_second_time_as_the_first(self, tmp_path):
@@ -200,7 +205,7 @@ class TestAuthored:
         result = _delete("run")(ctx, "foo")
 
         # Assert
-        assert result.value == "1", result.error
+        assert result.value == 1, result.error
         assert questions == ["Delete foo.run from run/? This cannot be undone."]
         assert _names(data_dir) == [".gitignore", "bar.run"], "only foo.run is gone"
 
@@ -245,6 +250,7 @@ def test_a_delete_tells_the_frontend_the_folder_changed(tmp_path):
     assert changed == ["cap"], "the folder that changed, once"
 
 
+@pytest.mark.rule("usage-from-declaration")
 def test_bare_is_a_usage_error(tmp_path):
     """Bare /cap.delete names nothing, so it is a usage error, never a wipe."""
     cfg_file, data_dir = _setup(tmp_path)

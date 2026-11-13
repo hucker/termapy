@@ -10,7 +10,7 @@ Lookup precedence:
    human typist usually invoke commands by their canonical name straight
    from /help or the catalog.
 2. **send_template regex match** — for entries that take inline args
-   (``AT+LED={state}``, ``bat {channel}``), this turns each ``{name}``
+   (``AT+LED={state}``, ``read {channel}``), this turns each ``{name}``
    placeholder into a named capture group and matches the input.  The
    first hit wins; profile authors are expected to avoid overlapping
    templates.
@@ -49,7 +49,7 @@ def template_to_regex(template: str) -> str:
     Example::
 
         template_to_regex("AT+LED={state}")  # -> r"^AT\\+LED\\=(?P<state>.+?)$"
-        template_to_regex("bat {channel}")    # -> r"^bat\\ (?P<channel>.+?)$"
+        template_to_regex("read {channel}")   # -> r"^read\\ (?P<channel>.+?)$"
     """
     pattern_parts: list[str] = []
     pos = 0

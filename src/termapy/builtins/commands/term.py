@@ -12,7 +12,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from termapy.defaults import JSON_STYLES
+from termapy import diag_log
+from termapy.config import cfg_value_text
+from termapy.defaults import JSON_INDENTS, RX_NEWLINE_MODES, cfg_value
 from termapy.plugins import (
     OUTPUT_LEVELS,
     CapabilitySet,
@@ -21,12 +23,14 @@ from termapy.plugins import (
     UsageError,
     parse_output_level,
 )
+from termapy.plugins.params import ParamSpec
 from termapy.scripting import (
     SETTING_QUERY,
     SETTING_TOGGLE,
     next_in_cycle,
     parse_bool,
     parse_bool_setting,
+    value_text,
 )
 
 if TYPE_CHECKING:
@@ -55,8 +59,10 @@ def _bool_setting(ctx: PluginContext, args: str, flag_name: str) -> CmdResult:
         flags[flag_name] = not flags.get(flag_name, False)
     else:
         flags[flag_name] = action
-    state = "on" if flags.get(flag_name) else "off"
-    ctx.io.result(state)
+    # A switch is a bool (registry value-typed); the line a person reads
+    # spells it on/off, as every setting command does.
+    state = bool(flags.get(flag_name))
+    ctx.io.result(value_text(state))
     return CmdResult.ok(value=state)
 
 
@@ -82,10 +88,11 @@ def _handler_echo_repl(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_color(ctx: PluginContext, args: str) -> CmdResult:
-    """Query, set or toggle rendering of the device's ANSI color, a session flag."""
-    # Render device ANSI color (SGR).  Session flag, portable across the
-    # TUI (strip before render when off) and CLI (strip in on_lines) --
-    # was a CLI-only hook before.  Default off under --no-color.
+    """Query, set or toggle color in the output, termapy's own and the device's ANSI: a session flag."""
+    # Session flag the frontends read at each write: the TUI's pane and the
+    # CLI's console go plain when it is off, and both strip the device's
+    # SGR escapes before rendering.  Starts from the config's ``color``;
+    # --no-color and MCP start it off.
     return _bool_setting(ctx, args, "color")
 
 
@@ -117,20 +124,56 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     """
     if not args:
         raise UsageError()
-    encoding = ctx.cfg.get("encoding", "utf-8")
-    line_ending = ctx.cfg.get("eol", "\r")
     try:
-        ctx.serial.write((args + line_ending).encode(encoding))
-    # Plugin handlers can be called from many hosts; OSError covers
-    # the file-descriptor / IO classes and pyserial.SerialException
-    # is a subclass of Exception. Match dispatch_full's legacy catch.
-    except (OSError, Exception) as e:  # noqa: BLE001  -- boundary catch
+        # A device line, so it goes out paced (``ctx.serial.send``).
+        ctx.serial.send(args)
+    # A failed send is this command's answer, not a plugin error: a lost or
+    # closed port (pyserial's SerialException is an OSError), or a character
+    # outside the encoding (a ValueError).
+    except (OSError, ValueError) as e:
         return CmdResult.fail(msg=f"Send error: {e}")
+    # Plugin handlers can be called from many hosts; anything else is a bug
+    # in the send path, answered the same way with its traceback kept.
+    except Exception as e:
+        diag_log.exception("term.send raised")
+        return CmdResult.fail(msg=f"Send error: {type(e).__name__}: {e}{diag_log.traceback_note()}")
     # SPECIAL CASE: /term.send is fire-and-forget over the wire; the
     # device's response (if any) is async and comes through /expect or
     # the read pipeline, not back via this CmdResult.  Returning the
     # sent bytes here would be a misleading "value" (input, not output).
     return CmdResult.ok(value="")
+
+
+# The keys a control character is typed with, in byte order: Ctrl+@ is 00,
+# Ctrl+A..Z are 01..1A, Ctrl+[ \ ] ^ _ are 1B..1F (ASCII 64..95, less 64).
+_CTRL_KEYS = "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
+# Names for keys nobody remembers as a Ctrl chord: esc is Ctrl+[.
+_CTRL_NAMES = {"ESC": "["}
+
+
+def _handler_ctrl(ctx: PluginContext, args: str) -> CmdResult:
+    """Send one control character: ``/term.ctrl c`` is Ctrl-C, byte 03; the value is ``^C``.
+
+    ``esc`` names Ctrl+[ (1B).  A raw byte, as ``/raw`` sends: no line
+    ending, never paced.  The TUI's Ctrl+C with nothing selected and Ctrl+D
+    on an empty prompt dispatch it, so a key and a script or agent send the
+    same way.
+    """
+    typed = ctx.arg("key")
+    key = _CTRL_NAMES.get(typed.upper(), typed.upper())
+    if len(key) != 1 or key not in _CTRL_KEYS:
+        return CmdResult.fail(
+            msg=f"Invalid control key: {typed} (use a letter A-Z, one of @ [ \\ ] ^ _, or esc)"
+        )
+    try:
+        ctx.serial.write(bytes([_CTRL_KEYS.index(key)]))
+    # The same catches as /term.send: a failed write is the answer.
+    except (OSError, ValueError) as e:
+        return CmdResult.fail(msg=f"Send error: {e}")
+    except Exception as e:
+        diag_log.exception("term.ctrl raised")
+        return CmdResult.fail(msg=f"Send error: {type(e).__name__}: {e}{diag_log.traceback_note()}")
+    return CmdResult.ok(value=f"^{key}")
 
 
 def _handler_output(ctx: PluginContext, args: str) -> CmdResult:
@@ -156,34 +199,19 @@ def _handler_output(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=level)
 
 
-def _handler_verbose_legacy(ctx: PluginContext, args: str) -> CmdResult:
-    """Legacy /term.verbose forwarder: translate on/off and dispatch."""
-    warned = ctx.ns("legacy_warned")
-    if "term.verbose" not in warned:
-        warned["term.verbose"] = True
-        p = ctx.prefix
-        ctx.io.output(
-            f"  Note: {p}term.verbose is legacy; use {p}term.output (verbose|normal).",
-            "yellow",
-        )
-    body = args.strip()
-    if not body:
-        target = "term.output"
-    else:
-        try:
-            verbose = parse_bool(body, what="value")
-        except ValueError as e:
-            return CmdResult.fail(msg=str(e))
-        target = "term.output verbose" if verbose else "term.output normal"
-    return ctx.internal.dispatch(target)
-
-
 def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
     """Query, set or toggle the hex view of received bytes."""
     return _bool_setting(ctx, args, "hex")
 
 
-# ── Config-persisted toggles (via ctx.internal.apply_cfg) ─────────────────────
+def _handler_traffic(ctx: PluginContext, args: str) -> CmdResult:
+    """Query, set or toggle the TUI's live TX/RX byte counts: a session flag, off at every load."""
+    # The engine counts the bytes whether this is on or off; the flag only
+    # says whether the TUI's bottom bar shows them.
+    return _bool_setting(ctx, args, "traffic")
+
+
+# ── Session cfg toggles (apply_cfg; only the editor's Save persists) ─────────
 
 
 def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
@@ -191,14 +219,15 @@ def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
 
     Bare invocation QUERIES (shows state, mutates nothing); ``on``/``off``
     sets; the explicit verb ``toggle`` flips; anything else errors.
-    Persists via ``ctx.internal.apply_cfg`` (only when the value actually
-    changes); the ConfigEditor dialog is the only path that writes to disk.
+    Applies via ``ctx.internal.apply_cfg`` for the session (only when the
+    value actually changes); nothing here writes to disk.  The config
+    editor's Save (``/cfg.edit``) is the only path that persists.
     """
     try:
         action = parse_bool_setting(args)
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
-    current = bool(ctx.cfg.get(key, False))
+    current = bool(cfg_value(ctx.cfg, key))
     if action is SETTING_QUERY:
         new = current
     elif action is SETTING_TOGGLE:
@@ -207,9 +236,8 @@ def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
         new = action
     if new != current:
         ctx.internal.apply_cfg(key, new)
-    state = "on" if new else "off"
-    ctx.io.result(state)
-    return CmdResult.ok(value=state)
+    ctx.io.result(value_text(new))
+    return CmdResult.ok(value=new)
 
 
 def _handler_eol_markers(ctx: PluginContext, args: str) -> CmdResult:
@@ -231,29 +259,23 @@ def _handler_eol(ctx: PluginContext, args: str) -> CmdResult:
     Bare invocation reports the current ending as a token; an argument
     (``cr`` / ``lf`` / ``crlf`` / ``none``) sets it for the session via
     ``apply_cfg`` -- the same in-memory path the other /term.* toggles
-    use.  Persisting to disk is still /cfg eol or the Config
-    Editor; this is the quick runtime override.
+    use, and the same session-only change ``/cfg eol`` makes.  Only the
+    config editor's Save (``/cfg.edit``) persists it.
     """
     arg = args.strip().lower()
     if not arg:
-        current = ctx.cfg.get("eol", "\r")
+        current = cfg_value(ctx.cfg, "eol")
         label = _EOL_LABELS.get(current, repr(current))
         ctx.io.result(label)
         return CmdResult.ok(value=label)
     if arg == "cycle":
-        cur = _EOL_LABELS.get(ctx.cfg.get("eol", "\r"), "cr")
+        cur = _EOL_LABELS.get(cfg_value(ctx.cfg, "eol"), "cr")
         arg = next_in_cycle(cur, list(_EOL_TOKENS))
     if arg not in _EOL_TOKENS:
         return CmdResult.fail(msg=f"Unknown line ending: {arg} (use {'/'.join(_EOL_TOKENS)}/cycle)")
     ctx.internal.apply_cfg("eol", _EOL_TOKENS[arg])
     ctx.io.result(arg)
     return CmdResult.ok(value=arg)
-
-
-# Receive-newline modes (mirror TeraTerm's Receive newline: AUTO/CR/LF/CR+LF).
-# Kept in sync with serial_port.RX_NEWLINE_MODES; duplicated here so this
-# builtin stays decoupled from the pyserial-carrying serial_port module.
-_RX_NEWLINE_MODES = ("auto", "cr", "lf", "crlf")
 
 
 def _handler_eol_rx(ctx: PluginContext, args: str) -> CmdResult:
@@ -269,41 +291,70 @@ def _handler_eol_rx(ctx: PluginContext, args: str) -> CmdResult:
     """
     arg = args.strip().lower()
     if not arg:
-        current = ctx.cfg.get("eol_rx", "auto")
+        current = cfg_value(ctx.cfg, "eol_rx")
         ctx.io.result(current)
         return CmdResult.ok(value=current)
     if arg == "cycle":
-        arg = next_in_cycle(ctx.cfg.get("eol_rx", "auto"), list(_RX_NEWLINE_MODES))
-    if arg not in _RX_NEWLINE_MODES:
+        arg = next_in_cycle(cfg_value(ctx.cfg, "eol_rx"), list(RX_NEWLINE_MODES))
+    if arg not in RX_NEWLINE_MODES:
         return CmdResult.fail(
-            msg=f"Unknown receive newline: {arg} (use {'/'.join(_RX_NEWLINE_MODES)}/cycle)"
+            msg=f"Unknown receive newline: {arg} (use {'/'.join(RX_NEWLINE_MODES)}/cycle)"
         )
     ctx.internal.apply_cfg("eol_rx", arg)
     ctx.io.result(arg)
     return CmdResult.ok(value=arg)
 
 
-def _handler_json(ctx: PluginContext, args: str) -> CmdResult:
-    """Show or set how JSON prints: ``compact``, ``indent`` or ``color``.
+def _handler_json_fmt(ctx: PluginContext, args: str) -> CmdResult:
+    """``/term.json_fmt``: how JSON shows on screen, its highlighting and its indent, as a record.
 
-    An enum setting: bare reports the style, a style sets it for the
+    The two settings are the subcommands, and the space form reaches them
+    (``/term.json_fmt indent 4`` is ``/term.json_fmt.indent 4``); a word that names
+    neither is a usage error.
+    """
+    words = args.split(None, 1)
+    if words:
+        if f"term.json_fmt.{words[0]}" not in ctx.internal.plugins:
+            raise UsageError()
+        return ctx.internal.dispatch(f"term.json_fmt.{args.strip()}")
+    data = {
+        "highlight": bool(cfg_value(ctx.cfg, "json_fmt.highlight")),
+        "indent": int(cfg_value(ctx.cfg, "json_fmt.indent")),
+    }
+    rows = [
+        ("highlight", "on" if data["highlight"] else "off"),
+        ("indent", str(data["indent"])),
+    ]
+    return CmdResult.record(data, rows, value=" ".join(f"{key}={text}" for key, text in rows))
+
+
+def _handler_json_fmt_highlight(ctx: PluginContext, args: str) -> CmdResult:
+    """Query, set or toggle JSON highlighting on screen (cfg ``json_fmt.highlight``)."""
+    return _cfg_toggle(ctx, args, "json_fmt.highlight")
+
+
+def _handler_json_fmt_indent(ctx: PluginContext, args: str) -> CmdResult:
+    """Show or set the spaces per level JSON is indented by on screen: 0 (one line), 2 or 4.
+
+    An enum setting: bare reports the indent, a value sets it for the
     session through ``apply_cfg``, ``cycle`` advances, anything else is
-    refused.  Applies to every JSON termapy prints (``/term.request``
-    envelopes, ``--json``, the request echo); MCP returns the envelope as
-    data and is unaffected.
+    refused.
     """
     arg = args.strip().lower()
+    current = cfg_value(ctx.cfg, "json_fmt.indent")
     if not arg:
-        current = ctx.cfg.get("json_style", "compact")
-        ctx.io.result(current)
+        ctx.io.result(str(current))
         return CmdResult.ok(value=current)
     if arg == "cycle":
-        arg = next_in_cycle(ctx.cfg.get("json_style", "compact"), JSON_STYLES)
-    if arg not in JSON_STYLES:
-        return CmdResult.fail(msg=f"Unknown JSON style: {arg} (use {'/'.join(JSON_STYLES)}/cycle)")
-    ctx.internal.apply_cfg("json_style", arg)
-    ctx.io.result(arg)
-    return CmdResult.ok(value=arg)
+        new = next_in_cycle(current, list(JSON_INDENTS))
+    else:
+        new = int(arg) if arg.isdigit() else None
+        if new not in JSON_INDENTS:
+            choices = "/".join(str(indent) for indent in JSON_INDENTS)
+            return CmdResult.fail(msg=f"Invalid JSON indent: {arg} (use {choices}/cycle)")
+    ctx.internal.apply_cfg("json_fmt.indent", new)
+    ctx.io.result(str(new))
+    return CmdResult.ok(value=new)
 
 
 def _handler_timestamps(ctx: PluginContext, args: str) -> CmdResult:
@@ -354,7 +405,7 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
         # Explicit session override (including "" to disable detection)
         flags["request_err_pattern_override"] = err_token
         if err_token:
-            ctx.io.output(f"request_err_pattern = {err_token!r}  (session)", "green")
+            ctx.io.output(f"request_err_pattern = {cfg_value_text(err_token)}  (session)", "green")
         else:
             ctx.io.output(
                 "request_err_pattern cleared -- error detection disabled  (session)",
@@ -375,8 +426,7 @@ def _handler_request(ctx: PluginContext, args: str) -> CmdResult:
         return _cfg_toggle(ctx, state_token, "request_mode")
     # No state arg: still report state if err was changed, else query.
     if err_token is not None:
-        current = bool(ctx.cfg.get("request_mode", False))
-        return CmdResult.ok(value="on" if current else "off")
+        return CmdResult.ok(value=bool(cfg_value(ctx.cfg, "request_mode")))
     return _cfg_toggle(ctx, args, "request_mode")
 
 
@@ -385,11 +435,16 @@ def _handler_send_bare_enter(ctx: PluginContext, args: str) -> CmdResult:
     return _cfg_toggle(ctx, args, "send_bare_enter")
 
 
+def _handler_control_keys(ctx: PluginContext, args: str) -> CmdResult:
+    """Query, set or toggle whether the TUI's Ctrl+C, Ctrl+D, Ctrl+Z and Escape reach the device (cfg ``control_keys``)."""
+    return _cfg_toggle(ctx, args, "control_keys")
+
+
 def _handler_encoding(ctx: PluginContext, args: str) -> CmdResult:
     """Show or set the byte-decoding encoding (utf-8, latin-1, ...)."""
     name = args.strip()
     if not name:
-        current = ctx.cfg.get("encoding", "utf-8")
+        current = cfg_value(ctx.cfg, "encoding")
         ctx.io.result(current)
         return CmdResult.ok(value=current)
     ctx.internal.apply_cfg("encoding", name)
@@ -435,11 +490,7 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
         # bundled module or sanity-check which copy is loaded.
         rows.append(("path", str(data["path"])))
 
-    # Update hint targets end users (PyPI installs) -- the bundled
-    # data refreshes on each termapy release, so upgrading is the
-    # right path for newer entries.  Maintainers update via
-    # scripts/refresh_usb_ids.py during release prep, but that's a
-    # repo-level workflow, not exposed to package users.
+    # For an installed termapy: the table is refreshed at each release.
     notes = (
         ("", ""),
         (
@@ -447,7 +498,7 @@ def _handler_usb_db(ctx: PluginContext, args: str) -> CmdResult:
             "dim",
         ),
     )
-    return CmdResult.record(data, rows, value=str(data["full_table"] or 0), notes=notes)
+    return CmdResult.record(data, rows, value=data["full_table"] or 0, notes=notes)
 
 
 # ── /term.log: write to the session log without echoing to screen ──────────
@@ -475,13 +526,15 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
-    """Snapshot the current state of every /term.* toggle.
+    """Snapshot every /term.* toggle, and the bytes sent and received since the port last opened.
 
     A record answer (registry ``record-one-format``): the toggles are
-    ``data`` as booleans, and read on/off in the prose.
+    ``data`` as booleans, and read on/off in the prose; the byte counts
+    are ``data`` as integers, shown exact.
     """
     flags = ctx.ns("flags")
-    eol = ctx.cfg.get("eol", "\r")
+    eol = cfg_value(ctx.cfg, "eol")
+    tx_bytes, rx_bytes = ctx.serial.byte_counts()
     data = {
         "echo": bool(flags.get("echo")),
         "echo_repl": bool(flags.get("echo_repl")),
@@ -489,15 +542,19 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         "output": str(flags.get("output_level", "normal")),
         "hex": bool(flags.get("hex")),
         "line_no": bool(flags.get("line_no")),
+        "traffic": bool(flags.get("traffic")),
         "eol": _EOL_LABELS.get(eol, repr(eol)),
-        "eol_rx": str(ctx.cfg.get("eol_rx", "auto")),
-        "eol_markers": bool(ctx.cfg.get("eol_markers")),
-        "timestamps": bool(ctx.cfg.get("timestamps")),
-        "send_bare_enter": bool(ctx.cfg.get("send_bare_enter")),
-        "encoding": str(ctx.cfg.get("encoding", "utf-8")),
+        "eol_rx": str(cfg_value(ctx.cfg, "eol_rx")),
+        "eol_markers": bool(cfg_value(ctx.cfg, "eol_markers")),
+        "timestamps": bool(cfg_value(ctx.cfg, "timestamps")),
+        "send_bare_enter": bool(cfg_value(ctx.cfg, "send_bare_enter")),
+        "control_keys": bool(cfg_value(ctx.cfg, "control_keys")),
+        "encoding": str(cfg_value(ctx.cfg, "encoding")),
+        "tx_bytes": tx_bytes,
+        "rx_bytes": rx_bytes,
     }
     rows = [
-        (key, ("on" if value else "off") if isinstance(value, bool) else value)
+        (key, ("on" if value else "off") if isinstance(value, bool) else str(value))
         for key, value in data.items()
     ]
     # The value is the snapshot as newline-joined "key=value" so scripts
@@ -523,13 +580,11 @@ COMMAND = Command(
     group="terminal",
     name="term",
     help="Terminal display / session toggles (echo, line_no, timestamps, ...).",
+    intro=(
+        "Runtime display and session toggles: what is echoed and shown, line endings,"
+        " encoding and how answers are formatted."
+    ),
     long_help=(
-        "Runtime display and session toggles.  Collapses what used to be\n"
-        "scattered top-level commands (/echo, /line_no, /show_line_endings)\n"
-        "under one namespace and adds runtime access to a handful of\n"
-        "config-key toggles that previously required {prefix}cfg, plus the\n"
-        "{prefix}term.output level dial.\n"
-        "\n"
         "Toggles accept ``on|off|true|false|1|0|yes|no``; {prefix}term.output\n"
         "takes a level name (silent/quiet/normal/verbose).  Empty args\n"
         "reports the current state.\n"
@@ -543,8 +598,7 @@ COMMAND = Command(
             help="Local echo of device commands sent to the wire (cfg echo).",
             long_help=(
                 "Local echo of DEVICE commands -- the bare lines and\n"
-                "{prefix}term.send text that go out on the wire.  Persisted\n"
-                "via cfg echo.\n"
+                "{prefix}term.send text that go out on the wire.\n"
                 "\n"
                 "termapy splits local echo in two: this ({prefix}term.echo)\n"
                 "for device commands, and {prefix}term.echo_repl for\n"
@@ -555,6 +609,8 @@ COMMAND = Command(
                 "See also: {prefix}term.echo_repl."
             ),
             handler=_handler_echo,
+            cfg={"echo": "the value a load starts from"},
+            state=True,
         ),
         "echo_repl": Command(
             args="{on|off|toggle}",
@@ -575,17 +631,22 @@ COMMAND = Command(
                 "commands sent to the wire.  See also: {prefix}term.echo."
             ),
             handler=_handler_echo_repl,
+            state=True,
         ),
         "color": Command(
             args="{on|off|toggle}",
-            help="Toggle rendering of device ANSI color (SGR).",
+            help="Toggle color in the output: termapy's own and the device's ANSI.",
             long_help=(
-                "Render ANSI color (SGR) from device output.  On by\n"
-                "default; off strips color so output is plain (and, in the\n"
-                "CLI, clean for piping -- the same effect as --no-color).\n"
-                "Works in both the TUI and CLI.  Legacy alias: {prefix}color."
+                "Color in the output pane and the CLI console: termapy's own\n"
+                "markup and ANSI color (SGR) from the device.  On by default;\n"
+                "off renders everything plain from the next line on (bold,\n"
+                "underline and links stay) and strips the device's escapes,\n"
+                "the same as --no-color, which starts the CLI with it off.\n"
+                "Works in both the TUI and CLI."
             ),
             handler=_handler_color,
+            cfg={"color": "the value a load starts from"},
+            state=True,
         ),
         "send": Command(
             args="<text>",
@@ -606,37 +667,85 @@ COMMAND = Command(
                 "For raw bytes WITHOUT a line ending, use {prefix}raw."
             ),
             handler=_handler_send,
+            cfg={
+                "eol": "appended to the text",
+                "encoding": "encodes the text",
+                "tx_char_delay_ms": "paces the characters",
+                "tx_line_delay_ms": "pauses after the line",
+            },
             raw_args=True,
+            needs=CapabilitySet.SERIAL_CONNECTED,
+        ),
+        "ctrl": Command(
+            help="Send a control character to the device (c is Ctrl-C, byte 03).",
+            long_help=(
+                "Sends the one byte a Ctrl+<key> stands for: {prefix}term.ctrl c is\n"
+                "Ctrl-C (03), d is Ctrl-D (04), esc is Esc (1B, also [).  Letters\n"
+                "A-Z and @ [ \\ ] ^ _ are the keys, and esc; case does not matter.\n"
+                "A raw byte, as {prefix}raw sends: no line ending, never paced.\n"
+                "\n"
+                "In the TUI, Ctrl+C with no text selected sends Ctrl-C, Ctrl+D\n"
+                "and Ctrl+Z on an empty prompt send Ctrl-D and Ctrl-Z, and\n"
+                "Escape with nothing running, on an empty prompt, sends Esc;\n"
+                "with text selected, Ctrl+C copies.  {prefix}term.control_keys off keeps\n"
+                "the keys termapy's.  A script, a button or an MCP agent\n"
+                "sends one with this command: Ctrl-C stops a running\n"
+                "MicroPython program.\n"
+                "\n"
+                "Example:\n"
+                "  {prefix}term.ctrl c"
+            ),
+            handler=_handler_ctrl,
+            params=[
+                ParamSpec(
+                    "key",
+                    "str",
+                    positional=True,
+                    required=True,
+                    hint="<key>",
+                    help="the key held with Ctrl: a letter, or @ [ \\ ] ^ _; or esc",
+                ),
+            ],
             needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "line_no": Command(
             args="{on|off|toggle}",
             help="Toggle line numbers in serial output (TUI only).",
             handler=_handler_line_no,
+            cfg={"line_no": "the value a load starts from"},
             needs=CapabilitySet.TUI_MODE,
+            state=True,
         ),
-        "line_endings": Command(
+        "traffic": Command(
             args="{on|off|toggle}",
-            help="Hidden alias for {prefix}term.eol.markers.",
-            handler=_handler_eol_markers,
-            hidden=True,
+            help="Show live TX/RX byte counts in the bottom bar (TUI only).",
+            long_help=(
+                "Shows the bytes sent (TX) and received (RX) since the port\n"
+                "last opened, in the bottom bar beside the status line, updated\n"
+                "twice a second.  The counts start at zero each time the port\n"
+                "opens.  Off at every start and every config load."
+            ),
+            handler=_handler_traffic,
+            needs=CapabilitySet.TUI_MODE,
+            state=True,
         ),
         "eol": Command(
             args="{cr|lf|crlf|none|cycle}",
             help="Show or set the line ending sent with commands (cr/lf/crlf/none).",
+            intro=(
+                "What ends a line: the ending added to each line sent, how received output is"
+                " split into lines, and whether line endings are shown."
+            ),
             long_help=(
                 "Sets the line ending appended to every command sent to the\n"
                 "device.  Tokens: cr (\\r), lf (\\n), crlf (\\r\\n), none.\n"
                 "Bare {prefix}term.eol reports the current ending.\n"
                 "\n"
-                "This is a session override (in-memory, like the other\n"
-                "{prefix}term.* toggles).  To persist, use {prefix}cfg "
-                "eol or the Config Editor.\n"
-                "\n"
                 "See also: {prefix}term.eol.rx (receive-side newline) and\n"
                 "{prefix}term.eol.markers (show \\r \\n markers for debugging)."
             ),
             handler=_handler_eol,
+            cfg={"eol": "set for the session; bare shows it"},
             sub_commands={
                 "rx": Command(
                     args="{auto|cr|lf|crlf|cycle}",
@@ -652,11 +761,11 @@ COMMAND = Command(
                         "  lf     only LF ends a line\n"
                         "  crlf   only the CRLF pair ends a line\n"
                         "\n"
-                        "Bare {prefix}term.eol.rx reports the current mode.  This is\n"
-                        "a session override (in-memory); persist with {prefix}cfg\n"
-                        "eol_rx or the Config Editor."
+                        "Bare {prefix}term.eol.rx reports the current mode."
                     ),
                     handler=_handler_eol_rx,
+                    cfg={"eol_rx": "set for the session; bare shows it"},
+                    state=True,
                 ),
                 "markers": Command(
                     args="{on|off|toggle}",
@@ -666,13 +775,14 @@ COMMAND = Command(
                         "\\r \\n markers so you can see exactly how the device\n"
                         "terminates lines.  Distinct from {prefix}term.eol (which\n"
                         "SETS the sent ending) and {prefix}term.eol.rx (which\n"
-                        "controls how received output is split).  Persisted via\n"
-                        "cfg eol_markers.  Legacy aliases: {prefix}term.line_endings,\n"
-                        "{prefix}show_line_endings."
+                        "controls how received output is split)."
                     ),
                     handler=_handler_eol_markers,
+                    cfg={"eol_markers": "set for the session; bare shows it"},
+                    state=True,
                 ),
             },
+            state=True,
         ),
         "output": Command(
             args="{silent|quiet|normal|verbose|cycle}",
@@ -690,18 +800,15 @@ COMMAND = Command(
                 "(e.g. ``{prefix}port.list.quiet`` or ``{prefix}cap show foo --silent``)."
             ),
             handler=_handler_output,
-        ),
-        "verbose": Command(
-            args="{on|off}",
-            help="Legacy alias for {prefix}term.output (verbose|normal).",
-            handler=_handler_verbose_legacy,
-            hidden=True,
-            needs=CapabilitySet.INTERACTIVE,  # legacy alias
+            cfg={"output_level": "the value a load starts from"},
+            state=True,
         ),
         "timestamps": Command(
             args="{on|off|toggle}",
             help="Toggle [HH:MM:SS.mmm] timestamp prefix on each line.",
             handler=_handler_timestamps,
+            cfg={"timestamps": "set for the session; bare shows it"},
+            state=True,
         ),
         "hex": Command(
             args="{on|off|toggle}",
@@ -718,6 +825,8 @@ COMMAND = Command(
                 "shown in hex. {prefix}proto.hex sets the same flag."
             ),
             handler=_handler_hex,
+            cfg={"hex": "the value a load starts from"},
+            state=True,
         ),
         "request": Command(
             args="{on|off|toggle}",
@@ -749,8 +858,8 @@ COMMAND = Command(
                 "``output_lines`` when they don't ({prefix}help).\n"
                 "\n"
                 "In a normal-mode session the per-call form of the same\n"
-                "thing is ``<cmd> --json``.  Envelopes print one per line;\n"
-                "{prefix}term.json indent (or color) pretty-prints them.\n"
+                "thing is ``<cmd> --json``.  On screen an envelope is laid\n"
+                "out as {prefix}term.json_fmt says; a pipe gets one per line.\n"
                 "\n"
                 "Input is symmetric: a JSON object with a string ``cmd``\n"
                 "field is unwrapped, so callers can send either plain\n"
@@ -764,41 +873,98 @@ COMMAND = Command(
                 "authoring a profile."
             ),
             handler=_handler_request,
+            cfg={"request_mode": "set for the session; bare shows it"},
+            state=True,
         ),
-        "json": Command(
-            args="{compact|indent|color|cycle}",
-            help="Show or set how JSON prints: one line, indented, or indented and colored.",
-            long_help=(
-                "How every JSON answer termapy prints looks -- the\n"
-                "{prefix}term.request envelopes, ``<cmd> --json``, and the\n"
-                "request echo:\n"
-                "\n"
-                "  compact  one line per answer (default; for consumers\n"
-                "           that read stdout line by line)\n"
-                "  indent   indented, two spaces per level\n"
-                "  color    indented and highlighted\n"
-                "\n"
-                'The request echo ({"cmd": ...}) stays on one line in\n'
-                "every style.  MCP gets the envelope as data, so the style\n"
-                "does not touch it.  A session setting; persist it with\n"
-                "{prefix}cfg json_style indent."
+        "json_fmt": Command(
+            help="Show how JSON shows on screen: its highlighting and its indent.",
+            intro=(
+                "How JSON shows on screen, termapy's answers and each JSON line a device"
+                " sends: highlighted or not, and indented by 0, 2 or 4 spaces."
             ),
-            handler=_handler_json,
+            long_help=(
+                "Covers the {prefix}term.request envelopes, ``<cmd> --json``\n"
+                "and each JSON line a device sends, in the TUI and in a CLI\n"
+                "at a terminal.  A pipe or a file always gets one line per\n"
+                "JSON value, for a program reading stdout line by line, and\n"
+                'the request echo ({"cmd": ...}) stays on one line.\n'
+                "\n"
+                "A device's line changes only on screen: the session log\n"
+                "and captures keep it as it arrived.  MCP gets JSON as\n"
+                "data, so neither setting touches it."
+            ),
+            handler=_handler_json_fmt,
+            cfg={
+                "json_fmt.highlight": "shown; set by {prefix}term.json_fmt.highlight",
+                "json_fmt.indent": "shown; set by {prefix}term.json_fmt.indent",
+            },
+            state=True,
+            sub_commands={
+                "highlight": Command(
+                    args="{on|off|toggle}",
+                    help="Show or set JSON highlighting on screen (needs color on).",
+                    handler=_handler_json_fmt_highlight,
+                    cfg={"json_fmt.highlight": "set for the session; bare shows it"},
+                    state=True,
+                ),
+                "indent": Command(
+                    args="{0|2|4|cycle}",
+                    help="Show or set the JSON indent on screen: 0 (one line), 2 or 4 spaces.",
+                    handler=_handler_json_fmt_indent,
+                    cfg={"json_fmt.indent": "set for the session; bare shows it"},
+                    state=True,
+                ),
+            },
         ),
         "send_bare_enter": Command(
             args="{on|off|toggle}",
             help="Send line ending on empty Enter (for press-to-continue prompts).",
             handler=_handler_send_bare_enter,
+            cfg={"send_bare_enter": "set for the session; bare shows it"},
+            state=True,
+        ),
+        "control_keys": Command(
+            args="{on|off|toggle}",
+            help="Let Ctrl+C, Ctrl+D, Ctrl+Z and Escape reach the device in the TUI (on by default).",
+            long_help=(
+                "On, a key the prompt has no use for goes to the device: Ctrl+C\n"
+                "with no text selected sends Ctrl-C, Ctrl+D and Ctrl+Z on an\n"
+                "empty prompt send Ctrl-D and Ctrl-Z, and Escape with nothing\n"
+                "running, on an empty prompt, sends Esc.  Off, Ctrl+C only\n"
+                "copies, Ctrl+D only deletes, Ctrl+Z does nothing, and Escape\n"
+                "only stops and clears: nothing reaches the device, for one a\n"
+                "stray control byte would upset.  {prefix}term.ctrl sends one\n"
+                "either way.\n"
+                "\n"
+                "This command sets it for the session.  To keep the keys\n"
+                'termapy\'s in every session, set "control_keys": false in the\n'
+                "config file."
+            ),
+            handler=_handler_control_keys,
+            cfg={"control_keys": "set for the session; bare shows it"},
+            state=True,
         ),
         "encoding": Command(
             args="{name}",
             help="Show or set byte-decoding encoding (utf-8, latin-1, ascii, cp437).",
             handler=_handler_encoding,
+            cfg={"encoding": "set for the session; bare shows it"},
+            state=True,
         ),
         "info": Command(
-            help="Snapshot the state of every {prefix}term.* toggle.",
+            help="Snapshot every {prefix}term.* toggle, and the bytes sent and received since the port opened.",
             handler=_handler_info,
+            cfg={
+                "eol": "in the snapshot",
+                "eol_rx": "in the snapshot",
+                "eol_markers": "in the snapshot",
+                "timestamps": "in the snapshot",
+                "send_bare_enter": "in the snapshot",
+                "control_keys": "in the snapshot",
+                "encoding": "in the snapshot",
+            },
             shows=True,
+            state=True,
         ),
         "usb_db": Command(
             help="Report freshness of the bundled USB vendor database.",
@@ -830,6 +996,7 @@ COMMAND = Command(
                 "    pip install --upgrade termapy"
             ),
             handler=_handler_usb_db,
+            state=True,
         ),
         "log": Command(
             args="<text>",

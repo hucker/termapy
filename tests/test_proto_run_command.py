@@ -1,8 +1,8 @@
 """``/proto.run`` writes ``json_file``, returns the results as data, runs a
 test's own teardown, and stops on the engine's script-stop event.
 
-Runs on the ``CLITerminal`` DEMO rig (the ``tests/test_capture_claim.py``
-pattern): a real engine and the demo device, no mocks.  The stop tests
+Runs on the ``CLITerminal`` DEMO rig (``conftest.py``'s ``cli``): a real
+engine and the demo device, no mocks.  The stop tests
 set the event from a timer while the run is in progress, which is the
 only way to request a stop that the prompt-time clear does not erase.
 """
@@ -15,26 +15,6 @@ import time
 from pathlib import Path
 
 import pytest
-
-from termapy.cli import CLITerminal
-from termapy.defaults import DEFAULT_CFG
-
-
-@pytest.fixture
-def cli(tmp_path):
-    """A connected CLI on the DEMO port, its cfg folder under tmp_path."""
-    default_serial = DEFAULT_CFG["serial"]
-    assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
-    cfg = {**DEFAULT_CFG, "serial": {**default_serial, "port": "DEMO", "baud_rate": 115200}}
-    config_path = tmp_path / "rig" / "rig.cfg"
-    config_path.parent.mkdir()
-    config_path.write_text(json.dumps(cfg))
-    terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=120)
-    # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
-    terminal.repl.global_root = tmp_path
-    assert terminal._connect() is True, "the DEMO port opens"
-    yield terminal
-    terminal._disconnect()
 
 
 def _pro(folder: Path, name: str, text: str) -> Path:
@@ -78,32 +58,73 @@ class TestResultsDocument:
         assert document["tests"][0]["name"] == "AT basic"
         assert document["source"].startswith("json_file"), "the script text rides along"
 
+    @pytest.mark.rule("proto-results-in-folder")
+    @pytest.mark.parametrize("name", ["../up.json", "..\\up.json", "C:x.json"])
+    def test_json_file_cannot_leave_the_results_folder(self, cli, tmp_path, capsys, name):
+        """For a person too, a script cannot choose the folder, and nothing is sent first."""
+        # Arrange
+        script = _pro(tmp_path, "at.pro", f"json_file = {json.dumps(name)}\n" + _AT_OK)
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full(f"/proto.run {script}")
+
+        # Assert
+        assert "Invalid results file name" in result.error, result.error
+        assert "[PROTO]" not in capsys.readouterr().out, "no test ran"
+        assert not (tmp_path / "test").exists(), "nothing was written"
+
+    def test_a_person_may_run_a_fixed_name_twice(self, cli, tmp_path):
+        """A person's re-run replaces the last results: only an MCP client is refused that."""
+        # Arrange
+        script = _pro(tmp_path, "at.pro", 'json_file = "out.json"\n' + _AT_OK)
+
+        # Act
+        first = cli.repl.dispatch_full(f"/proto.run {script}")
+        second = cli.repl.dispatch_full(f"/proto.run {script}")
+
+        # Assert
+        assert first.success is True, first.error
+        assert second.success is True, second.error
+
     def test_no_json_file_writes_nothing(self, cli, tmp_path):
         """Without json_file a plain /proto.run leaves no file behind."""
         script = _pro(tmp_path, "at.pro", _AT_OK)
         cli.repl.dispatch_full(f"/proto.run {script}")
         assert not (tmp_path / "test").exists(), "no results folder without the key"
 
-    def test_json_flag_returns_the_document_silently(self, cli, tmp_path, capsys):
-        """/proto.run --json returns the results document as data and prints no per-test prose."""
+    def test_json_flag_returns_the_document(self, cli, tmp_path, capsys):
+        """/proto.run --json returns the results document as data; the run's narration is progress, kept by the level."""
         # Arrange
         script = _pro(tmp_path, "at.pro", _AT_OK)
         capsys.readouterr()
 
         # Act
         result = cli.repl.dispatch_full(f"/proto.run {script} --json")
+        envelope = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
 
         # Assert
         assert result.success is True, result.error
         assert result.data["summary"]["passed"] == 1, "the structured twin of the PASS line"
         assert result.data["tests"][0]["actual_text"] == "OK\\r\\n"
-        assert "[PROTO]" not in capsys.readouterr().out, "a data run is silent"
+        assert any("[PROTO]" in line for line in envelope["output_lines"]), (
+            "at normal the narration is in the envelope's output_lines, nowhere else"
+        )
 
-    def test_prose_run_returns_no_data(self, cli, tmp_path):
-        """A plain /proto.run keeps data=None: the prose is the output and the path the value."""
+    def test_quiet_json_is_the_document_alone(self, cli, tmp_path, capsys):
+        """/proto.run --json --quiet, MCP's default level: the document and no narration."""
+        script = _pro(tmp_path, "at.pro", _AT_OK)
+        capsys.readouterr()
+        cli.repl.dispatch_full(f"/proto.run {script} --json --quiet")
+        envelope = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+        assert envelope["output_lines"] == [], "quiet drops the progress lines"
+        assert envelope["data"]["summary"]["passed"] == 1
+
+    def test_prose_run_carries_the_document_too(self, cli, tmp_path):
+        """A plain /proto.run has the same data as a --json one: the path is the value, the document rides as data."""
         script = _pro(tmp_path, "at.pro", _AT_OK)
         result = cli.repl.dispatch_full(f"/proto.run {script}")
-        assert result.data is None, "no doubled payload"
+        assert result.data["summary"]["passed"] == 1, "the structured twin always rides"
         assert result.value == str(script), "the path, as a scriptable string"
 
 
@@ -135,6 +156,7 @@ class TestStop:
         # Assert
         assert result.data["summary"]["passed"] == 1, "the run happened"
 
+    @pytest.mark.timing
     @pytest.mark.slow
     def test_stop_ends_a_toml_run_after_the_current_test(self, cli, tmp_path, capsys):
         """A stop raised mid-run ends the script after the test in flight, skips the teardown, and says so."""
@@ -160,6 +182,7 @@ class TestStop:
         assert "CMD: ATI" not in out, "script-level teardown skipped after a stop"
         assert elapsed_s < 0.8, "ten tests would take a second or more"
 
+    @pytest.mark.timing
     @pytest.mark.slow
     def test_stop_wakes_a_flat_delay(self, cli, tmp_path, capsys):
         """A flat-format delay step waits on the stop event, so a stop ends it at once instead of sleeping it out."""

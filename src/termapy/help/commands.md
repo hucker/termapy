@@ -39,6 +39,13 @@ without changing it.  Leaving an optional boolean out means its documented
 default.  Any other word is an error that names the accepted tokens, never
 a silent off: `Invalid echo: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)`.
 
+A setting with several values takes `cycle` the same way: it moves to the next
+value, in the order the synopsis lists them, and wraps at the end.  Any command
+takes `--json` for a JSON answer to that one call, and `--silent`, `--quiet`,
+`--normal` or `--verbose` for how much that call prints; each also works as a
+suffix on the name (`/port.list.json`, `/port.list.quiet`).  `/help.idioms` lists
+these words, and `/help cycle` opens a page on one, with the commands that take it.
+
 A command that opens a file of a known type takes the name with or without
 its extension: `/run hex_view` runs `run/hex_view.run`. The same holds for
 `/proto.run`, `/profile.load`, `/sym.load` and a folder's `.dump` and
@@ -63,12 +70,13 @@ has to match the whole name. Case never matters. With
 
 A pattern that matches nothing gives an empty list, not an error. The
 filters are `/env`, `/dev.lib`, `/proto.crc.list`, `/port.chip.list`,
-`termapy --chips` and `/sym.search`, which shows an exact name alone
-before it reads the text as a pattern.
+`termapy --chips`, `termapy --ports` (which reads every field of each
+row) and `/sym.search`, which shows an exact name alone before it reads
+the text as a pattern.
 
 A command that deletes or rewrites files takes a pattern the same way,
 but plain text there is one file's name, and a pattern that matches
-nothing is an error: `/cap.delete adc_*`, `/run.legacy test_*`. Only the
+nothing is an error: `/cap.delete adc_*`. Only the
 folders termapy writes (`ss/`, `cap/`, `prof/`) delete by pattern; a
 script or plugin you wrote is deleted one name at a time, after a yes.
 
@@ -116,7 +124,7 @@ sends to the device) waits in the input line for Enter.
 | `/cls`                    | Clear the terminal                                                          |
 | `/confirm {message}`      | Ask Yes/Cancel (TUI dialog, CLI y/n); Cancel stops a script                 |
 | `/credits`                | Print acknowledgments (libraries and authors termapy depends on)            |
-| `/delay <duration>`       | Wait for a duration (e.g. `500ms`, `1.5s`); Escape/Ctrl+C cancel            |
+| `/delay <duration> {msg=<text>}` | Wait for a duration (e.g. `500ms`, `1.5s`), `msg=` saying what for; Escape/Ctrl+C cancel |
 | `/edit <file>`            | Edit a project file (`run/`, `proto/` or `plugin/`)                         |
 | `/edit.cfg`               | Edit the current config file                                                |
 | `/edit.info`              | Open the info report in the system viewer                                   |
@@ -139,6 +147,7 @@ sends to the device) waits in the input line for Enter.
 | `/firmware.show <name> {lang=<l>}` | Open a target's main source in the system viewer                     |
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive, prints the list)     |
 | `/help`                   | The landscape: terminal commands in full, other groups folded               |
+| `/help.idioms`            | List the words commands share: `--json`, `--quiet`, `toggle`, `cycle`, ...  |
 | `/help.group`             | List the groups, each with its commands                                     |
 | `/help.group <name>`      | Expand one group                                                            |
 | `/help.group *`           | Expand every group, or every group a pattern matches (`dev*`)               |
@@ -149,10 +158,14 @@ sends to the device) waits in the input line for Enter.
 | `/help.target`            | Show only imported target device commands                                   |
 | `/log`                    | Open the session log (same as the Log button and `/log.show`)               |
 | `/log.delete`             | Delete the session log file; it stays stopped until `/log.start` (TUI only) |
-| `/log.dump {N}`           | Print the session log (all, or an N-line slice) to the terminal             |
+| `/log.diag`               | Open this run's diagnostic log: termapy's own record, with tracebacks       |
+| `/log.diag.dump {N}`      | Print this run's diagnostic log (all, or an N-line slice)                   |
+| `/log.diag.list`          | List the diagnostic logs, newest first                                      |
+| `/log.diag.show {name}`   | Open this run's diagnostic log, or a listed one, in the system viewer       |
+| `/log.dump {name} {N}`    | Print a session log, this frontend's or a listed one (all, or N lines)      |
 | `/log.fingerprint`        | Write a full session fingerprint (OS, terminal, port params) to the log     |
-| `/log.list`               | List the session log file with its size and age (`/help log` ends with it)  |
-| `/log.show`               | Open the session log in the system viewer                                   |
+| `/log.list`               | List the config's session logs, the TUI's and the MCP server's               |
+| `/log.show {name}`        | Open a session log in the system viewer, this frontend's or a listed one    |
 | `/log.start`              | Write the session log again after a stop or a delete (TUI only)             |
 | `/log.stop`               | Stop writing the session log until `/log.start`; the file stays (TUI only)  |
 | `/mcp.catalog`            | Print the JSON command catalog (same content as termapy://commands.json MCP resource) |
@@ -167,13 +180,13 @@ sends to the device) waits in the input line for Enter.
 | `/mem.str <target> {max}` | Read a NUL-terminated string                                                |
 | `/mem.write <target> <value>` | Write a value to a named symbol, register or field, or hex bytes at an address (audited) |
 | `/mem.xor <target> <mask>` | XOR a mask into one word (always read + write-back)                        |
-| `/os <cmd>`               | Run a shell command (requires `TERMAPY_OS_CMD_ENABLED=1` in env)            |
+| `/os <cmd>`               | Run a shell command (requires `TERMAPY_OS_CMD_ENABLED=1` in env); a nonzero exit or the 10s timeout is an error and stops a script |
 | `/port {name}`            | TUI bare: open Port picker. CLI bare: list ports. With name: open it.       |
-| `/port.baud_rate {value}` | Show or set baud rate (hardware only)                                       |
+| `/port.baud_rate {value} {custom=<bool>}` | Show or set baud rate (hardware only): a standard one, or any from 300 with `custom=true` |
 | `/port.break {ms}`        | Send break signal (default 250ms)                                           |
 | `/port.byte_size {value}` | Show or set data bits (hardware only)                                       |
 | `/port.cd`                | Show CD state (read-only)                                                   |
-| `/port.connect {name} {baud} {mode}` | Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81) |
+| `/port.connect {name} {baud} {mode} {custom=<bool>} {timeout=<dur>} {msg=<text>}` | Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81); a non-standard rate needs `custom=true`; `timeout=` keeps trying until the port opens (a board plugged in or rebooting), `msg=` says what for |
 | `/port.cts`               | Show CTS state (read-only)                                                  |
 | `/port.disconnect`        | Disconnect from the serial port                                             |
 | `/port.dsr`               | Show DSR state (read-only)                                                  |
@@ -182,7 +195,7 @@ sends to the device) waits in the input line for Enter.
 | `/port.help`              | Show `/port` help (alias for `/help port`)                                  |
 | `/port.info`              | Show port status, serial parameters, hardware lines, and xfer root          |
 | `/port.list`              | Chip-aware port table (MFG, CHIP, SPEED, VID:PID, SERIAL #, ...)            |
-| `/port.mode {baud} {mode}` | Show or set serial mode (e.g. /port.mode 9600 N81)                        |
+| `/port.mode {baud} {mode} {custom=<bool>}` | Show or set serial mode (e.g. /port.mode 9600 N81); a non-standard rate needs `custom=true` |
 | `/port.parity {value}`    | Show or set parity (hardware only)                                          |
 | `/port.ri`                | Show RI state (read-only)                                                   |
 | `/port.rts {on\|off}`     | Show or set RTS line                                                        |
@@ -217,7 +230,6 @@ sends to the device) waits in the input line for Enter.
 | `/run {file}`             | TUI bare: open Run picker. CLI bare: list scripts. With file: run it.       |
 | `/run.edit {file}`        | Edit a .run script (same as `/edit.run`)                                    |
 | `/run.help`               | Show `/run` help (alias for `/help run`)                                    |
-| `/run.legacy <file\|pat>` | Find renamed (legacy) command names in scripts; `--fix` rewrites in place   |
 | `/run.list`               | List .run files in run/, newest first, with size, age, and summary          |
 | `/search <term>`          | Deep search: name, help, args, flags, long help (multi-term, `-exclude`, regex) |
 | `/seq`                    | Show sequence counters                                                      |
@@ -240,14 +252,17 @@ sends to the device) waits in the input line for Enter.
 | `/dev.regs <device> {pattern}` | List a loaded device's registers from its file (never the chip), hazards flagged |
 | `/dev.use <part> {at=<value>}` | Add a library part to this config; `at=NAME@ADDR ...` places a relocatable one |
 | `/term`                   | Terminal display / session toggles (echo, line_no, timestamps, ...)         |
-| `/term.color {on\|off\|toggle}`   | Toggle rendering of device ANSI color (TUI and CLI)                        |
+| `/term.color {on\|off\|toggle}`   | Toggle color in the output, termapy's own and the device's ANSI (TUI and CLI) |
+| `/term.ctrl <key>`        | Send a control character to the device: `c` is Ctrl-C (03), `d` Ctrl-D, `esc` Esc |
 | `/term.echo {on\|off\|toggle}`    | Toggle local echo of device commands (see also `/term.echo_repl`)           |
 | `/term.encoding {name}`   | Show or set byte-decoding encoding (utf-8, latin-1, ...)                    |
 | `/term.eol {cr\|lf\|crlf\|none\|cycle}` | Show or set the line ending sent with commands (session override)    |
 | `/term.eol.rx {auto\|cr\|lf\|crlf\|cycle}` | Show or set how received output is split into lines (receive newline) |
 | `/term.hex {on\|off\|toggle}`     | Toggle hex display of incoming bytes                                        |
-| `/term.info`              | Snapshot the state of every `/term.*` toggle                                |
-| `/term.json {compact\|indent\|color\|cycle}` | How JSON answers print: one line, indented, or indented and colored |
+| `/term.info`              | Snapshot every `/term.*` toggle, and the bytes sent and received            |
+| `/term.json_fmt`          | Show how JSON prints on screen: its highlighting and its indent             |
+| `/term.json_fmt.highlight {on\|off\|toggle}` | Highlight JSON on screen (shows only when color is on)       |
+| `/term.json_fmt.indent {0\|2\|4\|cycle}` | Spaces per level for JSON on screen; 0 is one line               |
 | `/term.eol.markers {on\|off\|toggle}` | Toggle visible `\r` `\n` markers in serial output                       |
 | `/term.line_no {on\|off\|toggle}` | Toggle line numbers in serial output (TUI only)                             |
 | `/term.log <text>`        | Append a line to the session log without echoing to screen                  |
@@ -256,10 +271,11 @@ sends to the device) waits in the input line for Enter.
 | `/term.send <text>`       | Send literal text to the serial port (with line ending; canonical name for the bare-line send) |
 | `/term.send_bare_enter {on\|off\|toggle}` | Send line ending on empty Enter                                     |
 | `/term.timestamps {on\|off\|toggle}` | Toggle `[HH:MM:SS.mmm]` timestamp prefix                                 |
+| `/term.traffic {on\|off\|toggle}` | Show live TX/RX byte counts in the bottom bar (TUI only)                    |
 | `/term.usb_db`            | Report bundled USB vendor-database freshness (local read)                   |
 | `/var {name}`             | List user variables, or show one by name                                    |
 | `/var.clear`              | Clear all user variables                                                    |
-| `/var.list`               | List user variables (explicit alias for bare `/var`)                        |
+| `/var.list`               | List every variable as a table: name, kind, value (alias for bare `/var`)   |
 | `/var.set <NAME> <value>` | Set a user variable                                                         |
 | `/xfer.root {path}`            | Show or set the file transfer root directory                           |
 | `/xfer.xmodem.recv <file>`     | Receive a file from the device via XMODEM                              |
@@ -267,7 +283,7 @@ sends to the device) waits in the input line for Enter.
 | `/xfer.ymodem.recv {dir}`      | Receive file(s) from the device via YMODEM                             |
 | `/xfer.ymodem.send <file> ...` | Send file(s) to the device via YMODEM (batch)                          |
 
-**Line counts:** `/ss.txt`, `/log.dump`, and `/mcp.log.dump` take an
+**Line counts:** `/ss.txt`, `/log.dump`, and `/log.diag.dump` take an
 optional `N`. `N>0` saves/prints the **last N** lines (most recent),
 `N<0` the **first N** (oldest); omit it for everything.
 

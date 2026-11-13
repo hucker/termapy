@@ -29,7 +29,7 @@ The edit leaves live here too: ``edit_command(folder)`` builds
 ``/edit.<folder>`` and its noun-first twin ``/<folder>.edit`` as one
 declaration, ``edit_folder_command`` adds that leaf's ``.list`` and
 ``.explore``, and ``edit_cfg_command`` is ``/edit.cfg`` / ``/cfg.edit``.
-``dump_text_slice`` is the body of ``/log.dump`` and ``/mcp.log.dump``.
+``dump_text_slice`` is the body of ``/log.dump`` and ``/log.diag.dump``.
 A helper two plugins import is core, never another plugin's export
 (registry ``plugins-import-published-only``), so the run, proto, plugin,
 cfg, log and mcp plugins reach these from here, not from ``edit.py`` and
@@ -55,6 +55,7 @@ from termapy.folders import (
     default_file_name,
     ensure_folder,
     file_suggestion,
+    inside,
 )
 from termapy.help_dynamic import compose, folder_line
 from termapy.matching import is_glob, matches
@@ -62,7 +63,7 @@ from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.command import PICKERS
 from termapy.plugins.params import ParamSpec
 from termapy.plugins.views import Column
-from termapy.scripting import format_age, format_size, select_lines
+from termapy.scripting import filename_timestamp, format_age, format_size, select_lines
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -218,6 +219,31 @@ def _folder_path(ctx: PluginContext, folder: str) -> Path:
     return Path(ctx.config_path).parent / folder
 
 
+def stamped_path(folder: Path, base: str, ext: str, *, stamp: str | None = None) -> Path:
+    """A new file's path in ``folder``, ``<base>_<stamp><ext>``, never one that exists.
+
+    The stamp is ``filename_timestamp``'s, to the second, so a second save
+    in the same second (two lines of a paste or a script) gets ``_2``, then
+    ``_3``, rather than replacing the first file without a word.
+
+    Args:
+        folder: The folder the file goes in.
+        base: The name before the stamp (``screenshot``).
+        ext: The extension, with its dot (``.svg``).
+        stamp: The stamp to use; the current time's when omitted.
+
+    Returns:
+        A path in ``folder`` that does not exist yet.
+    """
+    stamp = stamp or filename_timestamp()
+    path = folder / f"{base}_{stamp}{ext}"
+    number = 2
+    while path.exists():
+        path = folder / f"{base}_{stamp}_{number}{ext}"
+        number += 1
+    return path
+
+
 def write_destination(ctx: PluginContext, given: str, default: str) -> Path:
     """The folder a command writes into: everything for a config goes in its folder.
 
@@ -227,11 +253,12 @@ def write_destination(ctx: PluginContext, given: str, default: str) -> Path:
     user's project root (decision 2026-10-26: a write never pollutes it).
     An absolute ``given``, or one climbing out with ``..``, is honored only
     where the host allows paths outside the config sandbox
-    (``ctx.fs.guard_external_path``), so an MCP client stays confined.  The
-    command declares ``config_loaded``.
+    (``ctx.fs.guard_external_path``), so an MCP client stays confined, and
+    a named code folder is refused to one outright
+    (``ctx.fs.guard_code_folder``).  The command declares ``config_loaded``.
 
     Args:
-        ctx: The plugin context, for the config and the sandbox guard.
+        ctx: The plugin context, for the config and the sandbox guards.
         given: The folder the user named, ``""`` for none.
         default: The ``folders.FOLDERS`` data folder used when none is named.
 
@@ -239,15 +266,17 @@ def write_destination(ctx: PluginContext, given: str, default: str) -> Path:
         The absolute folder; a named one may not exist yet.
 
     Raises:
-        MissingCapability: ``given`` leaves the config sandbox and the host
-            does not allow it.
+        MissingCapability: ``given`` leaves the config sandbox or names a code
+            folder, and the host does not allow it.
     """
     base = Path(ctx.config_path).parent
     if not given:
         return ensure_folder(base / default).resolve()
     ctx.fs.guard_external_path(given, "Folder")
     path = Path(given)
-    return (path if path.is_absolute() else base / path).resolve()
+    folder = (path if path.is_absolute() else base / path).resolve()
+    ctx.fs.guard_code_folder(folder)
+    return folder
 
 
 def file_table(
@@ -259,9 +288,9 @@ def file_table(
 ) -> CmdResult:
     """A file list answer (``CmdResult.table``): NAME, SIZE, UPDATED, then ``extra``.
 
-    ``value`` is the newline-joined names (the scriptable scalar); ``data``
-    is one ``file_record`` per file, and dispatch prints the table from
-    them unless the caller wants the data.
+    ``data`` is one ``file_record`` per file, the value their count, and
+    dispatch prints the table from the records unless the caller wants
+    the data.
 
     Args:
         title: The folder (``run/``).
@@ -281,14 +310,13 @@ def file_table(
         records.append(record)
     name = FILE_COLUMNS[0] if run is None else replace(FILE_COLUMNS[0], run=run)
     columns = (name, *FILE_COLUMNS[1:], *(column for column, _, _ in extra))
-    names = "\n".join(file.name for file in files)
-    return CmdResult.table(title, noun, columns, records, value=names)
+    return CmdResult.table(title, noun, columns, records)
 
 
 def dump_text_slice(ctx: PluginContext, path: Path, args: str) -> CmdResult:
     """Print a text file: all lines, last N (N>0), or first N (N<0).
 
-    The shared body of ``/log.dump`` and ``/mcp.log.dump`` -- each does its
+    The shared body of ``/log.dump`` and ``/log.diag.dump`` -- each does its
     own path resolution + sandbox guard, then hands the resolved path
     here.  Returns the line count via ``value=`` for scripting.
 
@@ -313,10 +341,12 @@ def dump_text_slice(ctx: PluginContext, path: Path, args: str) -> CmdResult:
     lines = select_lines(lines, n)
     for line in lines:
         ctx.io.output(line)
-    return CmdResult.ok(value=str(len(lines)))
+    return CmdResult.ok(value=len(lines))
 
 
-def _make_list_handler(folder: str, pattern: str, noun: str = "file", show: str = ""):
+def _make_list_handler(
+    folder: str, pattern: str, noun: str = "file", show: str = ""
+) -> Callable[[PluginContext, str], CmdResult]:
     """Handler: list files in the folder, newest first, with size and age.
 
     With ``show`` (``ss.show``), a click on a name opens that file in the
@@ -335,7 +365,9 @@ def _make_list_handler(folder: str, pattern: str, noun: str = "file", show: str 
     return handler
 
 
-def _make_explore_handler(folder: str, *, cwd_fallback: bool = False):
+def _make_explore_handler(
+    folder: str, *, cwd_fallback: bool = False
+) -> Callable[[PluginContext, str], CmdResult]:
     """Handler: open the folder in the system file explorer.
 
     Creates the folder first so the user has somewhere to drop a file:
@@ -368,15 +400,11 @@ def _named_file(ctx: PluginContext, folder: str, ext: str, name: str) -> Path | 
     # ``data_dir / name`` with an absolute name (or ``../``) would
     # otherwise escape to any path on disk -- an arbitrary-file read or
     # delete for an MCP client (/cap.dump C:\\Users\\me\\.secrets).
-    # Resolve and verify the target stays inside the folder, the same
-    # guard the MCP capture resource uses.  /show is the command for
-    # reading files outside the config dir, and it is capability-gated.
-    path = (data_dir / name).resolve()
-    try:
-        inside = path.is_relative_to(data_dir.resolve())
-    except OSError:
-        inside = False
-    if not inside:
+    # folders.inside keeps the target in the folder, as it does for the MCP
+    # capture resource.  /show is the command for reading files outside
+    # the config dir, and it is capability-gated.
+    path = inside(data_dir, name)
+    if path is None:
         return CmdResult.fail(msg=f"Path escapes {folder}/: {name}")
     # After the containment check: the added suffix keeps the path in
     # the same folder.
@@ -410,7 +438,9 @@ def _named_or_newest(
     return max(files, key=lambda f: f.stat().st_mtime)
 
 
-def _make_show_handler(folder: str, pattern: str, ext: str = "*"):
+def _make_show_handler(
+    folder: str, pattern: str, ext: str = "*"
+) -> Callable[[PluginContext, str], CmdResult]:
     """Handler: open the newest (or named) file in the folder with the system viewer."""
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -428,7 +458,9 @@ def _make_show_handler(folder: str, pattern: str, ext: str = "*"):
     return handler
 
 
-def _make_dump_handler(folder: str, pattern: str, ext: str = "*"):
+def _make_dump_handler(
+    folder: str, pattern: str, ext: str = "*"
+) -> Callable[[PluginContext, str], CmdResult]:
     """Handler: print the newest (or named) file to the terminal."""
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -451,16 +483,19 @@ def _make_dump_handler(folder: str, pattern: str, ext: str = "*"):
     return handler
 
 
-def _make_delete_handler(folder: str, pattern: str, ext: str, generated: bool):
+def _make_delete_handler(
+    folder: str, pattern: str, ext: str, generated: bool
+) -> Callable[[PluginContext, str], CmdResult]:
     """Handler: delete one named file from the folder, or every file a pattern matches.
 
     A pattern (registry ``name-one-matcher``; ``*`` is every file) works
     only in a folder of termapy's own output (``generated``); a folder of
     what someone wrote deletes one named file at a time.  Where there is
     someone to ask (the TUI and CLI) a pattern asks first, and so does a
-    file someone wrote; one generated file goes without a question.  MCP
-    has asked already, through its destructive gate.  Finding nothing to
-    delete fails, for a pattern as for a name.  The value is the count.
+    file someone wrote; one generated file goes without a question.  An MCP
+    client never reaches this (registry ``mcp-no-file-management``).  Finding
+    nothing to delete fails, for a pattern as for a name.  The value is the
+    count.
     """
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -497,7 +532,7 @@ def _make_delete_handler(folder: str, pattern: str, ext: str, generated: bool):
         finally:
             ctx.internal.folder_changed(folder)
         ctx.io.output(f"  Deleted {shown} from {folder}/.")
-        return CmdResult.ok(value=str(len(files)))
+        return CmdResult.ok(value=len(files))
 
     # The /help.dev text of each command built here (registry handler-docstring).
     handler.__doc__ = f"Delete one named file from the config's {folder}/ folder" + (
@@ -543,7 +578,7 @@ def rename_file(data_dir: Path, old_name: str, new_name: str, ext: str) -> Path:
     return new
 
 
-def _make_rename_handler(folder: str, ext: str):
+def _make_rename_handler(folder: str, ext: str) -> Callable[[PluginContext, str], CmdResult]:
     """Handler: ``/<folder>.rename <old> <new>`` via ``rename_file``."""
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -605,6 +640,7 @@ def build_folder_subcommands(
             help=f"List files in {folder}/, newest first, with size and age.",
             handler=_make_list_handler(folder, pattern, noun, show),
             shows=True,
+            state=True,
             needs=CapabilitySet.CONFIG_LOADED,
         ),
         "explore": Command(
@@ -616,7 +652,7 @@ def build_folder_subcommands(
         "rename": Command(
             help=f"Rename a file in {folder}/ (extension kept; never overwrites).",
             handler=_make_rename_handler(folder, spec.ext),
-            needs=CapabilitySet.CONFIG_LOADED,
+            needs=CapabilitySet.MANAGE_FILES,
             files=folder,
             params=[
                 ParamSpec(
@@ -665,7 +701,7 @@ def build_folder_subcommands(
             else f"Delete a file from {folder}/, after a yes."
         ),
         handler=_make_delete_handler(folder, pattern, spec.ext, spec.generated),
-        needs=CapabilitySet.CONFIG_LOADED,
+        needs=CapabilitySet.MANAGE_FILES,
         files=folder,
         safety="destructive",
     )
@@ -704,7 +740,7 @@ def _folder_long_help(folder: str, text: str = "") -> Callable[[PluginContext], 
     return long_help
 
 
-def _make_edit_handler(folder: str, ext: str):
+def _make_edit_handler(folder: str, ext: str) -> Callable[[PluginContext, str], CmdResult]:
     """Handler: open a file by name, or list the folder when no name is given.
 
     Returns the opened file path as ``CmdResult.value``; bare, the
@@ -730,7 +766,7 @@ def _make_edit_handler(folder: str, ext: str):
     return handler
 
 
-def _make_forward_list_handler(folder: str):
+def _make_forward_list_handler(folder: str) -> Callable[[PluginContext, str], CmdResult]:
     """``/edit.<folder>.list`` is ``/<folder>.list``: one listing per folder.
 
     Forwarded through the engine, so the listing (format, order, data
@@ -825,6 +861,7 @@ def edit_folder_command(folder: str) -> Command:
     long_help = _folder_long_help(folder)  # the subs: the count line alone
     return replace(
         edit_command(folder),
+        intro=f"Open a {spec.ext} file from {folder}/ in an editor, list them, or open the folder.",
         sub_commands={
             "list": Command(
                 help=f"List {spec.ext} files.",

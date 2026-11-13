@@ -44,6 +44,19 @@ AT+ADDR=$(ADDR)
 /cap.text $(LABEL)_log.txt timeout=5s
 ```
 
+A name that names nothing stays in the line as typed, and a warning says so,
+with the name it most likely meant:
+
+```text
+/print $(CFG.FIRMWAR_DIR)
+  Unknown variable: $(CFG.FIRMWAR_DIR) -- did you mean CFG.FIRMWARE_DIR?
+```
+
+A dotted name always warns, since no variable you set has a dot in it. A plain
+name warns only when it is a step from one that exists (`$(DAT)` for
+`$(DATE)`), because it may be set later in the same run: `/repeat var=I cmd=...
+$(I)` sets `$(I)` on each pass. Write `\$(NAME)` to send the text on purpose.
+
 ### `$(*NAME)` - one argument, whatever it holds
 
 `$(NAME)` is expanded **before** the line is split into arguments, so its value
@@ -94,21 +107,30 @@ value and cannot become a flag, a keyword, or a counter bump.
 | `$(DATETIME)`        | Dynamic | Current date and time              |
 | `$(CFG.DIR)`         | Context | Config folder (`termapy_cfg/<name>/`) |
 | `$(CFG.FILE)`        | Context | Config file path                   |
-| `$(CFG.RUN_DIR)`     | Context | `run/` folder (also `PROTO_DIR`, `PLUGIN_DIR`, `SS_DIR`, `CAP_DIR`, `PROF_DIR`, `VIZ_DIR`) |
+| `$(CFG.RUN_DIR)`     | Context | The config's `run/` folder; every data folder has one, `CFG.<NAME>_DIR` (`CFG.CAP_DIR`, `CFG.FIRMWARE_DIR`, ...), and `/help var` lists them |
 | `$(CFG.LOG_FILE)`    | Context | Session log path                   |
 | `$(CFG.PORT)`        | Context | Configured port (`CFG.BAUD` the baud; `CFG.PORT_CFG` / `CFG.PORT_FULL` the short / full connection strings) |
+| `$(PORT.STATE)`      | Context | `connected` or `disconnected`      |
+| `$(PORT.NAME)`       | Context | The open port's name (`COM9`, even when the config connects by serial number) |
+| `$(PORT.BAUD_RATE)`  | Context | The open port's settings: also `BYTE_SIZE`, `PARITY`, `STOP_BITS`, `FLOW_CONTROL` |
+| `$(PORT.DTR)`        | Context | A modem line, `1` or `0`: also `RTS`, `CTS`, `DSR`, `RI`, `CD` |
+| `$(PORT.VID_PID)`    | Context | The USB chip as `/port.chip` shows it: `SERIAL`, `MANUFACTURER`, `MODEL`, `DRIVER`, and the rest; `/help var` lists them |
 | `$(LAUNCH_DATE)`     | Launch  | App start date (frozen)            |
 | `$(LAUNCH_TIME)`     | Launch  | App start time (frozen)            |
 | `$(LAUNCH_DATETIME)` | Launch  | App start date and time (frozen)   |
 | `$(SESSION_DATE)`    | Session | Script start date (frozen)         |
 | `$(SESSION_TIME)`    | Session | Script start time (frozen)         |
 | `$(SESSION_DATETIME)`| Session | Script start date and time (frozen)|
-| `$(FRONT_END)`       | Launch  | `textual` (TUI), `cli`, or `mcp`   |
+| `$(FRONT_END)`       | Launch  | `tui`, `cli`, or `mcp`             |
 
 **Dynamic** variables update each time they are expanded.
 **Launch** variables are frozen when the app starts.
-**Session** variables are set once when a script launches from the
-Scripts button or Run menu.
+**Session** variables are set when an outermost script starts, however
+it was launched.
+**Context** variables are read each time they are expanded. The `PORT`
+ones describe the port open at that moment and are empty while none is, so
+none of them looks a port up or opens one. They leave out the chip's
+`in_use` and `permissions`, which only a probe that can open a port finds.
 
 ### Custom time formats
 
@@ -233,7 +255,7 @@ from app start when typed interactively.
 
 | Command                     | Description                                 |
 | --------------------------- | ------------------------------------------- |
-| `/var` (or `/var.list`)     | List all variables                          |
+| `/var` (or `/var.list`)     | List every variable as a table: name, kind, value |
 | `/var NAME`                 | Show one variable                           |
 | `/var.set <NAME> <v>`       | Set a variable to a literal value           |
 | `/var.capture <NAME> <cmd>` | Run cmd and store its result as NAME        |
@@ -257,8 +279,9 @@ send the text with no line ending either:
 
 ## Scope
 
-User variables persist for the session. They are cleared automatically
-when a script launches from the Scripts button or Run menu, but NOT
-when `/run` is typed interactively. Use `/var.clear` to reset manually.
+User variables persist until a config loads, which starts clean. A script
+is not a load: it sees them however it was launched, and what it sets stays
+after it ends. For a known start, make `/cfg.load` its first line. Use
+`/var.clear` to reset manually.
 
 ---

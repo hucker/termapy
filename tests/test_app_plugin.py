@@ -118,8 +118,9 @@ class TestAppExplore:
 
 
 class TestAppList:
+    @pytest.mark.rule("reads-never-write")
     def test_list_creates_no_folder(self, pin_app_dirs, ctx):
-        """reads-never-write: /app.list on a fresh machine lists nothing and creates no app folder."""
+        """/app.list on a fresh machine lists nothing and creates no app folder."""
         # Arrange
         state_dir, config_dir = pin_app_dirs
 
@@ -131,6 +132,25 @@ class TestAppList:
         assert result.data == [], "no files yet"
         assert not state_dir.exists(), "the state folder is not created by listing it"
         assert not config_dir.exists(), "nor the config folder"
+
+    def test_running_sessions_list_first_as_a_folder(self, pin_app_dirs, ctx):
+        """running/ lists first, sized by its live sessions, and a click opens /app.alive; a file opens its .dump."""
+        # Arrange
+        from termapy.app_dirs import save_app_state
+        from termapy.breadcrumbs import Breadcrumb
+
+        save_app_state({"checked": 1})
+        Breadcrumb().write("cli", config="rig.cfg")
+
+        # Act
+        result = app_plugin._handler_list(ctx, "")
+
+        # Assert
+        actual = [
+            (record["name"], record.get("sessions"), record["open"]) for record in result.data
+        ]
+        expected = [("running/", 1, "app.alive"), ("state.json", None, "app.state.dump")]
+        assert actual == expected
 
     def test_list_is_the_file_table_with_a_folder_column(self, pin_app_dirs, ctx):
         """Split state and config folders (Linux) list as one file table whose FOLDER column says where."""
@@ -176,7 +196,8 @@ class TestAppList:
         assert [column.title for column in result.view.columns] == ["NAME", "SIZE", "UPDATED"], (
             "no FOLDER column when there is one folder"
         )
-        assert result.value == "state.json", "the value is the names, as in every list"
+        assert result.value == len(result.data) == 1, "the value is the row count, as in every list"
+        assert result.data[0]["name"] == "state.json", "the names are in the records"
         actual_folders = [record["folder"] for record in result.data]
         assert actual_folders == [str(same)], (
             "the JSON says where the file is on every platform, not only where the column shows"

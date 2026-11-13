@@ -1,10 +1,9 @@
 """XMODEM file-transfer handlers (private; mounted under /xfer).
 
 Filename is underscore-prefixed so the plugin loader skips it --
-the actual command tree (``/xfer.xmodem.send`` / ``recv``, plus the
-hidden ``/xmodem`` legacy forwarders) is wired up in ``xfer.py``
-and ``xmodem.py``.  This module exists only as a home for the
-handlers and the ``QueueByteReader`` shared with ymodem.
+the actual command tree (``/xfer.xmodem.send`` / ``recv``) is wired up
+in ``xfer.py``.  This module exists only as a home for the handlers and
+the ``QueueByteReader`` shared with ymodem.
 """
 
 from __future__ import annotations
@@ -14,12 +13,15 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
 from termapy.folders import ensure_folder, file_suggestion
 from termapy.plugins import CmdResult, UsageError
 from termapy.scripting import resolve_seq_filename
 from termapy.vendor.xmodem import XMODEM
 
 if TYPE_CHECKING:
+    import threading
+
     from termapy.plugins import PluginContext
 
 
@@ -36,7 +38,7 @@ class QueueByteReader:
             immediately to abort the transfer.
     """
 
-    def __init__(self, rx_queue: queue.Queue[bytes], cancel=None) -> None:
+    def __init__(self, rx_queue: queue.Queue[bytes], cancel: threading.Event | None = None) -> None:
         self._queue = rx_queue
         self._buf = bytearray()
         self._cancel = cancel
@@ -77,7 +79,7 @@ def _get_xfer_root(ctx: PluginContext) -> Path:
     Returns:
         Resolved directory path for file transfer operations.
     """
-    root = ctx.cfg.get("file_xfer_root", "")
+    root = cfg_value(ctx.cfg, "file_xfer_root")
     if root:
         return Path(root).resolve()
     return ctx.fs.cap_dir

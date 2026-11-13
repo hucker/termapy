@@ -7,9 +7,20 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from termapy.plugins import CapabilitySet, PluginContext, PluginInfo, TransformInfo
+from termapy.plugins import CapabilitySet, CmdResult, PluginContext, PluginInfo, TransformInfo
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.repl import ReplEngine, _parse_flags, _resolve_flag
+
+
+def _recorder(called: list[bool]):
+    """A handler that notes it ran and answers an empty success, as every handler answers a CmdResult."""
+
+    def _handler(ctx: PluginContext, args: str) -> CmdResult:
+        """Record the call."""
+        called.append(True)
+        return CmdResult.ok(value="")
+
+    return _handler
 
 
 @pytest.fixture
@@ -102,8 +113,9 @@ class TestStartScript:
         assert result.success, "success result"
         assert eng._script_depth == 1, "marks script as running"
 
+    @pytest.mark.rule("file-name-default-ext")
     def test_a_dotted_stem_finds_its_run_file(self, engine):
-        """file-name-default-ext: /run v1.2 finds run/v1.2.run, which the old "no suffix" rule never tried."""
+        """/run v1.2 finds run/v1.2.run, which the old "no suffix" rule never tried."""
         # Arrange
         eng, output = engine
         eng.scripts_dir.mkdir(exist_ok=True)
@@ -245,8 +257,9 @@ class TestApplyCfg:
 # -- run_script --------------------------------------------------------------
 
 
+@pytest.mark.rule("blocking-commands-need-sctx")
 def test_only_nested_runs_are_intercepted_by_the_script_runner():
-    """blocking-commands-need-sctx: a script line dispatches like any other unless it runs a nested script.
+    """A script line dispatches like any other unless it runs a nested script.
 
     /delay, /expect and /confirm were intercepted until 2026-10-16, second
     copies that behaved differently from the dispatched commands (review
@@ -509,13 +522,33 @@ class TestTransformChains:
             TransformInfo(
                 name="upper",
                 help="test",
-                repl=lambda s: s.upper(),
+                repl=lambda _ctx, s: s.upper(),
             )
         )
 
         # Assert
         assert eng.has_repl_transforms is True, "REPL transform registered"
         assert eng.has_serial_transforms is True, "var serial transform already loaded"
+
+    def test_a_transform_gets_the_sessions_context(self, engine):
+        """Both chains hand a transform the engine's context, which is where session state lives."""
+        # Arrange
+        eng, _ = engine
+        seen = []
+
+        def _probe(ctx, text):
+            seen.append(ctx)
+            return text
+
+        eng.register_transform(TransformInfo(name="probe", help="test", repl=_probe, serial=_probe))
+
+        # Act
+        eng.transform_repl("line")
+        eng.transform_serial("line")
+
+        # Assert
+        assert len(seen) == 2, "one call per chain"
+        assert all(ctx is eng.ctx for ctx in seen), "each call carried the engine's context"
 
     def test_serial_transform_registered(self, engine):
         """A serial-only transform adds to the serial chain without dropping REPL ones."""
@@ -527,7 +560,7 @@ class TestTransformChains:
             TransformInfo(
                 name="strip_atz",
                 help="test",
-                serial=lambda s: s.replace("ATZ", "AT"),
+                serial=lambda _ctx, s: s.replace("ATZ", "AT"),
             )
         )
 
@@ -543,7 +576,7 @@ class TestTransformChains:
             TransformInfo(
                 name="upper",
                 help="test",
-                repl=lambda s: s.upper(),
+                repl=lambda _ctx, s: s.upper(),
             )
         )
 
@@ -562,7 +595,7 @@ class TestTransformChains:
             TransformInfo(
                 name="replacer",
                 help="test",
-                serial=lambda s: s.replace("$port", "COM4"),
+                serial=lambda _ctx, s: s.replace("$port", "COM4"),
             )
         )
 
@@ -581,14 +614,14 @@ class TestTransformChains:
             TransformInfo(
                 name="first",
                 help="test",
-                repl=lambda s: s + " [A]",
+                repl=lambda _ctx, s: s + " [A]",
             )
         )
         eng.register_transform(
             TransformInfo(
                 name="second",
                 help="test",
-                repl=lambda s: s + " [B]",
+                repl=lambda _ctx, s: s + " [B]",
             )
         )
 
@@ -607,8 +640,8 @@ class TestTransformChains:
             TransformInfo(
                 name="dual",
                 help="test",
-                repl=lambda s: "REPL:" + s,
-                serial=lambda s: "SER:" + s,
+                repl=lambda _ctx, s: "REPL:" + s,
+                serial=lambda _ctx, s: "SER:" + s,
             )
         )
 
@@ -641,8 +674,8 @@ class TestTransformChains:
             TransformInfo(
                 name="dual",
                 help="test",
-                repl=lambda s: s.upper(),
-                serial=lambda s: s.lower(),
+                repl=lambda _ctx, s: s.upper(),
+                serial=lambda _ctx, s: s.lower(),
             )
         )
 
@@ -663,7 +696,7 @@ class TestTransformChains:
             TransformInfo(
                 name="vars",
                 help="Expand variables.",
-                repl=lambda s: s,
+                repl=lambda _ctx, s: s,
             )
         )
 
@@ -841,8 +874,9 @@ class TestDispatchFull:
             f"the dispatcher renders the usage line, got {output!r}"
         )
 
+    @pytest.mark.rule("tx-only-what-went-out")
     def test_failed_empty_line_send_returns_a_failure(self, dispatch_env):
-        """tx-only-what-went-out: a failed empty-line send comes back as a result, not an exception."""
+        """A failed empty-line send comes back as a result, not an exception."""
         # Arrange
         eng, output, logged, echoed, statuses, writes, do = dispatch_env
 
@@ -977,10 +1011,34 @@ class TestDispatchFull:
         eng, output, logged, echoed, statuses, writes, do = dispatch_env
 
         # Act
-        do("/echo.silent off")
+        do("/term.echo.silent off")
 
         # Assert - .silent commands should not be echoed even with echo on
         assert not any("echo.silent" in t for t in echoed), "suppressed"
+
+    def test_repl_command_echo_follows_the_silent_flag_too(self, dispatch_env):
+        """--silent hides the echo exactly as .silent does; --quiet still echoes the typed line."""
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
+
+        # Act
+        do("/print hidden-line --silent")
+        do("/print shown-line --quiet")
+
+        # Assert
+        assert not any("hidden-line" in t for t in echoed), "--silent is not echoed"
+        assert any("shown-line" in t for t in echoed), "quiet hides output, not the typed line"
+
+    def test_a_silent_suffix_before_json_is_still_not_echoed(self, dispatch_env):
+        """/cmd.silent.json is silent: the .json after the level does not bring the echo back."""
+        # Arrange
+        eng, output, logged, echoed, statuses, writes, do = dispatch_env
+
+        # Act
+        do("/print.silent.json hidden-line")
+
+        # Assert
+        assert not any("hidden-line" in t for t in echoed), ".silent.json is not echoed"
 
     def test_device_echo_follows_echo_flag_not_echo_repl(self, dispatch_env):
         """Device echo stays on with echo on even when echo_repl is off."""
@@ -1382,7 +1440,7 @@ class TestDispatchCapabilities:
                 name="plain",
                 args="",
                 help="h",
-                handler=lambda c, a: called.append(True),
+                handler=_recorder(called),
             )
         )
 
@@ -1404,7 +1462,7 @@ class TestDispatchCapabilities:
                 name="blocker",
                 args="",
                 help="h",
-                handler=lambda c, a: called.append(True),
+                handler=_recorder(called),
                 needs=CapabilitySet(block_until=True),
             )
         )
@@ -1428,7 +1486,7 @@ class TestDispatchCapabilities:
                 name="blocker",
                 args="",
                 help="h",
-                handler=lambda c, a: called.append(True),
+                handler=_recorder(called),
                 needs=CapabilitySet(block_until=True),
             )
         )
@@ -1458,7 +1516,7 @@ class TestDispatchCapabilities:
                 name="sender",
                 args="",
                 help="h",
-                handler=lambda c, a: called.append(True),
+                handler=_recorder(called),
             )
         )
 
@@ -1470,8 +1528,9 @@ class TestDispatchCapabilities:
         assert "serial_io" in result.error, "reports baseline gap"
         assert called == [], "handler never invoked"
 
+    @pytest.mark.rule("failure-is-failure")
     def test_a_closed_port_answers_not_connected(self, cap_env):
-        """failure-is-failure: a command that needs an open port answers Not connected., as handlers do.
+        """A command that needs an open port answers Not connected., as handlers do.
 
         The gate used to name the capability (``requires: serial_connected
         (not available in this environment)``), which reads as a permanent
@@ -1485,7 +1544,7 @@ class TestDispatchCapabilities:
                 name="sender",
                 args="",
                 help="h",
-                handler=lambda c, a: called.append(True),
+                handler=_recorder(called),
                 needs=CapabilitySet.SERIAL_CONNECTED,
             )
         )
@@ -1530,13 +1589,15 @@ class TestDispatchCapabilities:
                 name="lister",
                 args="",
                 help="h",
-                handler=lambda c, a: called.append(True),
+                handler=_recorder(called),
                 needs=needs,
             )
         )
 
+    @pytest.mark.rule("test-messages-through-owner")
+    @pytest.mark.rule("state-answered-by-gate")
     def test_the_gates_answers_read_exactly_so(self):
-        """state-answered-by-gate: the one place the answers' text is pinned; scripts and agents match on it.
+        """The one place the answers' text is pinned; scripts and agents match on it.
 
         Every other test compares against ``STATE_MESSAGES``, so changing
         what a user reads is this one deliberate edit, not a sweep.
@@ -1547,10 +1608,12 @@ class TestDispatchCapabilities:
             "profile_loaded": "No profile loaded.",
             "symbols_loaded": "No symbols loaded.",
             "capture_idle": "Capture already active - use {prefix}cap.stop first.",
+            "script_idle": "Not available in a script.",
         }
 
+    @pytest.mark.rule("state-answered-by-gate")
     def test_no_config_answers_no_config_loaded(self, cap_env):
-        """state-answered-by-gate: a command that needs a config answers No config loaded. before its handler runs."""
+        """A command that needs a config answers No config loaded. before its handler runs."""
         # Arrange -- the session has no config
         eng, ctx, _ = cap_env
         ctx.config_path = ""
@@ -1566,8 +1629,9 @@ class TestDispatchCapabilities:
         )
         assert called == [], "handler never invoked"
 
+    @pytest.mark.rule("state-answered-by-gate")
     def test_no_config_and_no_port_answers_the_config_first(self, cap_env):
-        """state-answered-by-gate: missing both, the gate names the config, since loading one may open the port."""
+        """Missing both, the gate names the config, since loading one may open the port."""
         # Arrange -- no config, and the context reports no open port
         eng, ctx, _ = cap_env
         ctx.config_path = ""
@@ -1579,6 +1643,7 @@ class TestDispatchCapabilities:
         # Assert
         assert result.error == STATE_MESSAGES["config_loaded"], "the config before the port"
 
+    @pytest.mark.rule("state-answered-by-gate")
     def test_loading_a_config_opens_the_gate(self, cap_env):
         """config_loaded is read per dispatch: the command refused without a config runs once one is loaded."""
         # Arrange
@@ -1622,6 +1687,7 @@ class TestOneScriptAtATime:
         eng.ctx.fs.capabilities = caps
         return eng, output, script
 
+    @pytest.mark.rule("script-single-owner")
     def test_a_second_launch_from_another_thread_is_refused(self, tmp_path):
         """Another thread's launch mid-run is refused as already running, depth unchanged."""
         # Arrange -- a run in progress, owned by this thread
@@ -1661,6 +1727,7 @@ class TestOneScriptAtATime:
         actual = eng._script_depth
         assert actual == 2, f"nesting deepens the run, got depth {actual}"
 
+    @pytest.mark.rule("script-single-owner")
     def test_ownership_is_released_when_the_run_ends(self, tmp_path):
         """A finished run releases ownership so another thread can start the next one."""
         # Arrange -- one complete run, start to finish
@@ -1781,7 +1848,7 @@ class TestRepeatDoesNotEraseAScriptStop:
         # Assert
         assert result.success is True, "an interactive repeat runs"
         actual = result.value
-        assert actual == "2", f"both iterations should run, got {actual!r}"
+        assert actual == 2, f"both iterations should run, got {actual!r}"
 
 
 # -- Universal --json flag --------------------------------------------------

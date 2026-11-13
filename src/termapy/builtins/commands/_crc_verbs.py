@@ -10,8 +10,10 @@ This module renders that into termapy ``Command`` objects: typed
 that just forwards to ``call_verb``.  The only things termapy owns are the two
 legitimate frontend concerns -- folding the mutually-exclusive input
 representations into a single ``<frame>`` positional, and how to display the
-result.  Everything else (types, enum values, defaults, help, execution, result
-shaping) comes from crcglot, so there is nothing to keep in sync by hand.
+result (printed for a person; the wire dict itself is the answer's ``data``,
+with a scalar a command picks from it as the ``value``).  Everything else
+(types, enum values, defaults, help, execution, result shaping) comes from
+crcglot, so there is nothing to keep in sync by hand.
 
 See ``project_crcglot_verbs_integration`` and ``docs/param-spec-implementation.md``.
 """
@@ -41,7 +43,7 @@ def _enum_values(choices: tuple) -> tuple[EnumValue, ...]:
     return tuple(EnumValue(choice.name) for choice in choices)
 
 
-def _input_group(verb: Any):
+def _input_group(verb: Any) -> crcglot.ExclusiveGroup | None:
     """The required mutually-exclusive input-representation group, if any.
 
     crcglot models "supply the frame as hex OR text OR base64" as a required
@@ -165,7 +167,10 @@ def build_params(verb: Any) -> tuple[list[ParamSpec], dict[str, str], list[str]]
 
 
 def _make_handler(
-    verb_name: str, input_map: dict[str, str], keyword_names: list[str]
+    verb_name: str,
+    input_map: dict[str, str],
+    keyword_names: list[str],
+    pick_value: Callable[[dict[str, Any]], str] | None,
 ) -> Callable[[PluginContext, str], CmdResult]:
     """A generic handler: collect declared params -> call_verb -> render the dict."""
 
@@ -193,10 +198,10 @@ def _make_handler(
         except (crcglot.CrcglotError, ValueError) as e:
             return CmdResult.fail(msg=f"CRC {verb_name} error: {e}")
         # The wire dict is already JSON-ready (bytes hexed, enums stringified,
-        # keys matching VERBS.result_fields).  Pretty-print for humans; return
-        # the compact JSON as the value so scripts / MCP get the full structure.
+        # keys matching VERBS.result_fields): it is the data, as crcglot's own
+        # MCP tool answers it.  The scalar is the command's choice from it.
         ctx.io.output(json.dumps(result, indent=2))
-        return CmdResult.ok(value=json.dumps(result))
+        return CmdResult.ok(value=pick_value(result) if pick_value else "", data=result)
 
     # The /help.dev text of each command built here (registry handler-docstring).
     _handler.__doc__ = (
@@ -216,8 +221,16 @@ space-separated frame, use frame=01 03 00 0a as the LAST argument.  A frame
 captured into a variable is passed whole with $(*NAME)."""
 
 
-def build_crc_verb_command(verb_name: str) -> Command:
-    """Build a fully typed ``Command`` for one crcglot verb, all from the manifest."""
+def build_crc_verb_command(
+    verb_name: str, *, pick_value: Callable[[dict[str, Any]], str] | None = None
+) -> Command:
+    """Build a fully typed ``Command`` for one crcglot verb, all from the manifest.
+
+    Args:
+        verb_name: The ``crcglot.VERBS`` key.
+        pick_value: Picks the scriptable scalar out of the verb's wire dict,
+            which is the answer's ``data``; without it the value is ``""``.
+    """
     verb = crcglot.VERBS[verb_name]
     specs, input_map, _skipped = build_params(verb)
     keyword_names = [s.name for s in specs if not s.positional and s.name != "frame"]
@@ -228,5 +241,5 @@ def build_crc_verb_command(verb_name: str) -> Command:
         params=specs,
         help=verb.summary,
         long_help=long_help,
-        handler=_make_handler(verb_name, input_map, keyword_names),
+        handler=_make_handler(verb_name, input_map, keyword_names, pick_value),
     )

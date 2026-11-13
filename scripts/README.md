@@ -28,8 +28,8 @@ This will:
 7. Regenerate tagged config examples (`update_doc_configs.py`) and check `credits.py` is in sync with `help/acknowledgments.md`
 8. Refresh the USB vendor table from upstream `usb.ids`
 9. Insert a CHANGELOG stub populated from `git log <last-tag>..HEAD --oneline --no-merges`
-10. Run `pytest`
-11. Run `tox`
+10. Run `pytest` without coverage, in two passes: the suite on every worker (`-m "not timing"`), then the `timing` tests alone (`-m timing -n 0`). Nothing in a release reads a local coverage figure (CI measures it for Codecov)
+11. Run `tox`, whose commands are the same two passes, on every Python in its env list except the one step 10 just ran, stopping at the first version that fails (`--fail-fast`); that version still reports every failure it found
 12. Build HTML help with `uvx zensical build`
 13. Commit the HTML rebuild
 14. Commit the version bump + lock + CHANGELOG + counts as `Release v0.53.2`
@@ -110,6 +110,28 @@ because they share the stdlib-only / fail-loud convention.
   Imports `release_prep` for `ARCHITECTURE_LINE_COUNTS`; run it as
   `uv run python scripts/sync_architecture.py` after adding a module
   or test file; `test_architecture_sync.py` fails on drift.
+
+- `sync_traceability.py` - regenerate `docs/traceability-matrix.md`, the
+  ids no test pins and every test that pins an id by id, from the `rule`
+  markers under `tests/`
+  (`tests/traceability.py` reads them with `ast`).  Run it as
+  `uv run python scripts/sync_traceability.py` after tagging a test or
+  adding a rule; `test_traceability.py` fails on drift.
+
+- `throughput.py` - send numbered lines through the jumpered
+  hw_loopback adapter (SN from `TERMAPY_HW_LOOPBACK_SN`, default
+  `BG03U7VTA`) and report, per layer (bare pyserial, termapy's engine,
+  the CLI, the headless TUI) and per baud (`--baud` takes a list), what
+  arrived intact.  `--mode repl` sends 1 KB replies one at a time and
+  times each; the default stream mode sends one long stream (`--kb` for
+  the same size at every baud) and shows how close each layer finished
+  to the wire time.  `--chunk` and `--gap-us` shape the writes (bytes
+  per write, a sleep after each): the sweep behind termapy's own
+  `tx_chunking`.  The results are written up in `help/ports.md`.  A
+  measurement, not a gate: the numbers belong to the machine and the
+  adapter.  Refuses to run unless the port echoes a probe, so it never
+  streams into a device.  Not stdlib-only (it drives termapy), so use
+  `uv run python scripts/throughput.py --baud 921600`.
 
 - `check_dep_updates.py` - query PyPI for the latest release of
   every direct dependency and flag which ones have moved past

@@ -19,6 +19,7 @@ from textual import on, work
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
+from textual.validation import ValidationResult, Validator
 from textual.widgets import (
     Button,
     Input,
@@ -28,7 +29,9 @@ from textual.widgets import (
     Static,
 )
 
+from termapy import diag_log
 from termapy.config import cfg_data_dir, open_with_system
+from termapy.defaults import cfg_value
 from termapy.folders import ensure_folder
 from termapy.plugins import BoundaryException
 from termapy.protocol import (
@@ -44,14 +47,46 @@ from termapy.protocol import (
     format_hex,
     match_response,
     parse_format_spec,
+    result_path,
     strip_ansi,
     write_results,
 )
 from termapy.scripting import format_duration
-from termapy.widgets import StrongSelectionList
+from termapy.widgets import SelectableRichLog, StrongSelectionList
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
+
+_JSON_FIELD_TIP = (
+    "Where results are written when the JSON option is on: a name inside proto/test/, "
+    "subfolders allowed. "
+    "{name} is the config, {proto_name} the script, and {datetime}, {date} and {time} "
+    "the time of the run."
+)
+
+
+class _ResultsName(Validator):
+    """The JSON file field's check: the rule the write applies, asked as the user types."""
+
+    def __init__(self, proto_name: str, config_name: str) -> None:
+        """Remember what the placeholders expand to.
+
+        Args:
+            proto_name: The ``.pro`` file's stem.
+            config_name: The config's name.
+        """
+        super().__init__()
+        self._proto_name = proto_name
+        self._config_name = config_name
+
+    def validate(self, value: str) -> ValidationResult:
+        """Fail with the reason the write would give, so the field and the run agree."""
+        try:
+            result_path(Path(), value.strip(), self._proto_name, self._config_name)
+        except ValueError as e:
+            return self.failure(str(e))
+        return self.success()
+
 
 # Shared button CSS matching dialogs.py pattern
 _BTN_CSS = """
@@ -174,6 +209,9 @@ class ProtoDebugScreen(ModalScreen[None]):
         width: 34; margin: 0;
         background: $primary-background;
     }}
+    #input-json-file.-invalid {{
+        background: $error 50%;
+    }}
     #proto-debug-detail {{
         height: 1fr;
     }}
@@ -204,6 +242,9 @@ class ProtoDebugScreen(ModalScreen[None]):
         # True while _PICK_A_TEST is the status line, so checking a test
         # can take it back down without wiping a run summary.
         self._asked_for_a_test = False
+        # True while the status line says the JSON file name is invalid, so a
+        # fixed name can take it back down without wiping a run summary.
+        self._json_warned = False
         # Set by the Stop button; the run worker checks it between tests
         # and waits on it through the between-run delay.
         self._stop_requested = threading.Event()
@@ -300,17 +341,21 @@ class ProtoDebugScreen(ModalScreen[None]):
                 yield Static("Delay (ms):", classes="input-label")
                 yield Input(value="10", id="input-delay", type="integer", compact=True)
                 yield Static("JSON file:", classes="input-label")
-                json_default = self._script.json_file or self._ctx.cfg.get(
-                    "proto_results_template", "{name}_results.json"
+                json_default = self._script.json_file or cfg_value(
+                    self._ctx.cfg, "proto_results_template"
                 )
-                json_input = Input(value=json_default, id="input-json-file", compact=True)
-                json_input.tooltip = (
-                    "Where results are written when the JSON option is on. "
-                    "{name} is replaced with the script's name."
+                config_name = Path(self._ctx.config_path).stem if self._ctx.config_path else ""
+                json_input = Input(
+                    value=json_default,
+                    id="input-json-file",
+                    compact=True,
+                    validators=[_ResultsName(self._path.stem, config_name)],
                 )
+                json_input.tooltip = Text(_JSON_FIELD_TIP)
                 yield json_input
             yield Rule()
-            yield RichLog(id="proto-debug-detail", wrap=False)
+            # Selectable, so a run's results can be dragged over and copied (Ctrl+C).
+            yield SelectableRichLog(id="proto-debug-detail", wrap=False)
             yield Static("", id="proto-debug-status")
             yield Rule()
             with Horizontal(id="proto-debug-buttons"):
@@ -920,8 +965,7 @@ class ProtoDebugScreen(ModalScreen[None]):
 
         The screen explains none of itself otherwise: what ``{name}``
         means in the JSON file field, that a list needs one row checked,
-        what each option does (Chuck 2026-10-28: "I feel a bit lost
-        here").
+        what each option does.
 
         Through dispatch rather than the host's method, so the one
         handler for ``help.open`` serves this button too, in whatever
@@ -1071,6 +1115,19 @@ class ProtoDebugScreen(ModalScreen[None]):
             line += f" -- {stop_reason}"
         self._log_lines([line, "-" * 80, ""])
 
+    @on(Input.Changed, "#input-json-file")
+    def _json_field_changed(self, event: Input.Changed) -> None:
+        """Say at once when the JSON file name would be refused, with the reason a write gives."""
+        result = event.validation_result
+        reasons = result.failure_descriptions if result is not None else []
+        event.input.tooltip = Text(reasons[0] if reasons else _JSON_FIELD_TIP)
+        if reasons:
+            self._set_status(f"JSON file: {reasons[0]}", "red")
+            self._json_warned = True
+        elif self._json_warned:
+            self._set_status("")
+            self._json_warned = False
+
     def _set_status(self, text: str, style: str = "") -> None:
         """Update the status bar text.
 
@@ -1090,8 +1147,8 @@ class ProtoDebugScreen(ModalScreen[None]):
             cmds: Command strings to send.
         """
         ctx = self._ctx
-        line_ending = ctx.cfg.get("eol", "\r")
-        enc = ctx.cfg.get("encoding", "utf-8")
+        line_ending = cfg_value(ctx.cfg, "eol")
+        enc = cfg_value(ctx.cfg, "encoding")
         for cmd_text in cmds:
             ctx.serial.write((cmd_text + line_ending).encode(enc))
             ctx.serial.read_raw(1000, self._script.frame_gap_ms)
@@ -1176,7 +1233,7 @@ class ProtoDebugScreen(ModalScreen[None]):
         fail_count: int,
         elapsed_ms: float,
         template: str,
-    ) -> str | None:
+    ) -> Text:
         """Write JSON test results to the proto/test/ directory.
 
         The same document the headless runner and ``/proto.run`` write
@@ -1188,6 +1245,10 @@ class ProtoDebugScreen(ModalScreen[None]):
             fail_count: Total failing count.
             elapsed_ms: Total elapsed time in milliseconds.
             template: Filename template from the UI input field.
+
+        Returns:
+            The line the detail pane shows: the file written, or why it was
+            not, so a refused name is never silent on screen.
         """
         cfg = self._ctx.cfg
         output_dir = cfg_data_dir(self._ctx.config_path) / "proto" / "test"
@@ -1202,7 +1263,7 @@ class ProtoDebugScreen(ModalScreen[None]):
         results = build_results(
             self._script,
             self._path,
-            self._path.read_text(encoding="utf-8"),
+            self._path.read_text(encoding="utf-8-sig"),
             cfg,
             config_name,
             test_results,
@@ -1211,12 +1272,13 @@ class ProtoDebugScreen(ModalScreen[None]):
             elapsed_ms,
         )
         try:
-            out_path = write_results(results, output_dir, template, self._path.stem, config_name)
-        except OSError as e:
+            out_path = result_path(output_dir, template, self._path.stem, config_name)
+            write_results(results, out_path)
+        except (OSError, ValueError) as e:
             self._log(f"Failed to write JSON results: {e}")
-            return None
+            return Text(f"  Failed to write JSON results: {e}", style="red")
         self._log(f"JSON results written to {out_path}")
-        return str(out_path.resolve())
+        return Text(f"  JSON: {out_path.resolve()}", style="dim")
 
     @work(thread=True)
     def _run_tests(self, tests: list[TestCase]) -> None:
@@ -1296,18 +1358,17 @@ class ProtoDebugScreen(ModalScreen[None]):
             json_enabled = self.app.call_from_thread(self._get_json_enabled)
             if json_enabled:
                 json_template = self.app.call_from_thread(self._get_json_template)
-                json_file = self._write_json_results(
+                json_line = self._write_json_results(
                     tests, total_pass, total_fail, total_elapsed_ms, json_template
                 )
-                if json_file:
-                    # call_from_thread forwards query_one's return value
-                    # through an untyped bridge, so ty can't see that
-                    # passing expect_type=RichLog narrows the result.
-                    log = cast(
-                        RichLog,
-                        self.app.call_from_thread(self.query_one, "#proto-debug-detail", RichLog),
-                    )
-                    self.app.call_from_thread(log.write, Text(f"  JSON: {json_file}", style="dim"))
+                # call_from_thread forwards query_one's return value
+                # through an untyped bridge, so ty can't see that
+                # passing expect_type=RichLog narrows the result.
+                log = cast(
+                    RichLog,
+                    self.app.call_from_thread(self.query_one, "#proto-debug-detail", RichLog),
+                )
+                self.app.call_from_thread(log.write, json_line)
 
             # Clear _run_active *on the UI thread* so that any pending
             # SelectionHighlighted events still see _run_active=True and
@@ -1317,13 +1378,10 @@ class ProtoDebugScreen(ModalScreen[None]):
             # call_from_thread fails during app shutdown - ignore
             pass
         except BoundaryException as e:
-            # Test runner executes user .pro scripts -- any underlying
-            # command handler or protocol step can raise anything.
-            # Report in the test log and let the finally clean up.
-            # The serial-port release is handled by the ctx.serial.io()
-            # context manager wrapping the test loop, so no defensive
-            # flag flip is needed here.
-            self._log(f"Test runner error: {e}")
+            # A user .pro script can raise anything: report it in the test log.
+            # The ctx.serial.io() around the test loop releases the port.
+            diag_log.exception("proto debug test runner raised")
+            self._log(f"Test runner error: {type(e).__name__}: {e}{diag_log.traceback_note()}")
         finally:
             try:
                 self.app.call_from_thread(self._set_run_state, False)
@@ -1354,12 +1412,9 @@ class ProtoDebugScreen(ModalScreen[None]):
             )
         except RuntimeError:
             # call_from_thread fails during app shutdown - exit silently.
-            # Serial-port release is handled by the ctx.serial.io() context
-            # manager; no defensive flag flip needed.
             pass
         except BoundaryException as e:
-            # Setup/teardown commands from the .pro script go through
-            # the same user-code path as the main test runner; a broken
-            # step reports to the log.  Serial-port release is handled
-            # by the ctx.serial.io() context manager.
-            self._log(f"Command runner error: {e}")
+            # A broken setup/teardown step reports to the log, as a test does;
+            # the ctx.serial.io() above releases the port.
+            diag_log.exception("proto debug %s commands raised", label)
+            self._log(f"Command runner error: {type(e).__name__}: {e}{diag_log.traceback_note()}")

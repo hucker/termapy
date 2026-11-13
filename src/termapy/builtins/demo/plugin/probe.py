@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
 from termapy.plugins import CapabilitySet, CmdResult, Command
 
 if TYPE_CHECKING:
@@ -30,7 +31,7 @@ This is a demo plugin - read the source to learn how to write your own.
 Key concepts demonstrated:
   • ctx.serial.io()   context manager  (suppress terminal display during I/O)
   • ctx.serial.drain / send / read_raw  (the I/O cycle)
-  • reading ctx.cfg for encoding and line_ending
+  • reading ctx.cfg for the encoding to decode the reply
   • declaring needs=CapabilitySet.SERIAL_CONNECTED so dispatch
     refuses the command when no port is open
   • formatted output via ctx.io.output with colors"""
@@ -39,7 +40,7 @@ Key concepts demonstrated:
 def _send_cmd(ctx: PluginContext, command: str) -> str | None:
     """Send one AT command and return the decoded response text.
 
-    Performs the drain -> write -> read cycle that most device-interaction
+    Performs the drain -> send -> read cycle that most device-interaction
     plugins need.  Returns ``None`` when there is no response (timeout).
 
     Args:
@@ -50,15 +51,15 @@ def _send_cmd(ctx: PluginContext, command: str) -> str | None:
         Decoded response text with trailing whitespace stripped,
         or ``None`` on timeout.
     """
-    encoding = ctx.cfg.get("encoding", "utf-8")
-    line_ending = ctx.cfg.get("eol", "\r")
+    encoding = cfg_value(ctx.cfg, "encoding")
 
     # 1. Drain - discard any stale bytes sitting in the receive buffer
     ctx.serial.drain()
 
-    # 2. Write - send the command with the configured line ending
-    payload = (command + line_ending).encode(encoding)
-    ctx.serial.write(payload)
+    # 2. Send - one text line: send adds the configured line ending and
+    #    paces it (tx_char_delay_ms / tx_line_delay_ms).  ctx.serial.write
+    #    is for binary, sent exactly as given.
+    ctx.serial.send(command)
 
     # 3. Read - wait for the device to reply (up to 1 second)
     raw = ctx.serial.read_raw(timeout_ms=1000)
@@ -143,5 +144,6 @@ COMMAND = Command(
     args="{command}",
     long_help=_LONG_HELP,
     handler=_handler,
+    cfg={"encoding": "decodes each reply"},
     needs=CapabilitySet.SERIAL_CONNECTED,
 )

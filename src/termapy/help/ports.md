@@ -87,7 +87,11 @@ every FTDI port on Windows shows a blank location.
 `/port.list` shows serial ports and nothing else, on purpose -- a listing
 that included keyboards and webcams would stop being a port listing.
 When you need the other view, `/port.usb` (or `termapy --usb`) draws the
-entire USB tree and marks the nodes that carry a serial port:
+entire USB tree and marks the nodes that carry a serial port, `-> COM7`.
+In the TUI, and from `--usb` at a terminal, those rows are cyan and their
+port name bold: green when this session holds the port, yellow when another
+termapy session does (see below).  Piped or with `--no-color`, `--usb`
+prints plain text:
 
 ```text
 1                       USB Root Hub (USB 3.0)  USBHUB3
@@ -167,6 +171,27 @@ device → Properties → Port Settings → Advanced → set "Latency Timer
 `/port.chip.latency_timer` shows the current value on Linux (Windows
 doesn't expose it via the same path).
 
+## When the device drops characters you send
+
+Some devices lose bytes that arrive back to back: a small receive buffer,
+or a UART that cannot keep up at full speed. The symptom is a reply to a
+command you did not type, such as `Unknown command: AT+VE`. Pace what
+termapy sends, as TeraTerm's transmit delay does:
+
+```text
+/cfg.auto tx_char_delay_ms 1
+```
+
+`tx_char_delay_ms` hands each character of a line to the driver on its
+own, that many milliseconds apart; `tx_line_delay_ms` waits after each
+line. Both are 0 (off) by default; set them in the config to keep them.
+The spacing is what termapy gives the driver: a USB adapter's driver can
+still group bytes, and its own settings (an FTDI adapter's Advanced port
+settings, say) are where to tune that. Every line sent to
+the device is paced: typed, from a script, pasted, or sent by an MCP
+agent. Binary is not: file transfers, `/proto` and `/raw` go out exactly
+as given.
+
 ## When you're evaluating whether to buy a faster cable
 
 USB-serial chips come in two speed classes:
@@ -184,6 +209,158 @@ The speed difference only matters if you're pushing more than ~1 Mbit/s
 of serial data, or if you need sub-millisecond round-trip latency for
 real-time control.  For a shell or debug console, both classes feel
 identical.
+
+## When you need to know how fast termapy keeps up
+
+Two answers, measured on the rig described at the end of this section:
+
+- **Commands and replies: any baud the adapter supports.**  Of 300 replies
+  of 1 KB per layer at each baud from 115200 to 2 Mbaud, termapy's reader
+  and the CLI received every one intact, and the TUI all but one, at
+  2 Mbaud.  A reply arrived in its time on the wire plus about 16 ms.  The
+  16 ms is the adapter's, since bare pyserial shows it too: most likely the
+  FTDI latency timer described above, whose default is 16 ms.  The TUI
+  adds 5-15 ms to put the reply on screen.
+- **Large dumps: 100% intact up to 460800 on this adapter.**  At 230400
+  and 460800, 2 MB through each of termapy's layers lost nothing.  From
+  600000 up, the adapter loses a few lines in tens of thousands, at random,
+  and at 2 Mbaud it loses some in every run.  Bare pyserial loses them
+  too, often the most, so the loss happens before termapy sees the bytes.
+
+**Commands and replies.**  300 replies of 1 KB, each sent only after the
+previous one had fully arrived, as a command-and-answer session runs:
+
+| Baud | Reply on the wire | Replies intact: reader, CLI, TUI | Typical reply time: reader, TUI |
+| --- | --- | --- | --- |
+| 115200 | 89 ms | 300, 300, 300 | 103 ms, 115 ms |
+| 230400 | 44 ms | 300, 300, 300 | 62 ms, 72 ms |
+| 460800 | 22 ms | 300, 300, 300 | 38 ms, 47 ms |
+| 921600 | 11 ms | 300, 300, 300 | 28 ms, 33 ms |
+| 2 Mbaud | 5 ms | 300, 300, 299 | 22 ms, 27 ms |
+
+The one damaged reply, in the TUI at 2 Mbaud, is the adapter loss
+described below; bare pyserial lost one reply at 460800 the same way.
+Now and then, about one reply in a few hundred, the TUI took up to 0.8 s:
+a stall on its main thread mid-session, not yet explained.  The reader's
+slowest reply was within 10 ms of its typical.
+
+**Large dumps.**  2 MB of numbered 64-byte lines (32768 of them) per layer,
+sent at full line rate, the worst case of a device dumping a buffer.  Lines
+lost:
+
+| Baud | Bare pyserial | Reader | CLI | TUI | TUI behind at the end |
+| --- | --- | --- | --- | --- | --- |
+| 230400 | 0 | 0 | 0 | 0 | 0.4 s |
+| 460800 | 0 | 0 | 0 | 0 | 3.0 s |
+| 600000 | 3 | 0 | 0 | 0 | 3.3 s |
+| 750000 | 45 | 0 | 8 | 0 | 4.0 s |
+| 921600 | 0 | 0 | 0 | 0 | 4.2 s |
+| 2 Mbaud | 322 | 12 | 4 | 44 | 4.6 s |
+
+The losses are random: 921600 lost nothing in this sweep, and in shorter
+runs before it lost up to 81 lines in 8 s.  Across every run at 460800 and
+below, about 16 MB through termapy's layers lost nothing.  These runs sent
+the stream as 4 KB writes; the same adapter sending 192-byte writes lost
+nothing at any of these rates (see "Large sends go out in pieces" below).
+If every byte of a fast link matters, use hardware flow control or a block
+protocol that acknowledges and retransmits, `/xfer.xmodem` or
+`/xfer.ymodem`: termapy cannot recover bytes the adapter never delivered.
+
+**What the layers mean for you:**
+
+- The reader (what the MCP server uses) and the CLI kept pace with the line
+  at every baud.  The session log, captures, `/expect` and an MCP agent get
+  every byte that reaches the PC.
+- The TUI keeps every line but its pane can fall behind: 0.4 s after 2 MB at
+  230400, 3-5 s at 460800 and up.  In the TUI the session log, `/cap.text`
+  and `/expect` ride with the pane, so they trail by the same.  `/cap.bin`
+  and `/cap.struct` never go through the display.  On Python 3.15's
+  free-threaded build the pane kept up far better: 0.2 s behind after 8 s
+  at 921600, against 0.9 s with the GIL.
+- The CLI prints on the reader thread.  A terminal window slower than the
+  stream backs up into the driver's buffer and loses bytes once it is full;
+  these runs printed into nothing, so the terminal's own speed is not in
+  them.
+
+### Large sends go out in pieces
+
+termapy hands anything longer than 192 bytes to the driver in 192-byte
+pieces, back to back (`tx_chunking`, on by default).  It helps large,
+high-speed transfers arrive intact.  Measured 2026-11-10 on the same rig:
+2 MB streams sent as 4 KB writes, the way a program usually writes, against
+the same streams sent as 192-byte writes, lines lost of 32768 in bare
+pyserial, termapy's reader and the CLI:
+
+| Baud | 4 KB writes, two runs | 192-byte writes | Line rate kept, 192-byte writes |
+| --- | --- | --- | --- |
+| 750000 | 21 / 1 / 64, then 1 / 18 / 73 | 0 / 0 / 1 | 99% |
+| 921600 | 61 / 31 / 0, then 24 / 52 / 2 | 0 / 0 / 0 | 99% |
+| 2 Mbaud | 1 / 120 / 29, then 0 / 8 / 2 | 0 / 0 / 0 | 97% |
+
+The one loss with 192-byte writes was the tail of a write, on the sending
+side.  384-byte writes still lost a few lines; 4 KB writes with a 2 ms pause
+after each lost as many as without; a pause after each 192-byte piece
+changed nothing, so there is none.  192 is half the FT232R's 384-byte FIFO.
+The same stream crossed the wire at the same rate either way, so what
+changed is how the adapter's driver handled the writes, not what the
+receiver could take.  A device sending into termapy writes its own way;
+whether a receive-only link loses anything at these rates is not measured
+here.  `tx_chunking` off (`/cfg tx_chunking off` for the session,
+`/cfg.auto` to keep it) sends each write whole, as before.
+
+**How it was measured.**  A USB adapter with TX jumpered to RX, so every
+byte sent comes back, and four layers each on a fresh connection: bare
+pyserial (the adapter and driver ceiling), termapy's reader, the CLI and
+the headless TUI.  Every line is numbered and checked on arrival.  Each
+layer is also timed from the first byte sent to the last line it took in:
+the jumper delivers at most the line rate, so a layer that keeps pace
+finishes with the wire, and a slow one finishes late by its backlog, long
+before a buffer overflows.  Dumps run for seconds because the driver
+buffer termapy asks for holds about 2.8 s at 921600: a short burst cannot
+tell a slow reader from a fast one.  A loopback is the harder case: it
+sends every byte it receives, so each "reply" was sent as 1 KB rather than
+a short command, and the adapter sends and receives at full rate at once,
+which a device answering you does not do.  A device may well do better.
+
+**The rig**, 2026-11-06: an FTDI FT232R adapter with TX wired to RX, flow
+control off, FTDI driver 2.12.36.20; a Dell XPS 13 9310 2-in-1, Intel Core
+i7-1165G7 (4 cores, 8 threads), 16 GB, Windows 11 Pro build 26200; Python
+3.14.2 with the GIL (and 3.15.0 free-threaded for the one comparison
+above); termapy 0.79.0 plus the changes on main since, its bundled pyserial
+3.5, Textual 8.2.8; the headless TUI at 160x48.  The adapter, as
+`termapy --info COM7` reported it:
+
+```text
+  COM7
+  Description  : USB Serial Port (COM7)
+  Manufacturer : FTDI
+  Vendor       : FTDI
+  Product      : FT232R USB UART
+  Serial #     : BG03U7VTA
+  Location     : 1-8.2.3
+  VID:PID      : 0403:6001
+  Model        : FTDI FT232R / FT245R
+  USB Speed    : USB Full-Speed (1 ms min latency)
+  Driver       : FTSER2K
+  Latency Timer: n/a (Windows - check Device Manager)
+  Max Baud     : 3,000,000 baud
+  Permissions  : n/a
+  In Use       : no
+```
+
+To repeat it from a source checkout, with a jumpered adapter and nothing
+else holding it:
+
+```sh
+uv run python scripts/throughput.py --mode repl --custom-baud --baud 115200,230400,460800,921600,2000000
+uv run python scripts/throughput.py --kb 2048 --custom-baud --baud 230400,460800,600000,750000,921600,2000000
+```
+
+`--custom-baud` allows 600000, 750000 and 2 Mbaud, which are off the standard
+list, as a config's `custom_baud` does.
+
+It refuses to send unless the port echoes a probe, so it never sends into a
+device.
 
 ## When a chip shows "unknown"
 
@@ -217,6 +394,18 @@ and chip model) and termapy identifies that chip from then on.  A
 
 ## When you hit "In use" and can't connect
 
+The port lists show termapy's own sessions at a glance.  In `/port.list`,
+the port picker, `/port.usb` and `termapy --ports`, a port's name is
+**green** when this session has it open and **yellow** when another
+termapy session does: a TUI in another window, or an MCP server running in
+the background.  termapy knows from the breadcrumb every running termapy
+leaves, so it opens no port to find out, and it works the same on every
+OS.  Only termapy sessions are seen this way: a port PuTTY, Arduino IDE or
+any other program holds stays uncolored, so an uncolored port is not
+necessarily free.  An MCP client gets the same fact as data, `session` on
+each port record, naming the other session only as `another termapy
+session` unless the server has `TERMAPY_MCP_HOST_INFO=1`.
+
 `/port.info` and `/port.chip.in_use` report whether another process has
 the port open.  Termapy's own connection counts as "in use," so if you
 see `yes` while termapy is connected, that's expected.  This is handy
@@ -240,7 +429,9 @@ auto-reset.  So termapy never opens a port you didn't ask about:
   kernel's open-file table without opening the port, so it is always
   safe *and* it names the holder (e.g. `yes (python (PID 8842))`, i.e.
   that MCP server).  It appears in `/port.info`, `/port.chip.in_use`,
-  `termapy --ports --json`, and live in `termapy --watch`.
+  `termapy --ports --json`, and live in `termapy --watch`.  An MCP client
+  is told `yes (another program)` unless the server has
+  `TERMAPY_MCP_HOST_INFO=1`.
 - **Windows:** there is no non-invasive equivalent, so in-use is shown
   only on explicit request (`/port.info`, `/port.chip.in_use`,
   `--ports --json`) and the probe opens the port briefly with DTR/RTS
@@ -389,7 +580,7 @@ Termapy supports every port format pyserial accepts, including:
 - `socket://host:port` -- raw TCP
 - `rfc2217://host:port` -- network serial over RFC 2217 (ser2net, etc.)
 - `hwgrep://regex` -- find by device description
-- `spy://...` -- packet capture wrapper
+- `spy://port?file=name` -- log every byte in both directions (see [Logging the raw traffic](#logging-the-raw-traffic))
 
 Just put the URL in the `port` config field. See [pyserial's URL handler
 docs](https://pyserial.readthedocs.io/en/latest/url_handlers.html) for
@@ -412,3 +603,70 @@ It differs from `--demo`: the demo simulates a device that *responds*
 (request in, reply out), whereas the loopback is a raw round-trip (bytes in,
 same bytes out). Use the loopback to test the I/O plumbing, the demo to test
 device conversations.
+
+### Logging the raw traffic
+
+The session log (`/log`) covers everyday use, but it shows decoded text. When you need the exact bytes in both directions, `spy://` is pyserial's own traffic logger. Wrap the port name in the config:
+
+```json
+"port": "spy://COM3?file=traffic.txt"
+```
+
+Or turn it on from the REPL, and end it by naming the port again:
+
+```text
+/port spy://COM3?file=traffic.txt
+/port COM3
+```
+
+Each of those reopens the port, which resets a board that restarts on DTR.
+
+The log goes in the config's `cap/` folder, here `cap/traffic.txt`, so `/cap.list` shows it and `/cap.dump` prints it. `file=` takes only a path relative to that folder, such as `traffic.txt` or `wire/traffic.txt`. A full path or a `..` is refused, and the port does not open.
+
+The file holds one row per read or write: seconds since the port opened, direction, offset, hex, text.
+
+```text
+000000.323 TX   0000  41 54 2B 56 45 52 0D                              AT+VER.
+000000.340 RX   0000  41                                                A
+000000.340 RX   0000  54 2B 56 45 52 0D                                 T+VER.
+```
+
+A reply can span rows, as this one does; that is how the reads fell, not how the device sent it. Rows labeled `CTS`, `DSR`, `RI`, `CD`, `Q-RX` and `Q-TX` are control-line state and pyserial's own calls, not traffic.
+
+The logging itself is pyserial's, and it behaves as pyserial does:
+
+- **Every connect starts the file over,** even one that fails, so a reconnect erases the earlier log.
+- **Keep the file name plain.** A `+` becomes a space, and `&` and `#` mean something in a URL.
+- **Name the port itself.** A USB serial number is not looked up inside the URL, and `DEMO` cannot be wrapped: both answer `Port not found`.
+- **Always give `file=`.** Without it the log goes to stderr, into your terminal.
+- **Leave out pyserial's `raw` option.** With it, every send fails with `write() argument must be str, not bytes`.
+
+## Limiting which ports termapy may open
+
+`TERMAPY_ALLOWED_PORTS` names the ports termapy may open and list on this machine. Set it in the environment termapy starts from, as one regular expression with `|` between the ports:
+
+```text
+TERMAPY_ALLOWED_PORTS=COM7|BG03U7VTA|/dev/ttyACM[0-9]
+```
+
+- **A port matches whole, ignoring case.** `COM1` allows `COM1` and never `COM10`.
+- **Name or serial number, either way round.** An entry matches a port's name as the system lists it, or its USB serial number. With `COM7` allowed, the serial number that belongs to COM7 opens it too; with a serial number allowed, its COM name opens it.
+- **Copy the serial number from `/port.list` or `termapy --ports`.** `/port.usb` reads the USB device, whose serial number can differ: on Windows an FTDI adapter's port adds a channel letter (`BG03U7VTA`) to its device's (`BG03U7VT`).
+- **The spelling you type is not what is judged.** On Windows, `com7` and `\\.\COM7` are COM7, and a spelling with a path, a drive or a colon (`COM5:`, `COM2\..\COM5`) is refused. On Linux and macOS a link is judged as the device it points to.
+- **A port allowed only by its serial number must be plugged in.** Unplugged, its name has no serial number to check, so termapy answers `Port not found` until it is back.
+- **What isn't allowed isn't shown.** `/port.list`, `termapy --ports`, the port picker, `--info`, `--watch` and `/port.chip` leave it out; `/port.list` and `--ports` say the list is limited. `/port.usb` draws the bus with no serial number for a device it leaves out, and answers an MCP client only when the server has `TERMAPY_MCP_HOST_INFO=1`.
+- **A refusal says why, and names the variable.** In the TUI and CLI it says which it is: a refused port that is plugged in, or a port that is not found. An MCP client gets one answer for both, `Port not allowed or not found`, so a hidden port and an absent one look the same.
+- **The simulator and `loop://` are always allowed.** They reach no device and no network.
+- **`hwgrep://` is refused** while the variable is set: pyserial picks its port after termapy has checked it. Name the port instead.
+- **A network port must be named exactly.** `socket://` and `rfc2217://` open only when an entry spells the endpoint out, `scheme://host:port`, with no wildcard. `.*` allows any device name and no network host:
+
+  ```text
+  TERMAPY_ALLOWED_PORTS=.*|rfc2217://10.0.0.5:2217
+  ```
+
+  An entry matches the host as written. A host name is trusted to resolve where you expect, so name the IP address to pin it.
+- **Read once, at start.** A change takes effect the next time termapy starts. A value that is not a valid regular expression, or that holds a space (`COM7 | COM5`), stops termapy at startup with a message naming the variable. A comma is not a separator: `COM7,COM5` is one name, and matches nothing.
+
+Unset or blank, termapy in the TUI or CLI may open any port. Under `--mcp` it allows no serial or network port, only the simulator and `loop://`; see [MCP server](mcp-server.md) for where to set it so an agent cannot change it.
+
+The list limits termapy's own commands, not the machine. Another program, a script or an agent's shell can still open any port the operating system lets it. A USB serial number is whatever the device's firmware reports, so the list keeps termapy off the wrong board; it does not authenticate one.

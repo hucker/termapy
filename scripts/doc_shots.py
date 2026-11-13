@@ -37,6 +37,10 @@ import os
 import shutil
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from textual.pilot import Pilot
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 IMG_DIR = REPO_ROOT / "src" / "termapy" / "help" / "img"
@@ -113,7 +117,7 @@ MANUAL = {
 }
 
 
-async def _settle(pilot, ticks: int = 25) -> None:
+async def _settle(pilot: Pilot, ticks: int = 25) -> None:
     """Let a worker finish and the pane repaint before the frame is taken."""
     for _ in range(ticks):
         await pilot.pause()

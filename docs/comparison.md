@@ -65,14 +65,15 @@ API. Can implement arbitrary protocol logic, CRC calculations, state machines,
 auto-responders, or device simulators.
 
 ```python
-from termapy.plugins import Command
+from termapy.plugins import CmdResult, Command, PluginContext
 from termapy.protocol import get_crc_registry
 
 
-def _handler(ctx, args):
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     crc = get_crc_registry()["crc16-xmodem"].compute(args.encode())
-    ctx.serial_write(f"{args} {crc:04X}\n".encode())
-    ctx.write(f"Sent: {args} {crc:04X}", "green")
+    ctx.serial.write(f"{args} {crc:04X}\n".encode())
+    ctx.io.output(f"Sent: {args} {crc:04X}", "green")
+    return CmdResult.ok(value=f"{crc:04X}")
 
 
 COMMAND = Command(

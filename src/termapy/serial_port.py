@@ -19,7 +19,19 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from termapy.defaults import RX_NEWLINE_MODES
+from termapy.markup import escape_markup
 from termapy.protocol.core import format_hex
+
+# How a write longer than this reaches the driver when the config's
+# ``tx_chunking`` is on: in pieces this size, back to back.  Measured
+# 2026-11-10 on an FT232R (help/ports.md, "Large sends go out in pieces"):
+# 2 MB streams at 750000 to 2 Mbaud sent as 4 KB writes lost 20 to 120 lines
+# a run, in every layer and in bare pyserial; sent as 192-byte writes they
+# lost none in 27 runs, at 97 to 99.5% of the line rate.  192 is half the
+# FT232R's 384-byte FIFO.  A pause between the pieces changed nothing, so
+# there is none.
+TX_CHUNK_BYTES = 192
 
 
 class SerialPort:
@@ -36,6 +48,10 @@ class SerialPort:
             which is why every reader drains it first.
         log: Logging callback - log(direction, text). Direction is ">" for TX.
         encoding: Character encoding for decoding TX bytes for logging.
+        tx_chunking: Asked at each write whether a long write goes to the
+            driver in ``TX_CHUNK_BYTES`` pieces (the ``tx_chunking`` config
+            key, read live so ``/cfg`` takes effect at once).  Omitted,
+            every write goes whole.
     """
 
     def __init__(
@@ -45,12 +61,14 @@ class SerialPort:
         log: Callable[[str, str], None] | None = None,
         encoding: str = "utf-8",
         last_rx: Callable[[], float] | None = None,
+        tx_chunking: Callable[[], bool] | None = None,
     ) -> None:
         self._port = port
         self._rx_queue = rx_queue
         self._log = log or (lambda _d, _t: None)
         self._encoding = encoding
         self._last_rx = last_rx
+        self._tx_chunking = tx_chunking or (lambda: False)
 
     @property
     def port(self) -> object:
@@ -65,20 +83,42 @@ class SerialPort:
     def write(self, data: bytes) -> None:
         """Write bytes to the serial port, then log them as TX.
 
-        The ``>`` line is written only once the write returns, so a failed
-        write leaves no log line claiming bytes went out (registry
-        ``tx-only-what-went-out``).
+        With ``tx_chunking`` on, a write longer than ``TX_CHUNK_BYTES``
+        reaches the driver in pieces that size, one ``>`` line for the whole
+        write (registry ``tx-chunked-writes``).  The line is written only
+        once the write returns, so a failed write leaves no log line claiming
+        bytes went out, and a piece that fails logs the pieces before it
+        (registry ``tx-only-what-went-out``).
 
         Args:
             data: Bytes to send.
         """
-        if self._port:
-            self._port.write(data)
+        sent = 0
         try:
-            text = data.decode(self._encoding).rstrip("\r\n")
+            if self._port:
+                for piece in self._pieces(data):
+                    self._port.write(piece)
+                    sent += len(piece)
+        except BaseException:
+            if sent:
+                self._log(">", self._tx_text(data[:sent]))
+            raise
+        self._log(">", self._tx_text(data))
+
+    def _pieces(self, data: bytes) -> list[bytes]:
+        """``data`` as the writes the driver gets: whole, or ``TX_CHUNK_BYTES`` at a time."""
+        if not self._tx_chunking() or len(data) <= TX_CHUNK_BYTES:
+            return [data]
+        return [
+            data[offset : offset + TX_CHUNK_BYTES] for offset in range(0, len(data), TX_CHUNK_BYTES)
+        ]
+
+    def _tx_text(self, data: bytes) -> str:
+        """The ``>`` line for ``data``: its text, or its hex when the encoding cannot read it."""
+        try:
+            return data.decode(self._encoding).rstrip("\r\n")
         except (UnicodeDecodeError, LookupError):
-            text = data.hex(" ").upper()
-        self._log(">", text)
+            return data.hex(" ").upper()
 
     def read_raw(self, timeout_ms: int = 1000, frame_gap_ms: int = 50) -> bytes:
         """Collect raw bytes using timeout-based framing.
@@ -232,18 +272,25 @@ class SerialPort:
 CLEAR_SCREEN_RE = re.compile(r"(\x1b\[H)?\x1b\[2J")
 PARTIAL_ANSI_RE = re.compile(r"\x1b(\[[0-9;]*)?$")
 
-# Visible EOL markers (dim ANSI text)
+# Visible EOL markers on received lines (dim ANSI text: received lines
+# render from ANSI)
 _EOL_CR = "\x1b[2m\\r\x1b[0m"
 _EOL_LF = "\x1b[2m\\n\x1b[0m"
 
+# The same markers for an echo line, which is Rich markup
+# (``ReplEngine.format_echo_markup``): ANSI there shows as raw codes.
+_EOL_MARKUP = {"\r": "[dim]\\r[/dim]", "\n": "[dim]\\n[/dim]"}
 
-def eol_label(line_ending: str) -> str:
-    """Format a line ending string with visible markers."""
-    return line_ending.replace("\r", _EOL_CR).replace("\n", _EOL_LF)
 
+def eol_label_markup(line_ending: str) -> str:
+    """A line ending as Rich markup for an echo line: CR and LF as dim ``\\r`` / ``\\n``.
 
-# Receive-newline modes (mirrors TeraTerm's Receive newline: AUTO/CR/LF/CR+LF).
-RX_NEWLINE_MODES = ("auto", "cr", "lf", "crlf")
+    Until 2026-11-01 the echo used the received lines' ANSI markers, and
+    the TUI, which renders the echo from markup, showed ``AT[2m\\r[0m``.
+    Any other character of the line ending is escaped as it is.
+    """
+    return "".join(_EOL_MARKUP.get(char, escape_markup(char)) for char in line_ending)
+
 
 # Longest run of undelimited characters ``SerialReader`` accumulates before
 # flushing it as one line.
@@ -262,6 +309,20 @@ RX_LINE_MAX_CHARS = 65536
 HEX_ROW_BYTES = 16
 
 _EOL_MARKERS = {"cr": _EOL_CR, "lf": _EOL_LF, "crlf": _EOL_CR + _EOL_LF}
+
+
+def strip_eol_markers(line: str) -> str:
+    """``line`` without the end-of-line marker ``eol_markers`` appends for display.
+
+    The marker is display, not data: the expect watcher and a text
+    capture take the line as the device sent it, so ``^OK$`` matches and
+    a captured file holds no ``\\r\\n`` text.  Markers are only ever
+    appended, so only the end of the line is looked at.
+    """
+    for marker in (_EOL_MARKERS["crlf"], _EOL_CR, _EOL_LF):
+        if line.endswith(marker):
+            return line[: -len(marker)]
+    return line
 
 
 def split_rx_lines(buf: str, mode: str) -> tuple[list[tuple[str, str]], str]:

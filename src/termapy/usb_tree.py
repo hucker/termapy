@@ -30,8 +30,16 @@ import os
 import re
 import sys
 import unicodedata
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+from termapy.plugins.views import Piece
+
+if TYPE_CHECKING:
+    from types import ModuleType
+
+    from termapy.port_allow import PortPolicy
 
 # ── Records ───────────────────────────────────────────────────────────────
 
@@ -65,6 +73,8 @@ class UsbNode:
     driver: str | None = None
     # Serial port carried by this node, filled in by ``tag_serial_ports``.
     port_name: str | None = None
+    # The termapy session holding that port, when a listing asked.
+    port_session: str | None = None
     children: list[UsbNode] = field(default_factory=list)
 
     @property
@@ -81,7 +91,7 @@ class UsbNode:
             return self.path
         return f":{self.interface_number}"
 
-    def walk(self):
+    def walk(self) -> Iterator[UsbNode]:
         """Yield this node and every descendant, depth first."""
         yield self
         for child in self.children:
@@ -208,19 +218,18 @@ def tag_serial_ports(roots: list[UsbNode], facts_list: list) -> None:
         facts_list: ChipFacts for the ports currently enumerated.
     """
     by_key = {
-        (facts.location, facts.interface_number): facts.device
-        for facts in facts_list
-        if facts.location
+        (facts.location, facts.interface_number): facts for facts in facts_list if facts.location
     }
     for root in roots:
         for node in root.walk():
-            name = by_key.get((node.path, node.interface_number))
-            if name is None and node.interface_number is None:
+            facts = by_key.get((node.path, node.interface_number))
+            if facts is None and node.interface_number is None:
                 # A single-function device carries its port on the device
                 # node itself, so an unqualified match belongs here.
-                name = by_key.get((node.path, None))
-            if name:
-                node.port_name = name
+                facts = by_key.get((node.path, None))
+            if facts is not None and facts.device:
+                node.port_name = facts.device
+                node.port_session = facts.session
 
 
 # ── Rendering (pure) ──────────────────────────────────────────────────────
@@ -247,8 +256,23 @@ def _describe(node: UsbNode) -> str:
     return "  ".join(bits)
 
 
+#: How ``/port.usb`` marks a node that carries a serial port, and its port name.
+#: The name also takes the port's state color (``port_control.port_state_style``):
+#: green held by this session, yellow by another termapy session.
+PORT_ROW_STYLE = "cyan"
+PORT_NAME_STYLE = "bold"
+
+
+def _port_name_style(session: str | None) -> str:
+    """A port name's style in the tree: bold, in its state color when it has one."""
+    from termapy.port_control import port_state_style
+
+    color = port_state_style(session)
+    return f"{PORT_NAME_STYLE} {color}" if color else PORT_NAME_STYLE
+
+
 def render_tree(roots: list[UsbNode], label_width: int = 0) -> list[str]:
-    """Render the forest as aligned text lines.
+    """Render the forest as aligned text lines: ``render_tree_pieces`` without its styles.
 
     Args:
         roots: Tree to draw.
@@ -258,15 +282,44 @@ def render_tree(roots: list[UsbNode], label_width: int = 0) -> list[str]:
     Returns:
         Lines without trailing newlines.
     """
+    return [
+        "".join(piece.text for piece in line) for line in render_tree_pieces(roots, label_width)
+    ]
+
+
+def render_tree_pieces(roots: list[UsbNode], label_width: int = 0) -> list[list[Piece]]:
+    """Render the forest as aligned lines of pieces, the serial ports picked out.
+
+    A node that carries a serial port is drawn in ``PORT_ROW_STYLE`` and its
+    ``-> COM7`` in ``PORT_NAME_STYLE``; every other node is unstyled.  The
+    pieces' text joined is exactly ``render_tree``'s line.
+
+    Args:
+        roots: Tree to draw.
+        label_width: Column budget for the connector+label side.  Zero
+            measures the tree and fits it.
+
+    Returns:
+        One list of pieces per line.
+    """
     if not roots:
-        return ["(no USB devices found)"]
+        return [[Piece("(no USB devices found)")]]
     if not label_width:
         label_width = max(len(prefix) + len(node.label) for prefix, node in _flatten(roots))
     lines = []
     for prefix, node in _flatten(roots):
         left = f"{prefix}{node.label}".ljust(label_width)
-        port = f"  -> {node.port_name}" if node.port_name else ""
-        lines.append(f"{left}  {_describe(node)}{port}".rstrip())
+        body = f"{left}  {_describe(node)}"
+        if node.port_name:
+            lines.append(
+                [
+                    Piece(body, style=PORT_ROW_STYLE),
+                    Piece("  "),
+                    Piece(f"-> {node.port_name}", style=_port_name_style(node.port_session)),
+                ]
+            )
+        else:
+            lines.append([Piece(body.rstrip())])
     return lines
 
 
@@ -283,6 +336,11 @@ def _flatten(roots: list[UsbNode], prefix: str = "") -> list[tuple[str, UsbNode]
         out.append((prefix + (_LAST if last else _MID), node))
         out.extend(_flatten(node.children, prefix + (_GAP if last else _BAR)))
     return out
+
+
+def count_ports(roots: list[UsbNode]) -> int:
+    """How many serial ports the tree carries: the nodes ``tag_serial_ports`` gave a port name."""
+    return sum(1 for root in roots for node in root.walk() if node.port_name)
 
 
 def to_json_records(roots: list[UsbNode]) -> list[dict]:
@@ -350,6 +408,10 @@ def _windows_records() -> list[UsbRecord]:
     ``port_control.parse_location_paths`` reads, so the paths here and the
     ones in the LOCATION column are the same strings.
     """
+    if sys.platform != "win32":
+        # Only ever called on Windows; the check tells the type checker so on
+        # another platform it does not read winreg's members.
+        return []
     import winreg
 
     from termapy.port_control import (
@@ -411,7 +473,7 @@ def _windows_records() -> list[UsbRecord]:
     return records
 
 
-def _subkeys(winreg_mod, key) -> list[str]:
+def _subkeys(winreg_mod: ModuleType, key: object) -> list[str]:
     """Every immediate subkey name of ``key``."""
     names: list[str] = []
     i = 0
@@ -423,7 +485,7 @@ def _subkeys(winreg_mod, key) -> list[str]:
         i += 1
 
 
-def _reg_value(winreg_mod, key, name: str) -> str | None:
+def _reg_value(winreg_mod: ModuleType, key: object, name: str) -> str | None:
     """One registry value, or None if it isn't there."""
     try:
         value, _ = winreg_mod.QueryValueEx(key, name)
@@ -532,9 +594,18 @@ class UnsupportedPlatform(Exception):
 
 
 def gather_usb_tree(
-    source: UsbSource | None = None, facts_list: list | None = None
+    source: UsbSource | None = None,
+    facts_list: list | None = None,
+    *,
+    policy: PortPolicy | None = None,
 ) -> list[UsbNode]:
     """Return the USB tree for this machine, ports tagged.
+
+    Under ``TERMAPY_ALLOWED_PORTS`` only allowed ports are tagged, and a
+    node with no allowed port in it or below it loses its serial number,
+    so the tree names no device the port listings hide.  The bus is the
+    machine's, so an MCP server shows it only under ``TERMAPY_MCP_HOST_INFO``
+    (``/port.usb`` needs ``host_info``).
 
     Args:
         source: Callable returning ``UsbRecord``s, used instead of
@@ -543,6 +614,7 @@ def gather_usb_tree(
             can drive the tree against a known bus.
         facts_list: ChipFacts used to tag nodes that carry a serial port.
             None gathers them.
+        policy: The port policy; None is this process's.
 
     Returns:
         Root nodes.
@@ -561,9 +633,29 @@ def gather_usb_tree(
             f"USB tree is not available on {sys.platform} (Windows and Linux only)"
         )
     roots = build_tree(records)
+    from termapy.env_flags import port_policy
+
+    policy = port_policy() if policy is None else policy
     if facts_list is None:
         from termapy.port_control import _gather_all_chip_facts
 
-        facts_list = _gather_all_chip_facts(fast=True, enrich=True)
+        facts_list = _gather_all_chip_facts(fast=True, enrich=True, policy=policy, sessions=True)
     tag_serial_ports(roots, facts_list)
+    if policy.in_force:
+        for root in roots:
+            _hide_serial_numbers_without_ports(root)
     return roots
+
+
+def _hide_serial_numbers_without_ports(node: UsbNode) -> bool:
+    """Blank the serial number of every node with no tagged port in it or below it.
+
+    Returns:
+        Whether ``node`` or a descendant carries a tagged port.
+    """
+    carries = node.port_name is not None
+    for child in node.children:
+        carries = _hide_serial_numbers_without_ports(child) or carries
+    if not carries:
+        node.serial = None
+    return carries

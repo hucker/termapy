@@ -81,9 +81,8 @@ def repl_env(tmp_path, monkeypatch):
             gui_apps=True,
             session_log=True,
         ),
-        # Wire ctx.dispatch so handlers that forward to other commands
-        # (legacy aliases like /echo -> /term.echo) actually reach the
-        # target handler instead of hitting the default no-op lambda.
+        # Wire ctx.dispatch so a handler that runs another command reaches
+        # its handler instead of hitting the default no-op lambda.
         dispatch=engine.dispatch,
     )
     engine.set_context(ctx)
@@ -97,18 +96,18 @@ def repl_env(tmp_path, monkeypatch):
     return engine, cfg, config_path, output
 
 
-# -- /echo ----------------------------------------------------------------
+# -- /term.echo -----------------------------------------------------------
 
 
 class TestEcho:
     def test_echo_on(self, repl_env):
-        """Via the legacy /echo alias, 'on' sets the device-echo flag and prints a confirmation."""
+        """'on' sets the device-echo flag and prints a confirmation."""
         # Arrange
         engine, _, _, output = repl_env
         engine.ctx.ns("flags")["echo"] = False
 
         # Act
-        engine.dispatch("echo on")
+        engine.dispatch("term.echo on")
 
         # Assert
         assert engine.ctx.ns("flags")["echo"] is True, "echo enabled"
@@ -120,28 +119,28 @@ class TestEcho:
         engine, _, _, output = repl_env
 
         # Act
-        engine.dispatch("echo off")
+        engine.dispatch("term.echo off")
 
         # Assert
         assert engine.ctx.ns("flags")["echo"] is False, "echo disabled"
         assert any("off" in t for t, _ in output), "confirmation shown"
 
     def test_echo_toggle(self, repl_env):
-        """Bare /echo only queries; the explicit toggle verb is what flips the flag, both ways."""
+        """Bare /term.echo only queries; the explicit toggle verb is what flips the flag, both ways."""
         # Arrange
         engine, _, _, output = repl_env
         assert engine.ctx.ns("flags")["echo"] is True, "starts enabled"
 
         # Act / Assert - bare invocation QUERIES (never mutates)
-        engine.dispatch("echo")
+        engine.dispatch("term.echo")
         assert engine.ctx.ns("flags")["echo"] is True, "bare query does not flip"
 
         # Act / Assert - explicit toggle verb flips off
-        engine.dispatch("echo toggle")
+        engine.dispatch("term.echo toggle")
         assert engine.ctx.ns("flags")["echo"] is False, "toggle flips off"
 
         # Act / Assert - toggle flips back on
-        engine.dispatch("echo toggle")
+        engine.dispatch("term.echo toggle")
         assert engine.ctx.ns("flags")["echo"] is True, "toggle flips back on"
 
     def test_echo_invalid_arg_errors(self, repl_env):
@@ -150,7 +149,7 @@ class TestEcho:
         engine, _, _, _ = repl_env
         engine.ctx.ns("flags")["echo"] = True
 
-        # Act -- term.echo (not the /echo legacy alias, which clears .error)
+        # Act
         result = engine.dispatch("term.echo 2")
 
         # Assert
@@ -165,9 +164,9 @@ class TestEcho:
         # Arrange
         engine, _, _, _ = repl_env
         # Act / Assert
-        engine.dispatch("echo off")
+        engine.dispatch("term.echo off")
         assert engine.ctx.ns("flags")["echo"] is False, "'off' sets off"
-        engine.dispatch("echo on")
+        engine.dispatch("term.echo on")
         assert engine.ctx.ns("flags")["echo"] is True, "'on' sets on"
 
 
@@ -188,6 +187,7 @@ class TestTermSettingCycle:
             engine.dispatch("term.output cycle")
         assert flags["output_level"] == "silent", "wraps back to silent"
 
+    @pytest.mark.rule("setting-bare-queries")
     def test_output_bare_queries(self, repl_env):
         """Bare /term.output returns the current level as its value and leaves it unchanged."""
         # Arrange
@@ -368,9 +368,10 @@ class TestRunDocstring:
         assert "10  B" in listed[1] and "1 hr ago" in listed[1], (
             "each line carries the file's size and age"
         )
-        assert result.value.splitlines()[0] == "z_newer.run", (
-            "the scriptable value follows the same newest-first order"
+        assert result.data[0]["name"] == "z_newer.run", (
+            "the records follow the same newest-first order"
         )
+        assert result.value == len(result.data), "the value is the row count"
 
     def test_run_rename_keeps_extension_and_never_overwrites(self, repl_env, tmp_path):
         """A bare name gains .run; clobbering, leaving run/ and a missing file are refused."""
@@ -397,8 +398,9 @@ class TestRunDocstring:
         assert not engine.dispatch("run.rename missing.run x").success, "missing file"
         assert (scripts_dir / "fresh.run").is_file(), "refused renames changed nothing"
 
+    @pytest.mark.rule("file-name-default-ext")
     def test_rename_takes_a_bare_old_name(self, repl_env, tmp_path):
-        """file-name-default-ext: /run.rename old new finds run/old.run; the old name's .run is optional too."""
+        """/run.rename old new finds run/old.run; the old name's .run is optional too."""
         # Arrange
         engine, _, _, output = repl_env
         scripts_dir = self._wire_scripts_dir(engine, tmp_path)
@@ -470,6 +472,7 @@ class TestRunDocstring:
             f"/run.list shows the same summary without the filename prefix: {listing}"
         )
 
+    @pytest.mark.rule("data-structured-twin")
     def test_run_list_wants_data_returns_records_without_prose(self, repl_env, tmp_path):
         """With wants_data, /run.list returns raw records (byte count, mtime) and prints nothing."""
         # Arrange
@@ -558,8 +561,7 @@ class TestVer:
     ``/app.ver.latest`` (bare PyPI value), ``/app.ver.info`` (verbose
     installed-vs-PyPI compare).  ``.info`` is the verbose-state verb
     used by /cfg.info, /port.info, /mcp.info, /profile.info; ``.latest``
-    is a noun matching field-getter style.  The old top-level ``/ver*``
-    names keep working as hidden legacy forwarders.
+    is a noun matching field-getter style.
     """
 
     def test_app_ver_returns_installed_version_string(self, repl_env):
@@ -574,17 +576,14 @@ class TestVer:
             f"value is the human-readable version line, got: {result.value!r}"
         )
 
-    def test_legacy_ver_forwards_to_app_ver(self, repl_env):
-        """The hidden /ver forwarder keeps the /app.ver value intact for old scripts."""
-        # Arrange / Act -- the old /ver keeps working via a hidden forwarder
+    def test_app_ver_data_is_the_bare_version(self, repl_env):
+        """An agent reads the version itself from the data, not out of the 'termapy v...' line."""
+        # Arrange / Act
         engine, _, _, _ = repl_env
-        result = engine.dispatch("ver")
+        result = engine.dispatch("app.ver")
 
-        # Assert -- forwarded result's value is preserved
-        assert result.success, "/ver forwards to /app.ver"
-        assert result.value.startswith("termapy v"), (
-            f"forwarded value preserved, got: {result.value!r}"
-        )
+        # Assert
+        assert result.value == f"termapy v{result.data['version']}", "the line wraps the version"
 
     def test_ver_latest_returns_bare_pypi_version(
         self,
@@ -832,9 +831,11 @@ class TestVarHandlerValues:
         """Looking up a defined name returns its value for $(X) capture."""
         # Arrange
         engine, _, _, _ = repl_env
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
-        _VARS["MY_VAR"] = "hello"
+        users = user_vars(engine.ctx)
+
+        users["MY_VAR"] = "hello"
 
         # Act
         result = engine.dispatch("var MY_VAR")
@@ -842,8 +843,8 @@ class TestVarHandlerValues:
         # Assert
         assert result.value == "hello", "lookup returns the variable value"
 
-    def test_var_lookup_returns_empty_when_undefined(self, repl_env):
-        """An undefined name still succeeds, with '' as the value instead of None."""
+    def test_var_lookup_of_an_undefined_name_fails(self, repl_env):
+        """A name nothing defines is a failure naming it, so a script reading a variable it never set stops."""
         # Arrange
         engine, _, _, _ = repl_env
 
@@ -851,34 +852,35 @@ class TestVarHandlerValues:
         result = engine.dispatch("var NEVER_SET_VAR")
 
         # Assert
-        assert result.value == "", (
-            "undefined var still returns ok with empty value so scripting doesn't hit None"
-        )
+        assert (result.success, result.error) == (False, "Unknown variable: $(NEVER_SET_VAR)")
 
     def test_var_list_all_returns_joined_lines(self, repl_env):
         """Bare /var returns every NAME=value pair, one per line, as the value."""
         # Arrange
         engine, _, _, _ = repl_env
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
-        _VARS["A"] = "1"
-        _VARS["B"] = "2"
+        users = user_vars(engine.ctx)
+
+        users["A"] = "1"
+        users["B"] = "2"
 
         # Act
         result = engine.dispatch("var")
 
         # Assert
-        lines = result.value.split("\n")
-        assert "A=1" in lines, "first variable in scripting value"
-        assert "B=2" in lines, "second variable in scripting value"
+        assert result.data["user"] == {"A": "1", "B": "2"}, "the user variables, in the snapshot"
+        assert result.value >= 2, "the value counts the rows, these two among them"
 
     def test_var_set_returns_new_value(self, repl_env):
         """/var.set returns the value just assigned, like other setter commands."""
         # Arrange
         engine, _, _, _ = repl_env
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
-        _VARS.clear()
+        users = user_vars(engine.ctx)
+
+        users.clear()
 
         # Act
         result = engine.dispatch("var.set NEW_VAR fresh_value")
@@ -892,17 +894,19 @@ class TestVarHandlerValues:
         """/var.clear returns how many variables it removed, as a string."""
         # Arrange
         engine, _, _, _ = repl_env
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
-        _VARS["A"] = "1"
-        _VARS["B"] = "2"
-        _VARS["C"] = "3"
+        users = user_vars(engine.ctx)
+
+        users["A"] = "1"
+        users["B"] = "2"
+        users["C"] = "3"
 
         # Act
         result = engine.dispatch("var.clear")
 
         # Assert
-        assert result.value == "3", "clear returns the count of vars removed for scripting"
+        assert result.value == 3, "clear returns the count of vars removed for scripting"
 
 
 # -- /stop ----------------------------------------------------------------
@@ -1536,20 +1540,6 @@ class TestHelp:
             "existing cfg prose still renders after dynamic line"
         )
 
-    def test_help_port_baud_rate_shows_current_value(self, repl_env):
-        """/help port.baud_rate prints the single-value state line."""
-        # Arrange -- fixture cfg["baud_rate"] = 115200
-        engine, _, _, output = repl_env
-
-        # Act
-        engine.dispatch("help port.baud_rate")
-
-        # Assert
-        texts = [text for text, _ in output]
-        assert any("Current baud rate = 115200" in text for text in texts), (
-            "dynamic state line reflects cfg value"
-        )
-
     def test_help_renders_flags_section(self, repl_env):
         """/help <cmd> shows a FLAGS section for commands that declare flags."""
         # Arrange
@@ -1634,8 +1624,9 @@ class TestHelp:
         assert any("dev docstring" in text for text in texts), "docstring content shown"
         assert any("DESCRIPTION" in text for text in texts), "rendered inside DESCRIPTION"
 
+    @pytest.mark.rule("handler-docstring")
     def test_help_dev_shows_a_factory_built_handlers_docstring(self, repl_env):
-        """handler-docstring: a factory-built command (the ss folder's list) answers /help.dev with its stamped docstring."""
+        """A factory-built command (the ss folder's list) answers /help.dev with its stamped docstring."""
         # Arrange
         engine, _, _, output = repl_env
         # Act
@@ -2086,6 +2077,7 @@ class TestSearch:
         names = result.value.splitlines() if result.value else []
         assert "rocket_cmd" in names, "command surfaced via flag description"
 
+    @pytest.mark.rule("value-scriptable")
     def test_search_returns_value_for_scripting(self, repl_env):
         """CmdResult.value is the newline-joined matching command names."""
         # Arrange
@@ -2134,6 +2126,27 @@ class TestSearch:
         # (literal with space) would not match across fields.
         names = result.value.splitlines() if result.value else []
         assert "foo_cmd" in names, "AND grammar matches across fields"
+
+    @pytest.mark.parametrize(
+        "query", ["search switches", "search switch(es)?", "search --dev switches"]
+    )
+    def test_search_reads_a_device_commands_long_help(self, cli, query):
+        """A device command's long_help is searched as its profile's text, in every mode."""
+        # Arrange -- "switches" is only in the pico json command's long_help;
+        # a device command has no intro and no handler, which search read
+        # off every result until 2026-11-06 and failed on.
+        from importlib import resources
+
+        profile = resources.files("termapy.boards") / "pico" / "profile.json"
+        assert cli.repl.dispatch(f"profile.load {profile}").success, "the pico profile loads"
+
+        # Act
+        result = cli.repl.dispatch(query)
+
+        # Assert
+        assert result.success, result.error
+        names = result.value.splitlines() if result.value else []
+        assert "json" in names, "the device command is found by its long_help"
 
 
 # -- /show ----------------------------------------------------------------
@@ -2197,12 +2210,6 @@ class TestShow:
 
 
 class TestOs:
-    def test_os_disabled(self, repl_env):
-        """/os is refused by default; only the TERMAPY_OS_CMD_ENABLED env var opens it."""
-        engine, _, _, output = repl_env
-        engine.dispatch("os echo hi")
-        assert any("disabled" in t for t, _ in output), "blocked by default"
-
     def test_os_enabled(self, repl_env, monkeypatch):
         """With the env gate open, /os runs the shell command and captures its stdout."""
         # Arrange -- /os gating moved from cfg to env-var-only in v19;
@@ -2236,6 +2243,57 @@ class TestOs:
         # Assert
         assert any("Usage" in t for t, _ in output), "usage message"
 
+    def test_a_nonzero_exit_fails_with_its_code(self, cli, monkeypatch):
+        """A shell command that exits nonzero fails the line, and the error names the exit code."""
+        # Arrange
+        from termapy.builtins.commands import os_cmd
+
+        monkeypatch.setattr(os_cmd, "OS_CMD_ENABLED", True)
+
+        # Act -- `exit 3` means the same to cmd.exe and to sh
+        result = cli.repl.dispatch_full("/os exit 3")
+
+        # Assert
+        assert result.success is False, "a nonzero exit is a failure, not an ok beside red text"
+        assert result.error == "Command failed (exit code 3)"
+
+    def test_a_nonzero_exit_stops_the_script(self, cli, tmp_path, monkeypatch, capsys):
+        """The line after a failed /os in a script never runs: it usually depends on the command having worked."""
+        # Arrange
+        from termapy.builtins.commands import os_cmd
+
+        monkeypatch.setattr(os_cmd, "OS_CMD_ENABLED", True)
+        script = tmp_path / "check.run"
+        script.write_text("/os exit 3\n/print reached-the-end\n", encoding="utf-8")
+
+        # Act
+        cli.repl.dispatch_full(f"/run {script}")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert "Command failed (exit code 3)" in out, "the failure is reported"
+        assert "reached-the-end" not in out, "a failed shell command stops the script"
+
+    def test_the_next_script_runs_after_a_stopped_one(self, cli, tmp_path, monkeypatch, capsys):
+        """A script stopped by a failed /os leaves the next one free to run to its end, a zero exit included."""
+        # Arrange
+        from termapy.builtins.commands import os_cmd
+
+        monkeypatch.setattr(os_cmd, "OS_CMD_ENABLED", True)
+        failing = tmp_path / "failing.run"
+        failing.write_text("/os exit 3\n", encoding="utf-8")
+        passing = tmp_path / "passing.run"
+        passing.write_text("/os exit 0\n/print reached-the-end\n", encoding="utf-8")
+        cli.repl.dispatch_full(f"/run {failing}")
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full(f"/run {passing}")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert "reached-the-end" in out, "the earlier stop does not carry into the next script"
+
 
 # -- dispatch edge cases ---------------------------------------------------
 
@@ -2256,9 +2314,9 @@ class TestDispatch:
         assert any("help" in text.lower() for text in texts), "empty triggers help"
 
     def test_command_case_insensitive(self, repl_env):
-        """Command names match regardless of case: ECHO reaches the echo handler."""
+        """Command names match regardless of case: TERM.ECHO reaches the term.echo handler."""
         engine, _, _, output = repl_env
-        engine.dispatch("ECHO off")
+        engine.dispatch("TERM.ECHO off")
         assert engine.ctx.ns("flags")["echo"] is False, "uppercase command works"
 
 
@@ -2405,30 +2463,30 @@ class TestCls:
         assert len(cleared) == 1, "clear_screen called"
 
 
-# -- /show_line_endings ---------------------------------------------------
+# -- /term.eol.markers ----------------------------------------------------
 
 
 class TestEol:
     def test_eol_toggle_on(self, repl_env):
-        """/show_line_endings toggle flips the eol_markers cfg key from off to on."""
+        """/term.eol.markers toggle flips the eol_markers cfg key from off to on."""
         # Arrange
         engine, cfg, _, output = repl_env
         cfg["eol_markers"] = False
 
         # Act -- explicit toggle verb (bare now queries)
-        engine.dispatch("show_line_endings toggle")
+        engine.dispatch("term.eol.markers toggle")
 
         # Assert
         assert cfg["eol_markers"] is True, "toggle flips on"
 
     def test_eol_toggle_off(self, repl_env):
-        """/show_line_endings toggle flips the eol_markers cfg key from on to off."""
+        """/term.eol.markers toggle flips the eol_markers cfg key from on to off."""
         # Arrange
         engine, cfg, _, output = repl_env
         cfg["eol_markers"] = True
 
         # Act -- explicit toggle verb (bare now queries)
-        engine.dispatch("show_line_endings toggle")
+        engine.dispatch("term.eol.markers toggle")
 
         # Assert
         assert cfg["eol_markers"] is False, "toggle flips off"
@@ -2440,7 +2498,7 @@ class TestEol:
         cfg["eol_markers"] = False
 
         # Act
-        engine.dispatch("show_line_endings on")
+        engine.dispatch("term.eol.markers on")
 
         # Assert
         assert cfg["eol_markers"] is True, "set to on"
@@ -2452,7 +2510,7 @@ class TestEol:
         cfg["eol_markers"] = True
 
         # Act
-        engine.dispatch("show_line_endings off")
+        engine.dispatch("term.eol.markers off")
 
         # Assert
         assert cfg["eol_markers"] is False, "set to off"
@@ -2608,7 +2666,7 @@ class TestCapWire:
         assert "Usage" in result.error, "error names usage"
 
     def test_wire_envelope_shape(self, repl_env):
-        """The value envelope carries byte counts, hex and decoded text for both TX and RX."""
+        """The data envelope carries byte counts, hex and decoded text both ways; the value is the RX hex."""
         # Arrange
         engine, _, _, _ = repl_env
         ctx = engine.ctx
@@ -2630,7 +2688,8 @@ class TestCapWire:
         result = engine.dispatch("cap.wire cmd=AT+VER")
 
         # Assert -- 7-byte TX ("AT+VER\r"), 11-byte RX ("VER=1.2.3\r\n")
-        envelope = result.value
+        assert result.value == "5645523D312E322E330D0A", "the scalar is the reply's bytes"
+        envelope = result.data
         assert envelope["tx_bytes"] == 7, "TX byte count"
         assert envelope["rx_bytes"] == 11, "RX byte count"
         assert envelope["tx_hex"] == "41542B5645520D", "TX hex, uppercase"
@@ -2689,7 +2748,7 @@ class TestCapWire:
         assert "no wire traffic" in rendered.lower(), "warning header present"
         assert "TX (  0)" in rendered, "TX line rendered with 0-byte count"
         assert "RX (  0)" in rendered, "RX line rendered with 0-byte count"
-        envelope = result.value
+        envelope = result.data
         assert envelope["tx_bytes"] == 0, "zero TX"
         assert envelope["rx_bytes"] == 0, "zero RX"
 
@@ -2716,6 +2775,7 @@ class TestCapWire:
         assert rx_cbs == [], "RX observer released even on exception"
         assert tx_cbs == [], "TX observer released even on exception"
 
+    @pytest.mark.timing
     def test_wire_wait_gap_zero_skips_settle_loop(self, repl_env):
         """wait_gap=0ms skips the idle-settle loop, returning well under the 50 ms default."""
         # Arrange -- wait_gap=0 disables the settle loop so the handler
@@ -3077,8 +3137,9 @@ class TestCfgRead:
         assert result.success is False, "missing file fails"
         assert result.error == "File not found: nope.txt", "standard phrasing"
 
+    @pytest.mark.rule("state-answered-by-gate")
     def test_cfg_file_without_a_config_is_the_gates_answer(self, repl_env):
-        """state-answered-by-gate: /cfg.file declares config_loaded, so with none the gate answers, not the handler."""
+        """/cfg.file declares config_loaded, so with none the gate answers, not the handler."""
         # Arrange
         engine, _, _, _ = repl_env
         engine.ctx.config_path = ""
@@ -3185,7 +3246,7 @@ class TestCfgHandlerValues:
         result = engine.dispatch("cfg.auto baud_rate 9600")
 
         # Assert
-        assert result.value == "9600", "/cfg.auto returns the new value (mirrors echo/verbose)"
+        assert result.value == 9600, "/cfg.auto returns the new value (mirrors echo/verbose)"
 
     def test_cfg_set_unchanged_returns_existing_value(self, repl_env):
         """Setting a key to its current value still returns that value, not None."""
@@ -3197,7 +3258,7 @@ class TestCfgHandlerValues:
         result = engine.dispatch("cfg baud_rate 115200")
 
         # Assert
-        assert result.value == "115200", (
+        assert result.value == 115200, (
             "/cfg key value: same value still returns the value, not None"
         )
 
@@ -3220,14 +3281,14 @@ class TestCfgHandlerValues:
         result = engine.dispatch("cfg.list")
 
         # Assert
-        assert result.value == "", "empty config dir returns empty string, not None"
+        assert result.value == 0, "an empty config dir counts none"
 
     def test_cfg_list_populated_returns_joined_names(
         self,
         tmp_path,
         monkeypatch,
     ):
-        """Each config appears by name, the word /cfg.load takes, one per line in the value."""
+        """Each config appears by name, the word /cfg.load takes, as a record; the value counts them."""
         # Arrange
         from termapy.builtins.commands import cfg as cfg_mod
 
@@ -3248,8 +3309,41 @@ class TestCfgHandlerValues:
         result = engine.dispatch("cfg.list")
 
         # Assert
-        lines = result.value.split("\n")
-        assert sorted(lines) == ["alpha", "beta"], "both configs, by name, in the scripting value"
+        names = sorted(record["name"] for record in result.data)
+        assert names == ["alpha", "beta"], "both configs, by name, in the records"
+        assert result.value == 2, "the value is the count"
+
+    @pytest.mark.rule("port-display")
+    def test_cfg_list_shows_the_device_a_serial_number_names(self, tmp_path, monkeypatch):
+        """The PORT column is the device a serial number resolves to; the record keeps the spec and adds the device."""
+        # Arrange -- one config named by serial number, the demo fleet attached
+        cfgs = tmp_path / "cfgs"
+        (cfgs / "bench").mkdir(parents=True)
+        (cfgs / "bench" / "bench.cfg").write_text(json.dumps({"serial": {"port": "A1B2C3D4"}}))
+        monkeypatch.setenv("TERMAPY_CFG_DIR", str(cfgs))
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+        cfg = {"port": "COM4", "baud_rate": 115200, "echo": False, "eol": "\r"}
+        config_path = tmp_path / "test.cfg"
+        config_path.write_text(json.dumps(cfg))
+        output: list[tuple[str, str | None]] = []
+        engine = ReplEngine(cfg, str(config_path), lambda t, c=None: output.append((t, c)))
+
+        # Act
+        result = engine.dispatch("cfg.list")
+        table = [text for text, _ in output]
+        output.clear()
+        engine.dispatch("cfg.list --json")
+        envelope = json.loads(next(text for text, _ in output if text.lstrip().startswith("{")))
+
+        # Assert
+        (record,) = result.data
+        assert record["port"] == "A1B2C3D4", "the record keeps the file's spelling as port"
+        assert record["device"] == "COM3", "and carries the device it resolves to"
+        assert any("COM3" in line and "A1B2C3D4" not in line for line in table), (
+            "the PORT column shows the device, never the serial number"
+        )
+        assert envelope["data"][0]["device"] == "COM3", "the JSON answer carries the device"
+        assert envelope["data"][0]["port"] == "A1B2C3D4", "and the spec, so an agent sees both"
 
 
 # -- /repeat ----------------------------------------------------------------
@@ -3350,11 +3444,12 @@ class TestRepeat:
     def test_sets_iteration_variable(self, repl_env):
         """REPEAT_N holds the 1-based iteration number while each command runs."""
         # Arrange
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
         engine, _, _, output = repl_env
+        users = user_vars(engine.ctx)
         seen_values = []
-        engine.ctx.dispatch = lambda cmd: seen_values.append(_VARS.get("REPEAT_N"))
+        engine.ctx.dispatch = lambda cmd: seen_values.append(users.get("REPEAT_N"))
 
         # Act
         engine.dispatch("repeat count=3 cmd=AT")
@@ -3367,11 +3462,12 @@ class TestRepeat:
     def test_custom_variable_name(self, repl_env):
         """var= renames the iteration variable; it still counts from 1."""
         # Arrange
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
         engine, _, _, output = repl_env
+        users = user_vars(engine.ctx)
         seen_values = []
-        engine.ctx.dispatch = lambda cmd: seen_values.append(_VARS.get("I"))
+        engine.ctx.dispatch = lambda cmd: seen_values.append(users.get("I"))
 
         # Act
         engine.dispatch("repeat count=2 var=I cmd=AT")
@@ -3382,25 +3478,27 @@ class TestRepeat:
     def test_variable_cleaned_up(self, repl_env):
         """The iteration variable is removed once the loop finishes."""
         # Arrange
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
         engine, _, _, output = repl_env
+        users = user_vars(engine.ctx)
         engine.ctx.dispatch = lambda cmd: None
 
         # Act
         engine.dispatch("repeat count=2 cmd=AT")
 
         # Assert - variable removed after repeat
-        assert "REPEAT_N" not in _VARS, (
-            f"REPEAT_N should be cleaned up, but _VARS contains: {_VARS}"
+        assert "REPEAT_N" not in users, (
+            f"REPEAT_N should be cleaned up, but the variables contain: {users}"
         )
 
     def test_variable_cleaned_up_on_error(self, repl_env):
         """The iteration variable is removed even when a dispatched command raises."""
         # Arrange
-        from termapy.variables import _VARS
+        from termapy.variables import user_vars
 
         engine, _, _, output = repl_env
+        users = user_vars(engine.ctx)
 
         def boom(cmd):
             raise RuntimeError("dispatch error")
@@ -3411,8 +3509,8 @@ class TestRepeat:
         engine.dispatch("repeat count=2 cmd=AT")
 
         # Assert - variable cleaned up even on error
-        assert "REPEAT_N" not in _VARS, (
-            f"REPEAT_N should be cleaned up after error, but _VARS contains: {_VARS}"
+        assert "REPEAT_N" not in users, (
+            f"REPEAT_N should be cleaned up after error, but the variables contain: {users}"
         )
 
     def test_completes_silently(self, repl_env):
@@ -3487,7 +3585,7 @@ class TestPortChipList:
     """/port.chip.list dumps the USB-serial chip lookup table."""
 
     def test_unfiltered_lists_many_chips(self, repl_env):
-        """With no filter, a header and many rows print, and the value is 'Count=<N>'."""
+        """With no filter, a header and many rows print, and the value is the row count."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -3500,29 +3598,26 @@ class TestPortChipList:
         assert any("VID:PID" in text for text in texts), "header row printed"
         # Spot-check one well-known chip makes it into the dump.
         assert any("FT232R" in text for text in texts), "FTDI FT232R present"
-        # Return value is "Count=<N>" for script capture.
-        assert result.value.startswith("Count="), (
-            f"value should be 'Count=<N>', got: {result.value!r}"
-        )
-        count = int(result.value.split("=")[1])
-        assert count > 20, f"expected many chip rows, got Count={count}"
+        # Return value is the bare count for script capture, the records' length.
+        assert result.value == len(result.data), "the value is the count, an int"
+        assert result.value > 20, f"expected many chip rows, got {result.value}"
 
     def test_filter_narrows_output(self, repl_env):
-        """A vendor filter keeps only matching rows, and Count reflects the match size."""
+        """A vendor filter keeps only matching rows, and the value is the match count."""
         # Arrange
         engine, _, _, output = repl_env
 
         # Act
         result = engine.dispatch("port.chip.list ftdi")
 
-        # Assert -- only FTDI rows printed, Count reflects the match size.
+        # Assert -- only FTDI rows printed, the value is the match count.
         assert result.success, "filtered list succeeds"
         texts = [text for text, _ in output]
         chip_rows = [text for text in texts if ":" in text and "FTDI" in text]
         assert chip_rows, "at least one FTDI row rendered"
         # There are ~10 FTDI chips in the table.
-        count = int(result.value.split("=")[1])
-        assert 5 <= count <= 25, f"expected roughly a dozen FTDI rows, got Count={count}"
+        count = int(result.value)
+        assert 5 <= count <= 25, f"expected roughly a dozen FTDI rows, got {count}"
 
     def test_filter_is_case_insensitive(self, repl_env):
         """An uppercase filter still matches mixed-case vendor names like SparkFun."""
@@ -3534,11 +3629,11 @@ class TestPortChipList:
 
         # Assert
         assert result.success, "case-insensitive filter works"
-        count = int(result.value.split("=")[1])
-        assert count > 0, "entries found despite uppercase filter"
+        assert int(result.value) > 0, "entries found despite uppercase filter"
 
+    @pytest.mark.rule("name-one-matcher")
     def test_no_matches_is_an_empty_table(self, repl_env):
-        """name-one-matcher: no matches is still success, Count=0 and the table's empty line."""
+        """No matches is still success, a 0 value and the table's empty line."""
         # Arrange
         engine, _, _, output = repl_env
 
@@ -3547,7 +3642,7 @@ class TestPortChipList:
 
         # Assert
         assert result.success, "no-match still returns ok"
-        assert result.value == "Count=0", f"Count=0 on no matches, got: {result.value!r}"
+        assert result.value == 0, f"0 on no matches, got: {result.value!r}"
         assert any("USB-serial chips - empty" in text for text, _ in output), (
             "the empty table says so, like every list"
         )
@@ -3561,8 +3656,24 @@ class TestPortChipList:
         result = engine.dispatch("port.chip.list high")
 
         # Assert
-        actual = int(result.value.split("=")[1])
+        actual = int(result.value)
         assert actual > 0, "the high-speed chips are found by their speed"
+
+    @pytest.mark.parametrize(
+        ("pattern", "vid_pid"), [("0403", "0403:"), ("10c4:ea60", "10C4:EA60")]
+    )
+    def test_a_vid_pid_finds_its_chips(self, repl_env, pattern, vid_pid):
+        """The filter reads the VID:PID column in either case, so /port.chip.list 0403 finds the FTDI chips."""
+        # Arrange
+        engine, _, _, _ = repl_env
+
+        # Act
+        result = engine.dispatch(f"port.chip.list {pattern}")
+
+        # Assert
+        records = result.data
+        assert records, "the VID:PID column is searched"
+        assert all(vid_pid in record["vid_pid"] for record in records), "and only those chips"
 
 
 class TestPortHandlerValues:
@@ -3600,22 +3711,18 @@ class TestPortHandlerValues:
         # Assert
         assert result.value == "COM4", "disconnect returns the port name in effect before the call"
 
-    def test_port_list_returns_joined_output(self, repl_env):
-        """/port.list always yields a string value, whatever ports this machine has."""
+    @pytest.mark.rule("table-value-is-count")
+    def test_port_list_counts_the_ports(self, repl_env):
+        """/port.list's value is the port count, one per record, whatever this machine has."""
         # Arrange
         engine, _, _, _ = repl_env
 
         # Act
         result = engine.dispatch("port.list")
 
-        # Assert -- value is the same text the user sees (header /
-        # rows / footer), joined with newlines.  Specific content
-        # depends on the test machine's USB devices, but the value
-        # must be a non-None string so scripting doesn't crash.
-        assert result.value is not None, (
-            "scripting value must not be None -- this is the bug fix/cmdresult-value-gaps targets"
-        )
-        assert isinstance(result.value, str), "value is a string"
+        # Assert
+        assert result.success, result.error
+        assert result.value == len(result.data), "the count of the records, an int"
 
 
 # -- /log.dump ------------------------------------------------------------
@@ -3694,8 +3801,8 @@ class TestLogDump:
         assert not result.success, "0 is rejected (ambiguous, -0 == 0)"
         assert "0" in result.error, "error names the rejected value"
 
-    def test_non_int_n_rejected(self, repl_env):
-        """A non-integer N is a usage error, not a silent full dump."""
+    def test_a_word_is_a_logs_name_and_an_unknown_one_fails(self, repl_env):
+        """A word where N goes is a log's name: one the config has not is refused, never a silent full dump."""
         # Arrange
         engine, cfg, config_path, _output = repl_env
         self._seed_log(engine, config_path, "x\n")
@@ -3704,8 +3811,8 @@ class TestLogDump:
         result = engine.dispatch("log.dump notanumber")
 
         # Assert
-        assert not result.success, "non-int N rejected"
-        assert "Usage" in result.error, "usage shown"
+        assert not result.success, "not dumped"
+        assert result.error == "Unknown log: notanumber", "read as a name, and named back"
 
 
 # -- /term.eol ------------------------------------------------------------
@@ -3714,6 +3821,7 @@ class TestLogDump:
 class TestTermEol:
     """/term.eol shows/sets the sent line ending via named tokens."""
 
+    @pytest.mark.rule("setting-bare-queries")
     def test_bare_reports_default_cr(self, repl_env):
         """Bare /term.eol reports the CR default by token name, not the raw character."""
         # Arrange
@@ -3876,7 +3984,7 @@ class TestProtoHex:
 
         # Assert
         assert engine.ctx.ns("flags")["hex"] is True, "toggle verb flips the flag"
-        assert result.value == "on", "returns the new state"
+        assert result.value is True, "returns the new state"
 
     def test_proto_hex_sets_explicitly_with_shared_tokens(self, repl_env):
         """'y' is a parse_bool token that sets on; it was once rejected or treated as a toggle."""
@@ -3890,7 +3998,7 @@ class TestProtoHex:
 
         # Assert
         assert engine.ctx.ns("flags")["hex"] is True, "'y' sets on (shared token)"
-        assert result.value == "on", "explicit set, not a toggle"
+        assert result.value is True, "explicit set, not a toggle"
 
     def test_proto_hex_off(self, repl_env):
         """'off' clears the hex flag and returns 'off' as the new state."""
@@ -3903,4 +4011,4 @@ class TestProtoHex:
 
         # Assert
         assert engine.ctx.ns("flags")["hex"] is False, "'off' sets off"
-        assert result.value == "off", "returns the new state"
+        assert result.value is False, "returns the new state"

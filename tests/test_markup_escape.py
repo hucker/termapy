@@ -1,4 +1,4 @@
-"""markup-escape: text reaches the terminal as typed, through every markup path.
+"""Text reaches the terminal as typed, through every markup path.
 
 Rich drops a ``[word]`` it does not know without complaint, so these tests
 render real output through Rich, as the output pane and the CLI console do,
@@ -16,7 +16,7 @@ import pytest
 from rich.text import Text
 
 from termapy.help_dynamic import green, is_state_line
-from termapy.markup import escape_markup, markup_to_plain
+from termapy.markup import escape_markup, markup_to_plain, received_json_markup
 from termapy.plugins import (
     CapabilitySet,
     InternalHandle,
@@ -27,7 +27,9 @@ from termapy.plugins import (
     resolve_long_help,
 )
 from termapy.repl import ReplEngine
-from termapy.variables import set_context_var, unset_user_var
+from termapy.variables import set_context_var
+
+pytestmark = pytest.mark.rule("markup-escape")
 
 # Each bites a different way: a lowercase tag, a TOML table header, a stray
 # close tag, a Windows path whose trailing backslash would escape the close
@@ -86,14 +88,14 @@ def session(tmp_path):
 
 @pytest.fixture
 def tag_var():
-    """A user-variable name, unset afterwards: user variables are process-global."""
-    yield "MARKUP_TAG"
-    unset_user_var("MARKUP_TAG")
+    """A user-variable name; each test's engine holds its own variables."""
+    return "MARKUP_TAG"
 
 
+@pytest.mark.rule("markup-escape")
 @pytest.mark.parametrize("value", TRICKY)
 def test_escaped_text_renders_as_itself(value):
-    """markup-escape: escape_markup(x) renders exactly str(x), before a close tag and at the end of a line."""
+    """escape_markup(x) renders exactly str(x), before a close tag and at the end of a line."""
     # Act
     tagged = Text.from_markup(f"[green]{escape_markup(value)}[/]").plain
     line_end = Text.from_markup(f"[green]x[/] {escape_markup(value)}").plain
@@ -113,6 +115,50 @@ def test_markup_to_plain_strips_tags_and_keeps_escaped_text():
     # Act / Assert
     assert markup_to_plain(markup) == "PORT = [ok]", "tags go, escaped text stays"
     assert markup_to_plain("a [/] b") == "a [/] b", "a stray close tag is returned, not raised"
+
+
+@pytest.mark.parametrize(("indent", "highlight"), [(2, False), (2, True), (4, False), (4, True)])
+def test_a_received_json_line_shows_laid_out(indent, highlight):
+    """A device's JSON line is indented by json_fmt.indent; highlighting changes only its color."""
+    # Arrange
+    line = '{"result":{"temp":21.4,"leds":[0,0,32]}}'
+
+    # Act
+    shown_markup = received_json_markup(line, indent, highlight)
+
+    # Assert
+    assert shown_markup is not None, "a JSON object is laid out"
+    actual = Text.from_markup(shown_markup).plain
+    expected = json.dumps(json.loads(line), indent=indent)
+    assert actual == expected
+
+
+def test_indent_zero_with_highlight_keeps_one_line():
+    """json_fmt.indent 0 keeps the line on one line, highlighted."""
+    shown_markup = received_json_markup('{"result":{"temp":21.4}}', 0, True)
+    assert shown_markup is not None, "highlighting alone still marks it up"
+    assert "\n" not in Text.from_markup(shown_markup).plain
+
+
+def test_a_received_json_line_keeps_brackets_and_characters():
+    """A string value's [tags] and non-ASCII characters show as the device sent them."""
+    line = '{"msg":"[red]hot[/] 21°C"}'
+    for highlight in (False, True):
+        shown_markup = received_json_markup(line, 2, highlight)
+        assert shown_markup is not None
+        actual = Text.from_markup(shown_markup).plain
+        assert '"[red]hot[/] 21°C"' in actual, f"{highlight}: text, not a tag or a \\u escape"
+
+
+@pytest.mark.parametrize("line", ["temp 21.4", "{not json", '"a string"', "42", "", "[1, 2", "OK"])
+def test_a_line_that_is_not_a_json_object_or_array_shows_as_received(line):
+    """Only a whole JSON object or array is laid out; anything else shows as it arrived."""
+    assert received_json_markup(line, 2, True) is None
+
+
+def test_no_indent_and_no_highlight_shows_json_as_received():
+    """With json_fmt.indent 0 and highlighting off, a JSON line shows as it arrived."""
+    assert received_json_markup('{"result":1}', 0, False) is None
 
 
 def test_kv_lines_escape_labels_and_values_and_color_by_row():
@@ -152,15 +198,16 @@ def test_a_bracketed_variable_value_lists_as_set(session, tag_var):
 
     # Act
     engine.dispatch("var")
-    listing = screen.text
+    rows = [line.split(maxsplit=2) for line in screen.text.splitlines()]
     screen.lines.clear()
     engine.dispatch(f"var {tag_var}")
     single = screen.text
 
     # Assert
-    expected = f"$({tag_var}) = [ok] boot done"
-    assert expected in listing, "the listing shows the value as stored"
-    assert expected in single, "so does the one-name form"
+    assert [tag_var, "user", "[ok] boot done"] in rows, (
+        "the listing's row shows the value as stored"
+    )
+    assert f"$({tag_var}) = [ok] boot done" in single, "so does the one-name form"
 
 
 def test_an_echoed_command_keeps_its_brackets(session):
@@ -201,6 +248,27 @@ def test_the_echo_line_expands_vars_marks_the_eol_and_escapes_the_command(tmp_pa
     assert device == "rig> AT[ok]<CR>", "a device line shows the line ending it is sent with"
 
 
+@pytest.mark.parametrize("text", TRICKY)
+def test_the_echo_shows_the_line_ending_as_text_not_codes(tmp_path, text):
+    """The real marker after any device line renders as \\r\\n text, with no ANSI codes and the line intact."""
+    # Arrange
+    from termapy.serial_port import eol_label_markup
+
+    config_path = tmp_path / "rig" / "rig.cfg"
+    config_path.parent.mkdir()
+    cfg = {"echo_fmt": "> {cmd}", "eol_markers": True, "eol": "\r\n"}
+    config_path.write_text(json.dumps(cfg), encoding="utf-8")
+    engine = ReplEngine(cfg, str(config_path), lambda *a, **k: None, global_root=tmp_path)
+
+    # Act
+    actual = Text.from_markup(engine.format_echo_markup(text, eol_label_markup)).plain
+
+    # Assert
+    expected = f"> {text}\\r\\n"
+    assert actual == expected, "the line as typed, then its ending shown as text"
+    assert "\x1b" not in actual, "no escape code reaches the pane as text"
+
+
 def _page_text(plugin, ctx: PluginContext) -> list[str]:
     """Every line of prose a command's man page must show: one-liner, synopsis, flags, long help."""
     lines = [interpolate_help(plugin.help, ctx.prefix), plugin.args or ""]
@@ -211,8 +279,9 @@ def _page_text(plugin, ctx: PluginContext) -> list[str]:
     return [line.strip() for line in lines if line.strip()]
 
 
+@pytest.mark.rule("markup-escape")
 def test_every_help_page_shows_its_own_text(session):
-    """markup-escape: /help <cmd> shows every line of every command's help, so no bracketed word is lost.
+    """/help <cmd> shows every line of every command's help, so no bracketed word is lost.
 
     Until 2026-10-13 the page passed help text to Rich as markup: /proto
     said "[] sections" and /port.connect lost its whole Syntax line.

@@ -32,6 +32,8 @@ Captures raw binary bytes straight to a file.
 /cap.bin raw.bin bytes=256 cmd=read_all
 ```
 
+This records what the device sends for one capture. To log every byte in both directions for a whole session, see [Logging the raw traffic](ports.md#logging-the-raw-traffic).
+
 ## Structured capture (format spec to CSV)
 
 ```text
@@ -88,13 +90,13 @@ also stream to a CSV or JSONL file.
 Simplest form -- 60 samples at 1s intervals, terminal only:
 
 ```text
-/cap.poll cmd=AT+BAT
+/cap.poll cmd=AT+TEMP
 ```
 
 Multi-column, saved to file:
 
 ```text
-/cap.poll count=30 file=readings cmd=AT+BAT\nAT+TEMP
+/cap.poll count=30 file=readings cmd=AT+TEMP\nAT+RAMP
 ```
 
 Extract a number from a prose response with a regex:

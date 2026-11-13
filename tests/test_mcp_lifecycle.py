@@ -28,7 +28,14 @@ from termapy.defaults import default_cfg  # noqa: E402
 from termapy.mcp.catalog import build_device_state  # noqa: E402
 from termapy.mcp.server import MCPHost  # noqa: E402
 from termapy.profile import validate_profile  # noqa: E402
-from termapy.terminal_host import SESSION_END, SESSION_START  # noqa: E402
+from termapy.session_log import SESSION_END, SESSION_START, entry_text  # noqa: E402
+
+
+def _logged(host: MCPHost) -> str:
+    """The host's session log so far; empty when it has none yet."""
+    path = host.session_log_path()
+    return path.read_text(encoding="utf-8") if path is not None and path.is_file() else ""
+
 
 DEMO_NDJSON_PROFILE = (
     Path(__file__).parent.parent
@@ -364,8 +371,9 @@ class TestAutoLoadProfileOnConnect:
             "MCPHost auto-loads profiles on connect"
         )
 
+    @pytest.mark.rule("load-report-one-table")
     def test_auto_loaded_profile_is_a_report_row(self, cfg_dir):
-        """load-report-one-table: the profile loaded on connect is a /cfg.loaded row until disconnect."""
+        """The profile loaded on connect is a /cfg.loaded row until disconnect."""
         # Arrange
         self._write_profile(cfg_dir / "test.profile.json")
         cfg = default_cfg()
@@ -449,12 +457,16 @@ class TestOnConnectCmd:
         config_path.write_text(json.dumps(cfg))
         for sub in ("plugin", "ss", "run", "cap"):
             (config_path.parent / sub).mkdir(exist_ok=True)
-        return MCPHost(cfg, str(config_path), verbose=False)
+        host = MCPHost(cfg, str(config_path), verbose=False)
+        # The session starts before anything is logged, as run_mcp_stdio's
+        # _fire_app_start does: the log opens at pre-start.
+        host._on_app_prestart()
+        return host
 
     def test_on_connect_cmd_fires_in_mcp(self, tmp_path):
         """v15 closes the latent bug: on_connect_cmd now fires in MCP."""
         # Arrange
-        h = self._make_host(tmp_path, on_connect_cmd="/ver")
+        h = self._make_host(tmp_path, on_connect_cmd="/app.ver")
 
         # Act
         try:
@@ -465,15 +477,15 @@ class TestOnConnectCmd:
                 h._disconnect()
 
         # Assert
-        log = h._log_path.read_text(encoding="utf-8") if h._log_path else ""
-        assert "$ /ver  (on_connect_cmd)" in log, (
+        log = _logged(h)
+        assert "$ /app.ver  (on_connect_cmd)" in log, (
             f"universal on_connect_cmd fires in MCP, log was:\n{log}"
         )
 
     def test_mcp_on_connect_cmd_fires_in_mcp(self, tmp_path):
         """mcp_on_connect_cmd is the MCP-only device-setup hook."""
         # Arrange
-        h = self._make_host(tmp_path, mcp_on_connect_cmd="/ver")
+        h = self._make_host(tmp_path, mcp_on_connect_cmd="/app.ver")
 
         # Act
         try:
@@ -484,8 +496,8 @@ class TestOnConnectCmd:
                 h._disconnect()
 
         # Assert
-        log = h._log_path.read_text(encoding="utf-8") if h._log_path else ""
-        assert "$ /ver  (mcp_on_connect_cmd)" in log, (
+        log = _logged(h)
+        assert "$ /app.ver  (mcp_on_connect_cmd)" in log, (
             f"mcp_on_connect_cmd fires in MCP, log was:\n{log}"
         )
 
@@ -515,7 +527,7 @@ class TestOnConnectCmd:
         h = self._make_host(
             tmp_path,
             on_connect_cmd="/cls",  # silly but distinguishable
-            mcp_on_connect_cmd="/ver",
+            mcp_on_connect_cmd="/app.ver",
         )
 
         # Act
@@ -527,9 +539,9 @@ class TestOnConnectCmd:
                 h._disconnect()
 
         # Assert
-        log = h._log_path.read_text(encoding="utf-8") if h._log_path else ""
+        log = _logged(h)
         cls_idx = log.find("$ /cls  (on_connect_cmd)")
-        ver_idx = log.find("$ /ver  (mcp_on_connect_cmd)")
+        ver_idx = log.find("$ /app.ver  (mcp_on_connect_cmd)")
         assert cls_idx >= 0, f"universal cmd logged, log was:\n{log}"
         assert ver_idx >= 0, f"mcp-only cmd logged, log was:\n{log}"
         assert cls_idx < ver_idx, "universal fires before mcp-only"
@@ -548,7 +560,7 @@ class TestOnConnectCmd:
                 h._disconnect()
 
         # Assert
-        log = h._log_path.read_text(encoding="utf-8") if h._log_path else ""
+        log = _logged(h)
         assert "(on_connect_cmd)" not in log, "no universal cmd ran"
         assert "(mcp_on_connect_cmd)" not in log, "no mcp-only cmd ran"
 
@@ -586,9 +598,9 @@ class TestSessionMarkers:
 
         # Assert
         assert first_log is not None and second_log is not None, "both configs log"
-        assert first_log != second_log, "each config has its own mcp/session.log"
-        a = first_log.read_text(encoding="utf-8").splitlines()
-        b = second_log.read_text(encoding="utf-8").splitlines()
+        assert first_log != second_log, "each config has its own <cfg>.mcp.log"
+        a = [entry_text(line) for line in first_log.read_text(encoding="utf-8").splitlines()]
+        b = [entry_text(line) for line in second_log.read_text(encoding="utf-8").splitlines()]
         assert a[0] == SESSION_START, "pre-start starts the first log"
         assert a[-2:] == ["Switched to config: second", SESSION_END], (
             "the switch says where the session went, then ends the old log"
@@ -614,6 +626,6 @@ class TestSessionMarkers:
 
         # Assert
         assert log is not None, "the config logs"
-        lines = log.read_text(encoding="utf-8").splitlines()
+        lines = [entry_text(line) for line in log.read_text(encoding="utf-8").splitlines()]
         assert lines.count(SESSION_START) == 1, "one session, one start"
         assert SESSION_END not in lines, "and no end until it ends"

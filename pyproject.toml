@@ -1,6 +1,6 @@
 [project]
 name = "termapy"
-version = "0.78.0"
+version = "0.80.0"
 description = "A TUI serial terminal with ANSI color support, built on Textual and pyserial"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -34,8 +34,11 @@ dependencies = [
     # scripts=bash).  Upper bounds capped to the next-minor of the
     # currently-tested release; pre-1.0 tree-sitter libraries routinely
     # break their API between minor versions.  Bump the caps manually
-    # after smoke-testing a new release locally.
-    "tree-sitter>=0.25.0,<0.27",
+    # after smoke-testing a new release locally.  0.26.1 is excluded: on
+    # Windows / CPython 3.14.2 it crashes the process (access violation)
+    # while a TextArea loads its highlight query, 4 runs in 6 against 0 in 6
+    # for 0.26.0 (decision 2026-11-10).
+    "tree-sitter>=0.25.0,<0.26.1",
     "tree-sitter-json>=0.24.0,<0.25",
     "tree-sitter-toml>=0.6.0,<0.8",
     "tree-sitter-bash>=0.23.0,<0.26",
@@ -207,11 +210,13 @@ testpaths = ["tests"]
 # modules of that package, and the plugin loader executes a command file from
 # its path under its own module name -- so the 26 commands nothing imported by
 # name were never measured (2026-10-12; cap.py, port.py, mem.py, term.py ...).
-addopts = "-v --cov --cov-report=term-missing -n auto --dist loadgroup"
+addopts = "-v --cov --cov-report=term-missing -n auto --dist loadgroup --strict-markers"
 markers = [
-    "slow: subprocess-spawning, hw_loopback, or sleep-based test (~80s of full-suite runtime).  Skip during fast iteration with -m 'not slow'.",
+    "rule(id): the rule this test pins, a docs/rules.md row or a spec section id (tests/traceability.py SOURCES).  One marker per rule, pytestmark for a module; collection refuses an id no source holds.  --rule <id> runs the tests of one rule (docs/traceability.md).",
+    "slow: subprocess-spawning, hw_loopback, or sleep-based test.  Skip during fast iteration with -m 'not slow'.",
     "sw_loopback: software loopback, pyserial's virtual loop:// port.  No hardware; runs anywhere, CI included.",
     "hw_loopback: hardware loopback, a TX-RX-jumpered USB-serial adapter attached; found by serial number (TERMAPY_HW_LOOPBACK_SN, default BG03U7VTA).  Gated: deselected unless --run-hw-loopback, FAILS when absent under --require-hw-loopback (release_prep), refused on GitHub Actions.  Run with --run-hw-loopback -m hw_loopback -n 0 --no-cov.",
+    "timing: the result depends on wall-clock time (an elapsed bound, a real-time window, pacing or a timer), so a loaded machine can fail it.  Runs alone, after the parallel pass: pytest -m 'not timing', then pytest -m timing -n 0.",
 ]
 
 [tool.ty.environment]
@@ -220,7 +225,9 @@ markers = [
 # matching the sys.path redirect that vendor/__init__.py does at runtime.
 # scripts/ is here for the same reason: the tests that cover the release
 # scripts prepend it to sys.path and import them as top-level modules.
-extra-paths = ["src/termapy/vendor", "scripts"]
+# tests/: scripts/sync_traceability.py imports tests/traceability.py, the
+# marker index the suite and the matrix share, with tests/ put on sys.path.
+extra-paths = ["src/termapy/vendor", "scripts", "tests"]
 
 [tool.pyright]
 # The SAME vendored-pyserial facts, taught to Pylance/pyright (which do
@@ -278,9 +285,24 @@ exclude = ["src/termapy/usb/_vendors_full.py"]
 # to the Python floor ruff infers from requires-python: added 2026-10-17
 # when 3.10 was dropped, and it flags the next set when the floor moves.
 #
+# ANN (annotations) requires every function to be fully typed, added
+# 2026-11-06.  ty only checks code that has annotations: an unannotated
+# parameter is unknown to it, so `ctx.io.reslt()` on an untyped `ctx`
+# passes.  Without ANN, "type hints" is a style note that no gate checks.
+# ANN401 (explicit `Any`) stays off: an `Any` is a deliberate statement,
+# not a missing one.
+#
 # Adding a rule family is a deliberate change: select it here, fix the
 # findings, and land it on its own branch.
-select = ["E4", "E7", "E9", "F", "I", "UP"]
+select = ["E4", "E7", "E9", "F", "I", "UP", "ANN"]
+ignore = ["ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests follow pytest convention: fixtures and test functions go unannotated.
+"tests/**" = ["ANN"]
+# A board's starter firmware runs under MicroPython, which has no typing
+# module; it is outside ty's scope for the same reason ([tool.ty.src]).
+"src/termapy/boards/*/firmware/**" = ["ANN"]
 
 [tool.ruff.lint.isort]
 # Keep aliased members in the SAME statement as their siblings.  isort's

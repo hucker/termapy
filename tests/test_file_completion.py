@@ -39,8 +39,9 @@ def engine(tmp_path):
 class TestCompleteFileArg:
     """``complete_file_arg`` answers from the declared folder, nothing else."""
 
+    @pytest.mark.rule("file-arg-declared")
     def test_matches_come_newest_first(self, engine):
-        """file-arg-declared: matches are listed newest first, as /run.list orders them."""
+        """Matches are listed newest first, as /run.list orders them."""
         # Arrange
         eng, cfg_dir = engine
         _touch(cfg_dir / "run" / "a_old.run", age_s=100)
@@ -140,12 +141,12 @@ class TestDeclarations:
                 name="x", args="{filename}", help="h", handler=lambda ctx, args: None, files="runs"
             )
 
+    @pytest.mark.rule("file-arg-declared")
     @pytest.mark.parametrize(
         ("command", "folder"),
         [
             ("run", "run"),
             ("run.help", "run"),
-            ("run.legacy", "run"),
             ("run.edit", "run"),
             ("run.dump", "run"),
             ("run.rename", "run"),

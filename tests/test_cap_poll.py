@@ -1,7 +1,7 @@
 """``/cap.poll``: the scheduled polling loop, its files, its validation, and its stop.
 
-Runs on the ``CLITerminal`` DEMO rig (the ``tests/test_capture_claim.py``
-pattern): a real engine and the demo device, no mocks.  REPL commands
+Runs on the ``CLITerminal`` DEMO rig (``conftest.py``'s ``cli``): a real
+engine and the demo device, no mocks.  REPL commands
 (``/print``) drive the loop without the port; one test polls the device.
 The handler had no test at all until this file (2026-10-12).
 """
@@ -14,26 +14,6 @@ import time
 from pathlib import Path
 
 import pytest
-
-from termapy.cli import CLITerminal
-from termapy.defaults import DEFAULT_CFG
-
-
-@pytest.fixture
-def cli(tmp_path):
-    """A connected CLI on the DEMO port, its cfg folder under tmp_path."""
-    default_serial = DEFAULT_CFG["serial"]
-    assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
-    cfg = {**DEFAULT_CFG, "serial": {**default_serial, "port": "DEMO", "baud_rate": 115200}}
-    config_path = tmp_path / "rig" / "rig.cfg"
-    config_path.parent.mkdir()
-    config_path.write_text(json.dumps(cfg))
-    terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=120)
-    # The checkout has a real termapy_cfg/plugin/; keep it out of the lifecycle.
-    terminal.repl.global_root = tmp_path
-    assert terminal._connect() is True, "the DEMO port opens"
-    yield terminal
-    terminal._disconnect()
 
 
 def _cap_dir(tmp_path: Path) -> Path:
@@ -49,7 +29,7 @@ class TestTerminalPoll:
         # Assert
         out = capsys.readouterr().out
         assert result.success is True, result.error
-        assert result.value == "3", "the sample count is the scriptable value"
+        assert result.value == 3, "the sample count is the scriptable value"
         assert "counter   /print 42" in out, "the command is its own label"
         assert out.count("42") == 4, "three rows plus the label"
         assert "Poll complete (3 samples)" in out
@@ -98,6 +78,7 @@ class TestTerminalPoll:
 
 
 class TestFiles:
+    @pytest.mark.rule("writes-in-cfg-folder")
     def test_csv_file_gets_a_header_and_the_rows(self, cli, tmp_path):
         """file= writes a CSV under cap/ with the header row and one row per tick; the path is the value."""
         # Act
@@ -183,6 +164,7 @@ class TestValidation:
 
 
 class TestStop:
+    @pytest.mark.rule("plugin-never-clears-stop")
     def test_a_stop_already_requested_ends_the_poll_before_the_first_tick(self, cli):
         """The poll honors the script-stop event and never clears it: set beforehand, it samples nothing."""
         cli.repl._script_stop.set()
@@ -192,6 +174,7 @@ class TestStop:
             cli.repl._script_stop.clear()
         assert result.success is False and result.error == "Poll interrupted."
 
+    @pytest.mark.timing
     @pytest.mark.slow
     def test_a_stop_during_the_delay_wakes_it(self, cli, tmp_path):
         """A stop raised during the between-tick delay ends the poll at once, keeping the samples taken."""

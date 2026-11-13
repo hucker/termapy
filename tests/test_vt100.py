@@ -1,20 +1,29 @@
-"""Tests for vt100.py - settings/transform mappings, config resolution, streams.
+"""Tests for vt100.py - the passthrough session on the engine, settings, config resolution, streams.
 
-The byte pump itself is the vendored pyserial miniterm (its own concern), so
-there is no CLI-gold entry. The transform tests are the ground-truth check that
-the passthrough relays device bytes verbatim (no real device required).
+The console and key pump are the vendored pyserial miniterm (its own concern),
+so there is no CLI-gold entry.  The session tests drive a PassthroughSession on
+pyserial's loop:// port: what the device sends reaches the console verbatim and
+the session log as lines, and what is typed is never logged.
 """
 
 from __future__ import annotations
 
 import io
 import sys
+import time
 from argparse import Namespace
+from pathlib import Path
 
+import pytest
+
+from termapy.defaults import default_cfg
+from termapy.port_control import LOOPBACK_PORT
+from termapy.session_log import SESSION_END, SESSION_START
 from termapy.vt100 import (
+    PassthroughSession,
     _miniterm_settings,
-    _passthrough_transforms,
     _resolve_cfg,
+    _tx_transforms,
     _vscode_key_hint,
     run_vt100_mode,
 )
@@ -57,46 +66,19 @@ class TestMinitermSettings:
         assert actual_echo is False, "echo_input absent -> False"
 
 
-def _apply_rx(transforms, text):
-    for transform in transforms:
-        text = transform.rx(text)
-    return text
-
-
 def _apply_tx(transforms, text):
     for transform in transforms:
         text = transform.tx(text)
     return text
 
 
-class TestPassthroughTransforms:
-    """Ground truth for 'make it work right' without real hardware: a VT100
-    passthrough must relay device bytes verbatim and translate only Enter."""
-
-    # Canonical VT100/ANSI byte sequences a real device emits.
-    _SAMPLES = (
-        "\x1b[2J",  # clear screen
-        "\x1b[10;5H",  # cursor to row 10, col 5
-        "\x1b[1;31mERROR\x1b[0m",  # bold red text
-        "line one\r\nline two\r\n",  # CRLF line endings
-        "load 10%\rload 50%\rload 100%\r",  # bare-CR progress redraw
-        "\x07\x08\t",  # BEL, BS, TAB control bytes
-    )
-
-    def test_rx_is_byte_verbatim(self):
-        """Escape sequences, CR redraws and control bytes from the device reach the screen as-is."""
-        # Arrange
-        rx, _tx = _passthrough_transforms("\r")
-
-        # Act / Assert: every received sequence reaches the terminal unchanged.
-        for sample in self._SAMPLES:
-            actual = _apply_rx(rx, sample)
-            assert actual == sample, f"RX must pass {sample!r} through verbatim"
+class TestTxTransforms:
+    """The one transform on the typed side: Enter becomes the line ending, nothing else changes."""
 
     def test_tx_translates_only_enter(self):
         """Enter becomes the cfg line ending; arrow-key escapes and text go out untouched."""
         # Arrange
-        _rx, tx = _passthrough_transforms("\r")
+        tx = _tx_transforms("\r")
 
         # Act
         enter = _apply_tx(tx, "\n")
@@ -111,13 +93,148 @@ class TestPassthroughTransforms:
     def test_tx_honors_crlf_line_ending(self):
         """A CRLF line ending sends both bytes on Enter, not just CR."""
         # Arrange
-        _rx, tx = _passthrough_transforms("\r\n")
+        tx = _tx_transforms("\r\n")
 
         # Act
         actual = _apply_tx(tx, "x\n")
 
         # Assert
         assert actual == "x\r\n", "line_ending CRLF sends CR+LF on Enter"
+
+
+def _loop_cfg() -> dict:
+    """A default config on the software loopback, so a write comes straight back as RX."""
+    cfg = default_cfg()
+    cfg["serial"]["port"] = LOOPBACK_PORT
+    return cfg
+
+
+def _wait_for(condition, what: str, timeout_s: float = 3.0) -> None:
+    """Poll ``condition`` until it holds; fail naming ``what`` when it does not in time."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if condition():
+            return
+        time.sleep(0.02)
+    pytest.fail(f"timed out waiting for {what}")
+
+
+def _entries(log_path: Path) -> list[tuple[str, str]]:
+    """The session log as ``(marker, text)`` pairs, timestamps dropped."""
+    entries = []
+    for line in log_path.read_text(encoding="utf-8").splitlines():
+        marker, _, text = line.partition("] ")[2].partition(" ")
+        entries.append((marker, text))
+    return entries
+
+
+class _BadPort:
+    """A port whose first read fails, the engine's lost-device shape."""
+
+    is_open = True
+    in_waiting = 1
+
+    def read(self, _n):
+        raise OSError("read failed")
+
+    def close(self):
+        self.is_open = False
+
+
+@pytest.mark.sw_loopback
+@pytest.mark.rule("vt100-on-engine")
+class TestPassthroughSession:
+    """--vt100 on SerialEngine: raw bytes to the console, received lines to the TUI's log, keys unlogged."""
+
+    def test_received_lines_land_in_the_log_and_keys_do_not(self, tmp_path):
+        """Each received line is a `<` entry in the config's log, in order, across writes and within one; nothing typed is logged."""
+        # Arrange
+        config_path = tmp_path / "loop.cfg"
+        session = PassthroughSession(_loop_cfg(), str(config_path))
+        assert session.connect(), session.engine.last_error
+        console: list[str] = []
+        lost: list[str] = []
+        session.start(console_write=console.append, on_lost=lost.append)
+        log_path = tmp_path / "loop.log"
+        assert session.session_log_path() == log_path, "the TUI's file, <cfg>.log beside the config"
+
+        # Act: one line, then two in one write (the loopback echoes each key back)
+        session.write(b"hello\r\n")
+        session.write(b"two\r\nthree\r\n")
+        _wait_for(
+            lambda: "three" in log_path.read_text(encoding="utf-8"), "the third line in the log"
+        )
+        session.close()
+
+        # Assert
+        entries = _entries(log_path)
+        received = [text for marker, text in entries if marker == "<"]
+        assert received == ["hello", "two", "three"], "every received line, in order, as a < entry"
+        assert entries[0] == ("#", SESSION_START), "the log opens with Session Start"
+        assert entries[1] == ("#", f"VT100 passthrough: {LOOPBACK_PORT}"), (
+            "the session says which mode wrote it"
+        )
+        assert entries[-1] == ("#", SESSION_END), "close ends the log with Session End"
+        assert all(marker != ">" for marker, _ in entries), (
+            "nothing typed is logged: in passthrough the device's echo is the record"
+        )
+        assert lost == [], "a clean session reports no lost port"
+
+    def test_received_bytes_reach_the_console_verbatim(self, tmp_path):
+        """Escape sequences, bare-CR redraws and control bytes reach the console unchanged, and the log holds them ANSI-stripped."""
+        # Arrange: canonical VT100/ANSI byte sequences a real device emits
+        samples = (
+            "\x1b[10;5H",  # cursor to row 10, col 5
+            "\x1b[1;31mERROR\x1b[0m\r\n",  # bold red text
+            "load 10%\rload 50%\rload 100%\r",  # bare-CR progress redraw
+            "\x07\x08\t",  # BEL, BS, TAB control bytes
+            "line one\r\nline two\r\n",  # CRLF line endings
+        )
+        expected = "".join(samples)
+        config_path = tmp_path / "loop.cfg"
+        session = PassthroughSession(_loop_cfg(), str(config_path))
+        assert session.connect(), session.engine.last_error
+        console: list[str] = []
+        session.start(console_write=console.append, on_lost=lambda _d: None)
+
+        # Act
+        for sample in samples:
+            session.write(sample.encode())
+        _wait_for(
+            lambda: "".join(console).endswith("line two\r\n"), "the last sample on the console"
+        )
+        session.close()
+
+        # Assert
+        actual = "".join(console)
+        assert actual == expected, "the console gets every received byte as sent, nothing rewritten"
+        log_text = (tmp_path / "loop.log").read_text(encoding="utf-8")
+        assert "< ERROR" in log_text, "the log holds the line with its color codes stripped"
+        assert "\x1b" not in log_text, "no escape sequence reaches the log"
+
+    def test_lost_port_is_reported_once_and_the_log_still_ends(self, tmp_path):
+        """A port that fails is reported to the caller once and logged once, and close still writes Session End."""
+        # Arrange
+        config_path = tmp_path / "bad.cfg"
+        session = PassthroughSession(default_cfg(), str(config_path), open_fn=lambda _c: _BadPort())
+        assert session.connect(), "the open itself succeeds; the read is what fails"
+        lost: list[str] = []
+        session.start(console_write=lambda _t: None, on_lost=lost.append)
+
+        # Act
+        _wait_for(lambda: bool(lost), "the lost-port report")
+        session.write(b"x")  # a key after the loss must not report it again
+        session.close()
+
+        # Assert
+        assert lost == ["Serial error: OSError: read failed"], (
+            "one report, the reader's, although the engine also calls on_disconnect"
+        )
+        entries = _entries(tmp_path / "bad.log")
+        assert ("#", "Serial error: OSError: read failed") in entries, (
+            "the loss is in the transcript"
+        )
+        assert entries[-1] == ("#", SESSION_END), "the log ends cleanly after a lost port"
 
 
 class TestResolveCfgDemo:
@@ -166,7 +283,7 @@ class TestRunVt100ModeStreamRestore:
     def test_streams_restored_after_session(self, monkeypatch):
         """stdout and stderr are put back after a session so a second launch does not crash."""
         # Arrange: pretend stdout/stderr are real text streams, then make a
-        # fake Miniterm that (a) reads sys.stdout.buffer like the real Console
+        # fake key pump that (a) reads sys.stdout.buffer like the real Console
         # and (b) swaps the streams for objects without .buffer.
         sentinel_out = _FakeStream()
         sentinel_err = _FakeStream()
@@ -174,21 +291,25 @@ class TestRunVt100ModeStreamRestore:
         monkeypatch.setattr(sys, "stderr", sentinel_err)
 
         class _FakeConsole:
+            def write(self, _text):
+                pass
+
+            def cancel(self):
+                pass
+
             def cleanup(self):
                 pass
 
-        class _FakeMiniterm:
-            def __init__(self, port, echo=False, eol="crlf"):
+        class _FakePump:
+            def __init__(self, link, echo=False):
                 _ = sys.stdout.buffer  # mimic ConsoleBase: fails if not restored
                 self.console = _FakeConsole()
-                self.serial = port
+                self.serial = link
                 sys.stdout = object()  # leftover wrapper with no .buffer
                 sys.stderr = io.StringIO()
                 self.exit_character = ""
                 self.menu_character = ""
-
-            def set_rx_encoding(self, _enc):
-                pass
+                self.tx_transformations = []
 
             def set_tx_encoding(self, _enc):
                 pass
@@ -196,16 +317,16 @@ class TestRunVt100ModeStreamRestore:
             def start(self):
                 pass
 
+            def stop(self):
+                pass
+
             def join(self, transmit_only=False):
                 pass
 
-            def close(self):
-                self.serial.close()
-
-        monkeypatch.setattr("termapy.vendor.serial.tools.miniterm.Miniterm", _FakeMiniterm)
+        monkeypatch.setattr("termapy.vt100._KeyPump", _FakePump)
         args = Namespace(demo=True, config=None)
 
-        # Act: run twice; the second call constructs Miniterm again, which only
+        # Act: run twice; the second call constructs the pump again, which only
         # works if the first restored the streams.
         run_vt100_mode(args)
         result = run_vt100_mode(args)

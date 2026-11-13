@@ -85,6 +85,7 @@ def _squash(text: str) -> str:
 
 
 class TestCaptureOverlay:
+    @pytest.mark.timing  # the overlay's label is read before the capture's 1 s timer ends it
     def test_a_text_capture_shows_progress_and_ends_on_its_timer(self, app_factory):
         """A timed text capture mounts the overlay with a live label, disables the prompt, and tears down when the timer fires."""
 
@@ -145,8 +146,9 @@ class TestCaptureOverlay:
 
         _run(scenario)
 
+    @pytest.mark.rule("state-answered-by-gate")
     def test_a_second_capture_is_refused_while_one_runs(self, app_factory):
-        """state-answered-by-gate: a second capture is refused with the reason, and allowed once the first stops."""
+        """A second capture is refused with the reason, and allowed once the first stops."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -178,6 +180,7 @@ class TestCaptureOverlay:
 
         _run(scenario)
 
+    @pytest.mark.rule("script-overlay-owns-bar")
     def test_a_scripted_capture_leaves_the_bar_to_the_script(self, app_factory):
         """Inside a script the capture mounts no overlay of its own; the bar is usable again when the script ends."""
 
@@ -185,9 +188,10 @@ class TestCaptureOverlay:
             app, _, path = app_factory()
             folder = Path(path).parent / "run"
             folder.mkdir()
-            # The delay keeps the script alive long enough to be watched.
+            # The delay keeps the script alive long enough to be watched, on a
+            # loaded CI runner too, where a 300 ms window was missed whole.
             (folder / "cap.run").write_text(
-                "/cap.bin t.bin bytes=100000\n/delay 300ms\n/cap.stop\n",
+                "/cap.bin t.bin bytes=100000\n/delay 1500ms\n/cap.stop\n",
                 encoding="utf-8",
             )
             async with app.run_test(size=_SIZE) as pilot:

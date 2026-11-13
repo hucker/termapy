@@ -70,7 +70,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             if _is_stopped(ctx):
                 stopped = True
                 break
-            set_user_var(var_name, str(i + 1))
+            set_user_var(ctx, var_name, str(i + 1))
             ctx.dispatch(cmd)
             ran += 1
             if i < count - 1 and delay_s > 0:
@@ -78,7 +78,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
                     stopped = True
                     break
     finally:
-        unset_user_var(var_name)
+        unset_user_var(ctx, var_name)
 
     if stopped:
         # Same rule on the way out: inside a script the stop must survive so
@@ -89,9 +89,9 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ctx.io.result(f"Repeat stopped after {ran}/{count} iterations.")
         # Return how many iterations actually ran so scripts can detect
         # cancellation (ran < count) vs full completion.
-        return CmdResult.ok(value=str(ran))
+        return CmdResult.ok(value=ran)
 
-    return CmdResult.ok(value=str(ran))
+    return CmdResult.ok(value=ran)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────

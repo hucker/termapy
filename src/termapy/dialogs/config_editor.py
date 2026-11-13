@@ -21,26 +21,38 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, TextArea
 
 from termapy.config import (
-    BOOL_CFG_PATHS,
     ConfigExistsError,
     cfg_path_for_name,
+    check_cfg_value,
     create_config,
     prepare_cfg_folder,
     write_config_file,
 )
-from termapy.defaults import CFG_CHOICES, DEFAULT_CFG, cmd_prefix
-from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, EditorTextArea
+from termapy.defaults import (
+    MANAGED_CFG_KEYS,
+    STANDARD_BAUD_RATES,
+    cfg_key,
+    cfg_key_path,
+    cmd_prefix,
+)
+from termapy.dialogs._common import (
+    _DISMISS_BINDINGS,
+    _FIND_BINDINGS,
+    _MODAL_BTN_CSS,
+    EditorTextArea,
+    FindRow,
+)
 from termapy.dialogs.confirm_dialog import ConfirmDialog
 from termapy.markup import escape_markup
 from termapy.matching import closest
-from termapy.plugins import interpolate_help
+from termapy.plugins import PluginContext, interpolate_help
 from termapy.scripting import parse_bool
 
 
 class ConfigEditor(ModalScreen[tuple | None]):
     """Modal dialog to edit JSON config. Returns (cfg_dict, path) or None."""
 
-    BINDINGS = _DISMISS_BINDINGS
+    BINDINGS = [*_DISMISS_BINDINGS, *_FIND_BINDINGS]
 
     CSS = f"""
     ConfigEditor {{ align: center middle; }}
@@ -51,8 +63,8 @@ class ConfigEditor(ModalScreen[tuple | None]):
     }}
     #config-title {{ height: 1; text-style: bold; }}
     #config-editor {{ height: 1fr; border: thick $primary; }}
-    #config-help {{ height: 3; width: 1fr; }}
-    #config-error {{ height: 3; color: $error; display: none; width: 1fr; overflow-y: auto; }}
+    #config-help {{ height: 4; width: 1fr; }}
+    #config-error {{ height: 4; color: $error; display: none; width: 1fr; overflow-y: auto; }}
     #config-error.visible {{ display: block; }}
     #save-as-row {{ height: 1; display: none; }}
     #save-as-row.visible {{ display: block; }}
@@ -65,8 +77,8 @@ class ConfigEditor(ModalScreen[tuple | None]):
        it appears and the styling is Textual's to maintain.  Only
        the width is ours. */
     #save-as-input {{ width: 1fr; }}
-    #config-bottom {{ height: 3; }}
-    #config-btn-col {{ width: auto; layout: horizontal; align: right middle; height: 3; content-align: right middle; }}
+    #config-bottom {{ height: 4; }}
+    #config-btn-col {{ width: auto; layout: horizontal; align: right middle; height: 4; content-align: right middle; }}
     """
 
     def action_dismiss_modal(self) -> None:
@@ -80,6 +92,8 @@ class ConfigEditor(ModalScreen[tuple | None]):
         highlight_key: str = "",
         *,
         is_new: bool = False,
+        used_by: dict[str, list[tuple[str, str]]] | None = None,
+        ctx: PluginContext | None = None,
     ) -> None:
         """Edit ``cfg``, saved to ``config_path``.
 
@@ -92,11 +106,18 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 ``config.create_config``, asking before replacing a
                 config already there, and the editor shows ``cfg``
                 rather than that file.
+            used_by: Key path to the commands that declared it
+                (``plugins.cfg_users``), named on the key's help line;
+                the data comes in so the dialog needs no engine.
+            ctx: The session's context, whose user variables count as set
+                when a field names one.  Without it only the process's do.
         """
         super().__init__()
         self.cfg = cfg
         self.config_path = config_path
         self._is_new = is_new
+        self._used_by = used_by or {}
+        self._ctx = ctx if ctx is not None else PluginContext()
         self._save_as_mode = False
         self._highlight_key = highlight_key
         # Read raw JSON from disk so $(env.NAME) templates are visible
@@ -113,13 +134,15 @@ class ConfigEditor(ModalScreen[tuple | None]):
 
         with Vertical(id="config-dialog"):
             yield Static(f"JSON: {self.config_path}", id="config-title", markup=False)
-            yield EditorTextArea(
+            editor = EditorTextArea(
                 json.dumps(self._disk_cfg, indent=4),
                 language="json",
                 theme="monokai",
                 show_line_numbers=True,
                 id="config-editor",
             )
+            yield editor
+            yield FindRow(editor, id="config-find")
             with Horizontal(id="save-as-row"):
                 yield Input(
                     placeholder="filename.cfg",
@@ -130,6 +153,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
                 yield Static("", id="config-help", markup=False)
                 yield Static("", id="config-error", markup=False)
                 with Horizontal(id="config-btn-col"):
+                    yield Button("Find", id="cfg-find", variant="warning")
                     yield Button("Save", id="cfg-save", variant="success")
                     yield Button("Save As", id="cfg-save-as", variant="primary")
                     yield Button("Cancel", id="cfg-cancel", variant="error")
@@ -142,6 +166,9 @@ class ConfigEditor(ModalScreen[tuple | None]):
         self.query_one(
             "#save-as-input", Input
         ).tooltip = "New filename for Save As (the .cfg extension is added automatically)."
+        self.query_one(
+            "#cfg-find", Button
+        ).tooltip = "Find text in the JSON (Ctrl+F; Alt+F in VS Code)."
         self.query_one("#cfg-save", Button).tooltip = "Validate and save changes to this config."
         self.query_one("#cfg-save-as", Button).tooltip = "Save the config to a new filename."
         self.query_one("#cfg-cancel", Button).tooltip = "Discard changes and close."
@@ -171,33 +198,6 @@ class ConfigEditor(ModalScreen[tuple | None]):
 
     _JSON_KEY_RE = re.compile(r'^\s*"([^"]+)"\s*:\s*(.*?)\s*,?\s*$')
 
-    # The fixed-value keys and their values, the table validate_config
-    # checks at Save, so the live check and the Save cannot disagree.
-    _VALID_VALUES: dict[str, set] = {key: set(choices) for key, choices in CFG_CHOICES.items()}
-    # Derived from DEFAULT_CFG so adding a new bool/int key to defaults
-    # automatically picks up validation here -- no parallel list to drift.
-    # The bool keys come from BOOL_CFG_PATHS, which covers the nested
-    # serial keys (custom_baud) too; "enabled" is added explicitly because
-    # it lives inside the custom_buttons list rather than at a dict path.
-    _BOOL_KEYS = {path[-1] for path in BOOL_CFG_PATHS} | {"enabled"}
-    _INT_KEYS = {
-        k for k, v in DEFAULT_CFG.items() if isinstance(v, int) and not isinstance(v, bool)
-    }
-    _STANDARD_BAUDS = {
-        300,
-        1200,
-        2400,
-        4800,
-        9600,
-        19200,
-        38400,
-        57600,
-        115200,
-        230400,
-        460800,
-        921600,
-    }
-
     def _validate_value(self, key: str, raw_val: str) -> tuple[str, str]:
         """Check a raw JSON value string.
 
@@ -207,23 +207,48 @@ class ConfigEditor(ModalScreen[tuple | None]):
             (non-standard), or red (invalid); error is the detail message
             or empty string.
         """
-        # Template values - resolve, show expansion, then validate resolved value
+        # Template values.  A $(env.NAME) is expanded at load, so the editor
+        # expands it here and validates the result.  Any other $(NAME) is a
+        # session variable the variables engine expands when the value is
+        # used ($(CFG) in echo_fmt), so the editor says so and checks only
+        # that the name exists -- through the namespace's one owner.
         if "$(" in raw_val:
             import re as _re
 
             from termapy.config import expand_env_str
+            from termapy.variables import resolve_one, variable_refs
 
             template = raw_val.strip().strip('"')
             # Highlight $(var) references in cyan, in the escaped template
             highlighted_markup = _re.sub(r"(\$\([^)]+\))", r"[cyan]\1[/]", escape_markup(template))
             key_markup = escape_markup(key)
             resolved = expand_env_str(template)
-            if resolved == template:
+            names = variable_refs(resolved)
+            unset = [name for name in names if name.startswith("env.")]
+            if unset:
+                refs = ", ".join(f"$({name})" for name in unset)
                 return (
                     f"[yellow]{key_markup}[/] = {highlighted_markup}",
-                    "[yellow]variable - not resolved[/]",
+                    f"[yellow]variable - not resolved: {escape_markup(refs)} is not set in the "
+                    "environment[/]",
                 )
-            if key in self._BOOL_KEYS:
+            if names:
+                unknown = [name for name in names if resolve_one(self._ctx, name) is None]
+                if unknown:
+                    refs = ", ".join(f"$({name})" for name in unknown)
+                    return (
+                        f"[yellow]{key_markup}[/] = {highlighted_markup}",
+                        f"[yellow]unknown variable: {escape_markup(refs)}[/]",
+                    )
+                refs = ", ".join(f"$({name})" for name in names)
+                verb = "is a session variable" if len(names) == 1 else "are session variables"
+                note = f"{refs} {verb}, expanded when the value is used"
+                return (
+                    f"[green]{key_markup}[/] = {highlighted_markup}",
+                    f"[dim]{escape_markup(note)}[/]",
+                )
+            record = cfg_key(key)
+            if record is not None and record.kind == "bool":
                 # A templated boolean is read with the vocabulary at load
                 # (config.expand_env_cfg); show what it reads as.
                 try:
@@ -242,110 +267,68 @@ class ConfigEditor(ModalScreen[tuple | None]):
         val = raw_val.strip().strip('"')
         # ``key = val`` as escaped markup, the text every status below colors
         pair_markup = escape_markup(f"{key} = {val}")
-        error = ""
-        if key in self._BOOL_KEYS:
-            # JSON grammar, not termapy's vocabulary: the editor edits the
-            # JSON text, so the value must be the literal true or false.
-            try:
-                parsed_bool = json.loads(raw_val.strip())
-            except (json.JSONDecodeError, ValueError):
-                parsed_bool = None
-            if not isinstance(parsed_bool, bool):
-                error = "[red]must be true or false[/]"
-        elif key in self._VALID_VALUES:
-            try:
-                parsed = json.loads(raw_val.strip())
-            except (json.JSONDecodeError, ValueError):
-                parsed = val
-            if parsed not in self._VALID_VALUES[key]:
-                opts = ", ".join(str(v) for v in sorted(self._VALID_VALUES[key]))
-                error = f"[red]must be one of: {escape_markup(opts)}[/]"
-        elif key == "port":
-            # comports() can fail with OSError on permission/driver
-            # issues (Linux udev, macOS IOKit, Windows WMI) and with
-            # ImportError if pyserial's list_ports backend isn't
-            # available on this platform.  Both are environmental;
-            # degrade to the neutral display.  Anything else is a
-            # bug and should surface.
-            try:
-                from serial.tools.list_ports import comports
-
-                from termapy import port_control
-
-                if port_control.synthetic_facts_for_reserved(val.upper()) is not None:
-                    return f"[green]{pair_markup}[/] [dim](simulated port)[/]", ""
-                # Present as connecting would resolve it: a serial number counts too.
-                if port_control.port_present(val):
-                    return f"[green]{pair_markup}[/]", ""
-                available = {port.device for port in comports()}
-                if available:
-                    ports_markup = escape_markup(", ".join(sorted(available)))
-                    return (
-                        f"[yellow]{pair_markup}[/]",
-                        f"[yellow]port not found (available: {ports_markup})[/]",
-                    )
-                return f"[dim]{pair_markup}[/]", ""
-            except (OSError, ImportError):
-                return f"[dim]{pair_markup}[/]", ""
-        elif key == "baud_rate":
-            try:
-                v = json.loads(raw_val.strip())
-                if not isinstance(v, int) or v <= 0:
-                    error = "[red]must be a positive integer[/]"
-                elif v not in self._STANDARD_BAUDS:
-                    custom = False
-                    # The user is typing in the editor -- the JSON is
-                    # routinely invalid between edits.  Treat any parse
-                    # failure as "custom_baud unknown" without spamming;
-                    # NoMatches covers the editor widget being gone
-                    # during teardown.
-                    try:
-                        editor_cfg = json.loads(self.query_one("#config-editor", TextArea).text)
-                        custom = editor_cfg.get("serial", {}).get("custom_baud", False)
-                    except (json.JSONDecodeError, ValueError, NoMatches):
-                        pass
-                    if custom and v >= 300:
-                        return f"[green]{pair_markup}[/] [dim](custom)[/]", ""
-                    elif custom:
-                        return f"[red]{pair_markup}[/]", "[red]custom baud requires >= 300[/]"
-                    else:
-                        return (
-                            f"[yellow]{pair_markup}[/]",
-                            "[yellow]non-standard rate -- set custom_baud to true[/]",
-                        )
-            except (json.JSONDecodeError, ValueError):
-                error = "[red]must be a positive integer[/]"
-        elif key in self._INT_KEYS:
-            try:
-                v = json.loads(raw_val.strip())
-                if not isinstance(v, int):
-                    error = "[red]must be an integer[/]"
-                elif v < 0:
-                    error = "[red]must be positive[/]"
-            except (json.JSONDecodeError, ValueError):
-                error = "[red]must be an integer[/]"
-        elif key == "eol":
-            # Decode escape sequences via JSON, then require the result
-            # to contain only CR/LF/NUL/ETX/EOT bytes (any combination).
-            # Rejects junk like "abc" or "CRAP" that the green-default
-            # would otherwise pass through.
-            try:
-                parsed = json.loads(raw_val.strip())
-            except (json.JSONDecodeError, ValueError):
-                parsed = val
-            if not isinstance(parsed, str) or not all(c in "\r\n\0\x03\x04" for c in parsed):
-                error = (
-                    r"[red]must be CR/LF/NUL/ETX/EOT bytes only "
-                    r'(e.g. "", "\r", "\n", "\r\n", "\0", '
-                    r'"\u0003" (ETX), "\u0004" (EOT))[/]'
-                )
-        if error:
-            return f"[red]{pair_markup}[/]", error
-        # Reached only for known keys (CFG_HELP entry exists) with no
-        # error.  Either explicitly validated above (bool/int/enum/
-        # port/baud) or a free-form string with no validation rule --
-        # both render green to signal "recognized field, value OK".
+        record = cfg_key(key)
+        # A section or a list opens over several lines, so this line alone
+        # says nothing about it; Save checks the whole value.
+        if record is None or record.kind in ("section", "list"):
+            return f"[green]{pair_markup}[/]", ""
+        # The JSON text as a value.  Between edits a line is routinely not
+        # JSON yet, and then it is the text as typed, which the check judges.
+        try:
+            value = json.loads(raw_val.strip())
+        except (json.JSONDecodeError, ValueError):
+            value = val
+        # The one check a load and /cfg use (registry cfg-schema-one-table).
+        finding = check_cfg_value(key, value, self._editor_cfg())
+        if finding is not None:
+            reason_markup = escape_markup(finding.reason)
+            return f"[red]{pair_markup}[/]", f"[red]{reason_markup}[/]"
+        if record.kind == "port":
+            return self._port_status(val, pair_markup)
+        if record.kind == "baud" and value not in STANDARD_BAUD_RATES:
+            return f"[green]{pair_markup}[/] [dim](custom)[/]", ""
         return f"[green]{pair_markup}[/]", ""
+
+    def _editor_cfg(self) -> dict:
+        """The config as the editor holds it now, ``{}`` while it is not valid JSON.
+
+        The user is typing, so the JSON is routinely invalid between edits;
+        NoMatches covers the editor widget being gone during teardown.
+        """
+        try:
+            parsed = json.loads(self.query_one("#config-editor", TextArea).text)
+        except (json.JSONDecodeError, ValueError, NoMatches):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
+    def _port_status(self, val: str, pair_markup: str) -> tuple[str, str]:
+        """What only a live editor can say about a port: whether it is plugged in now.
+
+        system_ports() can fail with OSError on permission/driver issues
+        (Linux udev, macOS IOKit, Windows WMI) and with ImportError if
+        pyserial's list_ports backend isn't available on this platform.
+        Both are environmental, so they degrade to the neutral display.
+        Anything else is a bug and should surface.
+        """
+        try:
+            from termapy import port_control
+            from termapy.port_control import system_ports
+
+            if port_control.synthetic_facts_for_reserved(val.upper()) is not None:
+                return f"[green]{pair_markup}[/] [dim](simulated port)[/]", ""
+            # Present as connecting would resolve it: a serial number counts too.
+            if port_control.port_present(val):
+                return f"[green]{pair_markup}[/]", ""
+            available = {port.device for port in system_ports()}
+            if available:
+                ports_markup = escape_markup(", ".join(sorted(available)))
+                return (
+                    f"[yellow]{pair_markup}[/]",
+                    f"[yellow]port not found (available: {ports_markup})[/]",
+                )
+            return f"[dim]{pair_markup}[/]", ""
+        except (OSError, ImportError):
+            return f"[dim]{pair_markup}[/]", ""
 
     def _update_help(self) -> None:
         """Update the help text based on the current cursor line."""
@@ -387,7 +370,8 @@ class ConfigEditor(ModalScreen[tuple | None]):
         status_markup, error_markup = self._validate_value(key, raw_val)
 
         # Build help text: line number, description, valid values, current value, error/preview
-        heading = [f"[dim]Line {row + 1:d}: {escape_markup(desc)}[/]"]
+        warning_markup = "[bold red]DO NOT EDIT[/] - " if key in MANAGED_CFG_KEYS else ""
+        heading = [f"[dim]Line {row + 1:d}:[/] {warning_markup}[dim]{escape_markup(desc)}[/]"]
         if valid:
             heading.append(f"Valid: [dim italic]{escape_markup(valid)}[/]")
         lines = [*heading, f"Value: {status_markup}"]
@@ -400,6 +384,13 @@ class ConfigEditor(ModalScreen[tuple | None]):
             preview = preview_fn(raw_val)
             if preview:
                 lines.append(preview)
+        # The commands that declared the key (registry cfg-declared); the
+        # line's key is a leaf, so serial's port resolves to its path.
+        path = cfg_key_path(key)
+        users = self._used_by.get(path, ()) if path else ()
+        if users:
+            names_markup = ", ".join(escape_markup(prefix + name) for name, _ in users)
+            lines.append(f"[dim]Used by:[/] {names_markup}")
         # Rich markup with every value escaped, so only a preview of the
         # user's own markup (an echo_fmt) can be malformed: Rich raises
         # MarkupError on mismatched tags.  NoMatches covers the widget
@@ -411,11 +402,11 @@ class ConfigEditor(ModalScreen[tuple | None]):
             lines_safe = [*heading, "Value: [red]<invalid Rich formatting>[/]"]
             help_widget.update(Text.from_markup("\n".join(lines_safe)))
 
-    def on_text_area_selection_changed(self, event) -> None:
+    def on_text_area_selection_changed(self, event: TextArea.SelectionChanged) -> None:
         """Update help when cursor moves."""
         self._update_help()
 
-    def on_text_area_changed(self, event) -> None:
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Update help when text changes (live validation)."""
         self._update_help()
         self._check_json()
@@ -499,6 +490,14 @@ class ConfigEditor(ModalScreen[tuple | None]):
             err.add_class("visible")
             return
         self.dismiss((new_cfg, path))
+
+    def action_find(self) -> None:
+        """Ctrl+F / Alt+F: open the find bar."""
+        self.query_one("#config-find", FindRow).open()
+
+    @on(Button.Pressed, "#cfg-find")
+    def find_pressed(self) -> None:
+        self.action_find()
 
     @on(Button.Pressed, "#cfg-save-as")
     def save_as_config(self) -> None:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 
 if TYPE_CHECKING:
@@ -31,7 +32,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not args:
         raise UsageError()
     try:
-        ctx.serial.write(args.encode(ctx.cfg.get("encoding", "utf-8")))
+        ctx.serial.write(args.encode(cfg_value(ctx.cfg, "encoding")))
     # OSError covers pyserial's SerialException; the encode can fail on a
     # character outside the cfg encoding, or on an unknown encoding.
     except (OSError, UnicodeError, LookupError) as e:
@@ -49,12 +50,14 @@ COMMAND = Command(
     help="Send raw text to serial (no transforms or line ending).",
     long_help=(
         "Sends the text exactly as typed, encoded with the config's\n"
-        "encoding: no line ending, no $(VAR) expansion, no transforms.\n"
-        "Use it for a partial line or a device that frames without a\n"
-        "line ending.  For a literal line WITH the line ending, use\n"
-        "{prefix}term.send."
+        "encoding: no line ending, no $(VAR) expansion, no transforms,\n"
+        "and no pacing (tx_char_delay_ms and tx_line_delay_ms apply to\n"
+        "lines only).  Use it for a partial line or a device that frames\n"
+        "without a line ending.  For a literal line WITH the line ending,\n"
+        "paced, use {prefix}term.send."
     ),
     handler=_handler,
+    cfg={"encoding": "encodes the text sent"},
     needs=CapabilitySet.SERIAL_CONNECTED,
     raw_args=True,
 )

@@ -1,0 +1,1502 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+        <link rel="prev" href="./firmware-json.html">
+      
+      
+        <link rel="next" href="./file-transfer.html">
+      
+      
+        
+      
+      
+      <link rel="icon" href="./assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.1.1">
+    
+    
+      
+        <title>Dev Boards - Termapy Help v0.80.0</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.ebb7f775.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="./assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+    <script>__md_scope=new URL(".",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./index.html" title="Termapy Help v0.80.0" class="md-header__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Termapy Help v0.80.0
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Dev Boards
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./index.html" title="Termapy Help v0.80.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    Termapy Help v0.80.0
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./installation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Installation
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./environment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Environment & compatibility
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./demo.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Demo Mode
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./getting-started.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Getting Started
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./config.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Configuration
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./ports.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Serial Ports
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Command-Line Flags
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./vt100.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  VT100 Mode
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./custom-buttons.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Custom Buttons
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./toolbar.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Toolbar & Shortcuts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./commands.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  REPL Commands
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./variables.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Variables
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./scripting.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Scripting
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./serial-tools.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Serial Tools
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./protocol-testing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Protocol Testing
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./data-capture.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data Capture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./symbols.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Symbols
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./devices.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Devices
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Memory
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./firmware.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Firmware
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./firmware-json.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Integration
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Dev Boards
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="boards.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Dev Boards
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#raspberry-pi-pico" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Raspberry Pi Pico
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#esp32-s3-devkitc-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        ESP32-S3 DevKitC-1
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Memory
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-boards-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The board's commands
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./file-transfer.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  File Transfer
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./writing-plugins.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Writing Plugins
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./device-help.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Device Help
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./authoring-profiles.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Authoring Profiles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./mcp-server.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MCP Server
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./using-git.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Using with Git
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./on-ai-assistance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  On AI Assistance
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./acknowledgments.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Acknowledgments
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#raspberry-pi-pico" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Raspberry Pi Pico
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#esp32-s3-devkitc-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        ESP32-S3 DevKitC-1
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Memory
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-boards-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The board's commands
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+
+<h1 id="dev-boards">Dev boards<a class="headerlink" href="#dev-boards" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>Status: prototype.</strong> This is new and incomplete: its commands, files and behavior may change or be removed in any release.</p>
+</blockquote>
+<p>A dev board starter turns a new board into a device termapy drives on day
+one. It holds the code that runs on the board, plus a host config and a
+device profile. The board answers at an interactive prompt, its commands
+show in <code>/help</code>, and an MCP agent gets them as typed tools. This is real
+hardware; the simulator is <code>/demo</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Board</th>
+<th>Runs</th>
+<th>Device code</th>
+<th>Board commands</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pico</code></td>
+<td>MicroPython</td>
+<td><code>main.py</code>, <code>termapy_json.py</code>, <code>termapy_mem.py</code></td>
+<td><code>help</code>, <code>led</code>, <code>temp</code>, <code>id</code>, <code>json</code>, <code>MEM.*</code></td>
+</tr>
+<tr>
+<td><code>esp32s3</code></td>
+<td>MicroPython</td>
+<td><code>main.py</code>, <code>termapy_json.py</code>, <code>termapy_mem.py</code></td>
+<td><code>help</code>, <code>led</code>, <code>led_rgb</code>, <code>temp</code>, <code>id</code>, <code>json</code>, <code>MEM.*</code></td>
+</tr>
+</tbody>
+</table>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>/board                    the boards, and which is plugged in now
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>/board.firmware pico      copy the board's device code here, for flashing
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>/board.new pico           create the config and profile for the attached board
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>/cfg.load pico            switch to it
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>termapy --board pico      the same from the command line: create once, then start it
+</span></code></pre></div>
+<p>The config connects by the board's USB serial number, so a COM number
+that moves between plug-ins does not matter, and the same config works on
+Windows, Linux and macOS. <code>/board.new</code> finds the board by its USB VID:PID.
+When several are attached it takes the first and says how many it skipped.
+With none attached it says whether the board is missing or attached but
+not running MicroPython yet.</p>
+<p>Everything for the board lands in its config's folder: the config, its
+profile, and the device code in <code>firmware/</code>, so a new board is one folder
+under <code>termapy_cfg/</code> and nothing in the folder you started termapy from.</p>
+<p>Board setup never replaces anything. A config by the same name stops it,
+and so does any config that already connects to the attached board:
+<code>/board.new</code> names that config instead of making a second one, and
+<code>termapy --board</code> starts it. termapy does not write to the board itself;
+flashing it and copying the device code onto it are your steps.</p>
+<h2 id="raspberry-pi-pico">Raspberry Pi Pico<a class="headerlink" href="#raspberry-pi-pico" title="Permanent link">&para;</a></h2>
+<p>The starter runs on MicroPython, so the first time takes three steps and
+no compiler:</p>
+<ol>
+<li><strong>Flash MicroPython.</strong> Hold BOOTSEL while plugging the board in; it
+   appears as a drive named <code>RPI-RP2</code>. Download the <code>RPI_PICO</code> <code>.uf2</code> from
+   micropython.org and drag it onto the drive. The board restarts as a USB
+   serial port.</li>
+<li><strong>Copy the device code.</strong> <code>/board.firmware pico</code> writes <code>main.py</code>,
+   <code>termapy_json.py</code> and <code>termapy_mem.py</code> to the active config's
+   <code>firmware/</code> folder and prints the one command that puts them on the
+   board, with the board's port and the files' full paths:
+   <code>uvx mpremote connect COM5 cp ...\main.py ...\termapy_json.py ...\termapy_mem.py : + reset</code>.
+   MicroPython then runs <code>main.py</code> at every power-up.</li>
+<li><strong>Create the config.</strong> <code>/board.new pico</code>, then <code>/cfg.load pico</code>, or
+   start termapy with <code>termapy --board pico</code>.</li>
+</ol>
+<p>The on-chip sensor reads a few degrees off and is noisy; the RP2040
+datasheet says as much.</p>
+<h2 id="esp32-s3-devkitc-1">ESP32-S3 DevKitC-1<a class="headerlink" href="#esp32-s3-devkitc-1" title="Permanent link">&para;</a></h2>
+<p>The board has two USB ports. Use the one wired to the chip's own USB
+(usually marked USB): there the board has a unique serial number. The
+other port goes through a USB-to-UART bridge chip, which reports its own
+maker and no serial number, so nothing on it says which board it is.</p>
+<ol>
+<li><strong>Flash MicroPython.</strong> Download <code>ESP32_GENERIC_S3</code> from micropython.org:
+   the SPIRAM_OCT build for a module with octal PSRAM (N8R8, N16R8; esptool
+   shows it as "Embedded PSRAM 8MB"), the plain one otherwise. Then, with
+   the port the chip's USB shows now:</li>
+</ol>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>uvx esptool --chip esp32s3 --port COM8 erase-flash
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>uvx esptool --chip esp32s3 --port COM8 write-flash 0 ESP32_GENERIC_S3-SPIRAM_OCT-&lt;date&gt;-v&lt;version&gt;.bin
+</span></code></pre></div>
+<p>The board restarts as a new serial port, MicroPython's (<code>303A:4001</code>).
+2. <strong>Copy the device code.</strong> <code>/board.firmware esp32s3</code>, then the
+   <code>uvx mpremote</code> line it prints, as on the Pico.
+3. <strong>Create the config.</strong> <code>/board.new esp32s3</code>, then <code>/cfg.load esp32s3</code>,
+   or start termapy with <code>termapy --board esp32s3</code>.</p>
+<p>The board's RGB LED on GPIO48 is a red, a green and a blue LED in one
+package, each with its own level. <code>led</code> switches it as on the Pico: <code>on</code>
+is a dim white, every level 32. <code>led_rgb</code> sets the three levels:
+<code>led_rgb 255 0 0</code> is full red, each level 0 to 255 in decimal or <code>0x</code> hex.
+A level out of range is refused, not clipped. Bare <code>led_rgb</code> reports the
+levels: <code>[255,0,0]</code> in JSON, one level per line in text. A board with its
+LED on another pin changes one line of <code>main.py</code>. <code>id</code> is the chip's
+factory MAC address. MicroPython answers on the UART port too, but the
+config uses the chip's own USB, by its serial number.</p>
+<h2 id="memory">Memory<a class="headerlink" href="#memory" title="Permanent link">&para;</a></h2>
+<p>Both boards answer the MEM commands that <code>/mem.*</code> speaks (<a href="memory.html">Memory</a>),
+from <code>termapy_mem.py</code>: <code>MEM.R</code>, <code>MEM.W</code>, <code>MEM.M</code> and <code>MEM.INFO</code>. The board
+reads and writes whatever address it is given and knows nothing about its
+memory; checking the address is termapy's job, from the JSON that
+describes the part. termapy does not check yet, so for now an address the
+chip cannot reach resets it. A board that must fence memory off passes a
+guard to <code>direct()</code> in <code>main.py</code>: <code>guard(addr, count, write)</code> sees every
+access first, and returning False refuses it with <code>ERR range</code>. The MEM
+replies are the wire spec's text even when the board answers MCP in JSON,
+so <code>/mem.*</code> works the same in the TUI and over MCP.</p>
+<p>This is full access to the chip, so an MCP agent gets it in two tiers. It
+reads with <code>/mem.read</code>, <code>/mem.dump</code> and <code>/mem.info</code> freely. Every write
+(<code>/mem.write</code>, <code>.or</code>, <code>.and</code>, <code>.xor</code>, <code>.clear</code>, <code>.not</code>) and every raw
+<code>MEM.R</code>, <code>MEM.W</code> or <code>MEM.M</code> is destructive: it runs only after you confirm
+it.</p>
+<h2 id="the-boards-commands">The board's commands<a class="headerlink" href="#the-boards-commands" title="Permanent link">&para;</a></h2>
+<p>Each board answers one command per line:</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Text reply</th>
+<th>JSON reply</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>help</code></td>
+<td>one <code>name  help</code> line per command</td>
+<td><code>{"result":{"led":"the onboard LED...",...}}</code></td>
+</tr>
+<tr>
+<td><code>help &lt;command&gt;</code></td>
+<td>that command's help line</td>
+<td><code>{"result":"the on-chip temperature in degrees C"}</code></td>
+</tr>
+<tr>
+<td><code>led</code></td>
+<td>the LED's state</td>
+<td><code>{"result":"on"}</code></td>
+</tr>
+<tr>
+<td><code>led on\|off\|1\|0</code></td>
+<td>the new state, and the LED follows</td>
+<td><code>{"result":"off"}</code></td>
+</tr>
+<tr>
+<td><code>led_rgb</code></td>
+<td>ESP32-S3: the levels, one per line</td>
+<td><code>{"result":[255,0,0]}</code></td>
+</tr>
+<tr>
+<td><code>led_rgb &lt;r&gt; &lt;g&gt; &lt;b&gt;</code></td>
+<td>ESP32-S3: the new levels</td>
+<td><code>{"result":[0,0,32]}</code></td>
+</tr>
+<tr>
+<td><code>temp</code></td>
+<td>degrees C, such as <code>21.4</code></td>
+<td><code>{"result":21.4}</code>, a number</td>
+</tr>
+<tr>
+<td><code>id</code></td>
+<td>the board's unique ID in hex</td>
+<td><code>{"result":"E66548545710822C"}</code></td>
+</tr>
+<tr>
+<td><code>json {on\|off}</code></td>
+<td>the framing, <code>on</code> or <code>off</code></td>
+<td><code>{"result":"on"}</code></td>
+</tr>
+<tr>
+<td><code>MEM.R</code>, <code>MEM.W</code>, <code>MEM.M</code>, <code>MEM.INFO</code></td>
+<td>the <a href="memory.html">memory wire spec</a>'s rows, <code>OK</code> or <code>ERR</code></td>
+<td>the same text: MEM keeps its own</td>
+</tr>
+</tbody>
+</table>
+<p>The board speaks two framings. Text, the default, is for a person: a reply
+is the value, and an error is <code>ERR &lt;reason&gt;</code>. JSON is for termapy's MCP
+server and any JSON-RPC client: each reply is one JSON-RPC 2.0 response
+line, the same contract as the C module on <a href="firmware-json.html">JSON integration</a>,
+with an error as <code>{"error":{"code":...,"message":...}}</code>. <code>json on</code> switches
+to it, and a request line such as <code>{"method":"temp","id":1}</code> switches by
+itself and gets its <code>id</code> back. Each board's config sends <code>json on</code> at
+every connect, so the TUI, the CLI and an MCP agent all see the same JSON.
+On screen termapy shows each JSON line the board sends indented and
+highlighted (<code>/term.json_fmt</code>), while the session log and captures keep it as
+it arrived. <code>/term.json_fmt.indent 0</code> with <code>/term.json_fmt.highlight off</code> shows
+the lines as they arrive.</p>
+<p>Each command in <code>main.py</code> is a row of its <code>COMMANDS</code> table: the name, a
+one-line help and the handler, which takes the argument words and returns
+the reply value. <code>help</code> reads its answer from that table, so a new command
+is a handler and a row, and <code>help</code> lists it at once. <code>termapy_json.py</code> is
+the monitor itself, one file every MicroPython board shares.</p>
+<p><code>main.py</code> runs asyncio. The monitor is one task, <code>monitor.run()</code>, and your
+project's own tasks start beside it in <code>main()</code>. The monitor answers a
+command once its line ending (CR, LF or both) is in, then yields to the
+other tasks; with nothing waiting it sleeps 10 ms. A line longer than 512
+characters is refused with <code>ERR line too long</code>. A project with a super loop
+of its own calls <code>monitor.poll()</code> on every pass instead: it never waits,
+answers at most one command, and keeps a partial line for the next pass. A
+board that only answers commands can call <code>serve(COMMANDS)</code>, which waits
+for each character.</p>
+<p>The board's profile describes every command in this table and every form
+of it, <code>help</code> and <code>json</code> included, so <code>/help</code> shows them all and an MCP
+agent can call each one, its arguments checked before they are sent. A new
+command also gets its profile entry; the starter's tests fail until it has
+one.</p>
+<p>Ctrl-C stops the monitor and leaves the MicroPython <code>&gt;&gt;&gt;</code> prompt; Ctrl-D
+restarts it. In the TUI, press <strong>Ctrl+C</strong> with no text selected, and
+<strong>Ctrl+D</strong> on an empty prompt. From a script, the CLI or an MCP agent, send
+them with <code>/term.ctrl c</code> and <code>/term.ctrl d</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="./firmware-json.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: JSON Integration">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                JSON Integration
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="./file-transfer.html" class="md-footer__link md-footer__link--next" aria-label="Next: File Transfer">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                File Transfer
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="./assets/javascripts/bundle.3cb411a8.min.js"></script>
+      
+    
+  </body>
+</html>

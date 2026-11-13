@@ -23,9 +23,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         args: Ignored.
     """
     ctx.io.clear_screen()
-    # SPECIAL CASE: clearing the screen produces no scriptable value.
-    # Empty string is the explicit "nothing to capture" signal; the
-    # required-value contract surfaces this as a deliberate choice.
+    # Nothing to capture: an explicit empty value.
     return CmdResult.ok(value="")
 
 

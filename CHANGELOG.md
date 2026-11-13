@@ -1,6 +1,299 @@
 # Changelog
 
-## Unreleased
+## 0.80.0 (2026-11-11)
+
+Control keys, transmit pacing and an end to the byte loss in long sends
+at high baud; `termapy PORT` to open a port with no setup; help pages
+that show a command's live state and the config keys it uses; typed
+JSON answers for agents; and an MCP server that finds its project's
+config by itself and stays inside it.
+
+### Talking to the device
+
+- **Ctrl+C, Ctrl+D, Ctrl+Z and Escape reach the device** when the prompt
+  has nothing to act on: Ctrl+C copies a selection or sends Ctrl-C,
+  Ctrl+D deletes or, on an empty prompt, sends Ctrl-D, and Ctrl+Z on an
+  empty prompt sends Ctrl-Z. `/term.ctrl <key>` sends any control
+  character from a script, a button or an MCP agent, so any of them can
+  interrupt a running MicroPython program.
+- **Transmit pacing** for a device that drops bytes arriving back to
+  back, as in TeraTerm: `tx_char_delay_ms` hands each character to the
+  driver on its own, that many ms apart, and `tx_line_delay_ms` waits
+  after each line. Both are 0 (off) by default.
+- **A large send reaches the driver in 192-byte pieces** (`tx_chunking`,
+  on by default). Measured on an FT232R, a 2 MB stream above 460800
+  baud lost 20 to 120 lines a run when written 4 KB at a time, and none
+  in 27 runs in 192-byte pieces; on a heavily loaded machine a few lines
+  can still drop at 921600. Set it to false to send each write whole.
+- **JSON from the device is laid out for a person**: a received JSON
+  object or array is indented and, with color on, highlighted in the
+  TUI and an interactive CLI, and passed through as one line to a pipe.
+  The `json_fmt` section (`highlight`, `indent` 0, 2 or 4) replaces
+  `json_style`, which existing configs migrate; `/term.json_fmt` shows
+  and sets it for the session.
+- **`/expect fail=<text>`** ends the wait as soon as an error reply
+  arrives, instead of waiting out the timeout, and stops a script as a
+  timeout does.
+- **`/port.connect timeout=<dur>`** keeps retrying the open, so a script
+  can wait for a board that is rebooting or being plugged in. `msg=`
+  says what the wait is for, here and on `/delay`.
+- **`--vt100` writes the session log**: passthrough now runs on the same
+  serial engine as every other frontend.
+
+### Opening ports and configs
+
+- **Quick open**: `termapy PORT [SETTING ...]` opens a port by name, USB
+  serial number or URL with a config of its own (`quick-<port>`, in the
+  OS user folder, never the project), so its log, history and captures
+  have a home and its settings are kept for the next open.
+- **A config load ends where a fresh start on it would**, in every
+  frontend. Behavior changed: user variables, `/env.set` values and
+  other session state no longer carry over from the config you came
+  from.
+- **The Cfg picker and `/cfg.list` show the device** a config's port
+  names, not the USB serial number written in the file.
+- **Find in the config editor**: Ctrl+F (Alt+F in VS Code).
+- **`/run.last`** lists the lines typed at the prompt and replays the
+  last N.
+- **Paste a transcript** copied from the output pane and only its
+  commands run; the output between them is skipped.
+- **`$(PORT.NAME)` and the other `PORT.*` variables** describe the open
+  port, so a config that connects by serial number can name it; every
+  data folder has its `CFG.<NAME>_DIR`, including the new `SYM`, `DEV`,
+  `LIB` and `FIRMWARE`. A `$(NAME)` that names nothing warns.
+- Files you write (`.run`, `.cfg`, `.pro`, profiles) may start with a
+  UTF-8 byte-order mark; it no longer breaks the first line.
+
+### Help
+
+- **`/help <cmd>` ends with a CONFIG section**: the config keys the
+  command uses, their live values and how it uses each. `/help <key>`
+  is a page of its own: the key's meaning, value, file and the commands
+  that use it.
+- **A CURRENT STATE section** shows what a setting command reports, run
+  live when the page opens.
+- **A family says what it is for** at the top of its page and of its
+  subcommand list, which is now a table.
+- **The shared words have pages**: `/help cycle`, `/help json` and the
+  rest, all listed by `/help.idioms`, and every link's tooltip leads
+  with the definition of what it names.
+- A command list no longer prints each row's maturity level: a name not
+  yet stable is italic, with its level in the tooltip.
+
+### Output levels and JSON
+
+- **`.json` is a per-call suffix**, as `.quiet` is: `/cmd.json` answers
+  as `/cmd --json` does, and combines with a level in either order.
+- **`--quiet` and `.quiet` show a command's table or status page**; they
+  printed nothing before.
+- **Connect and disconnect banners follow the command's output level**,
+  and under `--json` they go into the envelope.
+- **Values are typed for agents**: under `--json` and MCP a switch is
+  `true`, a count is `42`, never the text `"on"` or `"42"`. A person sees
+  the same text as before. Behavior changed for a `--json` or MCP
+  caller that compared the text.
+- **`/term.traffic`** shows live TX and RX byte counts on the TUI's
+  bottom bar, and `/term.info` reports them in every frontend. It replaces the example traffic plugin.
+- Bare `/var` is a table of every variable.
+
+### MCP
+
+- **A server finds its project's config by rule**: the command line
+  first (`--cfg-dir`, `TERMAPY_CFG_DIR`, a config named by its path),
+  then `./termapy_cfg`, `./src/termapy_cfg` or `./source/termapy_cfg`
+  under the project, never the OS config folder. help/mcp-server.md has
+  the whole rule.
+- **An agent may load any config in the project.** Behavior removed:
+  `termapy --mcp left` no longer pins the server to `left`; it is where
+  the server starts.
+- **An agent never reaches a shell, never renames or deletes a file, and
+  never writes into `plugin/` or `viz/` or outside the config's folder**,
+  whatever flags are set.
+- **The MCP session log is the same kind of file as the TUI's**:
+  `<cfg>.mcp.log` beside `<cfg>.log`, with timestamps and the same line
+  markers. `/log.list`, `/log.show` and `/log.dump` reach either log.
+  Behavior removed: `/mcp.log`, `/mcp.log.dump`, `/mcp.log.path`.
+- A `spy://` traffic log is written in the config's `cap/` folder.
+
+### Dev boards (prototype)
+
+- The MicroPython monitor never blocks, so a project can run its own
+  loop, and the board samples run on asyncio.
+- The Raspberry Pi Pico answers the MEM commands too.
+
+### Diagnostics
+
+- **A diagnostic log**, one file per process in the config root's `log/`
+  folder, records termapy's own errors with their tracebacks; an error
+  line names the file. `/log.diag` shows it.
+- `scripts/throughput.py`, in the repository, measures what termapy
+  receives intact, and help/ports.md says how fast that is.
+
+### Other fixes
+
+- `/term.color off` drops every color, termapy's own included, as
+  `--no-color` does.
+- `/os` fails on a nonzero exit code, and stops a script there.
+  Behavior changed: a script that went on past a failing `/os` stops.
+- A typed baud rate must be a standard one unless asked for as custom
+  (`custom=true`, or `custom_baud` in a config); a typo such as `11520`
+  used to be taken silently.
+- `/search` no longer fails when a profile with device commands is
+  loaded.
+- The status bar and quick commands no longer flicker the screen, and
+  the bottom bar can no longer stay greyed, answering Busy, after a
+  fast command.
+- A pasted line waits while on-connect commands, or a script the paste
+  did not start, are running, so a pasted `/port.connect` no longer lets
+  the next line reach the device ahead of the on-connect setup.
+- Rename and Delete keep the Run and Proto pickers open.
+- With `eol_markers` on, the echo shows its marker instead of raw codes,
+  and `/expect.regex match=^OK$` matches.
+- tree-sitter is held below 0.26.1, which crashed the config editor on
+  Windows.
+
+### Removed and renamed
+
+- The thirteen old command names that forwarded to their new ones
+  (`/echo`, `/color`, `/ver`, `/clr` and the rest) and `/run.legacy`
+  are gone; an old name answers with the closest real one.
+- `/ping` prints each round trip's time; the reply's text moved to
+  `/ping.verbose`, and `/ping.quiet` prints the summary alone.
+- The `/ss.svg.silent` command and its alias `/ss.svg.quiet` are gone.
+  `/ss.svg.silent` now means `/ss.svg` at the silent level, which saves
+  without a word. Behavior removed: the fixed-name screenshot that
+  replaced the last one.
+
+### For plugin authors
+
+- A handler that returns no `CmdResult` fails, naming the command; it
+  used to read as an empty success.
+- A command declares the config keys it uses, `Command(cfg={...})`,
+  that it reports state, `Command(state=True)`, and what a family is
+  for, `Command(intro=...)`; `/help` renders each.
+
+## 0.79.0 (2026-10-31)
+
+Starter projects for dev boards, with the device-side firmware they run;
+symbols, types and constants read from a build's ELF; output you can
+click; a terminal that pastes, selects and logs the way a TeraTerm user
+expects; and `termapy --kill` for the sessions an editor started and
+forgot.
+
+### Dev boards and device firmware
+
+Both families are new and marked **prototype**: they may change in any
+release.
+
+- **`/board` and `termapy --board BOARD`** set up a starter project for an
+  attached dev board: a config that finds the board by its USB serial
+  number, a device profile holding every command it answers, and the
+  firmware to load on it, so a new board answers the REPL and an MCP
+  agent on day one. Two boards so far, the Raspberry Pi Pico and the
+  ESP32-S3 DevKitC-1; `/board.list` names them. The S3 also answers the
+  MEM wire spec, and its `led` sets each of red, green and blue.
+- **`/firmware`** ships termapy's device-side reference sources in the
+  wheel: `termapy_json`, which replies in a JSON-RPC 2.0 envelope
+  (`{"result": ..., "id": N}`, or an error), and the MEM module, which now
+  takes the platform's memory map (below). `/firmware.copy` writes a
+  module's whole kit into the config's folder. The shipped sources are
+  plain ASCII.
+
+### Symbols and memory from the build
+
+The `/sym`, `/mem` and `/dev` families are marked **preview**: they work,
+and may change in any release.
+
+- **`/sym.import` reads a build's ELF**: its symbols, with C types from the
+  debug info. Constants come from the build too, and a pointer constant
+  names the block it points at.
+- **`/mem` honors each name's size and access**, `/mem.write` takes a value
+  at a name, and every `/mem` command follows the output level
+  (quiet, normal, verbose).
+- **`/dev.regs`** lists a device's registers from its device file, with
+  hazards flagged. `/dev.list` and `/dev.lib` answer with the same table
+  as every other list.
+- The demo ships a device file, so its `CONSOLE` alias works out of the
+  box.
+
+### A terminal for daily use
+
+- **A paste of several lines sends every line**, each as if typed (a line
+  starting with `/` runs as a command), 10 ms apart as TeraTerm does
+  (`multiline_paste_delay_ms`). Escape stops a long paste, a failed line
+  stops the rest, and `multiline_paste` set to false pastes only the first
+  line, as before.
+- **The output pane selects and copies**: drag with the mouse or extend
+  with Shift and the arrow keys, Ctrl+C copies, Ctrl+A selects all.
+  Ctrl+T saves the pane's whole text. Ctrl+A also selects all in the
+  config, script and proto editors.
+- **`/log.stop` and `/log.start`** pause and resume the session log, with
+  a `Log Stopped` and a `Log Started` line at the ends of the gap.
+  `/log.delete` leaves the log stopped until `/log.start` begins a new
+  one, and a delete Windows refuses (another termapy has the file open)
+  changes nothing. The log also follows a config switch now.
+- **`custom_buttons_side`** puts the custom buttons in a column on the
+  left or right of the output.
+- `/run --echo` shows each line of a script as it runs, and `echo_fmt` now
+  governs directive lines too.
+- Fixes: the port picker is as wide as its table and its rows never wrap;
+  the two prompt dialogs have an OK button; Quick Setup counts the port
+  list, not the hardware; the proto debug screen's three lists behave
+  alike and its number fields refuse what they cannot read.
+
+### Help, maturity and did-you-mean
+
+- **`/help` folds the commands by group**: the terminal commands in full,
+  the others one line per group. `/help.group <name>` expands a group,
+  and answers as a table.
+- **Every command says how settled it is**: stable (covered by the
+  compatibility promise), preview (works, may change) or prototype (new,
+  may change or go). It shows on each help page, in every listing and in
+  the MCP catalog, and the first use of a prototype family in a session
+  says so. The README has a Feature status table.
+- **A mistyped name gets a did-you-mean** wherever you type a name from
+  memory, and in the TUI the suggestions are clickable.
+
+### Ports: PRODUCT, names and chips
+
+- **A PRODUCT column** in `--ports`, `/port.list` and the port picker shows
+  the name each device reports for itself (`MPLAB PICkit 5`, `FT230X
+  Basic UART`), now read on Windows too; `--json` carries it as `product`.
+- **A port name matches the port the system would open**: `com3` is
+  `COM3` on Windows, and a `/dev/serial/by-id` link is its device on Linux
+  and macOS. A config's `com3` used to connect but read as unplugged
+  everywhere else.
+- A config that names its port by serial number loads like one that names
+  a COM port, without the port picker, and the title's port tooltips show
+  the device as the port and the serial number as the serial number.
+- The USB chip table names each part from its vendor's own source, and
+  04D8:9036 is the MPLAB PICkit 5's serial port.
+- `--watch` widens its columns to fit long chip names instead of pushing
+  the rest of the row out of line.
+- Display labels on label/value pages are Title Case (`Baud Rate`,
+  `USB Speed`), and the serial number reads `Serial #` everywhere.
+
+### Stopping leftover sessions
+
+- Every running termapy leaves a breadcrumb in the app folder (`running/`).
+  **`termapy --kill`** lists them, and with a target stops them after a
+  yes: `all`, `others`, a port (`COM4`) or a config name. Use it for a
+  clean system before an update, when an editor's forgotten MCP server
+  still holds a port and `termapy.exe`.
+- Inside termapy, **`/app.running`** lists the sessions and
+  **`/app.kill`** stops them: `others` is every session but yours, `all`
+  includes yours, which goes last, through `/exit`. Not over MCP: an
+  agent cannot end your sessions. `/app.list` shows the `running/` folder
+  with its session count.
+
+### Configs and the command line
+
+- Every config file is written in one order, grouped by what its keys
+  set; existing configs are migrated when they load.
+- A custom `cmd_prefix` reaches every TUI button and link: nineteen of
+  them sent their command to the device under a prefix such as `!`.
+- A `-e` one-shot with no config prints only its command's output,
+  without the welcome banner.
 
 ### Clickable lists in the TUI
 

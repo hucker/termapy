@@ -61,15 +61,17 @@ def load_profile(path: str | Path) -> dict:
     p = Path(path)
     raw = p.read_bytes()
     suffix = p.suffix.lower()
+    # utf-8-sig: a byte-order mark an editor saved is skipped (json.loads
+    # of bytes already skips one).
     if suffix == ".toml":
-        return tomllib.loads(raw.decode("utf-8"))
+        return tomllib.loads(raw.decode("utf-8-sig"))
     if suffix == ".json":
         return json.loads(raw)
     # Unknown extension: try TOML first (common for hand-authored), fall
     # back to JSON.  If both fail, raise with both errors so the user
     # can see what went wrong.
     try:
-        return tomllib.loads(raw.decode("utf-8"))
+        return tomllib.loads(raw.decode("utf-8-sig"))
     except tomllib.TOMLDecodeError as toml_err:
         try:
             return json.loads(raw)

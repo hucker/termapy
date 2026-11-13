@@ -355,7 +355,7 @@ table lines, (d) update gold files, (e) carry `@pytest.mark.spec` markers on new
 - `parse_keywords` lowercases keyword matching but preserves value case — keep that; enum
   coercion handles case-insensitivity on the value side, `path`/`str`/`command` must not
   case-fold values.
-- `repeat.py` imports `_VARS` from `var.py` inside its handler — unrelated coupling; leave it.
+- `repeat.py` sets its loop variable through `variables.set_user_var` inside its handler — unrelated coupling; leave it.
 - cap.poll's `wait_gap` and the hardcoded 5s quiet-gap deadline are *runtime* time behavior —
   declare `wait_gap` as a duration param, do not touch the loop internals (NG-2).
 - `raw_args=True` commands skip REPL transforms; `params` on a `raw_args=True` command is a

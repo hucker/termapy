@@ -265,13 +265,26 @@ class CapabilitySet:
         attainable=True,
     )
 
+    # What:  No script is running: the command was typed at the prompt (or
+    #        clicked), not read from a .run file.  The inverse of block_until.
+    # Where: Dynamic -- evaluated per dispatch.  /run.last declares it: it
+    #        replays what the user typed, a convenience for the prompt that
+    #        no script should depend on.
+    script_idle: bool = _restricted(
+        "no script running",
+        state="Not available in a script.",
+        attainable=True,
+    )
+
     # What:  An interactive session -- a human at a terminal with
     #        persistent scrollback, modal dialog support, or in-band UI
     #        chrome (mode switch, screen clear, line numbers).  Also
     #        the home of legacy aliases retained for human typing
     #        convenience (``/echo`` -> ``/term.echo``).
     # Where: TUI, CLI (whether running locally or over SSH).  Not MCP --
-    #        an LLM client has no interactive session.
+    #        an LLM client has no interactive session, and no flag ever grants
+    #        it one: /os and every rename and delete rest on this (registries
+    #        os-never-under-mcp, mcp-no-file-management).
     interactive: bool = _restricted("an interactive session (a human at a terminal; not MCP)")
 
     # What:  Host can launch external desktop apps the user must visually
@@ -296,7 +309,7 @@ class CapabilitySet:
 
     # What:  The frontend keeps a session log of its own
     #        (``ctx.internal.session_log_path``): the TUI's ``<cfg>.log``
-    #        (or ``log_file``), the MCP server's ``mcp/session.log``.  It is
+    #        (or ``log_file``), the MCP server's ``<cfg>.mcp.log``.  It is
     #        per config, so commands pair it with ``config_loaded``
     #        (``CapabilitySet.SESSION_LOG``).  Replaced five handler checks
     #        that answered "No log file." in the CLI, where /help said the
@@ -320,13 +333,24 @@ class CapabilitySet:
     )
 
     # What:  Handler may open a NETWORK connection -- pyserial
-    #        serial-over-URL "ports" (``socket://``, ``rfc2217://``) via
-    #        ``/port.connect``.  When absent, a URL port is refused so an
-    #        automated peer can't open arbitrary outbound TCP and send data
-    #        off the machine; physical device ports are unaffected.
+    #        serial-over-URL "ports" (``socket://``, ``rfc2217://``).
     # Where: CLI, TUI.  MCP only when ``TERMAPY_MCP_NET_EGRESS`` is set.
+    # No command reads it now: config.open_serial reads the flag itself, through
+    # env_flags.port_policy, for every route (decision 2026-11-11).  Removing
+    # the field is a follow-up chore.
     network_egress: bool = _restricted(
         "outbound network access (TERMAPY_MCP_NET_EGRESS=1 under MCP)",
+    )
+
+    # What:  Handler may describe the host machine beyond the allowed
+    #        devices: the whole USB bus (``/port.usb``), the host fingerprint
+    #        (OS, hostname, terminal environment) and the other termapy
+    #        sessions (``/app.alive``).  The programs holding a port follow
+    #        the same flag, through env_flags.port_policy.
+    # Where: CLI, TUI.  MCP only when ``TERMAPY_MCP_HOST_INFO`` is set
+    #        (decision 2026-11-12).
+    host_info: bool = _restricted(
+        "a view of the host machine (TERMAPY_MCP_HOST_INFO=1 under MCP)",
     )
 
     # ── Named profiles ──────────────────────────────────────────────────
@@ -414,6 +438,13 @@ class CapabilitySet:
     and .hex.  The gate answers "Not connected." first, then "Capture already
     active - use /cap.stop first."."""
 
+    MANAGE_FILES: ClassVar[CapabilitySet]
+    """Renames or deletes a file of the loaded config: a person's job.
+
+    ``config_loaded=True, interactive=True`` -- every folder's ``.rename`` and
+    ``.delete``.  MCP never holds it, so ``confirm=true`` cannot unlock one and
+    no nesting form reaches one (registry ``mcp-no-file-management``)."""
+
     def satisfied_by(self, provided: CapabilitySet) -> bool:
         """True iff every capability set in ``self`` is also set in ``provided``."""
         return all(not getattr(self, f.name) or getattr(provided, f.name) for f in fields(self))
@@ -453,6 +484,7 @@ CapabilitySet.BLOCK_UNTIL = CapabilitySet(block_until=True)
 CapabilitySet.SERIAL_INTERACTIVE = CapabilitySet(serial_connected=True, interactive=True)
 CapabilitySet.CONFIG_GUI_APPS = CapabilitySet(config_loaded=True, gui_apps=True)
 CapabilitySet.CAPTURE_START = CapabilitySet(serial_connected=True, capture_idle=True)
+CapabilitySet.MANAGE_FILES = CapabilitySet(config_loaded=True, interactive=True)
 
 
 # ── Views of the fields ──────────────────────────────────────────────────────
@@ -573,7 +605,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
     gui = detect_gui_apps()
     # MCP host confinement is per-class opt-in from the server's shell;
     # mirror it here so /help AVAILABLE reflects the running policy.
-    from termapy.env_flags import MCP_FS_UNCONFINED, MCP_NET_EGRESS
+    from termapy.env_flags import MCP_FS_UNCONFINED, MCP_HOST_INFO, MCP_NET_EGRESS
 
     environments = {
         # TUI (Textual app): everything an interactive desktop terminal has.
@@ -590,6 +622,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
             status_bar=True,
             filesystem_unconfined=True,
             network_egress=True,
+            host_info=True,
         ),
         # CLI (interactive REPL or --run script): interactive but no Textual UI.
         # Its confirmation is the y/n prompt on stdin.
@@ -601,6 +634,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
             confirm_dialog=True,
             filesystem_unconfined=True,
             network_egress=True,
+            host_info=True,
         ),
         # MCP (stdio server): no human, no display.  Host access beyond the
         # device is sandboxed unless the operator opts in per-class.
@@ -608,6 +642,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
             session_log=True,
             filesystem_unconfined=MCP_FS_UNCONFINED,
             network_egress=MCP_NET_EGRESS,
+            host_info=MCP_HOST_INFO,
         ),
     }
     # This matrix answers "can the command EVER run there"; "is it

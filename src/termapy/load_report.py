@@ -13,7 +13,7 @@ own answer and does not change the report::
     Loaded - 3 files
     KIND     NAME      LAYER   FILE                     COUNT  NOTE
     -------  --------  ------  -----------------------  -----  ------------------------------
-    plugin   traffic   global  plugin/traffic.py            2  commands traffic, traffic.reset
+    plugin   hello     global  plugin/hello.py              1  commands hello
     symbols  demo.elf  demo    sym/demo.symbols.json       15  elf, 12 typed
     device   ADC       demo    dev/adc.device.json          9  ref acme-adc
 
@@ -235,10 +235,18 @@ COLUMNS: Final[tuple[Column, ...]] = (
 )
 
 
-def result(records: list[Record]) -> CmdResult:
-    """The report as a list answer: what startup prints and ``/cfg.loaded`` returns.
+def diag_line(record: Record) -> str:
+    """A row as one line of the diagnostic log, the table's facts in its order.
 
-    ``value`` is the files that loaded, one per line.
+    ``plugin hello (global plugin/hello.py): 1, commands hello``;
+    a failed row ends with its ``error:`` note.  The callers that add rows
+    write it (``diag_log``), so this module stays free of I/O.
     """
-    files = "\n".join(record["file"] for record in records if not record["error"])
-    return CmdResult.table("Loaded", "file", COLUMNS, records, value=files)
+    location = f"{record['layer']} {record['file']}".strip()
+    count = "" if record["error"] else f"{record['count']}, "
+    return f"{record['kind']} {record['name']} ({location}): {count}{_note(record)}".rstrip(", ")
+
+
+def result(records: list[Record]) -> CmdResult:
+    """The report as a list answer: what startup prints and ``/cfg.loaded`` returns."""
+    return CmdResult.table("Loaded", "file", COLUMNS, records)

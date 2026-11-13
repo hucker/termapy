@@ -13,25 +13,24 @@ import sys
 import threading
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import serial
 
+from termapy import diag_log
 from termapy.defaults import (
     CFG_CHOICES,
-    CUSTOM_BUTTON_SIDES,
+    CFG_KEYS,
     DEFAULT_CFG,
-    JSON_STYLES,
     STANDARD_BAUD_RATES,
-    UI_MODES,
-    VALID_BYTE_SIZES,
-    VALID_FLOW_CONTROLS,
-    VALID_PARITIES,
-    VALID_STOP_BITS,
+    CfgKey,
+    cfg_key,
+    cfg_value,
     cmd_prefix,
     default_cfg,
 )
 from termapy.folders import (
+    CAP,
     DEV,
     FOLDER_EXTS,
     FOLDER_MIGRATIONS,
@@ -39,6 +38,7 @@ from termapy.folders import (
     HISTORY_SUFFIX,
     LIB,
     LOG_SUFFIX,
+    MCP_LOG_SUFFIX,
     PLUGIN,
     PROFILE_TMP_GLOB,
     RUN,
@@ -48,17 +48,28 @@ from termapy.folders import (
     default_file_name,
     ensure_folder,
     file_suggestion,
+    inside,
+    is_inside,
+    prune_empty_folders,
 )
 from termapy.migration import (
     CURRENT_CONFIG_VERSION,
     DEPRECATED_CFG,
     migrate_config,
 )
-from termapy.scripting import parse_bool
+from termapy.port_allow import PortPolicy
+from termapy.scripting import parse_bool, value_text
 
 CFG_DIR: str | None = None  # set by --cfg-dir; None = use resolution chain
 
+# Set beside CFG_DIR by an MCP server whose project has no config folder: CFG_DIR
+# then names where one would be, so nothing falls back to the OS config directory.
+CFG_DIR_MAY_BE_ABSENT: bool = False
+
 _LOCAL_DIR_NAME = "termapy_cfg"
+
+# Where a config sits under a config root: termapy_cfg/<name>/<name>.cfg.
+CONFIG_GLOB = "*/*.cfg"
 
 # Read timeout for every opened serial port.  Deliberately small so the
 # reader loop's blocking ``read()`` returns promptly and can notice the
@@ -128,7 +139,7 @@ def cfg_dir() -> Path:
                 f"termapy: config directory looks like a file: {CFG_DIR} "
                 f"(has extension '{d.suffix}'). Use --cfg-dir for directories."
             )
-        if not d.exists():
+        if not d.exists() and not CFG_DIR_MAY_BE_ABSENT:
             raise SystemExit(f"termapy: config directory does not exist: {d.resolve()}")
         return d
 
@@ -165,7 +176,7 @@ def _is_bundled_path(p: Path) -> bool:
         import importlib.resources
 
         pkg_root = Path(str(importlib.resources.files("termapy"))).resolve()
-        return p.resolve().is_relative_to(pkg_root)
+        return is_inside(p, pkg_root)
     except (ImportError, OSError, TypeError, ValueError):
         return False
 
@@ -235,6 +246,14 @@ def prepare_cfg_folder(config_path: str) -> Path:
         if old_file.is_file() and not new_file.exists():
             ensure_folder(new_file.parent)
             old_file.rename(new_file)
+    # One-time move (migration): the MCP session log lived in mcp/session.log
+    # until 2026-11-05 and is now <stem>.mcp.log beside the TUI's <stem>.log.
+    # Nothing else was ever written to mcp/, so an emptied folder goes too.
+    old_mcp_log = d / _OLD_MCP_DIR / _OLD_MCP_LOG
+    new_mcp_log = d / f"{stem}{MCP_LOG_SUFFIX}"
+    if old_mcp_log.is_file() and not new_mcp_log.exists():
+        old_mcp_log.rename(new_mcp_log)
+        prune_empty_folders(d, (_OLD_MCP_DIR,))
     # Write .gitignore for transient data (only if it doesn't exist)
     gitignore = d / ".gitignore"
     if not gitignore.exists():
@@ -257,6 +276,22 @@ def prepare_cfg_folder(config_path: str) -> Path:
 def cfg_path_for_name(name: str) -> Path:
     """Return the config file path for a given name: termapy_cfg/<name>/<name>.cfg."""
     return cfg_dir() / name / f"{name}.cfg"
+
+
+def is_config_file(path: Path) -> bool:
+    """Whether a ``CONFIG_GLOB`` match is a config: ``<name>/<name>.cfg``, file and folder alike.
+
+    A folder can hold another ``.cfg``: ``demo/.target_menu.cfg`` made one
+    config count as two, so a lone config never loaded by itself (registry
+    ``config-files-one-reader``).  Case is ignored, as the file systems
+    that hold most configs ignore it.
+    """
+    return path.stem.casefold() == path.parent.name.casefold()
+
+
+def config_files(root: Path) -> list[Path]:
+    """The configs under ``root``, sorted by name; a missing folder has none."""
+    return sorted(path for path in root.glob(CONFIG_GLOB) if is_config_file(path))
 
 
 def validate_file_stem(name: str) -> str | None:
@@ -298,7 +333,7 @@ def new_config(
     *,
     port: str = "",
     baud: int | None = None,
-    custom_baud: bool | None = None,
+    custom_baud: bool = False,
     mode: tuple[str, int, float] | None = None,
     eol: str | None = None,
     echo: bool | None = None,
@@ -315,8 +350,8 @@ def new_config(
         name: The config name, which is also its title.
         port: Port name, serial number or URL; ``""`` leaves it unset.
         baud: Baud rate.
-        custom_baud: Whether ``baud`` is deliberately non-standard; ``None``
-            derives it (a rate outside ``STANDARD_BAUD_RATES``).
+        custom_baud: Whether ``baud`` was asked for as custom; a rate off the
+            standard list needs it (``check_baud``).
         mode: ``(parity, byte_size, stop_bits)`` as ``port_control.parse_mode``
             returns it.
         eol: Line ending sent after each command.
@@ -325,25 +360,58 @@ def new_config(
 
     Returns:
         The new cfg dict.
+
+    Raises:
+        ValueError: ``baud`` is off the standard list without ``custom_baud``,
+            or under 300 with it.
     """
     cfg = default_cfg()
     cfg["title"] = name
+    apply_open_settings(
+        cfg, port=port, baud=baud, custom_baud=custom_baud, mode=mode, eol=eol, echo=echo
+    )
+    cfg["serial"]["custom_baud"] = custom_baud
+    cfg["auto_connect"] = auto_connect
+    return cfg
+
+
+def apply_open_settings(
+    cfg: dict,
+    *,
+    port: str = "",
+    baud: int | None = None,
+    custom_baud: bool = False,
+    mode: tuple[str, int, float] | None = None,
+    eol: str | None = None,
+    echo: bool | None = None,
+) -> None:
+    """Lay ``/port.connect``'s settings over ``cfg``; one left ``None`` (or ``port`` ``""``) is kept.
+
+    A new config (``new_config``) and a quick session's next open
+    (``quick_config``) both write the settings here.  A baud rate given
+    sets ``custom_baud`` with it, so a standard rate after a custom one
+    clears it.
+
+    Raises:
+        ValueError: ``baud`` is off the standard list without ``custom_baud``,
+            or under 300 with it.
+    """
+    if baud is not None:
+        reason = check_baud(baud, custom=custom_baud, remedy="ask for it as custom")
+        if reason:
+            raise ValueError(f"Invalid baud rate: {baud} ({reason})")
     serial_cfg = cfg["serial"]
     if port:
         serial_cfg["port"] = port
     if baud is not None:
         serial_cfg["baud_rate"] = baud
-        serial_cfg["custom_baud"] = (
-            baud not in STANDARD_BAUD_RATES if custom_baud is None else custom_baud
-        )
+        serial_cfg["custom_baud"] = custom_baud
     if mode is not None:
         serial_cfg["parity"], serial_cfg["byte_size"], serial_cfg["stop_bits"] = mode
     if eol is not None:
         cfg["eol"] = eol
     if echo is not None:
         cfg["echo"] = echo
-    cfg["auto_connect"] = auto_connect
-    return cfg
 
 
 def new_config_from_args(name: str, settings: str) -> dict:
@@ -352,8 +420,10 @@ def new_config_from_args(name: str, settings: str) -> dict:
     One reading for the flag and the command.  The settings are
     ``/port.connect``'s grammar, read by its reader
     (``port_control.parse_open_args``): the port, which is required, then
-    baud, frame, line ending and echo in any order.  The config connects
-    when it loads -- a port was named, so connecting is the point.
+    baud, frame, line ending, echo and ``custom=true`` in any order.  A rate
+    off the standard list needs ``custom=true``, which also makes the
+    config's ``custom_baud`` true.  The config connects when it loads -- a
+    port was named, so connecting is the point.
 
     Args:
         name: The config name.
@@ -371,7 +441,7 @@ def new_config_from_args(name: str, settings: str) -> dict:
     reason = validate_file_stem(name)
     if reason:
         raise ValueError(reason)
-    port, baud, mode, line_ending, echo, error = parse_open_args(settings)
+    port, baud, mode, line_ending, echo, custom, error = parse_open_args(settings)
     if error:
         raise ValueError(error)
     if not port:
@@ -380,11 +450,96 @@ def new_config_from_args(name: str, settings: str) -> dict:
         name,
         port=port,
         baud=baud,
+        custom_baud=custom,
         mode=mode,
         eol=line_ending,
         echo=echo,
         auto_connect=True,
     )
+
+
+QUICK_PREFIX = "quick-"
+
+
+def quick_cfg_root() -> Path:
+    """Where a quick session's config lives: the OS folder, unless a config directory was named.
+
+    ``--cfg-dir`` and ``TERMAPY_CFG_DIR`` win as in ``cfg_dir``; a
+    ``./termapy_cfg`` does not, so typing a port inside a project never adds
+    a config to it (registry ``quick-open-outside-project``).  A read:
+    nothing is created here.
+    """
+    if CFG_DIR is not None or os.environ.get("TERMAPY_CFG_DIR"):
+        return cfg_dir()
+    return _os_default_cfg_dir()
+
+
+def quick_config_path(port: str) -> Path:
+    """The ``.cfg`` a quick session on ``port`` uses: ``quick-`` and the port, file-name safe.
+
+    Every run of characters a file name may not hold becomes one dash:
+    ``COM3`` is ``quick-COM3``, ``socket://localhost:7000`` is
+    ``quick-socket-localhost-7000`` and ``/dev/ttyUSB0`` is
+    ``quick-dev-ttyUSB0``.
+    """
+    name = QUICK_PREFIX + re.sub(r"[^A-Za-z0-9._]+", "-", port).strip("-.")
+    return quick_cfg_root() / name / f"{name}.cfg"
+
+
+def quick_config(port: str, settings: str) -> tuple[Path, str]:
+    """The config ``termapy PORT [SETTING ...]`` opens, and what became of it: ``Created``, ``Updated`` or ``Using``.
+
+    One config per port (``quick_config_path``), so sessions on two ports
+    share nothing.  The first open creates it through ``new_config`` and
+    ``create_config``, connecting when it loads.  A later open with
+    settings lays them over it and saves it, so they are what the port
+    opens with next time; one without settings leaves it as it is.  The
+    settings are ``/port.connect``'s, read by its reader.
+
+    Args:
+        port: The port as the config should name it.
+        settings: The words after the port.
+
+    Returns:
+        The ``.cfg`` path and the verb for the status line.
+
+    Raises:
+        ValueError: A word is not one of ``/port.connect``'s settings, or the
+            baud rate is refused.
+        RuntimeError, OSError: As ``create_config`` raises them.
+    """
+    from termapy.port_control import parse_open_args
+
+    named, baud, mode, eol, echo, custom, error = parse_open_args(settings)
+    if error:
+        raise ValueError(error)
+    if named is not None:
+        raise ValueError(
+            f"Unknown setting: {named} (the settings are baud, frame, cr|lf|crlf, "
+            f"echo|noecho and custom=true)"
+        )
+    path = quick_config_path(port)
+    if not path.is_file():
+        cfg = new_config(
+            path.stem,
+            port=port,
+            baud=baud,
+            custom_baud=custom,
+            mode=mode,
+            eol=eol,
+            echo=echo,
+            auto_connect=True,
+        )
+        return create_config(path, cfg), "Created"
+    if not settings.split():
+        return path, "Using"
+    # The file as written, not load_config's view: that one has its
+    # $(env.X) values expanded, which saving would bake into the file.
+    cfg = json.loads(path.read_text(encoding="utf-8-sig"))
+    cfg.setdefault("serial", {})
+    apply_open_settings(cfg, baud=baud, custom_baud=custom, mode=mode, eol=eol, echo=echo)
+    write_config_file(path, cfg)
+    return path, "Updated"
 
 
 class ConfigExistsError(ValueError):
@@ -632,7 +787,22 @@ def delete_config(config_path: str | Path) -> int:
     return len(files)
 
 
-def connection_string(cfg: dict, level: str = "medium", actual_port: str = "") -> str:
+def _baud_and_frame(serial: Mapping) -> str:
+    """``115200 8N1``: the baud rate, then data bits, parity and stop bits."""
+    stop_bits = serial["stop_bits"]
+    stop_text = str(int(stop_bits)) if stop_bits == int(stop_bits) else str(stop_bits)
+    return f"{serial['baud_rate']} {serial['byte_size']}{serial['parity']}{stop_text}"
+
+
+def port_settings(cfg: Mapping) -> str:
+    """The serial settings without the port: ``115200 8N1``, then the flow control unless none."""
+    serial = cfg["serial"]
+    flow = serial["flow_control"]
+    frame = _baud_and_frame(serial)
+    return frame if flow == "none" else f"{frame} {flow}"
+
+
+def connection_string(cfg: Mapping, level: str = "medium", actual_port: str = "") -> str:
     """Format connection info from config at different detail levels.
 
     Args:
@@ -650,22 +820,13 @@ def connection_string(cfg: dict, level: str = "medium", actual_port: str = "") -
     """
     serial = cfg["serial"]
     port = actual_port or serial["port"] or "?"
-    baud = serial["baud_rate"]
-    bits = serial["byte_size"]
-    parity = serial["parity"]
-    sb = serial["stop_bits"]
-    sb_str = str(int(sb)) if sb == int(sb) else str(sb)
-    fc = serial["flow_control"]
-
-    base = f"{port} {baud} {bits}{parity}{sb_str}"
     if level == "short":
-        return base
-    if fc != "none":
-        base += f" {fc}"
+        return f"{port} {_baud_and_frame(serial)}"
+    base = f"{port} {port_settings(cfg)}"
     if level == "medium":
         return base
-    enc = cfg.get("encoding", "utf-8")
-    le = repr(cfg.get("eol", "\r"))
+    enc = cfg_value(cfg, "encoding")
+    le = repr(cfg_value(cfg, "eol"))
     return f"{base} {enc} {le}"
 
 
@@ -690,7 +851,10 @@ def hardware_signals(port_obj: object) -> str:
         ]:
             parts.append(f"{name}={int(getattr(port_obj, attr, 0))}")
         return " ".join(parts)
-    except (OSError, Exception):  # noqa: BLE001 -- boundary: any backend's modem-line read; the banner omits the signals
+    # A backend that cannot read a modem line: a closed or lost port
+    # (pyserial's SerialException is an OSError), or a URL handler without
+    # them.  The banner omits the signals.
+    except (OSError, ValueError, NotImplementedError):
         return ""
 
 
@@ -701,14 +865,14 @@ def cfg_log_path(config_path: str) -> str:
 
 
 def session_log_file(cfg: Mapping[str, Any], config_path: str | None) -> Path | None:
-    """The TUI's session log: ``log_file`` when set, else ``<cfg>.log``; None with no config.
+    """The TUI's session log, which ``--vt100`` shares: ``log_file`` when set, else ``<cfg>.log``; None with no config.
 
     The TUI's ``session_log_path`` is this; nothing else reads ``log_file``
     or calls ``cfg_log_path`` for the session log (registry
     ``session-log-one-owner``).  A relative ``log_file`` resolves against
     the working directory, as it always has.
     """
-    configured = cfg.get("log_file", "")
+    configured = cfg_value(cfg, "log_file")
     if configured:
         return Path(configured).resolve()
     if config_path:
@@ -716,23 +880,20 @@ def session_log_file(cfg: Mapping[str, Any], config_path: str | None) -> Path | 
     return None
 
 
-# The MCP server's state folder beside the config, and its session log in it.
-MCP_DIR = "mcp"
-MCP_SESSION_LOG = "session.log"
-
-
-def mcp_dir(config_path: str) -> Path:
-    """The MCP server's state folder for a config (logs, cached profiles)."""
-    return Path(config_path).parent / MCP_DIR
+# Where the MCP session log lived until 2026-11-05; prepare_cfg_folder moves it.
+_OLD_MCP_DIR = "mcp"
+_OLD_MCP_LOG = "session.log"
 
 
 def mcp_log_path(config_path: str) -> Path:
-    """Where the MCP server writes its session log for a config.
+    """Where the MCP server writes its session log: ``<stem>.mcp.log`` beside the ``.cfg``.
 
-    One owner: the MCP host writes here and ``/mcp.log.*`` reads it from
-    any frontend.  A path, whether or not the file exists.
+    One owner: the MCP host writes here and ``/log.list`` lists it from any
+    frontend, beside the TUI's ``<stem>.log``.  A path, whether or not the
+    file exists.
     """
-    return mcp_dir(config_path) / MCP_SESSION_LOG
+    path = Path(config_path)
+    return path.parent / f"{path.stem}{MCP_LOG_SUFFIX}"
 
 
 def cfg_history_path(config_path: str | None) -> str:
@@ -861,21 +1022,13 @@ _ENV_EXPAND_EXCLUDED_KEYS = frozenset(ON_CONNECT_KEYS)
 
 
 def _collect_bool_paths() -> frozenset[tuple[str, ...]]:
-    """Every DEFAULT_CFG key whose default is a bool, as a path, one level deep like the backfill."""
-    paths: set[tuple[str, ...]] = set()
-    for key, val in DEFAULT_CFG.items():
-        if isinstance(val, bool):
-            paths.add((key,))
-        elif isinstance(val, dict):
-            for sub_key, sub_val in val.items():
-                if isinstance(sub_val, bool):
-                    paths.add((key, sub_key))
-    return frozenset(paths)
+    """Every config key of kind ``bool``, as a path, from the one table (``CFG_KEYS``)."""
+    return frozenset(tuple(record.path.split(".")) for record in CFG_KEYS if record.kind == "bool")
 
 
 # The cfg keys that hold a boolean, by path (("echo",), ("serial",
-# "custom_baud")), derived from DEFAULT_CFG's types so a new boolean key
-# is covered without a second list.  bool-one-vocabulary: a templated
+# "custom_baud")), derived from the schema so a new boolean key is
+# covered without a second list.  bool-one-vocabulary: a templated
 # value landing on one of these is read with the vocabulary at
 # expansion; a bare JSON string there is type-checked by validate_config.
 BOOL_CFG_PATHS: frozenset[tuple[str, ...]] = _collect_bool_paths()
@@ -957,11 +1110,10 @@ def expand_env_cfg(
 def validate_config(cfg: dict) -> list[str]:
     """Validate config values and return a list of warning strings.
 
-    Checks serial port settings, encoding, and numeric constraints.
-    Keys not in ``DEFAULT_CFG`` are flagged: if they appear in
-    ``DEPRECATED_CFG`` they're called out as deprecated with the
+    Every key gets ``check_cfg_value``, the one check the config editor and
+    ``/cfg`` use too.  Keys not in ``DEFAULT_CFG`` are flagged: if they
+    appear in ``DEPRECATED_CFG`` they're called out as deprecated with the
     rename-or-removal history; otherwise flagged as a potential typo.
-    Non-standard baud rates produce a warning but are not rejected.
 
     Args:
         cfg: Config dict to validate.
@@ -1010,89 +1162,226 @@ def validate_config(cfg: dict) -> list[str]:
             else:
                 warnings.append(f"unknown key: '{key}' (typo?)")
 
-    # port must be a non-empty string.  A valid port is a literal
-    # device name ("COM3", "/dev/ttyUSB0"), a USB serial number, a
-    # reserved name ("DEMO", "DEMO_FAIL"), a pipe-separated fallback
-    # chain of those, or a pyserial URL -- anything except empty.
-    # The zero-config CLI synthesizes an in-memory cfg with port="" to
-    # bootstrap a REPL with no config file, but that path never hits
-    # validate_config (no load_config, no --check).  Any config
-    # actually persisted to disk gets a warning here.
-    serial = cfg.get("serial", {})
-    p = serial.get("port")
-    if p is not None:
-        if not isinstance(p, str):
-            warnings.append(f"serial.port: expected str, got {type(p).__name__}")
-        elif p == "":
-            warnings.append(
-                "serial.port: must not be empty (use a device name, USB serial number, or 'DEMO')"
-            )
-
-    # An on-connect field is one command (v30).  A line break means a
-    # chain, which is skipped rather than sent to a device as one line.
-    # An older cfg (``--check`` reads it as it is on disk) has its chains moved
-    # into run files by the v29 -> v30 step at load instead.
+    # An on-connect field is one command (v30).  An older cfg (``--check``
+    # reads it as it is on disk) has its chains moved into run files by the
+    # v29 -> v30 step at load instead, so they are not its problem yet.
     chains_migrate = ver is not None and ver < 30
-    for key in ON_CONNECT_KEYS:
-        value = cfg.get(key)
-        if not chains_migrate and isinstance(value, str) and len(value.strip().splitlines()) > 1:
-            warnings.append(
-                f"{key}: one command per field, so it is skipped; put several "
-                f"in a .run file and set {key} to {cmd_prefix(cfg)}run <name>"
-            )
-
-    # Type + value checks for serial settings
-    _check_set(serial, "byte_size", int, VALID_BYTE_SIZES, warnings, key_prefix="serial.")
-    _check_set(serial, "parity", str, VALID_PARITIES, warnings, key_prefix="serial.")
-    _check_set(serial, "stop_bits", (int, float), VALID_STOP_BITS, warnings, key_prefix="serial.")
-    _check_set(serial, "flow_control", str, VALID_FLOW_CONTROLS, warnings, key_prefix="serial.")
-    _check_set(cfg, "json_style", str, set(JSON_STYLES), warnings)
-    _check_set(cfg, "custom_buttons_side", str, set(CUSTOM_BUTTON_SIDES), warnings)
-    _check_set(cfg, "default_ui", str, set(UI_MODES), warnings)
-
-    # Boolean keys hold a JSON boolean: a string or number here is
-    # type-checked, never parsed (bool-one-vocabulary; a templated value
-    # was read with the vocabulary at expansion).
-    for path in sorted(BOOL_CFG_PATHS):
-        node: Any = cfg
-        for part in path[:-1]:
-            node = node.get(part) if isinstance(node, dict) else None
-        value = node.get(path[-1]) if isinstance(node, dict) else None
-        if value is not None and not isinstance(value, bool):
-            warnings.append(f"{'.'.join(path)}: expected bool, got {type(value).__name__}")
-
-    # Baud rate - standard rates only unless custom_baud is enabled
-    val = serial.get("baud_rate")
-    if val is not None:
-        if not isinstance(val, int):
-            warnings.append(f"serial.baud_rate: expected int, got {type(val).__name__}")
-        elif val <= 0:
-            warnings.append(f"serial.baud_rate: must be positive, got {val}")
-        elif serial.get("custom_baud"):
-            if val < 300:
-                warnings.append(f"serial.baud_rate: custom baud requires >= 300, got {val}")
-        elif val not in STANDARD_BAUD_RATES:
-            warnings.append(
-                f"serial.baud_rate: {val} is not a standard rate -- set custom_baud to true to allow non-standard rates"
-            )
-
-    # Encoding - must be a valid Python codec
-    enc = cfg.get("encoding")
-    if enc is not None:
-        if not isinstance(enc, str):
-            warnings.append(f"encoding: expected str, got {type(enc).__name__}")
-        else:
-            try:
-                codecs.lookup(enc)
-            except LookupError:
-                warnings.append(f"encoding: unknown codec '{enc}'")
-
-    # Numeric constraints
-    _check_positive(cfg, "max_lines", warnings)
-    _check_non_negative(cfg, "cmd_delay_ms", warnings)
-    _check_non_negative(cfg, "multiline_paste_delay_ms", warnings)
-
+    for record in CFG_KEYS:
+        if chains_migrate and record.kind == "command":
+            continue
+        value = _value_as_written(cfg, record.path)
+        if value is None:
+            continue
+        finding = check_cfg_value(record.path, value, cfg)
+        if finding is not None:
+            warnings.append(_finding_text(record.path, value, finding))
     return warnings
+
+
+def _value_as_written(cfg: Mapping, path: str) -> Any:
+    """``cfg``'s value at ``path``, or ``None`` when the file does not hold it."""
+    node: Any = cfg
+    for part in path.split("."):
+        if not isinstance(node, Mapping):
+            return None
+        node = node.get(part)
+    return node
+
+
+def _finding_text(path: str, value: object, finding: "CfgFinding") -> str:
+    """A finding as a load warning: the key, what it must be, and what it holds, kept short."""
+    shown = json.dumps(value, default=str)
+    if value == "" or "\n" in str(value):
+        return f"{path}: {finding.reason}"
+    return f"{path}: {finding.reason}, got {shown if len(shown) <= 60 else shown[:57] + '...'}"
+
+
+class CfgFinding(NamedTuple):
+    """What ``check_cfg_value`` found wrong with a value: a load warns, the editor shows it red and ``/cfg`` refuses.
+
+    Attributes:
+        reason: What the value must be, as a clause that reads after its
+            key: ``must be a positive integer``.
+    """
+
+    reason: str
+
+
+# The bytes a line ending may hold.
+_EOL_BYTES = "\r\n\0\x03\x04"
+
+
+def _check_bool(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """A JSON boolean: text or a number here is type-checked, never parsed (bool-one-vocabulary)."""
+    return None if isinstance(value, bool) else CfgFinding("must be true or false")
+
+
+def _check_int(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """A whole number, at least ``record.min`` when the row sets one."""
+    if (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and (record.min is None or value >= record.min)
+    ):
+        return None
+    shapes = {None: "an integer", 0: "a non-negative integer", 1: "a positive integer"}
+    shape = shapes.get(record.min, f"an integer of at least {record.min}")
+    return CfgFinding(f"must be {shape}")
+
+
+def _check_enum(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """One of the row's choices, as the file spells it; ``true`` is not the number 1."""
+    if not isinstance(value, (bool, list, dict)) and value in record.choices:
+        return None
+    names = ", ".join(str(choice) for choice in sorted(record.choices, key=str))
+    return CfgFinding(f"must be one of: {names}")
+
+
+def _check_str(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """Text, whatever it says: a title, a format, a file name."""
+    return None if isinstance(value, str) else CfgFinding("must be text")
+
+
+def _check_regex(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """A pattern that compiles, so a bad one is found here and not at first use."""
+    if not isinstance(value, str):
+        return CfgFinding("must be text")
+    try:
+        re.compile(value)
+    except re.error as e:
+        return CfgFinding(f"does not compile: {e}")
+    return None
+
+
+def _check_encoding(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """The name of a codec Python has."""
+    if not isinstance(value, str):
+        return CfgFinding("must be text")
+    try:
+        codecs.lookup(value)
+    except (LookupError, ValueError):
+        return CfgFinding("must name a codec Python knows")
+    return None
+
+
+def _check_command(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """One command: a line break means a chain, which is skipped rather than sent as one line."""
+    if not isinstance(value, str):
+        return CfgFinding("must be text")
+    if len(value.strip().splitlines()) > 1:
+        return CfgFinding(
+            f"one command per field, so it is skipped; put several in a .run file "
+            f"and set {record.path} to {cmd_prefix(cfg)}run <name>"
+        )
+    return None
+
+
+def _check_port(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """Anything but empty: a device name, a USB serial number, a reserved name, a chain or a URL.
+
+    The zero-config CLI synthesizes an in-memory cfg with an empty port to
+    bootstrap a REPL with no config file, but that path never hits this
+    check; a config on disk does.
+    """
+    if not isinstance(value, str):
+        return CfgFinding("must be text")
+    if not value:
+        return CfgFinding("must not be empty (use a device name, USB serial number, or 'DEMO')")
+    return None
+
+
+def check_baud(baud: int, *, custom: bool, remedy: str) -> str | None:
+    """Why ``baud`` cannot be a port's rate, or None: a standard rate, or any from 300 up when ``custom``.
+
+    The one rule for a typed rate (registry ``baud-standard-unless-custom``):
+    a rate off ``STANDARD_BAUD_RATES`` must be asked for as custom, as the
+    New Config dialog's custom mode asks, so a typo (``11520``) is refused
+    rather than opened.  A config says so with ``custom_baud``; a command
+    that sets a rate with ``custom=true``.
+
+    Args:
+        baud: The rate.
+        custom: Whether the rate was asked for as custom.
+        remedy: How the caller's user asks for custom, completing "``remedy``
+            to allow it": ``set custom_baud to true``, ``add custom=true``.
+    """
+    if custom:
+        return "custom baud requires >= 300" if baud < 300 else None
+    if baud not in STANDARD_BAUD_RATES:
+        return f"not a standard rate: {remedy} to allow it"
+    return None
+
+
+def _check_baud(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """A positive whole number, standard unless ``custom_baud`` is true (``check_baud``)."""
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        return CfgFinding("must be a positive integer")
+    custom = bool(cfg_value(cfg, "serial.custom_baud"))
+    reason = check_baud(value, custom=custom, remedy="set custom_baud to true")
+    return CfgFinding(reason) if reason else None
+
+
+def _check_eol(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """Only line-ending and control bytes: junk like ``abc`` would go out after every line."""
+    if isinstance(value, str) and all(char in _EOL_BYTES for char in value):
+        return None
+    return CfgFinding(
+        r'must be CR/LF/NUL/ETX/EOT bytes only (e.g. "", "\r", "\n", "\r\n", "\0", '
+        r'"\u0003" (ETX), "\u0004" (EOT)); '
+        f"{cmd_prefix(cfg)}term.eol sets it by name"
+    )
+
+
+def _check_section(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """A JSON object: its leaves have rows of their own."""
+    return None if isinstance(value, dict) else CfgFinding("must be a JSON object")
+
+
+def _check_list(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """A JSON list: the custom buttons, edited in the config editor."""
+    return None if isinstance(value, list) else CfgFinding("must be a JSON list")
+
+
+# One check per ``CfgKey.kind``.  A test holds every row's kind to this table.
+CFG_CHECKS = {
+    "bool": _check_bool,
+    "int": _check_int,
+    "enum": _check_enum,
+    "str": _check_str,
+    "path": _check_str,
+    "regex": _check_regex,
+    "encoding": _check_encoding,
+    "command": _check_command,
+    "port": _check_port,
+    "baud": _check_baud,
+    "eol": _check_eol,
+    "section": _check_section,
+    "list": _check_list,
+}
+
+
+def check_cfg_value(key: str, value: object, cfg: Mapping | None = None) -> CfgFinding | None:
+    """What is wrong with ``value`` for config key ``key``, or ``None`` when it is fine.
+
+    The one check behind a load (``validate_config``), the config editor
+    and ``/cfg``, so "is this value OK" has one answer (registry
+    ``cfg-schema-one-table``).
+
+    Args:
+        key: A path, a unique leaf or a custom button's field.  A name the
+            schema does not hold has no rule, so it is fine here.
+        value: The value as a config holds it: real JSON types, never text
+            still to be parsed.
+        cfg: The config it sits in, for the rule that reads a second key
+            (``custom_baud``, ``cmd_prefix``).
+
+    Returns:
+        The finding, or ``None``.
+    """
+    record = cfg_key(key)
+    if record is None:
+        return None
+    return CFG_CHECKS[record.kind](record, value, cfg or {})
 
 
 def cfg_choice(key: str, value: object) -> object:
@@ -1100,7 +1389,8 @@ def cfg_choice(key: str, value: object) -> object:
 
     Text matches in any case: ``/cfg parity e`` stores ``E`` and ``/cfg
     custom_buttons_side Right`` stores ``right``, the spelling the file and
-    its checks expect.
+    its checks expect.  A numeric choice matches as a number, so ``/cfg
+    stop_bits 1.5`` works whatever the key holds now.
 
     Raises:
         ValueError: ``value`` is not one of the key's choices.
@@ -1108,69 +1398,23 @@ def cfg_choice(key: str, value: object) -> object:
     choices = CFG_CHOICES.get(key)
     if choices is None:
         return value
-    if isinstance(value, str):
-        for choice in choices:
-            if isinstance(choice, str) and choice.casefold() == value.casefold():
-                return choice
-    elif value in choices:
-        return value
+    for choice in choices:
+        if _same_choice(value, choice):
+            return choice
     names = "/".join(str(choice) for choice in sorted(choices, key=str))
     raise ValueError(f"Invalid {key}: {value} (use {names})")
 
 
-def _check_set(
-    cfg: dict,
-    key: str,
-    expected_type: type | tuple[type, ...],
-    valid: set,
-    warnings: list[str],
-    key_prefix: str = "",
-) -> None:
-    """Check that cfg[key] has the right type and is in the valid set.
-
-    ``key_prefix`` is prepended to ``key`` in any warning message,
-    so callers checking nested sub-dicts (e.g. cfg["serial"]) can
-    pass ``key_prefix="serial."`` to get user-visible warnings like
-    ``serial.byte_size: ...`` instead of bare ``byte_size: ...``.
-    """
-    val = cfg.get(key)
-    if val is None:
-        return
-    label = f"{key_prefix}{key}"
-    if not isinstance(val, expected_type):
-        warnings.append(f"{label}: expected {_type_name(expected_type)}, got {type(val).__name__}")
-        return
-    if val not in valid:
-        warnings.append(f"{label}: invalid value {val!r}, expected one of {sorted(valid)}")
-
-
-def _check_positive(cfg: dict, key: str, warnings: list[str]) -> None:
-    """Check that cfg[key] is a positive integer."""
-    val = cfg.get(key)
-    if val is None:
-        return
-    if not isinstance(val, int):
-        warnings.append(f"{key}: expected int, got {type(val).__name__}")
-    elif val <= 0:
-        warnings.append(f"{key}: must be positive, got {val}")
-
-
-def _check_non_negative(cfg: dict, key: str, warnings: list[str]) -> None:
-    """Check that cfg[key] is a non-negative integer."""
-    val = cfg.get(key)
-    if val is None:
-        return
-    if not isinstance(val, int):
-        warnings.append(f"{key}: expected int, got {type(val).__name__}")
-    elif val < 0:
-        warnings.append(f"{key}: must be non-negative, got {val}")
-
-
-def _type_name(t: type | tuple[type, ...]) -> str:
-    """Return a readable name for a type or tuple of types."""
-    if isinstance(t, tuple):
-        return "/".join(x.__name__ for x in t)
-    return t.__name__
+def _same_choice(value: object, choice: object) -> bool:
+    """Whether ``value``, typed or held, is ``choice``: text in any case, a number by value."""
+    if isinstance(choice, str):
+        return isinstance(value, str) and choice.casefold() == value.casefold()
+    if isinstance(value, str):
+        try:
+            return float(value) == choice
+        except ValueError:
+            return False
+    return value == choice
 
 
 # Exception types ``load_config`` can realistically raise.  Callers
@@ -1191,12 +1435,17 @@ def on_connect_commands(cfg: Mapping[str, Any], mode_key: str) -> list[tuple[str
     field runs.  A field holding a line break is skipped, never sent:
     ``validate_config`` names it, and a line break must not reach a device
     inside what is sent as one line.
+
+    Every frontend calls this right before it runs what it returns, so each
+    command is recorded here in the diagnostic log with the key it came
+    from: a script it starts reads as the config's, not the user's.
     """
     commands: list[tuple[str, str]] = []
     for key in ("on_connect_cmd", mode_key):
         command = str(cfg.get(key) or "").strip()
         if command and len(command.splitlines()) == 1:
             commands.append((key, command))
+            diag_log.info("on connect: %s runs %s", key, command)
     return commands
 
 
@@ -1229,6 +1478,25 @@ def _write_migration_run_files(cfg: dict, path: str) -> list[str]:
     return warnings
 
 
+def cfg_value_text(value: object) -> str:
+    """A config value as termapy shows it: what ``/cfg <key>`` answers and a change reports.
+
+    A switch is ``on`` / ``off``, as every setting command answers; a
+    container is compact JSON, as the config file spells it; an empty string
+    is ``""`` so it reads as one; anything else is as written, with no
+    Python spelling (``True``, ``'right'``).
+
+    Args:
+        value: The value from the config.
+
+    Returns:
+        The text.
+    """
+    if isinstance(value, (dict, list)) or value is None or value == "":
+        return json.dumps(value)
+    return value_text(value)
+
+
 def load_config(path: str) -> dict:
     """Load and validate JSON config, applying defaults for missing fields.
 
@@ -1248,7 +1516,9 @@ def load_config(path: str) -> dict:
     if not p.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
 
-    with open(path) as f:
+    # UTF-8 whatever the platform's default, and a byte-order mark an editor
+    # saved is skipped rather than failing the JSON parse.
+    with open(path, encoding="utf-8-sig") as f:
         try:
             cfg = json.load(f)
         except json.JSONDecodeError as e:
@@ -1316,9 +1586,11 @@ def config_summary(path: Path) -> dict[str, Any]:
     ``DEFAULT_CFG`` grew.
     """
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8-sig") as f:  # as load_config reads it
             cfg = migrate_config(json.load(f))
-    except Exception:  # noqa: BLE001 - see docstring
+    except Exception:  # see the docstring: a broken cfg still gets its row
+        # Once per file: a listing reads every config each time it refreshes.
+        diag_log.exception("config summary unreadable: %s", path, once=("summary", str(path)))
         return {"port": "", "baud_rate": None, "title": ""}
     serial_cfg = cfg.get("serial", {})
     title = str(cfg.get("title") or "")
@@ -1450,15 +1722,85 @@ def request_rx_buffer(port: Any) -> bool:
     return True
 
 
-def open_serial(cfg: dict) -> Any:
+def cap_folder_of(config_path: str) -> Path | None:
+    """The ``cap/`` folder of the config at ``config_path``; None with no config."""
+    return Path(config_path).parent / CAP if config_path else None
+
+
+def _spy_log_path(name: str, cap_folder: Path | None) -> Path:
+    """Where a ``spy://`` port's ``file=`` goes: under ``cap/``, or a refusal.
+
+    Raises:
+        ValueError: There is no config, or ``name`` is not a path relative to ``cap/``.
+    """
+    if cap_folder is None:
+        raise ValueError("A spy:// log file needs a config, for its cap/ folder")
+    given = Path(name)
+    path = inside(cap_folder, name)
+    # A full path and any ".." are refused as typed, even one that ends up back
+    # in cap/.  Resolving catches what the text alone cannot: a symlink, and the
+    # Windows forms (\x, D:x) that are not absolute but leave the folder.
+    if given.is_absolute() or ".." in given.parts or path is None or path == cap_folder.resolve():
+        raise ValueError(f"Invalid spy file: {name} (use a path relative to cap/)")
+    return path
+
+
+def spy_log_url(url: str, cap_folder: Path | None) -> str:
+    """``url`` with a ``spy://`` port's ``file=`` moved under the config's ``cap/`` folder.
+
+    pyserial opens ``file=`` for writing as soon as it reads the port string,
+    so this is a file write that no path guard ever sees.  It takes only a
+    path relative to ``cap/``, in every frontend and under no flag (registry
+    ``spy-log-in-cap``).  Every other port string passes through untouched.
+
+    Args:
+        url: The resolved port string.
+        cap_folder: The config's ``cap/`` folder, created when a log goes in it;
+            None with no config.
+
+    Returns:
+        The port string to hand to pyserial.
+
+    Raises:
+        ValueError: A ``file=`` is not a path relative to ``cap/``, or there is
+            no config to hold it.  Nothing has been written.
+    """
+    from urllib.parse import parse_qsl, urlencode, urlsplit
+
+    parts = urlsplit(url)
+    if parts.scheme != "spy":
+        return url
+    options = parse_qsl(parts.query, keep_blank_values=True)
+    if not any(key == "file" for key, _ in options):
+        return url
+    # Read as pyserial reads it, so an encoded "..%2F" is seen decoded here too.
+    moved = [
+        (key, str(_spy_log_path(value, cap_folder)) if key == "file" else value)
+        for key, value in options
+    ]
+    for key, value in moved:
+        if key == "file":
+            ensure_folder(Path(value).parent)
+    return f"{url.partition('?')[0]}?{urlencode(moved)}"
+
+
+def open_serial(
+    cfg: dict, *, cap_folder: Path | None = None, policy: PortPolicy | None = None
+) -> Any:
     """Open serial port from config dict.
 
     ``cfg["serial"]["port"]`` may be a plain device name (``"COM3"``,
     ``"/dev/ttyUSB0"``), a USB serial number, a ``|``-separated fallback
     chain (``"A1B2C3D4|COM3"``), a reserved name (``"DEMO"``,
     ``"DEMO_FAIL"``), or a pyserial URL.  Resolution to a concrete
-    device happens here via ``resolve_port()``; see that function's
-    docstring and ``help/ports.md`` for the full grammar.
+    device happens here via ``resolve_port_for_open()``; see
+    ``resolve_port``'s docstring and ``help/ports.md`` for the full grammar.
+
+    This is the one place termapy opens a port (registry
+    ``port-policy-at-opener``), so the port policy
+    (``TERMAPY_ALLOWED_PORTS``) is applied here, before a simulator is
+    built, a ``spy://`` log is created, or pyserial touches a device or the
+    network.
 
     If the resolved name is ``"DEMO"``, returns a ``FakeSerial``
     simulated device instead of a real serial connection.  If the
@@ -1468,6 +1810,11 @@ def open_serial(cfg: dict) -> Any:
 
     Args:
         cfg: Config dict with serial settings.
+        cap_folder: Where a ``spy://`` port's log goes (``spy_log_url``).
+            Omitted, such a port is refused rather than written from the
+            working folder.
+        policy: The port policy; None is this process's
+            (``env_flags.port_policy``).
 
     Returns:
         A serial port object (real or simulated).
@@ -1477,11 +1824,13 @@ def open_serial(cfg: dict) -> Any:
             spec whose serial-number candidate matches two or more
             connected devices.  Surfaces through to the connect failure
             path so the user sees which devices collided.
+        PortNotAllowedError: The port policy refuses the port.
+        ValueError: A ``spy://`` port's ``file=`` is refused.
     """
-    from termapy.port_control import resolve_port
+    from termapy.port_control import resolve_port_for_open
 
     serial_cfg = cfg["serial"]
-    resolved = resolve_port(serial_cfg["port"])
+    resolved = resolve_port_for_open(serial_cfg["port"], policy=policy)
     name = resolved.upper()
     if name == "DEMO":
         from termapy.demo import FakeSerial
@@ -1502,7 +1851,7 @@ def open_serial(cfg: dict) -> Any:
     # serial_for_url handles both plain ports ("COM3", "/dev/ttyUSB0")
     # and URLs ("rfc2217://host:port", "socket://host:port", "loop://").
     port = serial.serial_for_url(
-        resolved,
+        spy_log_url(resolved, cap_folder),
         baudrate=serial_cfg["baud_rate"],
         bytesize=serial_cfg["byte_size"],
         parity=serial_cfg["parity"],
@@ -1510,6 +1859,10 @@ def open_serial(cfg: dict) -> Any:
         rtscts=(fc == "rtscts"),
         xonxoff=(fc == "xonxoff"),
         timeout=SERIAL_READ_TIMEOUT_S,
+        # One process owns one port (registry port-open-exclusive).  Windows
+        # refuses a second open by itself; on POSIX this is pyserial's flock,
+        # without which a second termapy opens the port and splits its bytes.
+        exclusive=True,
     )
     request_rx_buffer(port)
     return port
@@ -1579,8 +1932,7 @@ def not_found_message(subject: str, raw: str, config_path: str) -> str:
 
 def config_names() -> list[str]:
     """The names of the configs under ``cfg_dir()``, each ``<name>/<name>.cfg``: what a config name may be."""
-    root = cfg_dir()
-    return [cfg_file.stem for cfg_file in root.glob("*/*.cfg")] if root.is_dir() else []
+    return [path.stem for path in config_files(cfg_dir())]
 
 
 def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
@@ -1665,7 +2017,7 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     # Copy demo plugins
     plugin_dir = ensure_folder(demo_dir / "plugin")
     plugin_pkg = pkg / "plugin"
-    for name in ("cmd.py", "probe.py", "temp_plot.py"):
+    for name in ("cmd.py", "probe.py", "temp_plot.py", "traffic.py"):
         dest = plugin_dir / name
         if force or not dest.exists():
             src = plugin_pkg / name

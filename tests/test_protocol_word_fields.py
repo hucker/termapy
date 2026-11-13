@@ -18,6 +18,8 @@ from termapy.protocol.core import (
     resolve_word_columns,
 )
 
+pytestmark = pytest.mark.rule("register-spec-word-form")
+
 
 class TestParse:
     def test_no_byte_range_parses_as_word_relative(self):

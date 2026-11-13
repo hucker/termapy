@@ -68,7 +68,10 @@ scans the `plugin/` folders for `.py` files: the global folder first,
 then the config's own, later overriding earlier by name. A switch
 drops the previous config's plugins, transforms, hooks and converters
 before the new ones load. A folder plugin can never take the name of one
-of the app's own commands; it is skipped with a warning instead.
+of the app's own commands; it is skipped with a warning instead. A load
+also empties every `ctx.ns()` namespace, so a plugin's session state
+goes there and needs nothing more. `on_config_load` is for what a cleared
+dict cannot do, such as closing a file or telling a widget.
 Each file is imported and checked for a `COMMAND` object at module level.
 If found, that command is registered in the REPL, and users can invoke it
 by typing its name with the command prefix (e.g. `/hello`).
@@ -168,7 +171,7 @@ makes the file a plugin, and one file may export several:
 | Export | What it adds |
 |---|---|
 | `COMMAND` | A REPL command (this page) |
-| `TRANSFORM` | A rewriter for REPL or serial input |
+| `TRANSFORM` | A rewriter for REPL or serial input, `(ctx, text) -> text` |
 | `DIRECTIVE` | A pre-dispatch line rewriter |
 | `on_app_start` / `on_config_load` / ... | Lifecycle hooks (`on_app_prestart` is for built-ins: a folder plugin loads after it fires, so its copy is skipped with a warning) |
 | `FORMAT` + `DESCRIPTION` + `DETECT` + `convert` | A linker-map converter for `/sym.import` (see [symbols.md](symbols.md)) |
@@ -187,7 +190,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not ctx.cfg.get("encoding"):  # plain config (read-only)
         ...
     ctx.io.result("Hello", "green")  # final answer (quiet+)
-    ctx.io.output("listing line")  # bulk data (normal+)
+    ctx.io.output("detail line")  # detail (normal+); a list is CmdResult.table
     ctx.io.status("loading...")  # progress chatter (verbose only)
 
     with ctx.serial.io():  # claim serial for sync read
@@ -246,7 +249,8 @@ Gated methods today:
 
 ## Returning scriptable values
 
-Handlers return `CmdResult` to indicate success or failure:
+Every handler returns a `CmdResult`, on every path; dispatch fails one that
+returns anything else (`None` included), naming the command:
 
 - `CmdResult.ok(value="...")` -- success, `value` is available to scripts
 - `CmdResult.ok(value="")` -- success, no scriptable data (pure side-effect)
@@ -269,12 +273,16 @@ gap can't ship silently.
 **`data=` is the optional structured twin of `value`.** Agent consumers
 (the MCP server, `--json`) read it as real JSON -- a dict, list, or
 number, never a prose string.  Most commands don't need it; listings and
-info commands benefit most.
+info commands benefit most.  `value` stays one scalar a script captures,
+so an answer with several facts puts them in `data` and picks one for
+`value`: the demo's `/traffic.count` answers the reply's byte count as
+`value` and `{"tx_bytes": 8, "rx_bytes": 5}` as `data`.
 
 **A list returns `CmdResult.table`.**  Build records of raw values and
-declare the columns; the records become `data`, and termapy prints the
-table (title with count, header, dash row, rows) unless the caller wants
-data (`--json`, `/term.request`, MCP).  The handler renders nothing:
+declare the columns; the records become `data`, their count the `value`,
+and termapy prints the table (title with count, header, dash row, rows)
+unless the caller wants data (`--json`, `/term.request`, MCP).  The
+handler renders nothing, and never branches on `ctx.wants_data`:
 
 ```python
 from termapy.plugins import CmdResult, Column
@@ -287,9 +295,12 @@ _COLUMNS = (
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
     records = [{"name": name, "temp_c": read_temp(name)} for name in sensors()]
-    names = "\n".join(record["name"] for record in records)
-    return CmdResult.table("Sensors", "sensor", _COLUMNS, records, value=names)
+    return CmdResult.table("Sensors", "sensor", _COLUMNS, records)
 ```
+
+A column may say how expendable it is when the table is wider than the
+window (`Column(..., drop=1)`: the highest `drop` goes first, 0 never) and
+whether to hide itself when every cell is blank (`hide_empty=True`).
 
 When each row is one value under a unique name, pass `data=` the mapping
 (`data={record["name"]: record["temp_c"] for record in records}`): a
@@ -301,8 +312,10 @@ record: the facts with real JSON types become `data`, and the
 `(label, text)` rows are what a person reads, aligned with cyan labels.
 termapy prints the rows unless the caller wants data, so a JSON answer
 carries each fact once.  A row's optional third element colors its text;
-leave a row out to omit it, put `None` between rows for a blank line, and
-a `TextLine("heading", "green")` among them for a plain line:
+leave a row out to omit it, put `None` between rows for a blank line,
+a `TextLine("heading", "green")` among them for a plain line, and a
+`PieceLine((Piece("text"), Piece("part", style="bold")))` for a line whose
+parts differ in style (each piece's text is escaped, as a row's is):
 
 ```python
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
@@ -312,23 +325,25 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         ("temp", f"{temp_c:.1f} C"),
         ("alarm", "yes" if data["alarm"] else "no", "red" if data["alarm"] else ""),
     ]
-    return CmdResult.record(data, rows, value=f"{temp_c:.1f}")
+    return CmdResult.record(data, rows, value=round(temp_c, 1))
 ```
 
-Handlers that ignore `wants_data` keep working: their prose reaches
-structured consumers via the response's `output_lines`.
+A handler never asks who is reading: it returns the table or the record
+and termapy decides.  A plain `ctx.io.output` line (progress, a note)
+reaches a structured consumer via the response's `output_lines`, at the
+levels it shows for a person.
 
 ```python
-def _handler(ctx: PluginContext, args: str):
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     temp = read_temperature()
     ctx.io.result(f"Temperature: {temp}C")
-    return CmdResult.ok(value=str(temp))
+    return CmdResult.ok(value=temp)
 ```
 
 Examples that should set `value=`:
 
-- Query commands (`/port.baud_rate` returns `"115200"`)
-- State toggles (`/echo on` returns `"on"`)
+- Query commands (`/port.baud_rate` returns `115200`, a number)
+- State toggles (`/term.echo on` returns `True`; a person sees `on`)
 - Computed values (`/proto.crc.calc` returns the CRC)
 - Ping timings, version strings, variable values
 
@@ -346,7 +361,7 @@ returning a hand-written usage message:
 from termapy.plugins import CmdResult, Command, PluginContext, UsageError
 
 
-def _handler(ctx: PluginContext, args: str):
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if not args.strip():
         raise UsageError()  # bare: just the usage line
     try:
@@ -430,6 +445,33 @@ COMMAND = Command(
 
 An unknown folder name fails when the plugin loads.
 
+## Config keys: `cfg=`
+
+When a handler reads a config value (`ctx.cfg["serial"]["port"]`,
+`ctx.cfg.get("encoding")`) or sets one for the session
+(`ctx.internal.apply_cfg`), declare the key and how the command uses it:
+
+```python
+COMMAND = Command(
+    name="replay",
+    args="<filename>",
+    help="Replay a capture.",
+    handler=_handler,
+    cfg={"encoding": "decodes the captured bytes"},
+)
+```
+
+`/help replay` then ends its page with a CONFIG section: the key, its
+current value and your phrase, plus where a change lasts (`/cfg <key>
+<value>` for the session, the config editor's Save for the file).
+`/help encoding` lists your command among the key's users, `/search
+encoding` finds it, the config editor names it on the key's help line,
+and the MCP catalog carries the declaration. A nested key is its dotted
+path (`serial.baud_rate`); a bare leaf resolves when only one key has
+it. An unknown key or an empty phrase fails when the plugin loads. Keep
+the long help for behavior: the declaration is the one place that says
+what a key does to your command.
+
 ## Commands that only show: `shows=`
 
 A link in termapy's output that names your command (a did-you-mean in an
@@ -451,6 +493,82 @@ COMMAND = Command(
 
 `shows=True` with a `safety` other than `safe` fails when the plugin loads.
 
+## Links: what a click does
+
+Most of this needs nothing from you:
+
+- Your `help=` line is the tooltip on every link to your command.
+- `{on|off|toggle}` or `{a|b|cycle}` in `args=` makes those words links to their
+  pages, and `/help toggle` lists your command.
+- A key in `cfg=` is a link on your help page, with the key's definition as its
+  tooltip.
+
+You declare a link in two places: on a table's column, and in a line you build
+from pieces.
+
+```python
+from termapy.plugins import CmdResult, Column, Command, Link, Piece, PluginContext, UsageError
+
+_SENSORS = {"temp": "TEMP?", "volt": "VOLT?"}
+_COLUMNS = (
+    Column(
+        "NAME", lambda record: record["name"], run=lambda record: f"sensors.read {record['name']}"
+    ),
+    Column("QUERY", lambda record: record["query"]),
+)
+
+
+def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
+    """List the sensors, each name a click away from being read."""
+    records = [{"name": name, "query": query} for name, query in _SENSORS.items()]
+    return CmdResult.table("sensors", "sensor", _COLUMNS, records)
+
+
+def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
+    """Read one sensor, and point at the list and the line ending."""
+    name = args.strip()
+    if name not in _SENSORS:
+        raise UsageError(f"Unknown sensor: {name}")
+    ctx.io.output_segments(
+        [
+            Piece(f"{name}: see "),
+            Piece(f"{ctx.prefix}sensors", Link("sensors")),
+            Piece(" or "),
+            Piece("eol", Link("help eol")),
+        ]
+    )
+    return CmdResult.ok(value=name)
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = Command(
+    name="sensors",
+    help="Read the board's sensors.",
+    intro="Read the board's sensors, one at a time or from a list.",
+    bare_sub="list",
+    sub_commands={
+        "list": Command(help="List the sensors; click one to read it.", handler=_handler_list),
+        "read": Command(args="<name>", help="Read one sensor.", handler=_handler_read),
+    },
+)
+```
+
+Hovering `temp` in that table shows "Read one sensor." above what a click does:
+a link looks up the definition of whatever it names, so you never write its text.
+
+- **No prefix in a link.** `Link("sensors")`, and the frontend adds the prefix.
+  Use `ctx.prefix` only in the text you display.
+- **Run or fill.** `run=` and `Link(command)` run at a click, for something safe
+  like reading. `prefill=` and `Link(command, run=False)` put it in the input line
+  for Enter, for a command that changes something or needs more typed.
+- **Help pages.** `Link("help <name>")` opens the page of any command, config key
+  or idiom.
+- **Other frontends.** The CLI prints the same text with no links, and `--json`
+  and MCP get a table's records as data.
+- **`Link(command, tip="...")`** adds to the looked-up definition, for the rare
+  link with more to say. A tuple of pieces styles parts of it:
+  `tip=(Piece("beta", style="yellow"), Piece(" - may change"))`.
+
 ## Setting commands: bare queries, never mutates
 
 A command that reads/writes an on/off flag or a multi-value option follows
@@ -459,10 +577,10 @@ changes nothing.** Never flip on bare, and never treat an unrecognized
 argument as a flip.
 
 ```python
-from termapy.scripting import SETTING_QUERY, SETTING_TOGGLE, parse_bool_setting
+from termapy.scripting import SETTING_QUERY, SETTING_TOGGLE, parse_bool_setting, value_text
 
 
-def _handler(ctx, args):
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     try:
         action = parse_bool_setting(args)
     except ValueError as e:  # unrecognized -> error, not a flip
@@ -474,22 +592,49 @@ def _handler(ctx, args):
         flags["myflag"] = not flags.get("myflag", False)
     else:  # a bool token: set
         flags["myflag"] = action
-    state = "on" if flags.get("myflag") else "off"
-    ctx.io.result(state)
-    return CmdResult.ok(value=state)
+    state = bool(flags.get("myflag"))
+    ctx.io.result(value_text(state))  # the person reads on/off
+    return CmdResult.ok(value=state)  # a script and --json get the bool
 ```
 
 Synopsis: `{on|off|toggle}` for a boolean; `{val1|val2|...|cycle}` for an enum
 (use `scripting.next_in_cycle` to advance). A TUI button that flips on click
-dispatches the explicit `toggle`/`cycle` verb, not the bare command.
+dispatches the explicit `toggle`/`cycle` verb, not the bare command. Your `help=`
+line is also the tooltip on every link to your command, with nothing more to
+write. `/help`
+reads those words from the synopsis: each is a link to its page, and the page
+lists your command, with nothing to declare.
 
 ## Dynamic help for runtime state
 
-If your command owns runtime state that a user should see right on its
-help page - a loaded file, an open connection, a count of cached items -
-set `long_help` to a function instead of a string. The function takes
-the `PluginContext` and returns a string. It's invoked at render time,
-so whatever it reads from `ctx.ns(...)` or `ctx.cfg` is live.
+If running your command bare reports its state - a setting's value, a status
+page, a list - declare it, and its help page shows the answer:
+
+```python
+"encoding": Command(
+    args="{name}",
+    help="Show or set the encoding.",
+    handler=_handler_encoding,
+    state=True,  # bare reports it, so /help can show it
+),
+```
+
+`/help tool.encoding` then has a CURRENT STATE section near the top of the page.
+`/help` runs the bare form silently and shows what it answers: a short value in
+full, a `CmdResult.record` or `CmdResult.table` as its rows, and past twenty
+rows the start and a link to the rest. A failure is shown too, since
+`Not connected.` is the state.
+
+The declaration is a promise: bare, the command changes nothing, sends no
+bytes, opens no port, writes no file, is fast, and answers with a `value` or a
+view rather than printing prose. Every reader of its page runs it. A `safety`
+above `safe`, a `picker` or a required argument is refused at load.
+
+For a summary no single command answers - a loaded file, an open connection, a
+count of cached items on a family's page - set `long_help` to a function
+instead of a string. The function takes the `PluginContext` and returns a
+string. It's invoked at render time, so whatever it reads from `ctx.ns(...)` or
+`ctx.cfg` is live.
 
 ```python
 from termapy.plugins.capabilities import STATE_MESSAGES
@@ -558,16 +703,9 @@ def _long_help(ctx):
 ```
 
 `compose` drops empty parts, so a callable that returns `""` for
-"no state yet" collapses gracefully. For a single-value command
-that needs no prose, you can pass the helper directly:
-
-```python
-"baud_rate": Command(
-    help="Show or set baud rate.",
-    long_help=lambda ctx: state_line("baud rate", ctx.cfg["serial"]["baud_rate"]),
-    handler=_baud_handler,
-),
-```
+"no state yet" collapses gracefully. A single value the command itself
+answers needs none of this: declare `state=True`, and the page and the
+command cannot disagree.
 
 ## Serial I/O pattern
 
@@ -619,6 +757,23 @@ above does.
 A command that works in the config's folder declares
 `CapabilitySet.CONFIG_LOADED` the same way, and the dispatcher answers
 `No config loaded.` when there is none.
+
+**What an MCP server keeps back.** The TUI and CLI are the operator on
+their own machine; an MCP server answers an agent, so some capabilities
+it holds only when the operator opts in from the server's environment. A
+command that reaches past the device declares the one it needs:
+
+- `host_info`, for a command that describes the machine beyond the
+  allowed devices: its USB bus, other programs, the OS or the hostname
+  (`TERMAPY_MCP_HOST_INFO`). `/port.usb`, `/app.alive` and
+  `/log.fingerprint` declare `needs=CapabilitySet(host_info=True)`.
+- `filesystem_unconfined`, for a path outside the config's folder
+  (`TERMAPY_MCP_FS_UNCONFINED`). You rarely declare it: `ctx.fs.resolve`
+  and its guards apply it for you.
+
+Which ports a command may open is not a capability: every open goes
+through the one opener, which applies `TERMAPY_ALLOWED_PORTS` (see
+[Serial ports](ports.md#limiting-which-ports-termapy-may-open)).
 
 ## Bytes and hex
 
@@ -702,8 +857,10 @@ plain methods for unstructured text (with optional color) and the
 
 | Method | Shown at | Use for |
 | --- | --- | --- |
-| `ctx.io.result(text, color)` | quiet+ | The command's final answer (single line). |
-| `ctx.io.output(text, color)` | normal+ | Bulk data: listings, dumps, file contents. |
+| `ctx.io.result(text, color)` | quiet+ | The command's answer. A table or status page returned as `CmdResult.table` or `CmdResult.record` is printed here by dispatch, so quiet shows it. |
+| `ctx.io.output(text, color)` | normal+ | Detail beside the answer: context lines, file contents. |
+| `ctx.io.result_segments(pieces)` | quiet+ | Like `result()`, built from pieces that may be links. |
+| `ctx.io.output_segments(pieces)` | normal+ | Like `output()`, built from pieces that may be links. |
 | `ctx.io.status(text)` | verbose only | Progress chatter, debug-y notes. |
 | `ctx.io.result_markup(text)` | quiet+ | Like `result()` but text is Rich markup. |
 | `ctx.io.output_markup(text)` | normal+ | Like `output()` but text is Rich markup. |
@@ -757,8 +914,9 @@ either directly.
 | `ctx.serial.drain()` | Discard stale bytes in the receive buffer |
 | `ctx.serial.write(data)` | Send raw bytes (no line ending added); a failed write raises `OSError` (`SerialException` is one), with `Not connected.` when no port is open |
 | `ctx.serial.read_raw(timeout_ms)` | Read response bytes with timeout framing |
-| `ctx.serial.wait_idle(timeout_ms)` | Wait for serial output to settle |
+| `ctx.serial.wait_idle(timeout_ms, max_wait_s)` | Wait until the device has been quiet for `timeout_ms` after the call, `max_wait_s` at most: how a command waits out a reply it cannot frame |
 | `ctx.serial.wait_for_data(timeout_ms)` | Block until at least one byte arrives |
+| `ctx.serial.byte_counts()` | `(tx, rx)`: bytes sent and received since the port last opened |
 | `ctx.serial.rx_observer(cb)` | Context manager: passive RX byte tap |
 | `ctx.serial.tx_observer(cb)` | Context manager: passive TX byte tap |
 
@@ -802,7 +960,10 @@ the matching capability on `Command.needs`.
 
 ## Subcommands
 
-Use `sub_commands` for related operations (e.g. `/tool.run`, `/tool.status`):
+Use `sub_commands` for related operations (e.g. `/tool.run`, `/tool.status`).
+Give the family an `intro`, a sentence or two on what it is for. It shows
+above the subcommand list when `/tool` is typed bare, and first on the
+`/help tool` page:
 
 ```python
 COMMAND = Command(
@@ -854,10 +1015,13 @@ without disrupting normal operation.  It shows:
   exit path including exceptions, no try/finally needed
 - Coordinating an observer with a `threading.Event` for "wait for X"
   semantics (the snoop subcommand)
+- Keeping the observers registered through `ctx.serial.wait_idle` so a
+  reply that arrives after the command returns is still counted (the
+  count subcommand)
 - Letting normal device output continue flowing through the pipeline
   while traffic is also being measured / logged in the background
 
-Run `/temp_plot` and `/traffic.count AT+VER` in demo mode to see them
+Run `/temp_plot` and `/traffic.count AT+INFO` in demo mode to see them
 in action, then read the source.
 
 ## Using AI coding tools

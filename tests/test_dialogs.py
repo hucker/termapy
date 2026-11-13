@@ -15,6 +15,7 @@ import os
 import time
 from pathlib import Path
 
+import pytest
 from textual.app import App
 from textual.widgets import Button, Input, OptionList, Static
 
@@ -34,8 +35,9 @@ def _run(scenario) -> None:
 
 
 class TestConfirmDialog:
+    @pytest.mark.rule("widget-text-literal")
     def test_a_bracketed_message_renders_as_typed(self):
-        """widget-text-literal: a /confirm message is text; "[ok]" and "[Rec]" survive into the dialog."""
+        """A /confirm message is text; "[ok]" and "[Rec]" survive into the dialog."""
 
         async def scenario():
             app = _Host()
@@ -460,27 +462,84 @@ class TestScriptPicker:
 
         _run(scenario)
 
-    def test_rename_button_dismisses_with_the_highlighted_path(self, tmp_path):
-        """Rename dismisses with a (rename, path) tuple for the highlighted script."""
+    def test_three_deletes_in_a_row_keep_the_picker_open(self, tmp_path):
+        """Each Delete takes the highlighted script and lands on the next, so three files are three presses, the picker open throughout."""
+
+        def delete(verb: str, path: str, done) -> None:
+            """What the app's /run.delete does once its question is answered yes."""
+            Path(path).unlink()
+            done(None)
+
+        async def scenario():
+            # Arrange -- three scripts, newest first: c, b, a
+            run_dir = tmp_path / "run"
+            run_dir.mkdir()
+            for age, name in enumerate(("c", "b", "a")):
+                script = run_dir / f"{name}.run"
+                script.write_bytes(b"/print hi\n")
+                stamp = time.time() - 60 * age
+                os.utime(script, (stamp, stamp))
+            app = _Host()
+            async with app.run_test(size=(120, 30)) as pilot:
+                results: list = []
+                picker = ScriptPicker(run_dir, file_action=delete)
+                app.push_screen(picker, callback=results.append)
+                await pilot.pause()
+
+                # Act -- Delete three times, reading what is left after each.  Textual
+                # drops a click on a button still showing its press effect, so
+                # each press waits for the last one's to clear, as a hand does.
+                left = []
+                button = picker.query_one("#script-delete", Button)
+                for _ in range(3):
+                    while button.has_class("-active"):
+                        await pilot.pause(0.05)
+                    await pilot.click("#script-delete")
+                    await pilot.pause()
+                    ol = picker.query_one("#script-list", OptionList)
+                    left.append(sorted(path.stem for path in run_dir.glob("*.run")))
+
+                # Assert
+                assert left == [["a", "b"], ["a"], []], "one file per press, the next one each time"
+                assert results == [], "the picker never dismissed"
+                assert app.screen is picker, "and is still in front"
+                for name in ("run", "edit", "rename", "delete"):
+                    button = picker.query_one(f"#script-{name}", Button)
+                    assert button.disabled, f"{name} is off with the folder empty"
+                assert ol.option_count == 0, "the list is empty, header and all"
+
+        _run(scenario)
+
+    def test_a_rename_highlights_the_new_name(self, tmp_path):
+        """After a rename the list shows the new name and the highlight follows it, so the next press acts on it."""
+
+        def rename(verb: str, path: str, done) -> None:
+            """What the app's /run.rename does once a name is typed."""
+            new = Path(path).with_name("renamed.run")
+            Path(path).rename(new)
+            done(str(new))
 
         async def scenario():
             # Arrange
             run_dir = tmp_path / "run"
             run_dir.mkdir()
-            script = run_dir / "only.run"
-            script.write_bytes(b"/echo hi\n")
+            for name in ("a", "b"):
+                (run_dir / f"{name}.run").write_bytes(b"/print hi\n")
             app = _Host()
-            async with app.run_test() as pilot:
-                results: list = []
-                app.push_screen(ScriptPicker(run_dir), callback=results.append)
+            async with app.run_test(size=(120, 30)) as pilot:
+                picker = ScriptPicker(run_dir, file_action=rename)
+                app.push_screen(picker)
                 await pilot.pause()
 
                 # Act
                 await pilot.click("#script-rename")
                 await pilot.pause()
 
-                # Assert -- the app prompts for the name and dispatches /run.rename
-                assert results == [("rename", str(script))]
+                # Assert
+                ol = picker.query_one("#script-list", OptionList)
+                highlighted = Path(str(ol.get_option_at_index(ol.highlighted or 0).id)).name
+                assert highlighted == "renamed.run", "the highlight follows the renamed file"
+                assert app.screen is picker, "the picker stays open"
 
         _run(scenario)
 
@@ -825,3 +884,32 @@ class TestConfigPickerDetails:
 
         # Assert -- a row, not a crash
         assert details == {broken: ""}
+
+    @pytest.mark.rule("port-display")
+    def test_the_port_cell_is_the_device_not_the_serial_number(self, tmp_path):
+        """A port named by serial number shows as the device it resolves to; the active row shows the open device."""
+        from termapy.port_control import _build_demo_fleet
+
+        # Arrange -- one config by serial number, one active and open, one unplugged
+        by_serial = self._write_cfg(tmp_path, "bench", "A1B2C3D4", "Bench board")
+        live = self._write_cfg(tmp_path, "live", "0001", "Live rig")
+        unplugged = self._write_cfg(tmp_path, "gone", "NOPE", "")
+
+        # Act
+        details, _ = _config_details(
+            [by_serial, live, unplugged],
+            active=live,
+            open_device="COM9",
+            port_source=_build_demo_fleet,
+        )
+
+        # Assert
+        assert details[by_serial].split() == ["COM3", "115200", "Bench", "board"], (
+            "the serial number shows as the device it names"
+        )
+        assert details[live].split() == ["COM9", "115200", "Live", "rig"], (
+            "the active row shows the port this session has open"
+        )
+        assert details[unplugged].split() == ["NOPE", "115200"], (
+            "a spec nothing attached answers shows as written"
+        )

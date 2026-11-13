@@ -19,19 +19,18 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from termapy.capture import CaptureEngine, format_capture_result
-from termapy.cli_flags import confirm_on_stdin
+from termapy.cli_flags import assume_yes, confirm_on_stdin
 from termapy.config import (
     CONFIG_LOAD_ERRORS,
     cfg_dir,
     cfg_history_path,
     load_config,
     on_connect_commands,
-    open_serial,
 )
 from termapy.config_resolve import find_config, infer_config_from_run_file, resolve_config
-from termapy.defaults import cmd_prefix
+from termapy.defaults import cfg_value, cmd_prefix
 from termapy.folders import FOLDER_EXTS, RUN
-from termapy.markup import escape_markup
+from termapy.markup import escape_markup, received_json_markup
 from termapy.plugins import CapabilitySet, CmdResult
 from termapy.repl import ReplEngine
 from termapy.scripting import (
@@ -40,11 +39,15 @@ from termapy.scripting import (
     parse_bool_setting,
     render_progress_bar,
     strip_ansi,
+    value_text,
 )
 from termapy.serial_engine import SerialEngine
+from termapy.session_log import SessionLog
 from termapy.terminal_host import TerminalHost
 
 if TYPE_CHECKING:
+    import argparse
+
     from prompt_toolkit import PromptSession
 
     from termapy.plugins import PluginContext
@@ -75,6 +78,7 @@ class CLITerminal(TerminalHost):
         term_width: int | None = None,
         zero_config: bool = False,
         output_level: str | None = None,
+        assume_yes: bool = False,
     ) -> None:
         """Create a CLI terminal frontend.
 
@@ -94,6 +98,8 @@ class CLITerminal(TerminalHost):
                 a port interactively.
             output_level: Initial output level (silent/quiet/normal/verbose)
                 from CLI flags.  None means use the default.
+            assume_yes: ``-y`` / ``--yes``: answer yes to every question
+                the session asks (``_confirm``).
         """
         self.cfg = cfg
         self.config_path = config_path
@@ -108,7 +114,12 @@ class CLITerminal(TerminalHost):
         self._exec_exit_code = 0
         # Set by /exit and /tui (_request_exit); the prompt loop ends on it.
         self._exit_requested = False
+        # -y / --yes: every question this session asks is answered yes.
+        self._assume_yes = assume_yes
         self.switch_to: str | None = None
+        # The interactive prompt, once _run_interactive builds it; None in
+        # the one-shot modes and on the plain input() path.
+        self._session: PromptSession | None = None
 
         # In exec mode the output is meant for piping/scripting, so
         # suppress the input echo ("demo> AT+VER") that's helpful in
@@ -154,15 +165,30 @@ class CLITerminal(TerminalHost):
         self._engine = SerialEngine(
             cfg=cfg,
             capture=self.capture,
-            open_fn=open_serial,
+            open_fn=self._open_serial,
             log=self._log,
         )
+        # The CLI keeps no session log: session_log_path is None, so it never opens.
+        self.session_log = SessionLog()
         self.repl = ReplEngine(cfg, config_path, write=self.status)
+        # A person reads a terminal; a program reads a pipe line by line.
+        self.repl.screen_json = sys.stdout.isatty()
 
         self._setup_context()
         self._register_hooks()
 
     # -- Output ---------------------------------------------------------------
+
+    def _sync_console_color(self) -> None:
+        """The console follows /term.color: with the flag off every print is plain, as --no-color starts it.
+
+        Read at each print rather than set by the command: the flag is
+        a session value any frontend's command sets, and the console is
+        this frontend's.
+        """
+        ctx = getattr(getattr(self, "repl", None), "ctx", None)
+        if ctx is not None:
+            self.console.no_color = not ctx.ns("flags").get("color", True)
 
     def write(self, text: str, color: str = "") -> None:
         """Write text to stdout via Rich console.
@@ -172,6 +198,7 @@ class CLITerminal(TerminalHost):
         ``[...]`` in it always shows.  Callers that want true Rich markup
         should use ``write_markup`` instead.
         """
+        self._sync_console_color()
         if color:
             self.console.print(f"[{color}]{escape_markup(text)}[/]")
         else:
@@ -179,6 +206,7 @@ class CLITerminal(TerminalHost):
 
     def write_markup(self, text: str) -> None:
         """Write Rich markup text to stdout."""
+        self._sync_console_color()
         self.console.print(text)
 
     def status(self, text: str, color: str = "") -> None:
@@ -195,6 +223,7 @@ class CLITerminal(TerminalHost):
         contains literal ``[/]`` (e.g. a Rich MarkupError repeated as
         ``err_msg``).
         """
+        self._sync_console_color()
         indented = textwrap.indent(text, "  ")
         if color:
             self.console.print(f"[{color}]{escape_markup(indented)}[/]")
@@ -218,6 +247,17 @@ class CLITerminal(TerminalHost):
 
     # -- Context and hooks ----------------------------------------------------
 
+    def _output_width(self) -> int | None:
+        """How wide a table row may be here: the console's width less the two-space gutter.
+
+        Known at a terminal, or whenever ``--term-width`` named one; a pipe
+        has no width, so its tables show every column (registry
+        ``table-fits-the-frontend``).
+        """
+        if self.term_width is None and not sys.stdout.isatty():
+            return None
+        return self.console.width - 2
+
     def _setup_context(self) -> None:
         """Build PluginContext and InternalHandle, wire to REPL."""
         internal_handle = self._build_internal_handle()
@@ -225,6 +265,7 @@ class CLITerminal(TerminalHost):
 
         self.ctx = self._build_plugin_context(internal_handle)
         # CLI-specific callbacks
+        self.ctx.io.width = self._output_width
         self.ctx.io.notify = lambda text, **kw: self.write(f"[notice] {text}")
         self.ctx.io.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
         self.ctx.ui._exit_app_impl = self._request_exit
@@ -250,6 +291,7 @@ class CLITerminal(TerminalHost):
             # The operator is the caller on their own machine: no sandbox.
             filesystem_unconfined=True,
             network_egress=True,
+            host_info=True,
         )
         self.ctx.environment = "CLI"  # ENVIRONMENTS column; /help marks it (current)
         self.ctx.sync_capabilities()  # push caps into fs/ui handle snapshots
@@ -259,9 +301,11 @@ class CLITerminal(TerminalHost):
         # typed line, so app-echo would duplicate it (scripts opt in with
         # /term.echo_repl).  Device echo follows cfg echo.  Color off
         # when --no-color so device ANSI is stripped from piped output.
-        self._init_flags(echo_repl=False, color=not self.no_color)
-        if self.output_level is not None:
-            self.ctx.ns("flags")["output_level"] = self.output_level
+        self._init_flags(
+            echo_repl=False,
+            color=False if self.no_color else None,
+            output_level=self.output_level,
+        )
 
     def _register_hooks(self) -> None:
         """Register the CLI's own commands."""
@@ -272,12 +316,6 @@ class CLITerminal(TerminalHost):
             """Already in CLI mode: a no-op, so a script written for the TUI runs unchanged."""
             return CmdResult.ok(value="")
 
-        # /term.color (device-color toggle) is now a portable builtin
-        # backed by flags["color"], with /color as its legacy alias in
-        # legacy.py -- so it works in the TUI too, not just the CLI.
-        # /run and its sub_commands (.help, .legacy, .list, .dump,
-        # .show, .explore, .profile) are owned by the run.py builtin; the
-        # host only wires ctx.internal.run_script via TerminalHost.
         self.repl.register_hook(
             "help.open",
             "{topic}",
@@ -287,8 +325,7 @@ class CLITerminal(TerminalHost):
             needs=CapabilitySet.GUI_APPS,
             shows=True,
         )
-        # The /log.* family, /log.delete and its legacy /log.clear included,
-        # is the log builtin's (builtins/commands/log.py, legacy.py).
+        # The /log.* family is the log builtin's (builtins/commands/log.py).
         self.repl.register_hook(
             "tui",
             "",
@@ -306,6 +343,10 @@ class CLITerminal(TerminalHost):
             source="app",
             group="terminal",
             needs=CapabilitySet.INTERACTIVE,
+            intro=(
+                "The plain-text frontend's own settings: for now, whether its prompt "
+                "offers tab completion and suggestions."
+            ),
         )
         self.repl.register_hook(
             "cli.completion",
@@ -314,6 +355,7 @@ class CLITerminal(TerminalHost):
             self._hook_cli_completion,
             source="app",
             needs=CapabilitySet.INTERACTIVE,
+            state=True,
         )
         # Historically, CLI registered placeholder hooks for TUI-only
         # commands (/line_no and friends) so users got a clear "Only
@@ -340,14 +382,43 @@ class CLITerminal(TerminalHost):
             self.switch_to = switch_to
         self.repl._script_stop.set()
 
-    def _hook_tui(self, ctx, args: str) -> CmdResult:
+    def _leave_on_request(self, by: int) -> None:
+        """Another termapy asked this session to leave: as ``/exit`` does, from the stop watch's thread.
+
+        A script stops before its next line and ``-e`` stops waiting for the
+        device.  A prompt waiting for a line ends as Ctrl+D ends it, through
+        the loop's own teardown, and a prompt just starting ends itself
+        (``_end_prompt_if_asked`` as its ``pre_run``).  The plain ``input()``
+        prompt (no tty, or ``cli_completion`` off) cannot be woken: the
+        session leaves after its next line, or is ended outright.
+        """
+        self._log_line("#", f"Stop requested by termapy PID {by}")
+        self._request_exit(None)
+        session = self._session
+        loop = session.app.loop if session is not None else None
+        if loop is not None:
+            try:
+                loop.call_soon_threadsafe(self._end_prompt_if_asked)
+            except RuntimeError:
+                pass  # that prompt's loop just closed; the next prompt ends itself
+
+    def _end_prompt_if_asked(self) -> None:
+        """End the waiting prompt as Ctrl+D does once this session has been asked to leave."""
+        session = self._session
+        if not self._exit_requested or session is None:
+            return
+        app = session.app
+        if app.is_running and app.future is not None and not app.future.done():
+            app.exit(exception=EOFError)
+
+    def _hook_tui(self, ctx: PluginContext, args: str) -> CmdResult:
         """``/tui``: leave the CLI for the TUI, on the current config."""
         self._request_exit("tui")
         # SPECIAL CASE: the session ends after this returns; no caller
         # reads the value.
         return CmdResult.ok(value="")
 
-    def _hook_cli_completion(self, ctx, args: str):
+    def _hook_cli_completion(self, ctx: PluginContext, args: str) -> CmdResult:
         """Query, set, or toggle CLI completion (tab completion, auto-suggest, toolbar).
 
         A setting command: bare QUERIES, a vocabulary token sets, ``toggle``
@@ -357,10 +428,10 @@ class CLITerminal(TerminalHost):
             action = parse_bool_setting(args)
         except ValueError as e:
             return CmdResult.fail(msg=str(e))
-        current = bool(self.cfg.get("cli_completion", True))
+        current = bool(cfg_value(self.cfg, "cli_completion"))
         if action is SETTING_QUERY:
-            self.status(f"CLI completion: {'on' if current else 'off'}")
-            return CmdResult.ok(value="on" if current else "off")
+            ctx.io.result(f"CLI completion: {value_text(current)}")
+            return CmdResult.ok(value=current)
         enabled = (not current) if action is SETTING_TOGGLE else action
         self.cfg["cli_completion"] = enabled
         if enabled:
@@ -369,7 +440,7 @@ class CLITerminal(TerminalHost):
         else:
             self._session = None
             self.status("CLI completion disabled.")
-        return CmdResult.ok(value="on" if enabled else "off")
+        return CmdResult.ok(value=enabled)
 
     # ``_hook_run`` and ``_hook_run_help`` are gone -- ``/run`` and
     # ``/run.help`` are now owned by the ``run.py`` built-in.
@@ -406,7 +477,9 @@ class CLITerminal(TerminalHost):
     # -- Confirmation ---------------------------------------------------------
 
     def _confirm(self, message: str) -> bool:
-        """Prompt for y/n confirmation on stdin (``cli_flags.confirm_on_stdin``)."""
+        """Prompt for y/n confirmation on stdin (``cli_flags.confirm_on_stdin``); yes under ``--yes``."""
+        if self._assume_yes:
+            return assume_yes(message)
         return confirm_on_stdin(message)
 
     # -- Prompt session (history + tab completion via prompt_toolkit) ----------
@@ -432,7 +505,7 @@ class CLITerminal(TerminalHost):
         """
         if not sys.stdout.isatty():
             return None
-        if not self.cfg.get("cli_completion", True):
+        if not cfg_value(self.cfg, "cli_completion"):
             return None
         # Imported here, not at the top: prompt_toolkit costs ~0.2 s, and a
         # one-shot (-e, --run) never builds a prompt.
@@ -442,21 +515,33 @@ class CLITerminal(TerminalHost):
 
     # -- Reader thread --------------------------------------------------------
 
+    def _show_rx(self, lines: list[str]) -> None:
+        """Print received lines as they came, a JSON one laid out by ``json.*`` at a terminal.
+
+        Display only, as in the TUI; a pipe gets every line as received.
+        """
+        color_on = self.repl.ctx.ns("flags").get("color", True)
+        indent, highlight = self.repl.json_layout()
+        for line in lines:
+            plain = strip_ansi(line)
+            shown_markup = received_json_markup(plain, indent, highlight)
+            if shown_markup is not None:
+                self.write_markup(shown_markup)
+            else:
+                self._raw(line if color_on else plain)
+
     def _start_reader(self) -> None:
         """Start the background serial reader thread."""
 
         def on_lines(lines: list[str]) -> None:
-            color_on = self.repl.ctx.ns("flags").get("color", True)
-            plain = [strip_ansi(line) for line in lines]
-            for shown in lines if color_on else plain:
-                self._raw(shown)
+            self._show_rx(lines)
             # Expect watcher and text capture, the same as every frontend.
-            self._feed_rx_consumers(lines, plain)
+            self._feed_rx_consumers(lines)
 
         def on_hex(rows: list[str], lines: list[str]) -> None:
             for row in rows:
                 self._raw(row)
-            self._feed_rx_consumers(lines, [strip_ansi(line) for line in lines])
+            self._feed_rx_consumers(lines)
 
         def on_disconnect() -> None:
             self._err("Serial disconnected")
@@ -497,6 +582,10 @@ class CLITerminal(TerminalHost):
             if alt.exists():
                 script_path = alt
         path, _ = self.repl.start_script(str(script_path))
+        if self._exit_requested:
+            # start_script clears the stop for a new script, so a request to
+            # leave that came in while the session started would be lost.
+            self.repl._script_stop.set()
         if path:
             try:
                 self.repl.run_script(
@@ -538,10 +627,14 @@ class CLITerminal(TerminalHost):
         a "not before now" floor first.  Same pattern ``/cap.wire`` uses.
 
         No "Disconnected." chrome banner -- exec mode is the piping
-        mode, and chrome bytes corrupt captured stdout.
+        mode, and chrome bytes corrupt captured stdout.  A request to
+        leave that came in while the session started runs nothing.
         """
         import time as _time
 
+        if self._exit_requested:
+            self.engine.disconnect()
+            return
         last_arrival = [_time.monotonic()]
 
         def _bump_last_rx(_data: bytes) -> None:
@@ -551,7 +644,7 @@ class CLITerminal(TerminalHost):
             with self.ctx.serial.rx_observer(_bump_last_rx):
                 result = self.ctx.dispatch(command)
                 deadline = _time.monotonic() + self._EXEC_MAX_WAIT_S
-                while _time.monotonic() < deadline:
+                while _time.monotonic() < deadline and not self._exit_requested:
                     if (_time.monotonic() - last_arrival[0]) >= self._EXEC_IDLE_GAP_S:
                         break
                     _time.sleep(0.01)
@@ -595,19 +688,21 @@ class CLITerminal(TerminalHost):
         self._session = self._build_session()
 
         def _loop() -> None:
-            while True:
+            while not self._exit_requested:
                 try:
                     from termapy.variables import expand_vars
 
-                    prompt = expand_vars(self.cfg.get("cli_prompt", "> "))
+                    prompt = expand_vars(self.ctx, cfg_value(self.cfg, "cli_prompt"))
                     s = self._session
-                    line = s.prompt(prompt) if s else input(prompt)
+                    line = (
+                        s.prompt(prompt, pre_run=self._end_prompt_if_asked) if s else input(prompt)
+                    )
                 except EOFError:
                     break
 
                 line = line.strip()
                 if not line:
-                    if self.cfg.get("send_bare_enter", False):
+                    if cfg_value(self.cfg, "send_bare_enter"):
                         self._dispatch("")
                     continue
 
@@ -615,7 +710,7 @@ class CLITerminal(TerminalHost):
                 if line.lower() == self.prefix + "quit":
                     break
 
-                self._dispatch(line)
+                self._dispatch_typed(line)
                 if self._exit_requested:
                     break
 
@@ -698,6 +793,7 @@ class CLITerminal(TerminalHost):
             self._run_exec_mode(self.exec_cmd)
         else:
             self._run_interactive()
+        self._stop_watching()
         self.repl.fire_lifecycle("on_app_stop")
         return self.switch_to
 
@@ -752,20 +848,24 @@ class CLITerminal(TerminalHost):
         self.write("")
 
     def _first_available_port(self) -> str:
-        """Return the first device name from ``comports()``, or ``""``.
+        """Return the first device name from ``system_ports()``, or ``""``.
 
         Used only for the zero-config welcome banner's "Try:" hint.
         """
         try:
-            from serial.tools.list_ports import comports
+            from termapy.port_control import system_ports
 
-            ports = sorted(comports(), key=lambda p: p.device)
+            ports = sorted(system_ports(), key=lambda p: p.device)
             return ports[0].device if ports else ""
         except Exception:
+            # A hint, not a feature: an enumeration failure leaves it out.
+            from termapy import diag_log
+
+            diag_log.exception("port enumeration for the welcome hint raised")
             return ""
 
 
-def _run_cli_mode(args) -> str | None:
+def _run_cli_mode(args: argparse.Namespace) -> str | None:
     """Run in CLI mode - plain text terminal, no TUI.
 
     Lives in ``cli.py`` (not ``app.py``) so that selecting CLI mode does
@@ -828,6 +928,7 @@ def _run_cli_mode(args) -> str | None:
                 term_width=getattr(args, "term_width", None),
                 zero_config=True,
                 output_level=getattr(args, "output_level", None),
+                assume_yes=getattr(args, "yes", False),
             )
             result = cli.run()
             if exec_cmd:
@@ -851,6 +952,7 @@ def _run_cli_mode(args) -> str | None:
         exec_cmd=exec_cmd,
         term_width=getattr(args, "term_width", None),
         output_level=getattr(args, "output_level", None),
+        assume_yes=getattr(args, "yes", False),
     )
     result = cli.run()
     if exec_cmd:

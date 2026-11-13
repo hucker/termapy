@@ -11,7 +11,7 @@ etc.) and exposes it through PluginContext lambdas.
 import re
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from io import TextIOWrapper
@@ -19,10 +19,18 @@ from pathlib import Path
 from threading import Event
 from types import MappingProxyType
 
-from termapy import load_report
-from termapy.defaults import cmd_prefix, quiet_start
+from termapy import diag_log, load_report
+from termapy.converters import ConverterSpec
+from termapy.defaults import (
+    CFG_HELP,
+    SESSION_FLAG_KEYS,
+    cfg_key_path,
+    cfg_value,
+    cmd_prefix,
+    quiet_start,
+)
 from termapy.env_flags import TRUSTED_PLUGINS_ONLY
-from termapy.folder_ops import list_entries
+from termapy.folder_ops import list_entries, stamped_path
 from termapy.folders import (
     CAP,
     FOLDER_EXTS,
@@ -38,6 +46,7 @@ from termapy.folders import (
     file_suggestion,
     prune_empty_folders,
 )
+from termapy.idioms import idiom_for
 from termapy.load_report import LoadReport, Record
 from termapy.markup import escape_markup, json_markup, markup_to_plain
 from termapy.matching import closest, did_you_mean
@@ -65,16 +74,17 @@ from termapy.plugins import (
     load_plugins_from_dir,
 )
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
+from termapy.plugins.command import has_required_arg, interpolate_help
 from termapy.plugins.params import parse_params
 from termapy.plugins.views import error_pieces
 from termapy.scripting import (
     expand_template,
-    filename_timestamp,
     format_duration,
     strip_ansi,
     strip_leading_echo,
 )
 from termapy.symbols import session as symbols_session
+from termapy.typed_lines import TypedLines
 
 # Lifecycle events with CORE listeners (plugin resolution, then the symbol
 # auto-load) that run before the plugin hooks: exactly the moments a config
@@ -86,8 +96,6 @@ _CORE_LIFECYCLE: frozenset[str] = frozenset({"on_app_start", "on_config_load"})
 # token, whitespace, then the partial argument (possibly empty) running to
 # the end.  ``complete_file_arg`` matches it from just past the prefix.
 _FILE_ARG_RE = re.compile(r"(\S+)\s+(\S*)\Z")
-# An optional group of a synopsis, ``{...}``: what a bare call may leave out.
-_OPTIONAL_GROUP = re.compile(r"\{[^{}]*\}")
 # How often a wait for a device line checks for a script stop (Escape).
 _EXPECT_STOP_POLL_S = 0.1
 
@@ -199,6 +207,18 @@ def _strip_level_flags(args: str) -> tuple[str, str | None]:
     return " ".join(remaining), level
 
 
+def _asks_silent(repl_cmd: str) -> bool:
+    """Whether a REPL line asks to be silent, by the ``.silent`` suffix or the ``--silent`` flag.
+
+    The two spellings mean the same everywhere, so the line's echo honors
+    both, as dispatch does; a ``.json`` after the suffix (``.silent.json``)
+    leaves it silent.  An empty line asks for nothing.
+    """
+    name, _, args = repl_cmd.strip().partition(" ")
+    silent_name = name.lower().removesuffix(".json").endswith(".silent")
+    return silent_name or _strip_level_flags(args)[1] == "silent"
+
+
 def _strip_json_flag(args: str) -> tuple[str, bool]:
     """Strip the universal ``--json`` flag from args.
 
@@ -297,8 +317,15 @@ class ReplEngine:
         self.cfg = MappingProxyType(self._cfg_data)
         self.config_path = config_path
         self.write = write  # write(text, color="dim") callback
+        # Whether JSON goes to a screen a person reads (the TUI, a CLI at a
+        # terminal), where json_fmt.indent and json_fmt.highlight lay it out.  The
+        # host says so; a pipe and MCP keep one line per JSON value.
+        self.screen_json = False
         # Prototype families that have said so this session (_note_prototype).
         self._prototypes_noted: set[str] = set()
+        # True while read_state runs: dispatch keeps the view, prints no
+        # failure and says no prototype note; a nested read is refused.
+        self._reading_state = False
         self.trusted_only = trusted_only
         self.global_root = global_root
         self._trusted_notice_shown = False
@@ -369,6 +396,13 @@ class ReplEngine:
         # break dispatch.
         self._post_dispatch_observers: list[Callable[[str, CmdResult], None]] = []
 
+        # The lines typed at the prompt, per config, for /run.last.  Not an
+        # observer: those see every outermost line, a script's included,
+        # and only the frontend knows a line was typed
+        # (TerminalHost._dispatch_typed feeds it).  Survives a config
+        # switch, as the engine does.
+        self.typed_lines = TypedLines()
+
         # Lifecycle hooks - flat list in load order. fire_lifecycle() filters
         # by name. See plugins.LIFECYCLE_HOOK_NAMES for supported hooks.
         self._lifecycle_hooks: list[LifecycleHook] = []
@@ -377,7 +411,7 @@ class ReplEngine:
         # The BUILT-IN converters are not here -- they live in the
         # symbols.converters registry, which /sym.import consults too.
         # Only folder-loaded ones need dropping on a config switch.
-        self._converters: list = []
+        self._converters: list[ConverterSpec] = []
 
         # What the last config load put in the session (fire_lifecycle).
         self.load_report = LoadReport()
@@ -396,32 +430,6 @@ class ReplEngine:
             self.register_directive(directive)
         for hook in result.lifecycle_hooks:
             self.register_lifecycle_hook(hook)
-        self._register_legacy_forwarders()
-
-    def _register_legacy_forwarders(self) -> None:
-        """Register the hidden legacy command aliases centrally.
-
-        Old top-level commands that moved to a namespace (``/echo`` ->
-        ``/term.echo``, ``/line_no`` -> ``/term.line_no``,
-        ``/show_line_endings`` -> ``/term.line_endings``, ``/verbose`` ->
-        ``/term.output``) used to be one plugin file each.  They now live
-        in ``legacy.LEGACY_FORWARDERS`` and register here, once per
-        engine, so every frontend (TUI/CLI/MCP) gets them without four
-        extra files in ``builtins/commands/``.
-        """
-        from termapy.legacy import LEGACY_FORWARDERS
-
-        for fwd in LEGACY_FORWARDERS:
-            self.register_plugin(
-                PluginInfo(
-                    name=fwd.name,
-                    args=fwd.args,
-                    help=fwd.help,
-                    handler=fwd.handler,
-                    needs=fwd.needs,
-                    hidden=True,
-                )
-            )
 
     # -- Expect / pattern matching ---------------------------------------------
 
@@ -586,9 +594,10 @@ class ReplEngine:
 
         The prose form of a typed answer (``CmdResult.view``: a
         ``views.TableView`` for a list, a ``views.RecordView`` for a
-        status page) is printed here, once, on the output channel -- never
+        status page) is printed here, once, on the result channel, so
+        ``--quiet`` keeps the answer and only ``--silent`` hides it -- never
         by the handler (registries ``list-one-format``,
-        ``record-one-format``).  A caller
+        ``record-one-format``, ``view-is-the-answer``).  A caller
         that wants data (an MCP session, or a dispatch nested inside a
         ``--json`` call, which sets ``ctx.wants_data``) gets the records
         alone.  Because the view is stripped, a forwarded command's table
@@ -613,13 +622,14 @@ class ReplEngine:
                 if isinstance(view, RecordView):
                     # Cyan labels: markup, every value already escaped.
                     for line in view.lines():
-                        self.ctx.io.output_markup(line)
+                        self.ctx.io.result_markup(line)
                 else:
                     # Pieces with their links: the TUI makes them
                     # clickable, every other frontend prints the joined
-                    # text (registry links-are-data).
-                    for segments, color in view.segment_lines():
-                        self.ctx.io.output_segments(segments, color)
+                    # text (registry links-are-data), fitted to the
+                    # frontend's width (registry table-fits-the-frontend).
+                    for segments, color in view.segment_lines(self.ctx.io.width()):
+                        self.ctx.io.result_segments(segments, color)
             finally:
                 self.ctx._call_level = saved_level
         return replace(result, view=None)
@@ -671,27 +681,43 @@ class ReplEngine:
         finally:
             self.ctx._call_level = saved_emit_level
 
-    def _write_json(self, data: object, *, result: bool, indent: bool = True) -> None:
-        """Print ``data`` as JSON in the session's ``json_style`` (``/term.json``).
+    def json_layout(self) -> tuple[int, bool]:
+        """How JSON shows here: ``(indent, highlight)``, one plain line where no person reads it.
 
-        ``compact`` is one line -- one JSON value per line, for consumers
-        that read stdout line by line; ``indent`` indents it; ``color``
-        indents and highlights it through Rich markup.  ``indent=False``
-        keeps a one-key echo on one line in every style.  An unknown style
-        (a hand-edited cfg; ``validate_config`` warns at load) prints
-        compact.
+        On a screen (``screen_json``) the indent is ``json_fmt.indent`` and the
+        highlight ``json_fmt.highlight`` with color on; in a pipe, a file or MCP,
+        and for a caller that wants data (``--json``, whose ``output_lines``
+        keep a reply as it came), it is ``(0, False)``.  The one answer
+        wherever JSON shows: termapy's envelopes, a device's JSON line in the
+        TUI and the CLI, and a command printing a reply
+        (``ctx.internal.json_layout``), so no handler asks who is reading.
+        """
+        if not self.screen_json or self.ctx.wants_data:
+            return 0, False
+        color_on = self.ctx.ns("flags").get("color", True)
+        highlight = bool(color_on and cfg_value(self.cfg, "json_fmt.highlight"))
+        return cfg_value(self.cfg, "json_fmt.indent"), highlight
+
+    def _write_json(self, data: object, *, result: bool, indent: bool = True) -> None:
+        """Print ``data`` as JSON, laid out by ``json_fmt.indent`` and ``json_fmt.highlight`` on a screen.
+
+        On a screen a person reads (``screen_json``) it is indented by
+        ``json_fmt.indent`` spaces per level (0 is one line) and highlighted
+        when ``json_fmt.highlight`` is on.  Anywhere else -- a pipe, a file --
+        it is one line per value, for a program reading stdout line by
+        line.  ``indent=False`` keeps a one-key echo on one line.
 
         Args:
             data: The JSON-shaped value.
             result: The result channel (quiet+, the answer envelope);
                 otherwise the output channel (normal+, the request echo).
-            indent: Whether the style's indent applies.
+            indent: Whether ``json_fmt.indent`` applies.
         """
         import json as _json
 
-        style = self.cfg.get("json_style", "compact")
-        spaces = 2 if indent and style in ("indent", "color") else None
-        if style == "color":
+        layout_indent, highlight = self.json_layout()
+        spaces = (layout_indent if indent else 0) or None
+        if highlight:
             markup = json_markup(data, indent=spaces)
             if result:
                 self.ctx.io.result_markup(markup)
@@ -775,10 +801,8 @@ class ReplEngine:
         # needed for this one.
         self._write_json({"cmd": command}, result=False, indent=False)
 
-        encoding = self.cfg.get("encoding", "utf-8")
-        line_ending = self.cfg.get("eol", "\r")
-        timeout_ms = int(self.cfg.get("default_response_timeout_ms", 1000))
-        payload = (command + line_ending).encode(encoding)
+        encoding = cfg_value(self.cfg, "encoding")
+        timeout_ms = int(cfg_value(self.cfg, "default_response_timeout_ms"))
 
         t0 = _time.perf_counter()
         error = ""
@@ -786,7 +810,7 @@ class ReplEngine:
         try:
             with self.ctx.serial.io():
                 self.ctx.serial.drain()
-                self.ctx.serial.write(payload)
+                self.ctx.serial.send(command)
                 response = self.ctx.serial.read_raw(timeout_ms=timeout_ms)
             text = response.decode(encoding, errors="replace").strip()
             # request_mode output is a structured data value, not terminal
@@ -799,10 +823,16 @@ class ReplEngine:
             # When strip_device_echo is on, drop that leading echo line so
             # the response is just the answer (deterministic here -- the
             # whole reply is in hand, no reader/thread coupling).
-            if self.cfg.get("strip_device_echo") and text:
+            if cfg_value(self.cfg, "strip_device_echo") and text:
                 text = strip_leading_echo(text, command)
-        except (OSError, Exception) as exc:  # noqa: BLE001 -- serial boundary
+        # A failed exchange is the answer: a lost port (pyserial's
+        # SerialException is an OSError) or a character outside the encoding
+        # (a ValueError) is expected; anything else is a bug, traceback kept.
+        except (OSError, ValueError) as exc:
             error = f"Send error: {exc}"
+        except Exception as exc:  # serial boundary
+            diag_log.exception("request %r raised", command)
+            error = f"Send error: {type(exc).__name__}: {exc}{diag_log.traceback_note()}"
         elapsed = _time.perf_counter() - t0
 
         # Detect device-side errors via the configured regex.  ``error``
@@ -822,7 +852,7 @@ class ReplEngine:
             if "request_err_pattern_override" in flags:
                 pattern = flags["request_err_pattern_override"]
             else:
-                pattern = self.cfg.get("request_err_pattern", "")
+                pattern = cfg_value(self.cfg, "request_err_pattern")
             if pattern:
                 import re as _re
 
@@ -916,7 +946,7 @@ class ReplEngine:
         """Register a plugin lifecycle hook. Appended in load order."""
         self._lifecycle_hooks.append(hook)
 
-    def register_converter(self, spec) -> None:
+    def register_converter(self, spec: ConverterSpec) -> None:
         """Register a converter (any kind). Appended in load order.
 
         Later layers override earlier ones by ``(kind, format)``, so a
@@ -934,7 +964,7 @@ class ReplEngine:
         self._converters.append(spec)
 
     @property
-    def converters(self) -> list:
+    def converters(self) -> list[ConverterSpec]:
         """Folder-loaded converters of every kind, in load order."""
         return self._converters
 
@@ -1088,7 +1118,10 @@ class ReplEngine:
             for spec in module.converters:
                 self.register_converter(spec)
             if module.error:
-                self.write(f"Plugin error: {module.file}: {module.error}", "red")
+                self.write(
+                    f"Plugin error: {module.file}: {module.error}{diag_log.traceback_note()}",
+                    "red",
+                )
             elif not module.exported:
                 self.write(
                     f"Skipped {module.file} - nothing exported (see plugin docs)",
@@ -1162,12 +1195,22 @@ class ReplEngine:
         if name in _PRUNE_LIFECYCLE:
             self._prune_data_folders()
         if name in _CORE_LIFECYCLE:
+            # The one header for a load's rows, the session's first one (no
+            # config included) and every later one alike.
+            diag_log.info("config load: %s", self.config_path or "(none)")
             self.load_report.replace(
                 [
                     *self.resolve_plugins(),
                     *symbols_session.autoload(self.ctx, self.config_path, self.global_root),
                 ]
             )
+            # Every file the load brought in, the folder plugins first: what
+            # code this session runs besides termapy's own.
+            for record in self.load_report.records:
+                if record["error"]:
+                    diag_log.warning("  load failed: %s", load_report.diag_line(record))
+                else:
+                    diag_log.info("  loaded %s", load_report.diag_line(record))
             self._show_load_report()
         for hook in self._lifecycle_hooks:
             if hook.name != name:
@@ -1179,7 +1222,11 @@ class ReplEngine:
             try:
                 hook.handler(self.ctx)
             except BoundaryException as e:
-                self.ctx.io.status(f"Lifecycle hook {hook.plugin}:{name} failed: {e}")
+                diag_log.exception("lifecycle hook %s:%s raised", hook.plugin, name)
+                self.ctx.io.status(
+                    f"Lifecycle hook {hook.plugin}:{name} failed: "
+                    f"{type(e).__name__}: {e}{diag_log.traceback_note()}"
+                )
 
     def run_directives(self, line: str) -> DirectiveResult:
         """Run all directives in load order against a raw input line.
@@ -1216,11 +1263,13 @@ class ReplEngine:
         raw_args: bool = False,
         flags: dict[str, str] | None = None,
         needs: CapabilitySet | None = None,
-        hidden: bool = False,
         files: str = "",
         picker: str = "",
         group: str = "",
         shows: bool = False,
+        cfg: dict[str, str] | None = None,
+        state: bool = False,
+        intro: str = "",
     ) -> None:
         """Register an app-coupled command as a plugin.
 
@@ -1242,7 +1291,6 @@ class ReplEngine:
             flags: First-class flag declarations (see ``Command.flags``).
             needs: Environment capabilities the handler requires
                 (see ``CapabilitySet``).
-            hidden: Omit from discovery surfaces (see ``Command.hidden``).
             files: Data folder the first argument's file lives in
                 (see ``Command.files``).
             picker: Picker a bare invocation opens (see ``Command.picker``).
@@ -1251,6 +1299,10 @@ class ReplEngine:
                 dotted name inherits its parent's group, as a loaded
                 subcommand inherits its root's; ``""`` on a root command
                 means ``GROUP_DEFAULT``.
+            cfg: The config keys it depends on, each with how it uses the
+                value (see ``Command.cfg``).
+            state: Its bare form reports current state (see ``Command.state``).
+            intro: What this family is for (see ``Command.intro``).
         """
         # Tree override: remove all children of this command from plugins.
         # When a hook takes ownership of a command, it owns the full subtree.
@@ -1281,11 +1333,13 @@ class ReplEngine:
             raw_args=raw_args,
             flags=dict(flags) if flags else {},
             needs=needs if needs is not None else CapabilitySet(),
-            hidden=hidden,
             files=files,
             picker=picker,
             group=group or GROUP_DEFAULT,
             shows=shows,
+            cfg=dict(cfg) if cfg else {},
+            state=state,
+            intro=intro,
         )
         # Auto-update parent's children list for dotted names
         if "." in name:
@@ -1294,13 +1348,65 @@ class ReplEngine:
             if parent and name not in parent.children:
                 parent.children.append(name)
 
+    def help_summary(self, name: str) -> str:
+        """The line ``/help <name>`` opens with, in ``/help``'s lookup order, or ``""``.
+
+        Every definition already exists, written once: a command's ``help=``, a
+        device command's from its profile, a config key's ``CfgKey.help`` and
+        ``hint``, an idiom's ``summary``.  A hint that is a function is left out:
+        it may look at the ports, and this runs as the mouse moves.
+
+        Args:
+            name: What ``/help`` would be given (``output_level``, ``term.hex``).
+
+        Returns:
+            The definition with the prefix filled in; ``""`` when nothing has that name.
+        """
+        from termapy.profile import profile_command_view
+
+        plugin = self._plugins.get(name)
+        device = profile_command_view(self.ctx.ns("active_profile")).get(name)
+        path = cfg_key_path(name)
+        idiom = idiom_for(name)
+        if plugin is not None:
+            text = plugin.help
+        elif device is not None:
+            text = device.help
+        elif path is not None:
+            text, hint = CFG_HELP[path.rpartition(".")[2]][:2]
+            if hint and not callable(hint):
+                text = f"{text}\nValid: {hint}"
+        elif idiom is not None:
+            text = idiom.summary
+        else:
+            text = plugin.help if plugin is not None else ""
+        return interpolate_help(text, self.prefix)
+
+    def link_summary(self, command: str) -> str:
+        """What a link is about, for its tooltip: what it opens, or what it runs (registry ``link-explains-itself``).
+
+        So a link explains itself with nothing declared where it is built: the
+        definition comes from whatever the link names.
+
+        Args:
+            command: The link's command, without the prefix (``help hex``, ``cfg.load demo``).
+
+        Returns:
+            The definition, or ``""`` when the link names nothing known.
+        """
+        words = command.split()
+        if len(words) > 1 and words[0] == "help":
+            return self.help_summary(words[1])
+        plugin = self.plugin_for(command)
+        return interpolate_help(plugin.help, self.prefix) if plugin is not None else ""
+
     def plugin_for(self, repl_cmd: str) -> PluginInfo | None:
         """The registered command a prefix-stripped line names, or None.
 
         Mirrors dispatch's own resolution -- first token, lowercased, the
-        universal ``.<level>`` suffix stripped when no command claims it --
-        so a caller that must know what WILL run (the MCP safety gate)
-        cannot drift from what dispatch decides.
+        universal ``.<level>`` and ``.json`` suffixes read by
+        :meth:`split_suffixes` -- so a caller that must know what WILL run
+        (the MCP safety gate) cannot drift from what dispatch decides.
 
         Args:
             repl_cmd: The line without its REPL prefix.
@@ -1309,14 +1415,43 @@ class ReplEngine:
             The PluginInfo, or None when nothing is registered by that name.
         """
         name = repl_cmd.split(None, 1)[0].lower() if repl_cmd.strip() else ""
-        plugin = self._plugins.get(name)
-        if plugin is not None:
-            return plugin
-        for level in OUTPUT_LEVELS:
-            suffix = "." + level
-            if name.endswith(suffix):
-                return self._plugins.get(name[: -len(suffix)])
-        return None
+        return self._plugins.get(self.split_suffixes(name)[0])
+
+    def split_suffixes(self, name: str) -> tuple[str, str | None, bool]:
+        """A typed command name, the level it asks for, and whether it asks for JSON.
+
+        Any command takes ``.<level>`` (``.quiet``, ...) and ``.json`` on
+        its name for one call, as it takes ``--quiet`` and ``--json``: at
+        most one of each, in either order (``/port.info.json.quiet``).  A
+        name that is a command keeps its meaning, and so does a name whose
+        suffixes leave no command; both come back as given.  No built-in
+        command's name ends in one of these words (registry
+        ``suffix-words-reserved``), so the suffix means the same on every
+        command.
+
+        Args:
+            name: The command's first token, lowercased.
+
+        Returns:
+            ``(command name, level or None, json)``.
+        """
+        if name in self._plugins:
+            return name, None, False
+        bare, level, wants_json = name, None, False
+        for _ in range(2):
+            head, dot, tail = bare.rpartition(".")
+            if not dot:
+                break
+            if tail in OUTPUT_LEVELS and level is None:
+                level = tail
+            elif tail == "json" and not wants_json:
+                wants_json = True
+            else:
+                break
+            bare = head
+            if bare in self._plugins:
+                return bare, level, wants_json
+        return name, None, False
 
     def _bare_handler(self, plugin: PluginInfo, args: str) -> Callable | None:
         """The declared bare behavior that replaces the handler, or None.
@@ -1382,10 +1517,7 @@ class ReplEngine:
         plugin = self._plugins.get(name.lower())
         if plugin is None or not plugin.shows:
             return False
-        # A required argument is a <name> outside every {optional} group:
-        # /dev.lib's {<pattern>} is optional, /sym.search's <pattern> is not.
-        needs_args = "<" in _OPTIONAL_GROUP.sub("", plugin.args)
-        return bool(rest) or not needs_args
+        return bool(rest) or not has_required_arg(plugin.args)
 
     def complete_file_arg(self, line: str) -> tuple[int, list[str]] | None:
         """File names that complete a line's first argument, newest first.
@@ -1432,8 +1564,7 @@ class ReplEngine:
         Returns:
             True if the command exists and has ``raw_args=True``.
         """
-        name = repl_cmd.split(None, 1)[0].lower() if repl_cmd.strip() else ""
-        plugin = self._plugins.get(name)
+        plugin = self.plugin_for(repl_cmd)
         return plugin.raw_args if plugin else False
 
     def _validate_bare_typed_args(self, cmd: str) -> CmdResult | None:
@@ -1492,7 +1623,8 @@ class ReplEngine:
 
         Args:
             text: The command or device line as typed.
-            eol_label: Renders a line ending visibly, or ``None`` for no
+            eol_label: Renders a line ending visibly as Rich markup
+                (``serial_port.eol_label_markup``), or ``None`` for no
                 markers (slash commands send no line ending).
 
         Returns:
@@ -1500,10 +1632,26 @@ class ReplEngine:
         """
         from termapy.variables import expand_vars
 
-        if eol_label is not None and self.cfg.get("eol_markers", False):
-            text += eol_label(self.cfg.get("eol", "\r"))
-        fmt = expand_vars(self.cfg.get("echo_fmt", "> {cmd}"))
-        return fmt.replace("{cmd}", escape_markup(text))
+        # The marker is markup already, so it joins after the text is escaped.
+        marker_markup = ""
+        if eol_label is not None and cfg_value(self.cfg, "eol_markers"):
+            marker_markup = eol_label(cfg_value(self.cfg, "eol"))
+        fmt = expand_vars(self.ctx, cfg_value(self.cfg, "echo_fmt"))
+        return fmt.replace("{cmd}", escape_markup(text) + marker_markup)
+
+    def echo_prompt(self) -> str:
+        """The plain text the echo puts before a command (``esp32s3> ``); ``""`` when none.
+
+        ``echo_fmt`` with its ``$(VAR)`` expanded and its markup dropped, up
+        to ``{cmd}``: exactly what precedes each command this session echoes,
+        so the command lines of a copied transcript can be told from its
+        output (``scripting.transcript_commands``).
+        """
+        from termapy.variables import expand_vars
+
+        fmt = markup_to_plain(expand_vars(self.ctx, cfg_value(self.cfg, "echo_fmt")))
+        head, found, _ = fmt.partition("{cmd}")
+        return head if found else ""
 
     def dispatch_full(
         self,
@@ -1549,8 +1697,6 @@ class ReplEngine:
             Every route through here -- ``/raw``, a directive, a slash
             command, a device line -- announces the same way, through the
             one builder, so the user's ``echo_fmt`` governs all of them.
-            Three directive branches used to spell ``[cyan]> {cmd}`` by
-            hand and ignored the format entirely.
 
             The CALLER decides whether to announce at all: the slash
             paths ask ``echo_repl_on`` and the device path ``self.echo``,
@@ -1621,12 +1767,7 @@ class ReplEngine:
         if cmd.startswith(prefix):
             repl_cmd = cmd[len(prefix) :].strip()
             _log(">", f"{prefix}{repl_cmd}")
-            # When the user types just the prefix character ("/"), repl_cmd
-            # is "" and ``repl_cmd.split()[0]`` would IndexError.  Guard
-            # against that: an empty command has no first token to inspect
-            # for ".silent", so just echo unconditionally.
-            first_word = repl_cmd.split()[0] if repl_cmd.split() else ""
-            if echo_repl_on and ".silent" not in first_word:
+            if echo_repl_on and not _asks_silent(repl_cmd):
                 _announce(f"{prefix}{repl_cmd}")
             if self.has_repl_transforms:
                 if not self.command_has_raw_args(repl_cmd):
@@ -1672,7 +1813,7 @@ class ReplEngine:
         # seeds the flag at init; the flag is the session truth.  An empty
         # line is echoed too: it sends a bare line ending (send_bare_enter,
         # a blank line in a paste), and the echo is how the user sees it went.
-        if self.echo and not self.cfg.get("request_mode"):
+        if self.echo and not cfg_value(self.cfg, "request_mode"):
             _announce(cmd, eol=eol_label)
 
         if is_connected and not is_connected():
@@ -1685,7 +1826,7 @@ class ReplEngine:
         # to short-circuit bad args locally with the same vocabulary the
         # MCP path uses.  Skips silently when no profile is loaded or
         # the command isn't a profile entry.
-        if self.cfg.get("validate_typed_args"):
+        if cfg_value(self.cfg, "validate_typed_args"):
             fail = self._validate_bare_typed_args(cmd)
             if fail is not None:
                 # Shown as if the device had replied with the error.
@@ -1707,7 +1848,7 @@ class ReplEngine:
             # hook only sees commands the profile didn't claim.  In
             # TUI/CLI there's no profile executor on this path, so
             # request_mode applies to every bare command.
-            if self.cfg.get("request_mode") and self.ctx.serial.write is not None:
+            if cfg_value(self.cfg, "request_mode") and self.ctx.serial.write is not None:
                 return self._exec_request_mode(cmd)
             # ``--json`` is the per-call form of that dial: a bare device
             # line carrying it is ONE request/response, not a fire-and-
@@ -1723,14 +1864,12 @@ class ReplEngine:
                 # handle it here -- symmetric with the request_mode empty-line
                 # path above.  (Reached only when a frontend forwards an empty
                 # line, which it does only when send_bare_enter is set.)
-                ending = self.cfg.get("eol", "\r")
-                encoding = self.cfg.get("encoding", "utf-8")
                 if self.ctx.serial.write is not None:
                     # No handler's guard out here: a failed write must
                     # come back as a result, not raise into the caller's
                     # worker thread.
                     try:
-                        self.ctx.serial.write(ending.encode(encoding))
+                        self.ctx.serial.send("")
                     except (OSError, UnicodeError, LookupError) as e:
                         _fail_status(f"Send error: {e}", "red")
                         return CmdResult.fail(msg=f"Send error: {e}")
@@ -1772,6 +1911,39 @@ class ReplEngine:
         if token in self._post_dispatch_observers:
             self._post_dispatch_observers.remove(token)
 
+    def read_state(self, name: str) -> CmdResult:
+        """Run a state command bare for its answer: nothing printed, its view kept (``Command.state``).
+
+        The ordinary dispatch path, so the capability gate still answers
+        (``Not connected.`` is the state) and a handler that raises comes
+        back as a failure, at the silent level so a handler's own prose
+        goes nowhere.  ``wants_data`` is forced off so the page reads the
+        same in every frontend; the outer command's flags survive, since
+        dispatch clears them on its way out.  A read inside a read is
+        refused, so a tagged command whose bare form runs ``/help`` cannot
+        recurse.
+
+        Args:
+            name: The command's name, without its prefix.
+
+        Returns:
+            The result, with its ``view`` when it has one.
+        """
+        if self._reading_state:
+            return CmdResult.fail(msg="Already reading a command's state.")
+        ctx = self.ctx
+        saved = (ctx._call_level, ctx.wants_data, ctx.active_flags)
+        ctx._call_level = "silent"
+        ctx.wants_data = False
+        self._reading_state = True
+        self._handler_depth += 1
+        try:
+            return self._dispatch_inner(name)
+        finally:
+            self._handler_depth -= 1
+            self._reading_state = False
+            ctx._call_level, ctx.wants_data, ctx.active_flags = saved
+
     def dispatch(self, line: str, *, report: bool = True) -> CmdResult:
         """Parse and dispatch a REPL command (prefix already stripped).
 
@@ -1800,10 +1972,15 @@ class ReplEngine:
         # typed, and a replay runs each command once.
         if self._handler_depth == 0:
             for post_dispatch_observer in self._post_dispatch_observers:
+                # An observer is plugin code: a bug in one must not break dispatch.
                 try:
                     post_dispatch_observer(line, result)
-                except Exception as e:  # observer bug must not break dispatch
-                    self.write(f"Observer error: {e}", "red")
+                except BoundaryException as e:
+                    diag_log.exception("post-dispatch observer %r raised", post_dispatch_observer)
+                    self.write(
+                        f"Observer error: {type(e).__name__}: {e}{diag_log.traceback_note()}",
+                        "red",
+                    )
         return result
 
     def _dispatch_inner(self, line: str, *, report: bool = True) -> CmdResult:
@@ -1835,6 +2012,10 @@ class ReplEngine:
         # the level flags) so an unknown command still answers with a JSON
         # envelope rather than leaking the flag into the error message.
         args, wants_json = _strip_json_flag(args)
+        # The suffix forms of the level and --json, read off the name when
+        # no command claims the whole of it.
+        name, call_level, suffix_json = self.split_suffixes(name)
+        wants_json = wants_json or suffix_json
 
         # Request mode is the SESSION's structured dial, and from the
         # user's seat the device/termapy demarcation is invisible: with
@@ -1847,7 +2028,7 @@ class ReplEngine:
         # outer response envelope, so printing a second envelope into
         # ``output_lines`` would duplicate exactly what the unified
         # envelope removed.
-        if not wants_json and self.cfg.get("request_mode"):
+        if not wants_json and cfg_value(self.cfg, "request_mode"):
             from termapy.variables import launch_var
 
             wants_json = launch_var("FRONT_END") != "mcp"
@@ -1866,24 +2047,9 @@ class ReplEngine:
         # that never ran the handler.
         json_output_lines: list[str] = []
 
-        # Universal level-suffix modifier: any command can be invoked as
-        # ``<cmd>.<level>`` (silent/quiet/normal/verbose) to override the
-        # output level for that one call.  We only fall back to this if
-        # no real plugin is registered with that suffix (so commands that
-        # explicitly define a ``.<level>`` subcommand still win).
-        call_level: str | None = None
+        # ``call_level`` came from a ``.<level>`` suffix (split_suffixes
+        # above); a ``--<level>`` flag is read with the plugin below.
         plugin = self._plugins.get(name)
-        if plugin is None:
-            for level in OUTPUT_LEVELS:
-                suffix = "." + level
-                if name.endswith(suffix):
-                    bare_name = name[: -len(suffix)]
-                    bare_plugin = self._plugins.get(bare_name)
-                    if bare_plugin is not None:
-                        plugin = bare_plugin
-                        name = bare_name
-                        call_level = level
-                    break
 
         def _finish(result: CmdResult) -> CmdResult:
             """The single exit: envelope in JSON mode, red line otherwise.
@@ -1913,7 +2079,12 @@ class ReplEngine:
             a caller that answers with the result prints it at its own
             exit, so a forwarded or captured failure shows once and keeps
             its ``error`` for the envelope.
+
+            A state read (``read_state``) takes the result as it is: the
+            help page renders it, so nothing prints here and the view stays.
             """
+            if self._reading_state:
+                return result
             if wants_json:
                 self._emit_json_envelope(
                     f"{self.prefix}{name} {args}".rstrip(),
@@ -1930,7 +2101,7 @@ class ReplEngine:
             refusal = self._capability_refusal(plugin, name)
             if refusal is not None:
                 return _finish(CmdResult.fail(msg=refusal))
-            if plugin.maturity == "prototype":
+            if plugin.maturity == "prototype" and not self._reading_state:
                 self._note_prototype(name)
             # Universal level-flag pre-pass: strip --silent/--quiet/--normal/
             # --verbose before per-command flag parsing so every command
@@ -1945,10 +2116,6 @@ class ReplEngine:
                         )
                     )
                 call_level = flag_level
-            # First-class flag parsing: strip declared flags from args and
-            # record them on the context for the handler to read via
-            # ctx.flag(). Commands with no declared flags opt out entirely
-            # (args passed through unchanged; set is empty).
             args, active_flags, flag_error = _parse_flags(args, plugin.flags)
             if flag_error:
                 return _finish(CmdResult.fail(msg=flag_error))
@@ -1970,7 +2137,7 @@ class ReplEngine:
                 bound_params, param_error = parse_params(
                     plugin.params,
                     args,
-                    deref=None if plugin.raw_args else deref_ref,
+                    deref=None if plugin.raw_args else lambda ref: deref_ref(self.ctx, ref),
                 )
                 if param_error:
                     return _finish(
@@ -2027,10 +2194,10 @@ class ReplEngine:
                     # are display syntax, not data.
                     captured_lines: list[str] = []
 
-                    def _capture_plain(text, color=None):
+                    def _capture_plain(text: str, color: str | None = None) -> None:
                         captured_lines.append(str(text))
 
-                    def _capture_markup(text):
+                    def _capture_markup(text: str) -> None:
                         captured_lines.append(markup_to_plain(str(text)))
 
                     saved_write = self.ctx.io._write
@@ -2045,11 +2212,13 @@ class ReplEngine:
                     json_output_lines = captured_lines
                 else:
                     result = handler(self.ctx, args)
-                if result is None:
-                    # SPECIAL CASE: legacy / external handler returned None.
-                    # Synthesize an empty success so the dispatch loop has
-                    # a result to attach elapsed_s to.
-                    result = CmdResult.ok(value="")
+                if not isinstance(result, CmdResult):
+                    # A handler answers with a CmdResult (registry
+                    # handler-returns-cmdresult).  A missing return is a
+                    # failure, never an empty success that hides it.
+                    result = CmdResult.fail(
+                        msg=f"{self.prefix}{name} returned {type(result).__name__}, not a CmdResult"
+                    )
                 result.elapsed_s = time.perf_counter() - t0
             # UsageError: the handler rejected its arguments.  The usage
             # line is rendered HERE, from the registered synopsis and the
@@ -2070,7 +2239,10 @@ class ReplEngine:
             # anything else.  BoundaryException signals the reviewed
             # broad catch; the failure ships back in a CmdResult.
             except BoundaryException as e:
-                result = CmdResult.fail(msg=f"Plugin error ({name}): {e}")
+                diag_log.exception("command raised: %s %s", name, args)
+                result = CmdResult.fail(
+                    msg=f"Plugin error ({name}): {type(e).__name__}: {e}{diag_log.traceback_note()}"
+                )
             finally:
                 self._handler_depth -= 1
                 self.ctx.active_flags = set()
@@ -2078,13 +2250,26 @@ class ReplEngine:
                 self.ctx._call_level = saved_call_level
                 self.ctx.wants_data = saved_wants_data
         else:
-            # Hidden aliases stay off every discovery surface, this one too.
-            shown = (command for command, info in self._plugins.items() if not info.hidden)
-            hint = did_you_mean(closest(name, shown), prefix=self.prefix)
+            hint = did_you_mean(closest(name, list(self._plugins)), prefix=self.prefix)
             result = CmdResult.fail(msg=f"Unknown command: {name}{hint}")
         return _finish(result)
 
     # -- Engine helpers (exposed to plugins via PluginContext) -----------------
+
+    def reset_session(self) -> None:
+        """Forget what this session did: a config load's first step.
+
+        The namespaces go, user variables among them, and the once-a-session
+        prototype notes start over (registry ``config-load-deterministic``).
+        A running script keeps the SESSION_* moment it froze, since the rest
+        of its lines may still read it.
+        """
+        from termapy.variables import clear_start_time_vars
+
+        self.ctx.reset_namespaces()
+        self._prototypes_noted.clear()
+        if not self.in_script:
+            clear_start_time_vars()
 
     def replace_cfg(self, cfg: dict, path: str) -> None:
         """Replace config wholesale (called by app on load/edit)."""
@@ -2092,22 +2277,34 @@ class ReplEngine:
         self._cfg_data.update(cfg)
         self.config_path = path
 
-    def _apply_cfg(self, key: str, new_val) -> None:
+    def store_cfg(self, key: str, new_val: object) -> None:
+        """Put a session value in the config, and in the session flag it starts.
+
+        ``key`` is a top-level key, a path (``json_fmt.indent``) or a nested
+        key's unique leaf (``baud_rate``, which lives in cfg["serial"]).  It
+        lands where ``defaults.cfg_slot`` finds it, the top level first, else
+        in its section, so callers stay oblivious to nesting.
+        """
+        path = cfg_key_path(key) or key
+        section, _, leaf = path.rpartition(".")
+        if key in self._cfg_data or not section:
+            container, leaf = self._cfg_data, key
+        else:
+            container = self._cfg_data.setdefault(section, {})
+        container[leaf] = new_val
+        if leaf in SESSION_FLAG_KEYS:
+            self.ctx.ns("flags")[leaf] = new_val
+
+    def _apply_cfg(self, key: str, new_val: object) -> None:
         """Apply a config change for this session (not saved to disk).
 
         The config editor is the only path that persists changes to disk.
         This keeps $(env.NAME) templates in the JSON file intact.
-
-        ``key`` may be a top-level cfg key or a pyserial key that lives
-        under cfg["serial"] (post-v22).  Route to wherever it currently
-        sits so callers stay oblivious to nesting.
         """
-        serial = self._cfg_data.get("serial", {})
-        if key in serial:
-            serial[key] = new_val
-        else:
-            self._cfg_data[key] = new_val
-        self.write(f"{key} = {new_val!r}  (session)", "green")
+        from termapy.config import cfg_value_text
+
+        self.store_cfg(key, new_val)
+        self.write(f"{key} = {cfg_value_text(new_val)}  (session)", "green")
         if self._after_cfg:
             self._after_cfg(key, new_val)
 
@@ -2148,13 +2345,13 @@ class ReplEngine:
     def transform_repl(self, line: str) -> str:
         """Run all REPL transforms in load order."""
         for repl_transform in self._repl_transforms:
-            line = repl_transform(line)
+            line = repl_transform(self.ctx, line)
         return line
 
     def transform_serial(self, line: str) -> str:
         """Run all serial transforms in load order."""
         for serial_transform in self._serial_transforms:
-            line = serial_transform(line)
+            line = serial_transform(self.ctx, line)
         return line
 
     # -- Scripting ------------------------------------------------------------
@@ -2227,18 +2424,27 @@ class ReplEngine:
         self._script_depth += 1
         self._script_stack.append(path.name)
         if outermost:
+            # Here and nowhere else, so every launch starts a script the same
+            # way (registry ``script-start-one-way``).
+            from termapy.variables import set_start_time_vars
+
+            set_start_time_vars()
             # on_script_start fires for the outermost script only.  The seq
             # plugin clears counters and refreshes {starttime} from its hook.
             self.fire_lifecycle("on_script_start")
+            # A script's expects answer to its own run.  A line left from
+            # before it -- a reply nothing consumed, minutes old -- would
+            # satisfy its first /expect and shift every match after it by
+            # one (found 2026-10-31, when a stale OK passed a fail=ERROR).
+            with self._expect_lock:
+                self._recent_lines.clear()
             # A script's slash-commands live in a file, so echoing each
             # back (echo_repl) is noise -- default it off for the run.  A
             # script that WANTS to show its commands re-enables it with
             # /term.echo_repl on; the user's interactive value is saved
             # here and restored when the outermost script ends.  Device
             # echo (self.echo) is untouched, so device commands still echo.
-            flags = self.ctx.ns("flags")
-            self._echo_repl_before_script = flags.get("echo_repl", False)
-            flags["echo_repl"] = False
+            self.hold_script_echo()
         self.ctx.io.status(f"Running script: {filename}")
         # Caller pairs this with the resolved Path; auto-resolve gives
         # absolute string at the value site.
@@ -2326,9 +2532,7 @@ class ReplEngine:
             if stripped.startswith(sctx.prefix):
                 cmd_result = self.dispatch(stripped[len(sctx.prefix) :].strip())
             elif self.ctx.serial.is_connected():
-                self.ctx.serial.write(
-                    (stripped + self.cfg.get("eol", "\r")).encode(self.cfg.get("encoding", "utf-8"))
-                )
+                self.ctx.serial.send(stripped)
                 cmd_result = None
             else:
                 cmd_result = None
@@ -2355,7 +2559,17 @@ class ReplEngine:
         return result
 
     @contextmanager
-    def _script_session(self, path, w, dispatch, profile, verbose, echo, progress, on_nest):
+    def _script_session(
+        self,
+        path: Path,
+        w: Callable,
+        dispatch: Callable | None,
+        profile: bool,
+        verbose: bool,
+        echo: bool,
+        progress: Callable[[int, int], None] | None,
+        on_nest: Callable[[], None] | None,
+    ) -> Generator[ScriptCtx, None, None]:
         """Context manager for script lifecycle - setup, yield, teardown."""
         # --echo overrides the force-off that start_script applied for the
         # outermost run, so the body echoes each command; the restore
@@ -2374,7 +2588,8 @@ class ReplEngine:
             on_nest=on_nest,
         )
         try:
-            all_lines = path.read_text(encoding="utf-8").splitlines()
+            # utf-8-sig: an editor that saves a byte-order mark must not break line 1.
+            all_lines = path.read_text(encoding="utf-8-sig").splitlines()
         except OSError as e:
             w(f"Script error: {e}", "red")
             self._script_depth -= 1
@@ -2391,14 +2606,14 @@ class ReplEngine:
         sctx.lines = [ln for ln in all_lines if ln.strip() and not ln.strip().startswith("#")]
         sctx.total = len(sctx.lines)
         if profile:
-            ts = filename_timestamp()
-            sctx.prof_name = f"{Path(self.config_path).stem}_{ts}.csv"
             prof_dir = ensure_folder(Path(self.config_path).parent / PROF)
-            sctx.prof_path = prof_dir / sctx.prof_name
+            sctx.prof_path = stamped_path(prof_dir, Path(self.config_path).stem, FOLDER_EXTS[PROF])
+            sctx.prof_name = sctx.prof_path.name
             sctx.prof_fh = open(sctx.prof_path, "w", encoding="utf-8")
             sctx.prof_fh.write("Duration (sec),Command\n")
             w(f"── profile: {path.name} -> {sctx.prof_name} ──")
         sctx.script_t0 = time.perf_counter()
+        diag_log.info("script start: %s (depth %d)", path, self._script_depth)
         # Scripts execute arbitrary user commands; any command handler
         # or plugin invoked from the script can raise anything.
         # BoundaryException signals the reviewed broad catch so one
@@ -2407,8 +2622,12 @@ class ReplEngine:
         try:
             yield sctx
         except BoundaryException as e:
-            w(f"Script error: {e}", "red")
+            diag_log.exception("script raised: %s", path)
+            w(f"Script error: {type(e).__name__}: {e}{diag_log.traceback_note()}", "red")
         finally:
+            diag_log.info(
+                "script end: %s (%.1f s)", path.name, time.perf_counter() - sctx.script_t0
+            )
             self._script_depth -= 1
             if self._script_stack:
                 self._script_stack.pop()
@@ -2525,6 +2744,12 @@ class ReplEngine:
         """Live REPL/slash-command echo (/cfg, /help, ...)."""
         return self.ctx.ns("flags").get("echo_repl", False)
 
+    def hold_script_echo(self) -> None:
+        """Turn REPL echo off for the run, keeping the current value for when it ends."""
+        flags = self.ctx.ns("flags")
+        self._echo_repl_before_script = flags.get("echo_repl", False)
+        flags["echo_repl"] = False
+
     @property
     def in_script(self) -> bool:
         return self._script_depth > 0
@@ -2580,6 +2805,7 @@ class ReplEngine:
 
           - ``block_until``: true only inside a script (script runner
             executes on a background thread where blocking is safe).
+          - ``script_idle``: its inverse, true only outside a script.
           - ``serial_connected``: true only when a port is currently open.
           - ``config_loaded``: true only while a config is loaded.
 
@@ -2590,6 +2816,8 @@ class ReplEngine:
         dynamic_fields: dict[str, bool] = {}
         if self.in_script:
             dynamic_fields["block_until"] = True
+        else:
+            dynamic_fields["script_idle"] = True
         # ctx.serial.is_connected may be absent on a minimal test fake.
         # getattr with a default is forgiving without hiding bugs in
         # a real is_connected() implementation.

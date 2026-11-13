@@ -10,30 +10,42 @@ and the transform registration; it holds no state.
 from __future__ import annotations
 
 import re
+import textwrap
 from typing import TYPE_CHECKING
 
+from termapy.defaults import cfg_value
+from termapy.folders import FOLDER_NAMES
 from termapy.help_dynamic import compose, green
+from termapy.matching import closest, did_you_mean
 from termapy.plugins import (
     CmdResult,
+    Column,
     Command,
     Directive,
     DirectiveResult,
+    TextLine,
     Transform,
     UsageError,
     escape_markup,
 )
 from termapy.plugins.capabilities import STATE_MESSAGES
+from termapy.port_control import PORT_SETTINGS, SIGNAL_LINES, UNPROBED_CHIP_FIELDS
+from termapy.scripting import value_text
 from termapy.variables import (
     clear_vars,
     context_vars,
     datetime_var_names,
     expand_vars,
+    folder_var_name,
     launch_var,
     launch_vars,
+    port_var_name,
     resolve_datetime_var,
     set_user_var,
     snapshot as variables_snapshot,
+    unknown_names,
     user_vars,
+    variable_names,
 )
 
 if TYPE_CHECKING:
@@ -115,10 +127,9 @@ def check_bare_dollar(line: str) -> str | None:
 # -- Handlers ----------------------------------------------------------------
 
 
-def _var_line_markup(name: str, value: object, tag: str = "") -> str:
-    """One listing row, ``$(NAME) = value`` with an optional dim ``(tag)``, escaped."""
-    tag_markup = f"  [dim]({escape_markup(tag)})[/]" if tag else ""
-    return f"  [cyan]$({escape_markup(name)})[/] = [green]{escape_markup(value)}[/]{tag_markup}"
+def _var_line_markup(name: str, value: object) -> str:
+    """One variable's line, ``$(NAME) = value``, escaped."""
+    return f"  [cyan]$({escape_markup(name)})[/] = [green]{escape_markup(value)}[/]"
 
 
 # ── Handlers ─────────────────────────────────────────────────────────────────
@@ -126,8 +137,55 @@ def _var_line_markup(name: str, value: object, tag: str = "") -> str:
 # and developer /search indexes it, so keep it true (registry handler-docstring).
 
 
+def _var_records(snap: dict[str, dict[str, str]]) -> list[dict[str, str]]:
+    """The listing's rows from the namespace snapshot: each kind in turn, names sorted.
+
+    The clock keeps its own order (``DATE``, ``TIME``, ``DATETIME``, then the
+    frozen moments) and shows which kind of time each is (``dynamic``,
+    ``launch``, ``session``); every other row's kind is its namespace.
+    """
+    tags = dict(datetime_var_names())
+    records: list[dict[str, str]] = []
+    for section, values in snap.items():
+        items = values.items() if section == "datetime" else sorted(values.items())
+        for key, value in items:
+            kind = tags.get(key, section) if section == "datetime" else section
+            records.append({"name": key, "kind": kind, "value": value})
+    return records
+
+
+_VAR_COLUMNS = (
+    Column("NAME", lambda record: record["name"]),
+    Column("KIND", lambda record: record["kind"]),
+    Column("VALUE", lambda record: record["value"]),
+)
+
+
+def _lookup(ctx: PluginContext, name: str) -> tuple[str, str] | None:
+    """``(kind, value)`` for one variable, the kind as the listing names it, or None when nothing defines it."""
+    value = user_vars(ctx).get(name)
+    if value is not None:
+        return "user", value
+    value = launch_var(name)
+    if value is not None:
+        return "launch", value
+    value = resolve_datetime_var(name, None)
+    if value is not None:
+        return dict(datetime_var_names()).get(name, "datetime"), value
+    ctx_fn = context_vars().get(name)
+    if ctx_fn is not None:
+        return "context", str(ctx_fn())
+    return None
+
+
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
-    """List all defined variables, or show one by name.
+    """List all defined variables as a table, or show one by name.
+
+    The listing is a table (registry ``list-one-format``) whose data is the
+    namespace snapshot, one mapping per kind, so a consumer looks a name up.
+    One name is a record page, the same ``name`` / ``kind`` / ``value`` shape
+    as a row of the table; a name nothing defines is a failure that says
+    which names come close.
 
     Args:
         ctx: Plugin context for output.
@@ -136,53 +194,20 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     raw = args.strip()
     m = _STRIP_WRAPPER_RE.match(raw)
     name = m.group(1) if m else raw
-    users = user_vars()
-    launches = launch_vars()
-    contexts = context_vars()
     if name:
-        val = users.get(name)
-        if val is None:
-            val = launch_var(name)
-        if val is None:
-            val = resolve_datetime_var(name, None)
-        if val is None:
-            ctx_fn = contexts.get(name)
-            if ctx_fn is not None:
-                val = ctx_fn()
-        if val is not None:
-            if not ctx.wants_data:
-                ctx.io.output_markup(_var_line_markup(name, val))
-            return CmdResult.ok(value=str(val))
-        if not ctx.wants_data:
-            ctx.io.output(f"  $({name}) - not defined", "red")
-        return CmdResult.ok(value="")
-    # Structured consumer: the resolved namespace snapshot, skipping the
-    # markup listing entirely.  ``value`` stays the flat name=value lines
-    # (the scriptable form) built from the same snapshot.
-    if ctx.wants_data:
-        snap = variables_snapshot()
-        flat = [
-            f"{name}={val}"
-            for namespace in ("user", "launch", "datetime", "context")
-            for name, val in sorted(snap[namespace].items())
-        ]
-        return CmdResult.ok(value="\n".join(flat), data=snap)
-    lines: list[str] = []
-    for k in sorted(users):
-        ctx.io.output_markup(_var_line_markup(k, users[k]))
-        lines.append(f"{k}={users[k]}")
-    for k in sorted(launches):
-        ctx.io.output_markup(_var_line_markup(k, launches[k], "launch"))
-        lines.append(f"{k}={launches[k]}")
-    for k, tag in datetime_var_names():
-        rendered = resolve_datetime_var(k, None) or ""
-        ctx.io.output_markup(_var_line_markup(k, rendered, tag))
-        lines.append(f"{k}={rendered}")
-    for k in sorted(contexts):
-        rendered = contexts[k]()
-        ctx.io.output_markup(_var_line_markup(k, rendered, "context"))
-        lines.append(f"{k}={rendered}")
-    return CmdResult.ok(value="\n".join(lines))
+        found = _lookup(ctx, name)
+        if found is None:
+            suggestions = closest(name, variable_names(ctx))
+            return CmdResult.fail(msg=f"Unknown variable: $({name}){did_you_mean(suggestions)}")
+        kind, value = found
+        return CmdResult.record(
+            {"name": name, "kind": kind, "value": value},
+            [TextLine(f"$({name}) = {value}")],
+            value=value,
+        )
+    snap = variables_snapshot(ctx)
+    records = _var_records(snap)
+    return CmdResult.table("Variables", "variable", _VAR_COLUMNS, records, data=snap)
 
 
 def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
@@ -200,7 +225,7 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
         return CmdResult.fail(msg="Variable names must be letters, digits, or underscore")
     value = parts[1]
-    set_user_var(name, value)
+    set_user_var(ctx, name, value)
     ctx.io.output_markup(_var_line_markup(name, value))
     return CmdResult.ok(value=value)
 
@@ -239,12 +264,14 @@ def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
         result = ctx.dispatch(silent_cmd, report=False)
         if not result.success:
             return result
-        value = result.value
+        # A variable is text: a typed value (a count, a switch) is spelled
+        # here, at the REPL's boundary (registry value-typed).
+        value = value_text(result.value)
     else:
         # Device command: send to serial and capture response
         if not ctx.serial.is_connected():
             return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])
-        encoding = ctx.cfg.get("encoding", "utf-8")
+        encoding = cfg_value(ctx.cfg, "encoding")
         with ctx.serial.io():
             ctx.serial.drain()
             ctx.serial.send(cmd)
@@ -252,7 +279,7 @@ def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
         if not response:
             return CmdResult.fail(msg=f"No response from device: {cmd}")
         value = response.decode(encoding, errors="replace").strip()
-    set_user_var(name, value)
+    set_user_var(ctx, name, value)
     ctx.io.output_markup(_var_line_markup(name, value))
     return CmdResult.ok(value=value)
 
@@ -264,9 +291,9 @@ def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for output.
         args: Unused.
     """
-    count = clear_vars()
+    count = clear_vars(ctx)
     ctx.io.output(f"Cleared {count} variable(s).", "green")
-    return CmdResult.ok(value=str(count))
+    return CmdResult.ok(value=count)
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────
@@ -274,18 +301,47 @@ def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
 
 def _var_state_line(ctx: PluginContext) -> str:
     """Green one-liner: current user + launch + context var counts."""
-    # ctx is unused -- vars live in termapy.variables' module-level storage,
-    # same across all PluginContexts within a session. Signature matches the
-    # dynamic long_help contract.
-    _ = ctx
-    user = len(user_vars())
+    user = len(user_vars(ctx))
     dt = len(datetime_var_names())
     ctxv = len(context_vars())
     launch = len(launch_vars())
     return green(f"Currently defined: {user} user, {dt} datetime, {ctxv} context, {launch} launch")
 
 
-_VAR_PROSE = """\
+# One help line per data folder's variable, from the folder table.
+_FOLDER_VAR_LINES = "\n".join(
+    f"  {'$(' + folder_var_name(folder) + ')':<21}- {folder}/ folder" for folder in FOLDER_NAMES
+)
+
+
+def _port_line(ref: str, text: str) -> str:
+    """One help entry, ``$(ref)`` then its text, wrapped under the text column."""
+    return textwrap.fill(
+        text, width=78, initial_indent=f"  {'$(' + ref + ')':<21}- ", subsequent_indent=" " * 25
+    )
+
+
+def _port_facts(facts: tuple[str, ...]) -> str:
+    """The facts as their variables spell them after ``PORT.``: ``BAUD_RATE, PARITY``."""
+    return ", ".join(port_var_name(fact).removeprefix("PORT.") for fact in facts)
+
+
+# The port variables' help, built from the tables that name them, so it cannot drift.
+_PORT_VAR_LINES = "\n".join(
+    [
+        _port_line("PORT.STATE", "connected or disconnected"),
+        _port_line("PORT.NAME", "the open port (e.g. COM9)"),
+        _port_line("PORT.<SETTING>", f"settings: {_port_facts(PORT_SETTINGS)}"),
+        _port_line("PORT.<LINE>", f"1 or 0: {_port_facts(SIGNAL_LINES)}"),
+        _port_line(
+            "PORT.<CHIP>",
+            f"the chip, as {{prefix}}port.chip shows it: {_port_facts(UNPROBED_CHIP_FIELDS)}",
+        ),
+    ]
+)
+
+_VAR_PROSE = (
+    """\
 User-defined variables use $(NAME) syntax (case-sensitive).
 
 Setting variables (no {prefix} prefix needed):
@@ -330,30 +386,53 @@ Config variables (resolved paths from current config):
   $(CFG.DIR)           - config directory (resolved)
   $(CFG.FILE)          - config file path (resolved)
   $(CFG.LOG_FILE)      - log file path (resolved)
-  $(CFG.RUN_DIR)       - scripts directory
-  $(CFG.PROTO_DIR)     - protocol test directory
-  $(CFG.PLUGIN_DIR)    - plugin directory
-  $(CFG.SS_DIR)        - screenshot directory
-  $(CFG.CAP_DIR)       - capture directory
-  $(CFG.PROF_DIR)      - profile directory
-  $(CFG.VIZ_DIR)       - visualizer directory
+"""
+    + _FOLDER_VAR_LINES
+    + """
   $(CFG.PORT)          - serial port name
   $(CFG.BAUD)          - baud rate
   $(CFG.PORT_CFG)      - port config (e.g. 9600 8N1)
   $(CFG.PORT_FULL)     - full connection (e.g. COM4 9600 8N1)
 
+Port variables (the open port, read when used; empty when not connected):
+"""
+    + _PORT_VAR_LINES
+    + """
+
 Escaping (when your data contains literal $):
   \\$(PORT)           - literal $(PORT) (not expanded)
   {prefix}raw $(GPS),NMEA,0 - send entire line verbatim (no expansion)
 
-Scope: variables persist for the session. They are cleared
-automatically when a script is launched from the Scripts button
-or the Run menu, but NOT when {prefix}run is typed interactively.
+Scope: variables persist until a config loads, which starts clean.
+A script is not a load: it sees them however it was launched, and what
+it sets stays after it ends.
 Use {prefix}var.clear to reset manually."""
+)
 
 
 def _var_long_help(ctx: PluginContext) -> str:
     return compose(_var_state_line(ctx), _VAR_PROSE)
+
+
+def _expand_and_warn(ctx: PluginContext, text: str) -> str:
+    """Expand ``$(NAME)`` in a line, warning about a name that names nothing.
+
+    An unknown name stays in the line as typed, which a device may want
+    (it can also be written ``\\$(NAME)``), so this warns rather than
+    refuses, with the names it most likely meant: a typo would otherwise
+    reach the device or a shell as ``$(CFG.FIRMWAR_DIR)`` in silence.  A
+    dotted name always warns, since no variable a user sets has a dot; a
+    plain one warns only as a near miss, since it may be set later in the
+    line's own run (``/repeat var=I cmd=... $(I)`` sets it each pass).
+    """
+    unknown = unknown_names(ctx, text)
+    if unknown:
+        names = variable_names(ctx)
+        for name in unknown:
+            suggestions = closest(name, names)
+            if "." in name or suggestions:
+                ctx.io.output(f"Unknown variable: $({name}){did_you_mean(suggestions)}", "yellow")
+    return expand_vars(ctx, text)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
@@ -362,6 +441,10 @@ COMMAND = Command(
     name="var",
     args="{name}",
     help="List user variables, or show one by name.",
+    intro=(
+        "Named values you set or capture from a command or a device reply, then use "
+        "in any command as $(NAME)."
+    ),
     long_help=_var_long_help,
     handler=_handler_list,
     shows=True,
@@ -387,6 +470,7 @@ COMMAND = Command(
             help="Capture command output into a user variable.",
             long_help=_var_state_line,
             handler=_handler_capture,
+            cfg={"encoding": "decodes the device reply"},
             raw_args=True,
         ),
         "clear": Command(
@@ -401,8 +485,8 @@ COMMAND = Command(
 TRANSFORM = Transform(
     name="var",
     help="Expand $(NAME) placeholders from user-defined variables.",
-    repl=expand_vars,
-    serial=expand_vars,
+    repl=_expand_and_warn,
+    serial=_expand_and_warn,
 )
 
 

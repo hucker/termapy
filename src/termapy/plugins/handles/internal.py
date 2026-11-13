@@ -88,12 +88,17 @@ class InternalHandle:
     load_report: Callable = lambda: []
 
     # Bare REPL dispatch through the plugin pipeline (capability gates,
-    # flag parsing) WITHOUT ctx.dispatch's serial-output sugar.  Legacy
-    # forwarders (/echo -> /term.echo) use this -- dispatch_full would
-    # misread the un-prefixed target as a serial send.  A failure comes
+    # flag parsing) WITHOUT ctx.dispatch's serial-output sugar.  A handler
+    # that runs another command uses this -- dispatch_full would misread
+    # the un-prefixed target as a serial send.  A failure comes
     # back unprinted: return the result as your answer and dispatch's
     # exit prints it once (registry ``failure-reported-once``).
     dispatch: Callable = lambda _line: None
+
+    # read_state(name) -> CmdResult: run a state command bare for its answer,
+    # nothing printed, its view kept (Command.state).  /help reads it for
+    # CURRENT STATE.  None on a bare test fake: the page leaves the section off.
+    read_state: Callable | None = None
 
     apply_cfg: Callable = lambda key, val: None  # set cfg in-memory, no dialog
     in_script: Callable = lambda: False
@@ -113,6 +118,11 @@ class InternalHandle:
     add_post_dispatch_observer: Callable | None = None  # (cb) -> token
     remove_post_dispatch_observer: Callable | None = None  # (token) -> None
     is_recording: Callable | None = None  # () -> bool; TUI Record button reads this
+    # typed_lines() -> list[TypedLine]: the active config's lines typed at
+    # the prompt, oldest first (/run.last).  The host marks the read: a
+    # typed line that read them is not kept, so a replay never replays
+    # itself.  [] where nothing is typed (MCP).
+    typed_lines: Callable = lambda: []
 
     # Raw pyserial handle (serial.Serial | None).  The deliberate escape
     # hatch for built-ins that need pyserial's own API -- DTR/RTS/CTS/DSR,
@@ -141,6 +151,11 @@ class InternalHandle:
     # that happens to touch the port, not a serial primitive.
     load_config: Callable = lambda name: None
 
+    # json_layout() -> (indent, highlight): how JSON shows in this frontend
+    # (ReplEngine.json_layout), for a command printing a device's reply:
+    # json_fmt on a screen, one plain line in a pipe, a file or MCP.
+    json_layout: Callable[[], tuple[int, bool]] = lambda: (0, False)
+
     start_capture: Callable = lambda **kw: None
     stop_capture: Callable = lambda: None
     # Whether a capture is running: the dispatch gate's ``capture_idle``.
@@ -156,14 +171,18 @@ class InternalHandle:
     delay_progress: Callable | None = None
 
     # session_log_path() -> Path | None: the file THIS frontend writes its
-    # session log to (TUI <cfg>.log or log_file, MCP mcp/session.log), or
+    # session log to (TUI <cfg>.log or log_file, MCP <cfg>.mcp.log), or
     # None where it keeps none (CLI).  The one answer to "which log": every
     # /log.* command, $(CFG.LOG_FILE) and /cfg.info read it (registry
-    # session-log-one-owner).  stop_session_log() -> bool lets go of the
-    # file until start_session_log() -> bool opens it again, each False when
-    # the log already was in that state; /log.delete stops it first, since
-    # the TUI holds it open.
+    # session-log-one-owner).  session_log_paths() -> list[Path] is every
+    # session log the config has, this frontend's first: what /log.list
+    # lists and a /log.show or /log.dump name picks from.
+    # stop_session_log() -> bool lets go of the file until
+    # start_session_log() -> bool opens it again, each False when the log
+    # already was in that state; /log.delete stops it first, since the
+    # frontend holds it open.
     session_log_path: Callable = lambda: None
+    session_log_paths: Callable = lambda: []
     start_session_log: Callable = lambda: False
     stop_session_log: Callable = lambda: False
 

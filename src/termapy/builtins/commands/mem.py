@@ -41,6 +41,7 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Final, Literal
 
+from termapy.defaults import cfg_value
 from termapy.devices import distinct_spans, registers_in_range, span_groups
 from termapy.memory import (
     DeviceMemoryError,
@@ -71,7 +72,7 @@ from termapy.memory_views import (
     scalar_size,
     symbol_columns,
 )
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, TextLine
 from termapy.plugins.params import ParamSpec
 from termapy.protocol.core import apply_format, column_value, parse_hex
 from termapy.scripting import strip_ansi
@@ -95,8 +96,8 @@ _BULK_NAMES_SHOWN: Final[int] = 4
 # bytes on the wire: ~22 ms at 115200, ~260 ms at 9600.
 _EXCHANGE_TIMEOUT_MS: Final[int] = 1000
 
-# FRONT_END launch var -> the origin word in the audit line.
-_ORIGINS: Final[dict[str, str]] = {"textual": "tui", "cli": "cli", "mcp": "mcp"}
+# The frontends an audit line names, as the FRONT_END launch var spells them.
+_ORIGINS: Final[frozenset[str]] = frozenset({"tui", "cli", "mcp"})
 
 
 # ── lifecycle: the device-info cache lives for one connection ───────────────
@@ -104,11 +105,6 @@ _ORIGINS: Final[dict[str, str]] = {"textual": "tui", "cli": "cli", "mcp": "mcp"}
 
 def on_connect(ctx: PluginContext) -> None:
     """A new connection may be a different device: forget its MEM.INFO."""
-    ctx.ns(MEMORY_NS).clear()
-
-
-def on_config_load(ctx: PluginContext) -> None:
-    """A config switch means a different profile and device."""
     ctx.ns(MEMORY_NS).clear()
 
 
@@ -124,7 +120,7 @@ def _exchange_factory(ctx: PluginContext, dialect: Dialect) -> Callable[[str], s
     exchange timeout expires; the engine reports what it got.  ANSI color
     is stripped so a monitor with color on still parses.
     """
-    encoding = ctx.cfg.get("encoding", "utf-8")
+    encoding = cfg_value(ctx.cfg, "encoding")
 
     def exchange(command: str) -> str:
         buffer = bytearray()
@@ -295,7 +291,8 @@ def _labeler(table: SymbolTable | None) -> Callable[[int], str] | None:
 
 
 def _origin() -> str:
-    return _ORIGINS.get(launch_var("FRONT_END"), "unknown")
+    front_end = launch_var("FRONT_END")
+    return front_end if front_end in _ORIGINS else "unknown"
 
 
 def _verbose(ctx: PluginContext) -> bool:
@@ -633,25 +630,22 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(
             msg=f"Invalid length: {len(data)} (not a multiple of {size} for {type_name})"
         )
-    if ctx.wants_data:
-        records = []
-        for row in rows:
-            record = row_record(row, address_bits=bits)
-            if type_name:
-                record["values"] = decode_words(row.data, type_name, info.endian)
-            records.append(record)
-        return CmdResult.ok(
-            value=value,
-            data={
-                "addr": parsed.addr,
-                "addr_hex": hex_addr(parsed.addr, bits),
-                "len": len(data),
-                "type": type_name or "u8",
-                "bytes_hex": value,
-                "rows": records,
-            },
-        )
+    records = []
+    for row in rows:
+        record = row_record(row, address_bits=bits)
+        if type_name:
+            record["values"] = decode_words(row.data, type_name, info.endian)
+        records.append(record)
+    facts = {
+        "addr": parsed.addr,
+        "addr_hex": hex_addr(parsed.addr, bits),
+        "len": len(data),
+        "type": type_name or "u8",
+        "bytes_hex": value,
+        "rows": records,
+    }
     # Cell width keeps columns aligned across rows (a short last row too).
+    grid: list[TextLine] = []
     for row in rows:
         parts: list[str] = []
         if show_addr:
@@ -674,12 +668,12 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
             parts.append(f"|{row.ascii}|")
         if show_labels and row.label and (show_addr or show_ascii):
             parts.append(row.label)
-        # The dump grid is the command's answer, so it rides the result
-        # channel (quiet+) -- .quiet still prints the bytes.  Which COLUMNS
-        # appear is the level's job above (show_addr / show_ascii /
-        # show_labels), not the channel's.
-        ctx.io.result("  ".join(parts).rstrip())
-    return CmdResult.ok(value=value)
+        # The dump grid is the command's answer: a record page dispatch
+        # prints at quiet and up, so .quiet still prints the bytes, and never
+        # beside the data (registry record-one-format).  Which COLUMNS appear
+        # is the level's job above (show_addr / show_ascii / show_labels).
+        grid.append(TextLine("  ".join(parts).rstrip(), "green"))
+    return CmdResult.record(facts, grid, value=value)
 
 
 def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
@@ -718,7 +712,7 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
         )
         ctx.io.result(f"{raw_target} = {field_value}{locator}")
         return CmdResult.ok(
-            value=str(field_value),
+            value=field_value,
             data={
                 "target": raw_target,
                 "addr": word_addr,
@@ -803,7 +797,7 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
         byte = data[0]
         ctx.io.result(f"{raw_target} = {render_char(byte)}")
         return CmdResult.ok(
-            value=str(byte),
+            value=byte,
             data={
                 "target": raw_target,
                 "addr": parsed.addr,
@@ -818,7 +812,7 @@ def _handler_read(ctx: PluginContext, args: str) -> CmdResult:
     twin = _hex_twin(scalar, len(data)) if _verbose(ctx) else ""
     ctx.io.result(f"{raw_target} = {shown}  ({twin})" if twin else f"{raw_target} = {shown}")
     return CmdResult.ok(
-        value=shown,
+        value=scalar,
         data={
             "target": raw_target,
             "addr": parsed.addr,
@@ -920,7 +914,7 @@ def _handler_write(ctx: PluginContext, args: str) -> CmdResult:
         record = _modify_record(memory, word_addr, target, old, new)
         record["value"] = value
         record["target"] = raw_target
-        return CmdResult.ok(value=str(value), data=record)
+        return CmdResult.ok(value=value, data=record)
 
     type_name = _scalar_type(parsed)
     if type_name:
@@ -967,7 +961,7 @@ def _handler_write(ctx: PluginContext, args: str) -> CmdResult:
             ctx.io.result(f"Wrote {count} bytes at {_where(parsed, bits)}  ({was})")
         else:
             ctx.io.result(f"Wrote {count} bytes at {_where(parsed, bits)}")
-        return CmdResult.ok(value=str(count), data=record)
+        return CmdResult.ok(value=count, data=record)
     # Shown as the type decodes what was stored -- the actual, so -1 into
     # a u16 reads back 65535 here exactly as /mem.read will show it.
     value = decode_scalar(data, type_name, info.endian)
@@ -1167,7 +1161,7 @@ def _handler_str(ctx: PluginContext, args: str) -> CmdResult:
             truncated = True
     except (ValueError, DeviceMemoryError) as e:
         return CmdResult.fail(msg=str(e))
-    text = collected.decode(ctx.cfg.get("encoding", "utf-8"), errors="replace")
+    text = collected.decode(cfg_value(ctx.cfg, "encoding"), errors="replace")
     bits = memory.info.address_bits
     suffix = "  ... (truncated)" if truncated else ""
     # The address prefix is a locator (verbose); the string is the answer.
@@ -1258,7 +1252,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
 
 _LONG_HELP: Final[str] = (
-    "Reads and writes device memory.  Native firmware implements the\n"
+    "Native firmware implements the\n"
     "termapy MEM spec (see {prefix}help memory):\n"
     "\n"
     '  MEM.R <addr> <len>      -> rows "<ADDR>: <XX XX ...>" then OK\n'
@@ -1304,6 +1298,11 @@ COMMAND = Command(
     name="mem",
     maturity="preview",
     help="Device memory: dump, typed reads, writes and bit ops via {prefix}sym names.",
+    intro=(
+        "Read and write memory on the device: dumps, typed reads, writes and bit "
+        "operations, by address or by symbol name. The device's firmware has to "
+        "support it."
+    ),
     long_help=_LONG_HELP,
     # Bare /mem = /mem.info: the availability check/status page, so the
     # natural first thing to type both probes the device and shows the
@@ -1338,6 +1337,7 @@ COMMAND = Command(
             ],
             help="Hexdump or word columns at an address or symbol (default: the symbol's size, else 64).",
             handler=_handler_dump,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="readonly",
         ),
@@ -1360,6 +1360,7 @@ COMMAND = Command(
             ],
             help="Read one typed value: scalar, char, register field, bit or slice.",
             handler=_handler_read,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="readonly",
         ),
@@ -1384,6 +1385,7 @@ COMMAND = Command(
             ],
             help="Write a value to a named symbol, register or field, or hex bytes at an address (audited).",
             handler=_handler_write,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
@@ -1396,6 +1398,7 @@ COMMAND = Command(
             ],
             help="OR a mask into one word (atomic via MEM.M when available).",
             handler=_handler_or,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
@@ -1408,6 +1411,7 @@ COMMAND = Command(
             ],
             help="AND a mask into one word (atomic via MEM.M when available).",
             handler=_handler_and,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
@@ -1420,6 +1424,7 @@ COMMAND = Command(
             ],
             help="XOR a mask into one word (always read + write-back).",
             handler=_handler_xor,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
@@ -1432,6 +1437,7 @@ COMMAND = Command(
             ],
             help="Clear mask bits in one word: word &= ~mask (atomic via MEM.M when available).",
             handler=_handler_clear,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
@@ -1443,6 +1449,7 @@ COMMAND = Command(
             ],
             help="Invert one word (always read + write-back).",
             handler=_handler_not,
+            cfg={"encoding": "decodes the device's replies"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="destructive",
         ),
@@ -1461,12 +1468,14 @@ COMMAND = Command(
             ],
             help="Read a NUL-terminated string at an address or symbol.",
             handler=_handler_str,
+            cfg={"encoding": "decodes the string read"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="readonly",
         ),
         "info": Command(
             help="Show how memory access is configured: dialect, block limit, address width, endian, atomic modify.",
             handler=_handler_info,
+            cfg={"encoding": "decodes the MEM.INFO reply"},
             needs=CapabilitySet.SERIAL_CONNECTED,
             safety="readonly",
         ),

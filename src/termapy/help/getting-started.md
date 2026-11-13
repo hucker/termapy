@@ -28,11 +28,42 @@ It creates `termapy_cfg/my_device/my_device.cfg` in the current folder (or
 your `--cfg-dir`), titled `my_device`. The settings are
 [`/port.connect`](commands.md)'s: the port, which is required, then baud,
 frame (`8N1` or `N81`), `cr|lf|crlf` and `echo|noecho`; anything left off
-is 115200 8N1. Naming a config that already exists, here or in the dialog,
+is 115200 8N1. The baud rate must be a standard one, so a mistyped rate is
+refused; add `custom=true` for one off the list, as the dialog's custom box
+does (`termapy --new my_device COM4 250000 custom=true`). Naming a config that already exists, here or in the dialog,
 asks before its `.cfg` is replaced; the scripts and data in its folder are
 kept. Inside a session, `/cfg.new my_device COM4 115200 8N1` creates the
 same config where `/cfg.list` looks, and `/cfg.load my_device` switches to
 it. The dialog, the flag and the command make the same files.
+
+## Quick open: just a port
+
+Name a port instead of a config and termapy opens it, the way `screen` and
+`miniterm` do:
+
+```text
+termapy COM3 9600 8N1            # a port, then /port.connect's settings
+termapy COM3                     # the same port, with the settings it had last
+termapy 58E6C5716A840000 115200  # a board by its USB serial number
+termapy --vt100 COM5 115200      # a U-Boot or Linux console
+```
+
+The first open gives the port a config of its own, `quick-COM3`, in your
+user folder and never in the current project: `%APPDATA%\termapy` on
+Windows, `~/Library/Application Support/termapy` on macOS,
+`~/.config/termapy` on Linux. So its log, history and screenshots have a home and your
+project gains nothing. The settings you type are saved there, so the next
+`termapy COM3` opens with them, and a port you have opened before still
+opens while it is unplugged, as any config whose port is missing does. Each
+port has its own config, so two termapys on two ports share nothing. A
+serial number follows the board whatever COM number it gets.
+
+A config wins the name: with a config called `COM3`, `termapy COM3` loads
+it. Settings follow a port only, and flags may go anywhere on the line
+(`termapy COM3 9600 --quiet 8N1`). A name that is neither a config nor a
+port that is here fails, naming the closest of both. `--cfg-dir` or
+`TERMAPY_CFG_DIR` puts quick configs in that folder instead; `--mcp` takes
+a config only.
 
 ## Launching with a config
 
@@ -45,6 +76,7 @@ termapy --cfg-dir /path/to/cfgs  # use a custom config directory
 termapy --check my_device.cfg    # validate config (no UI)
 termapy --cli my_device          # plain-text CLI mode
 termapy --cli smoke_test.run     # run a .run script in CLI mode
+termapy COM3 9600 8N1            # no config: a port (see Quick open)
 ```
 
 **Config resolution.** Termapy finds your config automatically. Pass a bare
@@ -144,8 +176,17 @@ termapy_cfg/
 │   └── plugin/                # per-config plugins
 ├── plugin/                    # global plugins (all configs)
 ├── dev/                       # parts loaded by every config
-└── lib/                       # shared part library (all configs)
+├── lib/                       # shared part library (all configs)
+└── log/                       # diagnostic log, one file per run
 ```
+
+The diagnostic log is termapy's record of itself, not of your session:
+when each run started and in which mode (TUI, CLI, vt100, MCP), config
+loads and the plugins they loaded, ports opening and closing, script
+and test runs, and the full traceback of anything that went wrong. An
+error message that ends `(traceback in <path>)` names the file. The
+newest 100 files are kept. `/log.diag` opens this run's file,
+`/log.diag.dump` prints it, and `/log.diag.list` lists them all.
 
 Only the `.cfg`, log and history are there to begin with. Each data
 folder appears the first time something is written into it, or when you
@@ -223,12 +264,17 @@ things, man-inspired:
 - `/help`                  -- the landscape: the terminal commands in full, every
   other group folded to one row you can click.  Nothing is disabled by
   folding; `/help.group <name>` expands one, `/help.group` lists them all.
-- `/help <cmd>`            -- exact match -> full man-page detail (NAME, SYNOPSIS,
-  DESCRIPTION, FLAGS, REQUIRED CAPABILITIES, SUBCOMMANDS, SEE ALSO).
-  REQUIRED CAPABILITIES rows are live status: a requirement the session
-  can't meet right now (e.g. `serial_connected` with no port open) is
-  marked `(missing)`.  AVAILABLE shows where the command could ever run
-  (TUI / CLI / MCP), with the environment you are in marked `(current)`.
+- `/help <cmd>`            -- exact match -> what is about that command: NAME,
+  CURRENT STATE, SYNOPSIS, DESCRIPTION, FLAGS, CONFIG, SUBCOMMANDS.  CURRENT STATE
+  is what a status or setting command answers right now, read fresh for the page,
+  so `/help term.eol` shows the line ending in use.  STATUS appears when a command
+  is not yet stable, AVAILABLE when a frontend cannot run it, and REQUIRED
+  CAPABILITIES when the session can't meet a requirement right now (e.g.
+  `serial_connected` with no port open, marked `(missing)`).
+- `/help <cmd> --verbose`  -- the whole page: every section above plus SEE ALSO, with
+  the environment you are in marked `(current)`.  In the TUI, hovering the
+  command's name shows its status and where it runs, and hovering a word in the
+  synopsis or a config key shows what it means.
 - `/help <term>`           -- no exact match? You get a candidate list (substring
   match on name + short help). Pick one and rerun `/help` on its full name.
 - `/search <word>`         -- deep search across everything (name, help, args,

@@ -30,7 +30,41 @@ from termapy.scripting import (
     select_lines,
     split_cmd_lines,
     strip_leading_echo,
+    transcript_commands,
+    value_text,
 )
+
+# ── transcript_commands ──────────────────────────────────────────
+
+
+class TestTranscriptCommands:
+    """A pasted transcript's commands are its prompted lines; a paste without the prompt is commands."""
+
+    def test_only_the_prompted_lines_are_commands(self):
+        """Prompted lines lose the prompt and keep what followed it, indent included; output lines drop."""
+        # Arrange
+        lines = [
+            "esp32s3> /print one",
+            "one",
+            "esp32s3> help",
+            "MEM.INFO  the memory interface",
+            "esp32s3>     indented",
+        ]
+
+        # Act
+        actual = transcript_commands(lines, "esp32s3> ")
+
+        # Assert
+        assert actual == ["/print one", "help", "    indented"]
+
+    def test_a_paste_without_the_prompt_is_not_a_transcript(self):
+        """No line starts with the prompt: a paste of commands, sent as it is."""
+        assert transcript_commands(["/print one", "AT"], "esp32s3> ") is None
+
+    def test_no_prompt_means_no_transcript(self):
+        """An echo with nothing before {cmd} has no prompt to find, so no paste is a transcript."""
+        assert transcript_commands(["> x", "y"], "") is None
+
 
 # ── strip_leading_echo ───────────────────────────────────────────
 
@@ -895,6 +929,7 @@ class TestParseBool:
         # Assert - value should be recognized despite surrounding whitespace
         assert isinstance(actual, bool), f"expected bool for {val!r}, got {actual!r}"
 
+    @pytest.mark.rule("bool-one-vocabulary")
     @pytest.mark.parametrize("val", ["maybe", "2", "high", "low", "enable", "x"])
     def test_unrecognized_raises(self, val):
         """Unknown words, including near-misses like enable and the old high/low, raise; never False, never a default."""
@@ -911,6 +946,7 @@ class TestParseBool:
         assert parse_bool(text, default=False) is False, "absence reads as the declared False"
         assert parse_bool(text, default=None) is None, "None is a legal default (no override)"
 
+    @pytest.mark.rule("bool-one-vocabulary")
     def test_absence_without_a_default_raises(self):
         """A reader that declared no default fails loud on absence instead of inventing False."""
         with pytest.raises(ValueError, match=r"^Missing echo \(use on/off/"):
@@ -930,6 +966,28 @@ class TestParseBool:
 
 
 # ── select_lines (shared count scheme) ───────────────────────────
+
+
+@pytest.mark.rule("value-typed")
+class TestValueText:
+    """The one speller turns a typed value into the text a person reads."""
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (True, "on"),
+            (False, "off"),
+            (7, "7"),
+            (0, "0"),
+            (2.5, "2.5"),
+            ("as is", "as is"),
+            (None, ""),
+        ],
+        ids=["true", "false", "int", "zero", "float", "str", "none"],
+    )
+    def test_each_type_is_spelled_once(self, value, expected):
+        """A bool is on/off (the boolean vocabulary), a number its digits, None nothing, text itself."""
+        assert value_text(value) == expected
 
 
 class TestSelectLines:

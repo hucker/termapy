@@ -17,6 +17,11 @@ The OS default location is `%APPDATA%\termapy` on Windows,
 `~/Library/Application Support/termapy` on macOS, and
 `~/.config/termapy` on Linux (respects `XDG_CONFIG_HOME`).
 
+A port's own config (`termapy COM3`, see
+[Quick open](getting-started.md#quick-open-just-a-port)) skips priority 3:
+it lives in the OS default unless `--cfg-dir` or `TERMAPY_CFG_DIR` names a
+folder, so opening a port inside a project adds nothing to it.
+
 ## Creating a new config
 
 When you create a new config (first run, or **Cfg → New**), termapy shows
@@ -38,12 +43,34 @@ protocol tests, startup and frontends, buttons. termapy writes every
 config that way, the editor's Save included, so a key you add anywhere
 moves to its group.
 
+**Finding a key.** The editor's **Find** button, or **Ctrl+F** (**Alt+F**
+in VS Code, whose terminal keeps Ctrl+F for its own find), opens a find
+bar under the text. It matches any text, keys or values, as typed:
+literal and case-insensitive, so `$(CFG)` finds the prompt template.
+Enter or Down selects the next match and Up the previous, wrapping at
+either end; the help panel follows the selection, so finding a key shows
+its help. Escape closes the bar and leaves the cursor on the match.
+
+**Who uses a key.** `/help <key>` (`/help baud_rate`, `/help serial.port`)
+shows what a key means, its current value, the config file it lives in
+and how it is spelled there, and the commands that use it, each with how;
+a command's own `/help` page lists the keys it depends on in a CONFIG
+section; and the editor's help line names the commands that use the key
+under the cursor. A change by `/cfg <key> <value>` or a `/term.*` setter
+lasts the session; the editor's Save writes the file.
+
+**One check.** A value is judged the same way wherever it comes from: a load
+warns about a bad one, the editor shows it red and its Save refuses, and `/cfg`
+and `/cfg.auto` refuse it (`Invalid max_lines: 0 (must be a positive integer)`).
+`config_version` is termapy's to write, so `/cfg` refuses that too. A non-standard
+baud rate is flagged everywhere and allowed, since some hardware needs one.
+
 Here is an example config for a device called `iot_device`:
 
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 33,
+    "config_version": 39,
     "title": "IoT Device",
     "border_color": "blue",
     "serial": {
@@ -63,17 +90,23 @@ Here is an example config for a device called `iot_device`:
     "mcp_on_connect_cmd": "",
     "encoding": "utf-8",
     "eol": "\r",
+    "tx_char_delay_ms": 0,
+    "tx_line_delay_ms": 0,
+    "tx_chunking": true,
     "eol_rx": "auto",
     "eol_markers": false,
     "send_bare_enter": false,
     "cmd_delay_ms": 0,
     "multiline_paste": true,
     "multiline_paste_delay_ms": 10,
+    "control_keys": true,
     "echo": false,
     "echo_fmt": "[purple]$(CFG)> {cmd}[/]",
     "timestamps": false,
     "line_no": false,
     "hex": false,
+    "color": true,
+    "output_level": "normal",
     "max_lines": 10000,
     "max_grep_lines": 100,
     "protocol": "text",
@@ -85,7 +118,10 @@ Here is an example config for a device called `iot_device`:
     "request_mode": false,
     "request_err_pattern": "(?i)^(ERROR|ERR|FAULT)\\b",
     "strip_device_echo": false,
-    "json_style": "compact",
+    "json_fmt": {
+        "highlight": true,
+        "indent": 2
+    },
     "profile_path": "",
     "validate_typed_args": false,
     "default_response_timeout_ms": 1000,
@@ -99,7 +135,6 @@ Here is an example config for a device called `iot_device`:
     "cmd_prefix": "/",
     "cli_prompt": "$(CFG)> ",
     "cli_completion": true,
-    "show_traceback": false,
     "cfg_enabled": true,
     "run_enabled": true,
     "proto_enabled": true,
@@ -141,8 +176,8 @@ reported as a type warning.
 | `title`                       | `""`                          | Title bar text (defaults to config filename) |
 | `border_color`                | `""`                          | Title bar color (CSS name or hex like `#ff6600`) |
 | `serial.port`                 | `""`                          | Port spec. Accepts a literal device (`"COM4"`, `"/dev/ttyUSB0"`), a USB serial number (`"A1B2C3D4"`), a `\|`-separated fallback chain (`"A1B2C3D4\|COM3"`), a reserved name (`"DEMO"`), or a pyserial URL (`"rfc2217://host:2217"`). See [ports.md](ports.md) for the grammar. Auto-detected when only one port is connected. |
-| `serial.baud_rate`            | `115200`                      | Serial baud rate -- non-standard rates require `custom_baud` |
-| `serial.custom_baud`          | `false`                       | Allow non-standard baud rates (>= 300). Modern drivers support arbitrary rates |
+| `serial.baud_rate`            | `115200`                      | Serial baud rate, one of the standard rates so a mistyped one is refused: 110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600, 115200, 230400, 460800, 921600. Any other rate from 300 up needs `custom_baud` |
+| `serial.custom_baud`          | `false`                       | Allow a baud rate off the standard list (>= 300); modern drivers take arbitrary rates. A command that sets a rate asks for one with `custom=true`, which sets this for the session |
 | `serial.byte_size`            | `8`                           | Data bits per byte (5, 6, 7, or 8) |
 | `serial.parity`               | `N`                           | Parity: None, Even, Odd, Mark, or Space |
 | `serial.stop_bits`            | `1`                           | Stop bits (1, 1.5, or 2) |
@@ -155,17 +190,23 @@ reported as a type warning.
 | `mcp_on_connect_cmd`          | `""`                          | Extra command to run after connecting in MCP mode. Common: `echo off` / `color off` to silence device at the source (MCP already strips ANSI; `/term.color on` re-enables) |
 | `encoding`                    | `utf-8`                       | Character encoding (utf-8, latin-1, ascii, cp437) |
 | `eol`                         | `"\r"`                        | Appended to each sent command: `\r`, `\r\n`, or `\n` |
+| `tx_char_delay_ms`            | `0`                           | Delay in ms after each character of a line sent to the device (TeraTerm's transmit delay, msec/char), for a device that drops bytes sent back to back; `0` = off. File transfers, `/proto` and `/raw` are never paced |
+| `tx_line_delay_ms`            | `0`                           | Delay in ms after each line sent to the device (TeraTerm's msec/line); `0` = off |
+| `tx_chunking`                 | `true`                        | Hand a large send to the driver in 192-byte pieces, so large, high-speed transfers arrive intact (measured on an FT232R: 4 KB writes lost lines at 750000 baud and up, 192-byte writes lost none; see [Serial ports](ports.md#large-sends-go-out-in-pieces)). `false` sends each write whole |
 | `eol_rx`                      | `auto`                        | Receive newline: split output into lines. `auto`/`cr`/`lf`/`crlf` (set: /term.eol.rx) |
 | `eol_markers`                 | `false`                       | Show dim `\r` `\n` markers in serial output for debugging |
 | `send_bare_enter`             | `false`                       | Send line ending on empty Enter (for "press enter to continue" prompts) |
-| `cmd_delay_ms`                | `0`                           | Milliseconds between commands in autoconnect and multi-command input |
+| `cmd_delay_ms`                | `0`                           | Milliseconds after each of the TUI's on-connect commands |
 | `multiline_paste`             | `true`                        | A paste of several lines into the prompt sends every line, as if typed (TeraTerm's paste); `false` pastes only the first line (see [Toolbar](toolbar.md)) |
 | `multiline_paste_delay_ms`    | `10`                          | Delay in ms between the lines of a multi-line paste (TeraTerm's default); `0` = none |
+| `control_keys`                | `true`                        | In the TUI, Ctrl+C with nothing selected, Ctrl+D and Ctrl+Z on an empty prompt, and Escape with nothing running on an empty prompt go to the device; `false` keeps them termapy's (copy, delete, clear) in every session (set for one session: /term.control_keys) |
 | `echo`                        | `false`                       | Echo device commands sent to the wire (bare + `/term.send`). Runtime: `/term.echo {on\|off\|toggle}` |
 | `echo_fmt`                    | `[purple]$(CFG)> {cmd}[/]`    | Rich markup format for echoed commands |
 | `timestamps`                  | `false`                       | Prefix lines with `[HH:MM:SS.mmm]` |
 | `line_no`                     | `false`                       | Show line numbers in serial output |
 | `hex`                         | `false`                       | Display received bytes as hex instead of text |
+| `color`                       | `true`                        | Color in the output, termapy's own and the device's ANSI |
+| `output_level`                | `normal`                      | How loud commands are: `silent`, `quiet`, `normal` or `verbose` |
 | `max_lines`                   | `10000`                       | Scrollback buffer size |
 | `max_grep_lines`              | `100`                         | Maximum lines shown by `/grep` |
 | `protocol`                    | `text`                        | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON per line) |
@@ -173,11 +214,12 @@ reported as a type warning.
 | `request_mode`                | `false`                       | Turn bare device commands into synchronous request/response (see `/term.request`) |
 | `request_err_pattern`         | `(?i)^(ERROR\|ERR\|FAULT)\\b` | Regex detecting device-side errors in `request_mode` responses. Empty disables. Override per-session via `/term.request on err=<regex>` |
 | `strip_device_echo`           | `false`                       | Drop a half-duplex device's echoed command from `request_mode` responses (opt in per device) |
-| `json_style`                  | `compact`                     | How JSON answers print (`request_mode`, `--json`): `compact` one line per answer, `indent`, or `color` (indented and highlighted). Set: `/term.json` |
+| `json_fmt.highlight`          | `true`                        | Highlight JSON on screen: `request_mode` and `--json` answers, and each JSON line a device sends. Shows only with color on (`/term.color`). A pipe or a file gets plain JSON. Set: `/term.json_fmt.highlight` |
+| `json_fmt.indent`             | `2`                           | Spaces per level for JSON on screen: `0` (one line), `2` or `4`. A pipe or a file always gets one line per JSON value, for a program reading stdout line by line. Set: `/term.json_fmt.indent` |
 | `profile_path`                | `""`                          | Explicit v2 device profile.  MCP-only: `--mcp` loads it on connect.  Empty = convention |
 | `validate_typed_args`         | `false`                       | Opt-in: validate bare-command `typed_args` against the active profile's type registry. Off = raw access; on = mirrors MCP (bad values fail before the wire). |
 | `default_response_timeout_ms` | `1000`                        | Fallback wait (ms) for a profile command lacking its own `response.timeout_ms` |
-| `log_file`                    | `""`                          | The TUI's session log path (defaults to `<name>.log` in config subfolder); MCP logs to `mcp/session.log`, the CLI keeps none |
+| `log_file`                    | `""`                          | The TUI's session log path (defaults to `<name>.log` in config subfolder); MCP logs to `<name>.mcp.log` beside it, the CLI keeps none |
 | `file_xfer_root`              | `""`                          | Root directory for file transfer (empty = `cap/`). See [File Transfer](file-transfer.md). |
 | `proto_frame_gap_ms`          | `50`                          | Silence gap (ms) to detect end of a binary frame |
 | `proto_results_template`      | `{name}_results.json`         | Filename template for protocol test JSON results |
@@ -187,7 +229,6 @@ reported as a type warning.
 | `cmd_prefix`                  | `/`                           | Prefix for local REPL commands |
 | `cli_prompt`                  | `"$(CFG)> "`                  | Prompt string in CLI mode (supports variables) |
 | `cli_completion`              | `true`                        | Enable CLI tab completion, auto-suggest, and help toolbar |
-| `show_traceback`              | `false`                       | Show full stack trace on serial errors |
 | `cfg_enabled`                 | `true`                        | Show the Cfg button in the title bar |
 | `run_enabled`                 | `true`                        | Show the Run button in the title bar |
 | `proto_enabled`               | `true`                        | Show the Proto button in the title bar |
@@ -204,6 +245,27 @@ reported as a type warning.
 switch). `auto_reconnect` retries the connection when the port drops or
 a manual connect attempt fails -- it does not control startup behavior.
 While reconnecting, the title bar turns amber and shows a spinner.
+
+## What a load resets
+
+Loading a config puts the session where a fresh start on that config would, so
+the configs you used before cannot change how this one behaves.
+
+- **Back to the config:** `echo`, `hex`, `line_no`, `color`, `output_level` and
+  every other key take the file's value, and `/term.echo_repl` its default.
+- **Gone:** user variables, `/env.set` values, `{seq}` counters and the device
+  profile. The `{starttime}` clock starts again and the find bar closes.
+- **Stopped:** a capture and a recording.
+- **The port:** it opens only if the config says `auto_connect`.
+
+Saving in the config editor counts as a load, except that a connected port
+stays connected. Changing the port from the title bar or the port picker is
+not a load: nothing resets.
+
+Some inputs live outside the config, so they are the same whichever config came
+first: the global `termapy_cfg/plugin/`, `lib/` and `dev/` folders, `$(env.NAME)`
+values from the environment, `TERMAPY_*` switches, and what you asked for at
+launch, such as `--no-color` or `--quiet`.
 
 ## On-connect commands
 

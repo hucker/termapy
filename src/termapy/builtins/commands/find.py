@@ -19,7 +19,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from termapy.defaults import cmd_prefix
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.scripting import find_matches
 
@@ -27,12 +26,12 @@ if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
 
-# ── Module-level search state ────────────────────────────────────────────────
+# ── Search state, in ctx.ns("find") ──────────────────────────────────────────
 
 
 @dataclass
 class _Active:
-    """Active search session.  Module-level so it persists across dispatches."""
+    """Active search session, kept in the namespace so it persists across dispatches."""
 
     pattern: str
     matches: list[tuple[int, str]] = field(default_factory=list)
@@ -43,7 +42,10 @@ class _Active:
     scrollback_text: str = ""
 
 
-_active: _Active | None = None
+# The namespace holds ``active`` (absent when no search is open) and
+# ``max_count`` (absent until /find.max_count sets it), so emptying it, as a
+# config load does, ends the search and restores the cap.
+_FIND_NS = "find"
 
 
 # Per-session cap on how many matches a single /find may carry.
@@ -51,26 +53,34 @@ _active: _Active | None = None
 # /grep request and the frozen-view UX collapses to noise.
 # Override at runtime via /find.max_count <N>.
 _DEFAULT_MAX_COUNT = 100
-_max_count: int = _DEFAULT_MAX_COUNT
 
 
-def current_state() -> dict | None:
+def _max_count(ctx: PluginContext) -> int:
+    """The match cap: what ``/find.max_count`` set, or the default."""
+    return ctx.ns(_FIND_NS).get("max_count", _DEFAULT_MAX_COUNT)
+
+
+def current_state(ctx: PluginContext) -> dict | None:
     """Snapshot for the TUI to render.  ``None`` means hide the bar.
 
     Carries the full match list and the captured scrollback text so
     the UI can build the highlighted frozen-view in one pass without
     asking the plugin for more data.
+
+    Args:
+        ctx: Plugin context holding the search.
     """
-    if _active is None:
+    active = ctx.ns(_FIND_NS).get("active")
+    if active is None:
         return None
-    total = len(_active.matches)
-    line_no, snippet = _active.matches[_active.current] if total else (None, "")
+    total = len(active.matches)
+    line_no, snippet = active.matches[active.current] if total else (None, "")
     return {
-        "pattern": _active.pattern,
+        "pattern": active.pattern,
         "total": total,
-        "matches": list(_active.matches),
-        "scrollback_text": _active.scrollback_text,
-        "index": _active.current if total else -1,
+        "matches": list(active.matches),
+        "scrollback_text": active.scrollback_text,
+        "index": active.current if total else -1,
         "line_no": line_no,
         "snippet": snippet,
     }
@@ -80,7 +90,7 @@ def _refresh(ctx: PluginContext) -> None:
     """Push current state to the TUI's FindBar (no-op in CLI/MCP)."""
     cb = ctx.internal.update_find_bar
     if cb is not None:
-        cb(current_state())
+        cb(current_state(ctx))
 
 
 # ── Handlers ─────────────────────────────────────────────────────────────────
@@ -95,13 +105,12 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     pattern, computes matches against the current scrollback and
     seeks to the first one.  Identical regex semantics to /grep.
     """
-    global _active
     pattern = args.strip()
     if not pattern:
         dismiss(ctx)
         return CmdResult.ok(value="closed")
 
-    prefix = cmd_prefix(ctx.cfg)
+    prefix = ctx.prefix
     find_cmd = f"{prefix}find"
 
     def _is_find_noise(line: str) -> bool:
@@ -123,33 +132,35 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
     # Per-session cap so a pattern like ``/find .`` doesn't try to
     # highlight 10K lines.  Override with /find.max_count <N>.
-    if len(matches) > _max_count:
+    max_count = _max_count(ctx)
+    if len(matches) > max_count:
         return CmdResult.fail(
             msg=(
-                f"Too many matches ({len(matches)} > {_max_count}).  "
+                f"Too many matches ({len(matches)} > {max_count}).  "
                 f"Refine the pattern, raise the cap with "
                 f"`{prefix}find.max_count {len(matches) + 100}`, or "
                 f"use {prefix}grep to print them all."
             ),
         )
 
-    _active = _Active(
+    ctx.ns(_FIND_NS)["active"] = _Active(
         pattern=pattern,
         matches=matches,
         current=0,
         scrollback_text=text,
     )
     _refresh(ctx)
-    return CmdResult.ok(value=str(len(matches)))
+    return CmdResult.ok(value=len(matches))
 
 
 def _step(ctx: PluginContext, delta: int) -> CmdResult:
     """Walk one match forward (+1) or back (-1), wrapping at the ends."""
-    if _active is None or not _active.matches:
+    active = ctx.ns(_FIND_NS).get("active")
+    if active is None or not active.matches:
         return CmdResult.fail(msg="No active find.")
-    _active.current = (_active.current + delta) % len(_active.matches)
+    active.current = (active.current + delta) % len(active.matches)
     _refresh(ctx)
-    return CmdResult.ok(value=str(_active.current + 1))
+    return CmdResult.ok(value=active.current + 1)
 
 
 def _handler_next(ctx: PluginContext, args: str) -> CmdResult:
@@ -174,8 +185,12 @@ def dismiss(ctx: PluginContext) -> None:
     Args:
         ctx: Plugin context, used to refresh the find bar.
     """
-    global _active
-    _active = None
+    ctx.ns(_FIND_NS).pop("active", None)
+    _refresh(ctx)
+
+
+def on_config_load(ctx: PluginContext) -> None:
+    """A load already emptied the namespace, so the bar only has to hear the search is gone."""
     _refresh(ctx)
 
 
@@ -189,28 +204,27 @@ def _handler_max_count(ctx: PluginContext, args: str) -> CmdResult:
     """``/find.max_count <N>`` -- raise or lower the per-session cap.
 
     Bare invocation reports the current value.  Otherwise the arg
-    must be a positive integer.  Setting is in-memory only; resets
-    to ``_DEFAULT_MAX_COUNT`` on next termapy launch.
+    must be a positive integer.  Setting is in-memory only; goes back
+    to ``_DEFAULT_MAX_COUNT`` on the next config load.
     """
-    global _max_count
+    max_count = _max_count(ctx)
     raw = args.strip()
     if not raw:
-        ctx.io.result(f"{ctx.prefix}find.max_count = {_max_count}")
-        return CmdResult.ok(value=str(_max_count))
+        ctx.io.result(f"{ctx.prefix}find.max_count = {max_count}")
+        return CmdResult.ok(value=max_count)
     try:
         n = int(raw)
     except ValueError:
-        raise UsageError(f"Invalid count: {raw!r}  (current = {_max_count})") from None
+        raise UsageError(f"Invalid count: {raw!r}  (current = {max_count})") from None
     if n < 1:
         return CmdResult.fail(msg="Max count must be >= 1")
-    _max_count = n
+    ctx.ns(_FIND_NS)["max_count"] = n
     ctx.io.result(f"{ctx.prefix}find.max_count = {n}")
-    return CmdResult.ok(value=str(n))
+    return CmdResult.ok(value=n)
 
 
 _LONG_HELP = """\
-Search the scrollback for matching lines and navigate them
-interactively.  Matched lines are highlighted (reverse video) in a
+Matched lines are highlighted (reverse video) in a
 frozen snapshot of the scrollback; arrow buttons in the bottom row
 step through them.
 
@@ -220,7 +234,7 @@ Usage:
   {prefix}find.next                Step to the next match (wraps at end).
   {prefix}find.prev                Step to the previous match (wraps at start).
   {prefix}find.clear               Same as {prefix}find with no args.
-  {prefix}find.max_count <N>       Raise/lower per-session match cap (default 100).
+  {prefix}find.max_count <N>       Raise/lower the match cap until a config load (default 100).
   {prefix}find.max_count           Show the current cap.
 
 The search regex is case-insensitive (same as {prefix}grep).  Matches are
@@ -242,9 +256,9 @@ COMMAND = Command(
     name="find",
     args="{pattern}",
     help="Navigate scrollback matches with an interactive find bar.",
+    intro="Search the scrollback for matching lines and navigate them interactively.",
     long_help=_LONG_HELP,
     handler=_handler,
-    shows=True,
     needs=CapabilitySet.INTERACTIVE,
     sub_commands={
         "next": Command(
@@ -261,8 +275,9 @@ COMMAND = Command(
         ),
         "max_count": Command(
             args="{N}",
-            help="Show or set per-session match cap (default 100).",
+            help="Show or set the match cap until the next config load (default 100).",
             handler=_handler_max_count,
+            state=True,
         ),
     },
 )

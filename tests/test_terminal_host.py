@@ -360,12 +360,13 @@ class TestInitFlags:
         assert flags["hex"] is True, "hex_mode read from cfg"
 
 
-# -- _serial_write / _serial_send -------------------------------------------
+# -- _serial_write / ctx.serial.send -------------------------------------------
 
 
 class TestSerialIO:
+    @pytest.mark.rule("tx-only-what-went-out")
     def test_serial_write_no_port(self, host):
-        """tx-only-what-went-out: a write with no open port raises Not connected and notifies no TX observer."""
+        """A write with no open port raises Not connected and notifies no TX observer."""
         # Arrange
         host.engine.serial_port = None
 
@@ -374,8 +375,9 @@ class TestSerialIO:
             host._serial_write(b"hello")
         host.engine.notify_tx.assert_not_called()
 
+    @pytest.mark.rule("tx-only-what-went-out")
     def test_failed_write_notifies_no_tx_observer(self, host):
-        """tx-only-what-went-out: a write the port refuses raises to the caller and reaches no TX observer."""
+        """A write the port refuses raises to the caller and reaches no TX observer."""
         # Arrange
         host.engine.serial_port = MagicMock()
         host.engine.serial_port.write.side_effect = SerialException("simulated unplug")
@@ -399,28 +401,30 @@ class TestSerialIO:
         # TX observers notified
         host.engine.notify_tx.assert_called_once_with(b"\x01\x02")
 
-    def test_serial_send_appends_line_ending(self, host):
-        """_serial_send appends the configured eol (CR here) and writes the encoded line."""
+    def test_ctx_send_appends_line_ending(self, host):
+        """The host's ctx.serial.send appends the configured eol (CR here) and writes the line to its port."""
         # Arrange
         host.engine.serial_port = MagicMock()
+        ctx = host._build_plugin_context(host._build_internal_handle())
 
         # Act
-        host._serial_send("AT")
+        ctx.serial.send("AT")
 
         # Assert
         expected = b"AT\r"
         # text + line_ending encoded and written
         host.engine.serial_port.write.assert_called_once_with(expected)
 
-    def test_serial_send_custom_encoding(self, host):
-        """_serial_send honors a non-default encoding and eol taken from cfg."""
+    def test_ctx_send_custom_encoding(self, host):
+        """The host's ctx.serial.send reads the encoding and eol from the live cfg, set after the context was built."""
         # Arrange
+        host.engine.serial_port = MagicMock()
+        ctx = host._build_plugin_context(host._build_internal_handle())
         host.cfg["encoding"] = "ascii"
         host.cfg["eol"] = "\n"
-        host.engine.serial_port = MagicMock()
 
         # Act
-        host._serial_send("OK")
+        ctx.serial.send("OK")
 
         # Assert
         expected = b"OK\n"
@@ -722,8 +726,9 @@ class _PrestartHost(_StubHost):
         self._status_msgs.append("PRESTART")
 
 
+@pytest.mark.rule("prestart-before-start")
 class TestFireAppStart:
-    """prestart-before-start: the host's pre-start, then on_app_prestart, then on_app_start."""
+    """The host's pre-start, then on_app_prestart, then on_app_start."""
 
     def test_variables_are_registered_before_the_frontends_prestart(
         self, host, tmp_path, monkeypatch
@@ -744,7 +749,7 @@ class TestFireAppStart:
 
             def _on_app_prestart(self) -> None:
                 seen["front_end"] = variables.launch_var("FRONT_END") or ""
-                seen["cfg"] = variables.expand_vars("$(CFG)")
+                seen["cfg"] = variables.expand_vars(self.ctx, "$(CFG)")
 
         start_host = _NamedHost(host.cfg, host.config_path, host.engine, repl, host.capture)
         start_host.ctx = start_host._build_plugin_context(start_host._build_internal_handle())

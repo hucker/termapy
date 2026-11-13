@@ -60,24 +60,62 @@ def escape_markup(value: object) -> str:
     return escaped
 
 
-def json_markup(data: object, indent: int | None = 2) -> str:
-    """``data`` as highlighted JSON in Rich markup (``/term.json color``).
+def json_markup(data: object, indent: int | None = 2, *, ensure_ascii: bool = True) -> str:
+    """``data`` as highlighted JSON in Rich markup (``json_fmt.highlight``).
 
     Rich's JSON highlighter escapes what it emits, so a ``[`` inside a
     string value stays literal and ``markup_to_plain`` of the result is
-    exactly the JSON text.  ``ensure_ascii`` matches ``json.dumps``'
-    default, so the colored form reads the same characters as the plain one.
+    exactly the JSON text.
 
     Args:
         data: A JSON-shaped value; anything else is ``str()``-ed.
         indent: Spaces per level; ``None`` for one line.
+        ensure_ascii: Escape non-ASCII characters, as ``json.dumps`` does
+            by default, so the colored form reads the same characters as
+            termapy's plain one.
 
     Returns:
         The markup.
     """
     from rich.json import JSON
 
-    return JSON.from_data(data, indent=indent, ensure_ascii=True, default=str).text.markup
+    return JSON.from_data(data, indent=indent, ensure_ascii=ensure_ascii, default=str).text.markup
+
+
+def received_json_markup(line: str, indent: int, highlight: bool) -> str | None:
+    """A received line that is a JSON object or array, laid out for the screen.
+
+    A device that answers in JSON reads like termapy's own JSON: ``indent``
+    spaces per level (0 keeps one line), highlighted when ``highlight`` is
+    on.  Display only: the session log, a capture and MCP keep the line as
+    received.  Characters are shown as the device sent them, not as ``\\u``
+    escapes.
+
+    Args:
+        line: One received line, ANSI already stripped.
+        indent: Spaces per level, ``json_fmt.indent``; 0 for one line.
+        highlight: Whether to highlight it (``json_fmt.highlight`` with color on).
+
+    Returns:
+        The markup to show in place of the line, or None to show the line as
+        received: with no indent and no highlight, and for any line that is
+        not a whole JSON object or array.
+    """
+    if not indent and not highlight:
+        return None
+    text = line.strip()
+    if not text.startswith(("{", "[")):
+        return None
+    import json
+
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return None
+    spaces = indent or None
+    if highlight:
+        return json_markup(data, indent=spaces, ensure_ascii=False)
+    return escape_markup(json.dumps(data, indent=spaces, ensure_ascii=False))
 
 
 def markup_to_plain(markup: str) -> str:

@@ -9,6 +9,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      # A flaky Pilot test on one version must not cancel the others.
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
     steps:
@@ -20,12 +22,19 @@ jobs:
         # they run in crcglot's own CI now.  Termapy keeps a tiny
         # wrapper smoke test that doesn't need any toolchain.
         #
-        # --extra mcp installs the MCP SDK so the ~180 tests guarded by
-        # pytest.importorskip("mcp") actually run.  Without it they are
-        # silently uncollected and the MCP server (mcp/server.py etc.) has
-        # zero CI coverage.  The `web` extra gates no tests, so it is not
-        # needed here.
-        run: uv run --python ${{ matrix.python-version }} --extra mcp pytest
+        # --all-extras: the MCP SDK so the ~180 tests guarded by
+        # pytest.importorskip("mcp") actually run (without it they are
+        # silently uncollected and mcp/server.py has zero CI coverage), and
+        # every other extra because tests/test_hygiene.py runs `ty check`,
+        # whose count depends on what is installed: a missing extra reads
+        # as an unresolved import.  The gate names the all-extras
+        # environment (CLAUDE.md Precommit), so CI checks in it too.
+        run: uv run --python ${{ matrix.python-version }} --all-extras pytest -m "not timing"
+      - name: Run the timing tests alone
+        # Their result depends on wall-clock time, so they run after the
+        # parallel pass with nothing beside them (registry
+        # timing-tests-run-alone).
+        run: uv run --python ${{ matrix.python-version }} --all-extras pytest -m timing -n 0
 
   coverage:
     runs-on: ubuntu-latest
@@ -33,9 +42,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
       - name: Run tests with coverage
-        # --extra mcp so the MCP tests run and mcp/* is counted in coverage
-        # (previously 0% in CI because those tests were uncollected).
-        run: uv run --python 3.14 --extra mcp pytest --cov=termapy --cov-report=xml:coverage.xml
+        # --all-extras so the MCP tests run and mcp/* is counted in coverage
+        # (previously 0% in CI because those tests were uncollected), and so
+        # the ty gate in tests/test_hygiene.py sees every optional import.
+        # Two passes, as in the test job; the second appends to the first's
+        # data and writes the report, so Codecov sees the whole suite.
+        run: |
+          uv run --python 3.14 --all-extras pytest -m "not timing" --cov=termapy --cov-report=
+          uv run --python 3.14 --all-extras pytest -m timing -n 0 --cov=termapy --cov-append --cov-report=xml:coverage.xml
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

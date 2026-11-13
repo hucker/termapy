@@ -687,3 +687,915 @@ so a dict would have cost a migration and changes in all three for what
 adjacency gives free. This settles the "future grouping decision" the
 comment above `serial` used to leave open; only the pyserial arguments
 are nested.
+
+## 2026-11-01 — A command declares the config keys it uses, with how; the help derives the rest
+
+Five long helps said "persisted via cfg echo" or "persist with `/cfg
+eol`" when every `/term.*` setter and `/cfg <key> <value>` are
+session-only and only the config editor's Save writes the file. Fixing
+the sentences by hand was the second-class fix (Chuck: "you remember to
+update the help"): the next command would forget again. So a command's
+config dependencies are data, `Command(cfg={"eol": "appended to each
+sent line"})`, a key path (`defaults.cfg_key_paths`; a bare leaf
+resolves) to a phrase for how this command uses the value, validated at
+load like a synopsis. `/help <cmd>` renders them as a CONFIG section
+(key, live value, phrase) and one generated line on where a change
+lasts, naming the config file; `/help <key>` is a new page (meaning,
+value, the file and the key's JSON spelling in it, the commands that
+use it and how); `/search` indexes the keys; the editor's help line
+names the users; the MCP catalog carries `cfg`. The false sentences
+were deleted, not replaced. A phrase rather than a role vocabulary
+(reads / sets / seeds), chosen by Chuck from three: the ask was "the
+dependencies and how they are used", and a phrase says it where a role
+says less; it is the `help=` pattern applied to a key. The guard holds a
+plugin module's literal config reads, and those of the `_helper`
+modules it imports, to its declarations (registry `cfg-declared`); that
+a declared key is really touched is review (`cfg-declared-read`). Found
+on the way and parked for their own branch: `echo`, `hex` and `line_no`
+only seed session flags at startup, so `/cfg echo on` changes nothing
+visible, and `encoding` and `eol_markers` are captured into the reader
+at connect. The editor's panel grew a fourth line for "Used by", which
+exposed a message that had been below the fold: a `$(CFG)` in a value
+was reported "variable - not resolved" because the editor expanded only
+`$(env.NAME)`. It now tells an unset environment variable, an unknown
+name and a known session variable apart, asking `variables.resolve_one`,
+the namespace's one owner, whether a name exists.
+
+## 2026-11-01 — One reader of a config value, with the table's default
+
+A config value with a default is read through `defaults.cfg_value(cfg,
+"path")`. `cfg.get("key", literal)` is gone from every module but the
+table itself (`defaults.py`), the frozen history (`migration.py`) and
+three readers of a file as written in `config.py` (`validate_config`;
+`load_config`, whose `config_version` must read 0 when missing, not the
+current version; `config_summary`), each allowlisted with its reason.
+137 sites restated a default in a literal and five restated it wrong
+(`echo_fmt`, `cli_prompt`, `request_err_pattern`, `border_color`, the
+`/` prefix in the MCP server), so the same key had two defaults
+depending on who asked. The sweep was an `ast` rewrite driven by the
+guard's own finder, so the rewritten set is exactly the flagged set. A
+subscript (`cfg["eol"]`) stays allowed: it is loud when the key is
+missing, which a loaded config never is. A container default comes back
+as a copy, as `default_cfg` copies, so no caller holds the table's own
+list. Registry `cfg-read-one-reader`. The first half of H1 in the
+2026-11-01 config review; the schema table is the second.
+
+## 2026-11-02 — A command declares that it reports state, and /help runs it
+
+`Command(state=True)` says that running a command bare reports its current
+state. `/help <cmd>` runs it and shows the answer in a CURRENT STATE section
+right after STATUS: a short value in full, a record's rows, a list's rows, and
+past twenty rows the start and a link to the rest. Chuck asked for it
+because the pages that showed live state were the hand-written ones: of 27
+bare-query settings, 8 showed their value. A hand-written state line is the
+second-class solution the `cfg=` declaration replaced, with a second defect:
+the page and the command can disagree (`/help port.mode` built its own frame
+text, and `/help port.dtr` said `?` with the port closed).
+
+The word is `state`, not `status`, because STATUS is already the page's
+maturity section. It is not `shows`: `/term.echo` reports state bare and acts
+with an argument, so a click on it must not run it, and `shows` includes
+viewer-openers. It is a plain boolean with no config key to turn it off; the
+renderer handles size, so a declaration has nothing to tune.
+
+The read is the ordinary dispatch path at the silent level, so the capability
+gate still answers and `Not connected.` is shown as the state. The promise is
+behavioral, so its guard is too: every tagged command is read twice against a
+connected DEMO and the session, the files and the wire are compared (registry
+`state-read-immutable`). A query in name is not always a query in fact, and
+these stay untagged with their reason in `STATE_EXEMPT`: `/port.info` and
+`/port.chip` open the port on Windows while disconnected to test whether it is
+in use, `/mem.info` sends `MEM.INFO`, `/cfg.info` writes its report, and
+`/app.ver.info` calls PyPI.
+
+The hand-written state lines on the twelve port settings and signal lines are
+deleted, their prose kept: the value now appears once, and it is what the
+command answers. The green line's label also named a signal's direction
+(`DTR (out)`); `Show or set` and `read-only` in each command's help say the same.
+Summaries on a family's page (`/help port`, `/help cfg`, `/help sym`) stay
+hand-written, because no single command gives them as one line.
+
+## 2026-11-02 — The config schema is one table, and one validator answers for all three surfaces
+
+Every config key is one `CfgKey` row in `defaults.CFG_KEYS`: its default, its
+kind, what bounds it, and its help. `DEFAULT_CFG`, `CFG_HELP`, `CFG_CHOICES` and
+`MANAGED_CFG_KEYS` are views of the table under their old names, so no consumer
+moved. `config.check_cfg_value` reads the kinds, and a load, the config editor
+and `/cfg` all ask it. The 2026-11-01 review's H1 and H2: the schema lived in five
+places, "is this value OK" had three answers, and validation never refused. The
+editor's baud list lacked 110, 600, 14400 and 28800, which a load accepted;
+`/cfg.auto max_lines 0`, `encoding nope` and `config_version 99` all succeeded.
+
+A new key is one row, in its group, because the table's order is the layout of a
+config file. Kinds are a closed list with one check each, and a test holds every
+row to it. There is no setter field: who sets a key is the `cfg=` declarations'
+job. `/cfg` now refuses what the check refuses (`Invalid max_lines: 0 (must be a
+positive integer)`) and `config_version` by name. A non-standard baud rate stays
+allowed, since some hardware needs one: it is a finding with `refuse=False`, so a
+load warns, the editor shows yellow and `/cfg` takes it with a note. The editor
+keeps the two things only a live editor can say, whether a port is plugged in and
+that a rate is custom.
+
+The messages are now one vocabulary (`must be true or false`), replacing
+`expected bool, got str` in load warnings and `must be positive` in the editor,
+which it showed for a key that may be zero. Refusing also closed a gap: `/cfg` set
+a path key without `/cfg.auto`'s sandbox check, and `file_xfer_root` was not on the
+list at all. `port_control.PORT_PROPS` stays as the pyserial attribute map, held to
+the table by a test.
+
+## 2026-11-02 — A status says what it means
+
+`stable` reads "tested and part of the standard release" and `preview` "works
+and is used daily, but may change in any release". Both used to lean on
+"termapy's compatibility promise", in the words the 2026-10-29 entry chose, and
+no document ever defined one, so the phrase claimed something that did not exist.
+Chuck's definition: stable means tested and part of the standard release.
+
+## 2026-11-02 — A config load ends where a fresh start on that config would
+
+Chuck: "It is very important that the ENTIRE state of the app is controlled ...
+so the cfg always loads to a known state (if the user changes settings then
+that is on them)." Measured by starting on config B in one process and arriving
+at B from a used A in another, the config dict always matched and the session
+did not. The TUI kept eight things, the CLI two, and a wider probe that flipped
+every setting by its declaration found three more: `/env.set`, a running
+`/run.record` and an open find bar. The cause was two paths: the CLI and MCP
+rebuild the context on a load, the TUI reset a hand-kept subset, and neither
+knew about module-level state.
+
+There is now one reset, `TerminalHost._reset_session`, and a guard that compares
+each frontend with a fresh start. Chuck's answers settled the choices it needed:
+
+- **User variables reset.** So do `/env.set` values, `{seq}` counters, the device
+  profile and `/find.max_count`. A capture and a recording stop.
+- **The port follows `auto_connect`.** The TUI used to reconnect any port that was
+  connected, whatever the new config said.
+- **`color` and `output_level` are config keys** (v36), so a file can set every
+  session flag. `echo_repl` stays keyless: its right default is per-host.
+- **Startup flags hit after the load.** `--no-color` and `--quiet` outlast every
+  load, as do a host's rules (MCP's JSON stays uncolored, quiet and without echo).
+
+Two calls were made while building it, and either is one keyword to reverse. An
+editor Save counts as a load, so the session resets, but a connected port stays
+connected: a saved edit is not a request to drop the link. And a port change from
+the title bar or picker is not a load at all, since the config did not change; it
+used to run the whole switch, which would now have wiped the session.
+
+Session state goes in `ctx.ns()`, which this reset empties. The first build reset
+the `/find` globals from an `on_config_load` hook, the smaller change, and its guard
+accepted a hook or a namespace alike. Chuck asked why state `ns` exists for was not
+in it, and there was no reason. `/find` moved, and a hook no longer satisfies the
+guard: module state needs an entry in `MODULE_STATE_OUTSIDE_NS` saying why. The
+`/run.record` file and the replay guard stay outside on their merits, a cleared dict
+cannot close a file and a replayed `/cfg.load` must not clear its own guard. The
+`/env.set` values and the user variables followed once transforms and `expand_vars`
+took a `ctx`; launch and context variables stay module-level as the process's, and
+`SESSION_*` as the running script's, which outlasts a `/cfg.load` inside it.
+
+A key that starts a flag is marked `session_flag`, and `/cfg` moves the flag with
+the key. It used to change only the dict: `/cfg.auto echo false` answered `False`
+while `/term.echo` went on answering `on`.
+
+A script is not a load. `/run`, the Scripts button and the Run menu start one the
+same way and reset nothing (registry `script-start-one-way`): it sees the session
+it was launched into and leaves its changes behind. One that needs a known start
+says so with `/cfg.load` as its first line, and `termapy --run` gets one anyway,
+being a fresh process.
+
+Restoring state when a script ends was considered and rejected. It protects what
+runs after a script but not the script itself, which was the concern, and it
+needed exceptions for serial settings and setup scripts. The picker used to clear
+user variables and freeze `$(SESSION_*)` where `/run` did neither, so one script
+behaved two ways depending on how it was launched. Now the picker clears nothing
+and every outermost script freezes the moment.
+
+## 2026-11-03 — The words commands share explain themselves
+
+Chuck had forgotten how `cycle` works: only the plugin author's page said, and
+`/help cycle` was an error. `--json` and `--quiet` work on every command, and no
+page said that either. Tooltips were the obvious fix, but they exist only in the
+TUI, so the CLI and an agent would have got nothing. Pages are the foundation and
+tooltips a surface on them: `idioms.IDIOMS` is one table, `/help cycle` and
+`/help.idioms` read it, and a synopsis word links to its page by being in the
+synopsis, with nothing for a command to declare.
+
+A page lists the commands that take its word, generated from the registry. Chuck
+thought `cycle` was on every enumeration; it is on four. Closing that gap is its
+own branch, and the page stays true either way.
+
+A hidden command now gives way to a config key or an idiom: `/help color` used to
+open the legacy alias's page rather than the key's, and `/help verbose` would have
+done the same to the idiom.
+
+A tooltip gives the answer rather than the address. Chuck, looking at a config
+key's link that said only "Click to run: /help output_level": "the tool tip saves
+the trip". Every definition was already written once (`help=`, `CfgKey.help`,
+`Idiom.summary`), so a link looks up whatever it names at hover, in `/help`'s lookup
+order (registry `link-explains-itself`). No link carries its own text, so none can
+disagree with the page it opens, and a plugin's command is covered by its `help=`.
+
+A help page shows what is about this command (registry `help-page-specific`). Chuck:
+"I hate seeing a command that toggles a mode have a full page of help." `/help
+term.hex` was 32 lines, and 9 of them were the same on nearly every page: a `stable`
+STATUS, an all-yes AVAILABLE, the sibling list, and where a config change lasts. Those
+now appear only when they are news. `--verbose` is the existing way to ask for more, so
+it prints them in every frontend, and in the TUI they are a hover away, on the
+command's name or the config key.
+
+A row no longer prints its level. Chuck: the column put the status "a bit too much in
+people's faces", and most commands are the tested, released system. A name not yet
+stable is italic with its level in the tooltip, and stable goes unmarked, which reverses
+his own 2026-10-29 choice of a column on every row. A row in a plain terminal shows no
+mark; there the page's STATUS, `/help.group`'s LEVEL column and the MCP catalog carry it
+in text.
+
+A tooltip has a shape, because the name's was a wall of same-weight lines. The
+definition leads in bold, the click line is last and dim, and blank lines part them.
+`Link.tip` takes pieces as well as a string, so the level and the flag names can carry
+the colors they have on the page; a piece's text is literal, so no markup reaches a
+parser. Chuck chose this over plain text knowing it widened a published type.
+
+## 2026-11-03 — Under MCP termapy is conservative, and no flag widens it
+
+An MCP client never reaches a shell (registry `os-never-under-mcp`), never renames or
+deletes a file (`mcp-no-file-management`), and never writes into `plugin/` or `viz/` or
+over a file that exists (`mcp-no-code-writes`). Chuck: "/os should NOT be allowed under
+MCP, that is an escape to freedom", and "most things with rename and delete should be
+off limits". Agents lose nothing they cannot do without: captures pile up until a
+person removes them, and a new capture takes a new name.
+
+`confirm=true` stopped being the control for these. A client sets it itself, and the
+gate behind it reads only the outermost line, so `/repeat count=1 cmd=/plugin.delete x`
+deleted with no confirm at all. A capability is checked in dispatch, and a probe of
+every nesting form found it holds. It stays the control for `/mem.write` and a
+profile's destructive device commands, until that gate moves into dispatch (Tier 2a of
+the 2026-10-29 security review).
+
+No new capability, and no opt-in flag. `interactive` already means a person at a
+terminal, and already refused `/os` and `/log.delete`; a test fails if MCP ever gains
+it, so granting it for approval prompts would have to be decided rather than happen.
+Chuck on the flag: "I don't want to give mcp access through a flag."
+
+These are limits on termapy's own commands, and they are not containment. A client
+that can write files some other way needs only to learn the folder names, and Chuck
+was plain about that: "that isn't my problem". The MCP client's own permissions remain
+the real boundary, as `help/mcp-server.md` says.
+
+## 2026-11-03 — An MCP server finds its project's config, and may switch within it
+
+Amends 2026-05-03, "One MCP server per config with a profile". Its reasons stand for a
+device: one process owns one port, and two devices at once are two servers. But
+`/cfg.load` has worked under MCP since 2026-05-10, a week after that entry, while the help
+still said "No hot-swap". So `termapy --mcp` with no config worked by luck: the working
+folder happened to be the workspace, which Claude Code's docs do not promise, and an agent
+ran `/cfg.load m3_bin`.
+
+Chuck's rules (registry `mcp-finds-its-config`): from `CLAUDE_PROJECT_DIR`, the project
+root Claude Code sets for a server so it need not depend on its working folder, or else
+that folder, use the first of `./termapy_cfg`, `./src/termapy_cfg`, `./source/termapy_cfg`.
+Start on a config named at launch, else the only config, else the only `mcp_*`; with
+several `mcp_*`, the first whose port opens. "It should continue on", so a second server
+moves to `mcp_cfg2` when `mcp_cfg1` is busy. Otherwise start with none and tell the agent
+what it can load: "you have a path to be explicit and you have a fall through."
+
+"The highest priority is the command line, everything else is hierarchical convenience."
+So a config named at launch is the only choice: if it does not exist the server exits with
+an error, as `--cfg-dir` naming a missing folder does, instead of an agent carrying on
+with another device's config. A config named by its path brings its folder. And an agent
+cannot move a server off a config the command line named: `termapy-left` would otherwise
+drive the right board under a name that no longer says so. Only a config the rules chose,
+or none, can be left, which keeps the no-lockout case. That is also Chuck's daily setup:
+`termapy-a` and `termapy-b` are two identical entries naming no config, "so I can debug
+two ports at the same time", and the agent loads a device into each.
+
+Unless the launch named a config, an agent may load any in that folder by bare name,
+because "those are related to your project". Pinning every server to its first config was
+considered and dropped: with several devices, "you don't want to be locked out". A `.mcp`
+manifest was rejected
+because a project's `.mcp.json` already names a config, and an `mcp-enable` config key
+because, with loading open, it would only pick a default. A "never for agents" key is the
+one use that would earn it; not until a device needs it. There is no fallback to the OS
+config folder: a user-scope server enabled in an unrelated project must not see the
+user's other configs.
+
+The chain needed `exclusive=True` on the open (registry `port-open-exclusive`). Without it
+only Windows refuses a second open, and on Linux or macOS a second server would share the
+first device and split its bytes. The chain loads each config before trying its port
+rather than trial-opening first, because an open and close can reset a board through DTR.
+
+## 2026-11-04 — A raw traffic log is pyserial's `spy://`, documented and not wrapped
+
+Chuck: "document it as a 'feature' and just allow pyserial to do its thing." termapy passes
+a port string to `serial_for_url`, so `spy://COM3?file=traffic.txt` already logs every byte
+in both directions, and `help/ports.md` says how to use it and what to expect. No code.
+
+Three ways to wrap it were considered and dropped, because each traded a free feature for
+code of our own: recording the bytes in `SerialEngine`, a `/cap.serial` command that reopens
+the port (a reset on an auto-reset board, at both start and stop), and a `spy_file` config
+key. So pyserial's limits are ours, stated rather than fixed: every connect starts the file
+over, a serial number is not resolved inside the URL, and `raw` fails on a file.
+
+The one thing termapy does change is where the file goes (registry `spy-log-in-cap`). Left
+alone, `file=traffic.txt` landed in the working folder, usually a project's root, against
+`writes-in-cfg-folder`. Chuck: "I would like for the user to ONLY provide a relative path and
+the file goes in the cap folder." So `config.open_serial` moves `file=` under the config's
+`cap/`, and refuses a full path or a `..`, in every frontend and under no flag.
+
+Under MCP that keeps the URL away from `plugin/`, `viz/` and the rest of the disk. Inside
+`cap/` a log may replace a file, and an agent may do that too: Chuck, "It is ok to overwrite
+files and send to a comport." So a `spy://` log is the one user-named exception to "a write
+never replaces a file" (registry `mcp-no-code-writes`). For the same reason there is no check
+on device names: `file=COM4` is a relative path like any other. On the Windows 11 bench it
+makes an ordinary file; other versions were not tried.
+
+## 2026-11-04 — An agent may load any config in the project, however the server started
+
+Amends 2026-11-03, "An MCP server finds its project's config", which refused to move a
+server off a config the command line named. Chuck: "It is better functionality to have the
+file loadable by the agent. Take out whatever mechanism we have in place to lock out changes
+under mcp." An agent may want the config a user just edited, or a different one, and the lock
+never held the device anyway: `/port` could move a named server to another port. So
+`config_fixed` is gone, and naming a config at launch picks where a server starts.
+
+The command line still comes first at launch: a named config that does not exist stops the
+server rather than letting it start on another. `termapy-left` now means the left device only
+until an agent loads another config or moves its port, and the help says so. No port lock was
+added either, for the same reason.
+
+What did not move: `/cfg.load` takes a bare name from the project's folder and nothing else,
+because a path or a stray file would be rewritten as a config and its folder's plugins run.
+Renaming and deleting a config still need a person.
+
+## 2026-11-05 — Under MCP a write may replace a file inside the config's folder
+
+Reverses the "over a file that exists" half of the 2026-11-03 entry, and with it the 2026-11-04
+entry's treatment of a `spy://` log as an exception. Chuck: "mcp should be able to write json,
+cfg, run etc to its own folders. My concern is writing outside of folders", then "Yes mcp can
+change files". The refusal was the assistant's extension of 2026-11-03, whose quotes cover `/os`,
+rename and delete; "overwriting destroys a file as a delete does" was its reasoning, not his. It
+stopped work an agent needs: re-running a script with a fixed `json_file`, updating its saved
+profile, `/run.legacy --fix`.
+
+`ctx.fs.guard_replace` now refuses only a file outside the active config's folder, or any file
+with no config loaded, and no flag lifts it (registry `mcp-no-code-writes`). The cost is accepted:
+an agent can wipe a capture by reusing its name, though it still cannot delete one.
+
+What did not move: `/os`, rename and delete, and writing into `plugin/` or `viz/`, whose Python
+runs at the next load. `/cfg.new` over an existing config still needs a person's yes, and
+`/firmware.copy`, `/board.firmware` and `/run.record` never overwrite for anyone.
+
+## 2026-11-05 — termapy keeps a diagnostic log, one file per process
+
+Chuck asked for a review of the glue (exceptions, logging, utilities, threading), which "just
+does whatever it needs to without a lot of thoughtful consideration." The census found about
+forty broad catches with three markers for a reviewed one (`BoundaryException`, a `# noqa:
+BLE001` that ruff does not check, none), no Python `logging` outside the vendored tree, and no
+traceback kept anywhere: dispatch reported a handler's `KeyError('port')` as `Plugin error (x):
+'port'`, and `show_traceback`, whose help promised stack traces, was read by nothing.
+
+**What it records.** Lifecycle and failures, not the transcript: the process (pid, Python,
+platform, command line), each frontend and each switch between TUI, CLI and vt100 ("a major
+thing", Chuck), each config load and every file it brought in (the load report's rows, so the
+folder plugins a session runs are named), each on-connect command with the config key it came
+from (so a script it starts reads as the config's), ports opening and closing, the reader
+stopping, script and proto runs, and every broad catch's traceback beside the command that
+raised. The TUI's `$(FRONT_END)` became `tui` (it was `textual`), so the log, the mode loop
+and the variable name the frontends `tui`, `cli` and `mcp` alike; `/mem`'s audit line had
+kept its own map from the old name. The session log stays the record of what was typed and what the device sent; copying
+it would make two files that drift and would put device data in a file meant for bug reports.
+Per-command tracing, if ever wanted, is an opt-in DEBUG level, not built.
+
+**Where.** The config root's `log/` (his choice: where he already looks), else `log/` in the app
+state folder, so a log never creates a `termapy_cfg/` for an MCP server or a quick session.
+`TERMAPY_DIAG_DIR` overrides both, which is how the test suite keeps its logs out of the
+checkout's own folder.
+
+**One file per process, not one shared file.** Several termapy processes run at once (the TUI
+and MCP servers on one project). Python's documentation says logging to one file from several
+processes is not supported: on Windows an append is a seek and then a write, so two processes
+overwrite each other's lines, and a file another process has open cannot be renamed, so
+rotation fails. A file per process needs no lock and no platform code. A start prunes the folder
+to the newest 100 and never deletes a file whose process is running; a file stops at 1 MB.
+The count is high because every run makes a file, a `-e` one-shot and an MCP start included,
+so twenty would let a script's loop push out the session worth reading. It is a constant, not
+a setting: the app folder's `config.json` has no keys yet, and the first should come from a
+need this number turned out not to meet. SQLite was considered and
+declined: it would solve the sharing, but the log would stop being readable with an editor or by
+an agent, and a live database in a synced folder (OneDrive) risks a corrupt copy.
+
+**How it is called.** `diag_log.info`, `.warning` and `.exception`, never `logging` directly:
+`logging` costs tens of milliseconds to import, so it loads at the first record and the
+print-and-exit flags never pay for it (registry `flag-paths-light`; `TestPathsStayLight` now
+checks it). The version is written before the first warning or error rather than at start,
+because reading it costs ~50 ms a CLI one-shot would otherwise pay on every run. The handler is
+on the `termapy` logger and the vendored libraries', never the root, so the MCP SDK's own
+`basicConfig` behaves as before.
+
+**The rule.** Every broad catch records its exception or re-raises (registry
+`broad-catch-logged`, an `ast` guard), and the line the user sees names the type and the log
+file. The guard checks what the body does rather than how the catch is spelled, so
+`BoundaryException` stays a published name but is no longer the only mark of a reviewed catch.
+Catches that only guessed at what could raise were narrowed instead (Rich's `ColorParseError`,
+Textual's `OptionDoesNotExist`, pyserial's modem-line reads, `parse_format_spec`'s
+`ValueError`), and a `try` around code that cannot fail was removed. `show_traceback` is removed
+(config v37): the traceback is always in the log.
+
+## 2026-11-05 — Every frontend's session log is the same kind of file
+
+Chuck: "there is an mcp log that appears to be an irregular log file, why wouldn't this just be
+another log file". It was separate for one good reason, a TUI and an MCP server can run on one
+config at once and a file two processes append to is unsafe on Windows, and irregular for no
+good one: `mcp/session.log` in a folder of its own, no timestamps at all, its own line markers,
+a second writer in `mcp/server.py` that reopened the file per write, and its own command family
+(`/mcp.log`, `.dump`, `.path`).
+
+Now one writer, `session_log.SessionLog`, owned by `TerminalHost` and used by the TUI and MCP
+alike: every line `[stamp] <marker> <text>`, with `>` sent, `<` received, `#` termapy's output,
+`$` an MCP request and `!` a failure MCP recorded, and every session framed by Session Start and
+Session End. The files stay two, named alike beside the config: `<cfg>.log` (or `log_file`) and
+`<cfg>.mcp.log`, a sidecar that a config rename carries. A load moves an old `mcp/session.log`
+there; nothing else was ever written to `mcp/`, so an emptied folder goes too.
+
+`/log.list`, `/log.show {name}` and `/log.dump {name} {N}` reach either log from any frontend
+with a config, the CLI included, which is what `/mcp.log.dump` did for an SSH session. Behavior
+removed: `/mcp.log`, `/mcp.log.dump` and `/mcp.log.path` (the path is in `/log.list`'s data).
+Behavior changed: a word where `/log.dump`'s count goes is a log's name, so `/log.dump abc` says
+`Unknown log: abc` rather than showing the usage. Two MCP servers on one config would still
+share `<cfg>.mcp.log`; the two server slots normally run different configs, so that is noted
+rather than designed around.
+
+## 2026-11-06 — A typed baud rate is a standard one unless it is asked for as custom
+
+Chuck: "the baud rate allows ANY number, that is high risk for typos". The New Config dialog
+already guarded against it, a list of standard rates unless its custom box is checked, but
+everywhere else a rate is typed took any whole number. `/port.baud_rate 11520`, `/port.mode`
+and `/port.connect` set it silently, `termapy --new` and `/cfg.new` derived `custom_baud: true`
+from it, and `/cfg` and the config editor only warned. The 2026-11-02 schema entry had made a
+non-standard rate deliberately "unusual, not wrong", since some hardware needs one.
+
+Now one rule, `config.check_baud`: a rate on `STANDARD_BAUD_RATES`, or any from 300 up when
+asked for as custom. A config asks with `custom_baud`; a command that sets a rate asks with
+`custom=true` (`/port.baud_rate 9460 custom=true`, also on `/port.mode`, `/port.connect`,
+`--new` and `/cfg.new`), read by one `parse_bool` reader, `port_control.take_custom`, absent
+meaning false, which also sets the session's `custom_baud`. Without it the rate is refused
+and the error names the remedy. `scripts/throughput.py` takes `--custom-baud` for the same
+reason. The non-refusing finding that existed only for this (`CfgFinding.refuse`) is gone, so
+the editor shows the rate red and `/cfg` refuses it; a load still only warns, as loads do.
+Behavior removed: a non-standard rate without asking, and `new_config` guessing
+`custom_baud` from the rate. None of the configs in use had one.
+
+## 2026-11-06 — Every function is annotated, and ruff's ANN checks it
+
+Reverses ANN's place on the 2026-10-17 list of ruff families not planned. CLAUDE.md asked for
+type hints from the start, but no gate checked them, and ty checks only what is annotated: an
+unannotated parameter is unknown to it, so a misspelled method on an untyped `ctx` passed. Now
+ruff selects `ANN` over the gate's whole scope (`src/`, `scripts/`, `examples/`), with `ANN401`
+(an explicit `Any`) off, since an `Any` is a statement rather than an omission. Exempt: `tests/`,
+where pytest's fixtures and test functions go unannotated by convention, and a board's firmware,
+which runs under MicroPython and which ty already skips. Typing the 212 functions that lacked
+annotations found a real bug at once: `/search` failed with an `AttributeError` whenever a loaded
+profile had device commands, because it handed a device command's view to `resolve_long_help`,
+which reads attributes only a `PluginInfo` has. **Where:** `[tool.ruff.lint]` in
+`pyproject.toml`; the pre-commit hook and `release_prep` run `ruff check`.
+
+## 2026-11-07 — JSON is laid out for a person on screen and stays one line in a pipe
+
+Chuck: the board should stay JSON-native, with JSON a person can read, rather than switching to
+the text REPL. `json_style` (`compact|indent|color`) shaped only termapy's own envelopes, so a
+board's JSON lines printed raw whatever it said. Now the setting covers every JSON line on screen,
+the board's included (`markup.received_json_markup`), and is two settings instead of one enum:
+the `json_fmt` section, `highlight` (on) and `indent` (0, 2 or 4, default 2; 0 is one line,
+as in `JSON.stringify` and `jq --indent`), set by `/term.json_fmt.highlight` and `/term.json_fmt.indent`.
+Highlighting is separate from `color`, the terminal's ANSI color, and shows only when that is on.
+**Laid out for a person only:** the TUI and a CLI at a terminal (`ReplEngine.screen_json`) get
+the layout; a pipe, a file, MCP and the session log get one line per JSON value, so
+help/cli.md's promise to a program reading stdout line by line holds with the new defaults.
+
+This reverses the 2026-10-30 entry's "only the pyserial arguments are nested" for one more
+section, Chuck's call. What it cost is what that entry named: `/cfg`, the session store and the
+TUI's confirm learned to find a key through its path (`defaults.cfg_slot`, `store_cfg`), so a
+nested key is set as `/cfg json_fmt.indent 4` or by its unique leaf, `/cfg indent 4`. The
+section and its command are named `json_fmt` (`fmt` as in `echo_fmt`), not `json`: `/help json`
+is the `--json` idiom's page and `/help` reads a config key before an idiom, and `.json` on a
+command's name asks for a JSON answer, as `.quiet` asks for a level, so no command may end in it
+(registry `suffix-words-reserved`). It was `/term.json` and `json_display` for an afternoon,
+unreleased, until Chuck found the two `.json`s colliding. Config v38 maps `json_style` across
+(`indent` turns highlighting off; `compact`, which every config was written with, takes the
+defaults). Behavior removed: the old `/term.json compact|indent|color` and `cycle`; bare
+`/term.json_fmt` reports both settings.
+
+The same rule took two more names off the suffix words, also Chuck's call ("do the right thing
+without worrying about the existing code"). `/ping.quiet` (each round trip without the reply's
+text) is now plain `/ping`: the reply's text is its detail, shown at `.verbose`, and
+`/ping.quiet` is the level, the summary alone. Behavior changed: bare `/ping` no longer prints
+each reply. The hidden `/term.verbose` alias is gone; `/term.output verbose` is the command.
+
+## 2026-11-07 — The terminal is line-based; the TUI gets no keystroke mode
+
+Chuck: line-based tooling is the design, not a gap. The device collects characters until a line
+ending and acts on the whole line; editing, history and type-ahead are termapy's. Dropped as a
+goal: a keystroke mode and a screen emulator in the TUI, which had been planned as the way to
+match TeraTerm's terminal. A console termapy did not write uses `--vt100`; Phase 2 of
+[vt100-build-plan.md](vt100-build-plan.md), an emulator with no display that an agent reads,
+stays open. The argument is [why-line-based.md](why-line-based.md). **Where:** review only.
+
+## 2026-11-08 — A port on the command line opens its own config
+
+Chuck wanted `termapy COM1 9600 8N1` to work the way `termapy foo.cfg` does, for the "just a
+terminal" use of 2026-10-29. The positional named a config only. Now it is tried as a config
+first and then as a port, as ssh tries a `Host` alias before a host name and tio a profile before
+a device, so a config always wins its name. A port is one `port_control.port_present` finds (a
+device name, a USB serial number, a reserved port, a URL) or one a quick session opened before.
+The words after it are `/port.connect`'s settings, read by its reader, and flags may go anywhere
+on the line (`parse_intermixed_args`).
+
+A quick session is a real config, never a temporary one, because its log, history, screenshots
+and captures all live in a config's folder. It is `quick-<port>` (`config.quick_config`), one
+per port so that two termapys on two ports share no file, created at the first open, updated
+with the settings typed after the port, and kept, so `termapy COM3` opens with what it had last.
+It lives in the OS user folder, never a `./termapy_cfg` (registry `quick-open-outside-project`):
+a project gains no config, which would also change the config its MCP server starts on by
+itself. `--cfg-dir` and `TERMAPY_CFG_DIR` still decide where. `--mcp` keeps its own lookup, a
+config in the project's folder, and never opens a port for its positional.
+
+Settings after a config are refused rather than laid over it for the session (`termapy foo 9600`,
+as minicom's `-b` overrides its configuration): every frontend's start, the TUI, CLI, VT100, web
+and protocol runner, would have to carry the override, with a rule for a frontend switch.
+**Where:** `tests/test_quick_open.py`.
+
+## 2026-11-08 — A command's table or status page shows at quiet
+
+Found testing quick open: `termapy COM9 --quiet --cli -e "/port.mode"` printed nothing, and so
+did every list and status command at quiet, because dispatch printed `CmdResult.view` on the
+output channel (normal and up). That broke the 2026-10-20 rule that the value a command computes
+is its answer and rides the result channel, and `--quiet`'s own help, "command results only".
+Now dispatch prints the view on the result channel (registry `view-is-the-answer`): quiet shows
+the table or page, silent shows nothing, a JSON or MCP caller still gets the records alone.
+`ctx.io.result_segments` is the result twin of `output_segments`, so a quiet table keeps its
+clickable cells in the TUI. Behavior changed: at quiet, every list and status page now prints.
+A handler that prints a listing or a file by hand on `ctx.io.output` (`/cfg.dump`, `/log.dump`,
+`/firmware.dump`) still shows it at normal and up only.
+
+## 2026-11-08 — A value is typed, and a table answers its count
+
+Found testing quick open: every table but `/port.chip.list` set `value` to the newline-joined
+names of its rows, so a `--json` or MCP envelope carried them twice, 58 `NAME=value` lines
+beside `data` for `/var`. Chuck: a non-JSON answer gets the table, and under JSON "your result
+is something like X records, which is a count of items, and data contains the list/tree form".
+And the count is a number, not `"58"`: the JSON is for the AI first, so it gets typed data, not
+"data soiled with human shortcuts". `data` already had real JSON types (2026-10-15); `value`
+never did, because every handler spelled it for a person at the source.
+
+Now a value carries its natural type (registry `value-typed`): an int count, a bool switch, a
+str, None for nothing. A JSON envelope and MCP pass it through (MCP's `None`/`""` coercion
+compares by equality, so `0` and `False` survive); the REPL spells it for a person at its
+boundary only, through one function, `scripting.value_text` (a bool as `on`/`off`, the boolean
+vocabulary's answer), at the three places a value becomes text: `$(X) <- cmd`, a `/cap.poll`
+cell and `/help`'s CURRENT STATE line. `config.cfg_value_text` spells its scalars through it.
+`CmdResult.table` takes no `value` any more and sets `len(records)` itself (registry
+`table-value-is-count`): the constructor is the guard, and an empty list answers `0`, so
+`/help`'s state section shows an empty table as its own `<title> - empty` line rather than the
+value. Behavior changed: every list's captured value is its count (`$(N) <- /run.list` is a
+number; `$(env.X)` reads one environment variable where `/env.list X` once gave `X=value`), and
+`/port.chip.list`'s `"12"` is `12`. The audit of every other `value=str(count)` and `"on"`/`"off"`
+answer, and of composite tokens such as `/port.mode`'s `115200 8N1`, is the next branch, as the
+2026-11-06 `data` audit was its own. **Where:** `tests/test_views.py`, `tests/test_scripting.py`,
+`tests/test_var.py`, `tests/test_mcp_server.py`.
+
+## 2026-11-08 — A plugin never reads `wants_data`; it returns a view and dispatch chooses
+
+The same test found `/port.list` printing nothing at `--quiet` after the entry above it: it had
+never become a table. It branched on `ctx.wants_data` and printed its rows by hand, as the
+`CmdResult.data` bullet of CLAUDE.md told a "LARGE listing" to, while the list bullet two lines
+down said never; the `list-one-format` guard checks only the data shape of `.list` and `.lib`
+names, so seven commands kept their branches. Now no module under `builtins/` reads
+`wants_data` (registry `plugins-never-read-wants-data`, an `ast` guard with no allowlist): a
+handler returns `CmdResult.table` or `CmdResult.record` and dispatch prints the view for a
+person or hands the data on. `/port.list` and `/sym.search` are tables; `/port.usb` (the tree as
+data, its drawing the page, the serial-port count the value), `/mem.dump` (its hex grid the
+page, the hex string still the value, as help/memory.md promises) and `/firmware.dump` are
+record pages; `/var NAME` is a record shaped like one row of the table, and a name nothing
+defines fails with `Unknown variable: $(NAME)` and a did-you-mean, as `/print` already said;
+`/proto.run` always carries its results as `data` and its narration is progress on the output
+channel, which quiet, MCP's default level, hides; `/ping` asks `json_layout`, which answers
+`(0, False)` for a caller that wants data. Behavior changed: `/firmware.dump`, which the entry
+above left at normal and up, shows at quiet, the file being the answer; `/var MISSING` fails
+where it reported success with an empty value; `/port.list` prints `Ports - empty` for no ports
+and `/sym.search` an empty table for no match; `/proto.run --json` at normal carries the
+narration in `output_lines`.
+
+A table is fitted to the frontend (registry `table-fits-the-frontend`), which the port table
+needed: `Column(drop=)` ranks a column's expendability and `Column(hide_empty=)` hides one no
+row fills, and dispatch passes `IOHandle.width()`, the output pane's width in the TUI (posted by
+`LinkLog.Width` on resize, held for the dispatch workers), the console's less the gutter in a CLI
+at a terminal, None in a pipe. `port_format.PORT_TABLE_COLUMNS` is built from the schema the
+picker and `--ports` already used (`PORT_COLUMNS`, `COLUMN_HEADERS`, `DROP_ORDER`,
+`OPTIONAL_COLUMNS`), so the three agree; moving the picker and `--ports` onto the view is a
+follow-up. **Where:** `tests/test_architecture.py`, `tests/test_views.py`,
+`tests/test_port_commands.py`, `tests/test_sym_commands.py`, the CLI gold.
+
+## 2026-11-08 — Every value is typed: the audit the entry above deferred
+
+The same day, every `value` a handler spelled for a person became its own type (registry
+`value-typed`, now a guarantee). Counts are ints: `/sym.info`, `/sym.load`, `/mcp.info`,
+`/profile.info`, `/var.clear`, `/repeat`, `/run.last`, `/grep`, `/find`, `/log.dump`, `/mem.write`'s
+byte count, the folder deletes, `/term.usb_db`, `/cap.poll`'s samples, the demo `/traffic.*`
+counts. Switches are bools: every `_bool_setting` and `_cfg_toggle` command (`/term.echo`,
+`/term.hex`, `/term.line_no`, `/term.traffic`, `/term.request`, `/term.control_keys`, ...),
+`/proto.hex`, the CLI's `/cli.completion`, and `/confirm`, whose yes is a bool a person sees as
+`on`. Numbers are numbers: `/port.baud_rate` and the port properties answer the config's typed
+value, `/port.cts` and its siblings a level `0`/`1` (an int, the vocabulary `$(PORT.CTS)` uses, so
+`value_text` agrees), `/mem.read` the decoded scalar, `/delay` its seconds, `/ping` its mean in
+ms (the unit lives in `data`'s key, as `avg_ms`), `/term.json_fmt.indent` its indent, `/cfg KEY` a
+scalar key's own value (a container stays compact JSON, since a value is a scalar). Hex words
+keep the hex vocabulary (`/mem.or`'s `F0A5`, the demo CRC), `/port.mode`'s `115200 8N1` stays
+the round-trippable token the command accepts, and the status pages' summary lines stay text:
+their typed facts are `data`. Behavior changed, for a `--json` or MCP caller only: `"value": "on"`
+reads `true`, `"42"` reads `42`, `"123ms"` reads `123.4`; a script sees the same text as before,
+through `value_text`, except that `$(T) <- /ping` is now `123.4` without the `ms`. The guard
+flags the two idioms that spelled a value at the source. **Where:** `tests/test_architecture.py`;
+the ~90 tests that pinned the spelled form now pin the type; the gold's `/term.request off`
+envelope.
+
+## 2026-11-08 — A test names the rule it pins with a marker
+
+A review of `docs/rules.md` for obsolete rows found the link between a rule and its tests kept
+twice by hand: the row's `enforced by` column, and about 500 docstring headers leading with an
+id (`"""bare-declared: ..."""`), which nothing outside `test_architecture.py` compared with the
+table. Chuck: "Ideally each test would be tagged with which rule is being tested (if any), a
+decorator on the test function would work", as an entry point to traceability, "NOT a claim of
+100% anything"; long term, "requirements that are tagged and tested so you can figure out what
+everything is".
+
+Now the id lives on a pytest marker, `@pytest.mark.rule("<id>")`, one per rule, `pytestmark` for
+a module, and the header is prose. The ids a marker may name come from a table of sources,
+`tests/traceability.py` `SOURCES`: the registry's rows and the `param-...` section ids of
+`docs/param-spec-implementation.md`, whose six ids had been cited in headers with no registry
+row; a requirements file is one more source when it exists. Collection refuses a marker that
+names nothing (`conftest.py`), `--rule <id>` runs one rule's tests, `--strict-markers` is on, and
+the registry guard now also checks that every test a row names carries the row's marker. The
+headers were converted by script, the registry's named tests marked from the table, three names
+that live in two files resolved by hand. `docs/traceability.md` holds the process and the plan:
+user, architectural, performance and security requirements as Markdown files with ids, traced
+into tests by the same marker. **Where:** `tests/traceability.py`, `tests/conftest.py`,
+`tests/test_architecture.py`, `tests/test_traceability.py`, every test file with a header that
+carried an id, `pyproject.toml`.
+
+The same day, the second step: `docs/traceability-matrix.md` is generated from the markers by
+`scripts/sync_traceability.py` (registry `traceability-matrix-generated`): a table of the ids no
+test pins, then one section per id source with every test that pins each id by file, the row's
+guard and probe marked; `tests/test_traceability.py` fails when it is stale. Chuck named it for
+traceability rather than rules, since specs and requirement documents will join the registry
+there. The registry's `enforced by` column
+names only a guarantee's guard and probe, or `review`: the instance lists, which had grown to
+sixteen names on a row, left the table for the matrix, 37 rows trimmed by script. The marker
+index moved out of `test_architecture.py` into `tests/traceability.py`, so the guard, the script
+and the tests read the markers with one walker. **Where:** `scripts/sync_traceability.py`,
+`docs/traceability-matrix.md`, `docs/rules.md`, `tests/traceability.py`.
+
+And the three tool gates became tests, so the registry can take credit for them (Chuck: "it would
+be good for us to take credit for ruff/ty being clean"): `tests/test_hygiene.py` runs `ruff
+check`, `ruff format --check --no-cache` and `ty check` over the whole project and fails on any
+finding, under three rows of a new category, `hygiene` (registry `ruff-clean`, `ruff-formatted`,
+`ty-clean`; Chuck's word for it). Until then only the hook and `release_prep` ran them, both on one Windows machine; CI
+ran neither. CI now syncs `--all-extras` instead of `--extra mcp`, because ty's count depends on
+what is installed and the gate names the all-extras environment. The editor's other checks,
+markdownlint and cSpell, stay review: no CLI here, no Python port that matches the extensions, and
+a skip is not a pass. **Where:** `tests/test_hygiene.py`, `docs/rules.md`,
+`.github/workflows/tests.yml`.
+
+Later the same day, a pass over the tests no marker reached (Chuck: "There are a bunch of no
+tagged tests. Is that just an oversight, are there issues?"). Most bare tests pin a feature, not a
+rule, and stay bare. But the conversion had tagged only a test whose header carried an id or whose
+row named it, so a test that pinned a rule without either was missed: 42 files gained markers by
+judgment, the nine param spec sections' tests in `test_params.py` among them, and six review-only
+rows turned out to have tests already (`usage-from-declaration`, `call-from-thread-wrapped`,
+`no-crash-to-trace`, `xfer-no-port-contention`, `device-files-not-build`,
+`demo-cfg-mirrors-defaults`), each tagged and each still an assumption, since the tests pin part of
+the statement. One row became a guarantee: `plugin-never-clears-stop` gained an `ast` guard over
+every `clear()` of the script-stop event, direct or through a local name, with the four sites that
+may (the engine starting a script, the paste, `plugins.waiting.wait`, `/run.last`) allowlisted with
+why. Found on the way and left open: `test_port_noninvasive.py` pins a rule the registry has no row
+for (resolution and enumeration never open a port), and the lint test `param-help-noduplicate`
+promises was never written. **Where:** `tests/test_architecture.py`, `docs/rules.md`, the tagged
+test files.
+
+## 2026-11-09 — A config listing shows the device, not the spec
+
+Chuck: "the config selector showing the port name as the serial number. Port means something
+like COM2 or /dev/tty_xyz not random text." The rule was already in the registry (`port-display`,
+from his report of 2026-10-26), and the fix then reached the title bar, its tooltips and the
+connect banners, which the row named; the Cfg picker and `/cfg.list` share `config_summary`,
+whose port is the file's spelling, and nothing named them, so review passed them for two weeks.
+Now a listing resolves every row against one enumeration, `port_control.listing_devices`: a
+serial number shows the device it names, the active config shows the port this session has open
+whatever its file says, and a spec nothing attached answers, or one two devices share, shows as
+written, since an unplugged board has no device to name. One snapshot, not one per row, because a
+picker with a dozen configs would otherwise enumerate a dozen times. `/cfg.list`'s JSON record
+keeps `port` as the file's spelling and adds `device`, so an agent sees both. The row stays an
+assumption: which displays show a port is not a shape an `ast` walk can find, so each new one is
+review, and the three listings now have instance tests. **Where:** `port_control.py`,
+`dialogs/config_picker.py`, `app.py`, `builtins/commands/cfg.py`, `docs/rules.md`.
+
+## 2026-11-09 — `--vt100` runs on the engine and writes the session log
+
+Passthrough opened the bare pyserial object and let the vendored miniterm read it, so nothing in
+termapy saw the bytes and the mode wrote no session log, the one TeraTerm habit it broke. The
+bypass was for byte transparency, but `SerialEngine` already hands every raw chunk to its RX
+observers unchanged (that is how `/cap` works), so the engine reads the port now: an observer feeds
+the console, the line path feeds the TUI's `<cfg>.log`, and a key goes through `SerialPort.write`.
+miniterm stays for what it is good at, raw key input and VT processing on Windows, with its reader
+never started. The log holds received lines only, ANSI stripped: in passthrough each key goes as
+typed and the device's own echo is the record of what it accepted, so a `>` line per key would
+double every character and log the backspaces. Chuck's framing, which settled the shape: in the
+TUI a line exists before it leaves, so `>` lines stay there; `--vt100` is the one mode where
+nothing on termapy's side holds a line. **Where:** registry `vt100-on-engine`.
+
+## 2026-11-09 — The legacy aliases and `/run.legacy` are gone
+
+Ten hidden forwarders (`/echo`, `/color`, `/line_no`, `/show_line_endings`, `/verbose`, `/clr`,
+`/log.clear`, `/ver`, `/ver.latest`, `/ver.info`), three hidden aliases in the command tables
+(`/port.open`, `/port.close`, `/term.line_endings`), the `/run.legacy` scanner that rewrote old
+names in `.run` files, and the `hidden` flag that kept them off every listing are removed. Chuck's
+rule settles it: one user, no shims, no deprecation cycles. A hidden alias was a deprecation cycle
+under another name, and every other reason to hide a command already has a visible mechanism
+(maturity, safety tier, capability gate). An old name now answers `Unknown command: echo -- did you
+mean term.echo?`, and a `.run` file that still uses one fails on that line with the new name in the
+message; the config migrations that rewrite `/color` and `/ver` in on-connect fields stay. The
+MCP catalog no longer carries a `hidden` field. **Where:** registry `one-handler-per-command`
+(its legacy-table clause dropped); todo item 5.
+
+## 2026-11-10 — A large send reaches the driver in 192-byte pieces
+
+The throughput page said the adapter loses lines in 2 MB streams above 460800 baud. A sweep on the
+jumpered FT232R narrowed it: the same stream sent as 4 KB writes lost 20 to 120 lines a run in every
+layer, bare pyserial included; sent as 192-byte writes, with or without a pause between them, it
+lost none in 27 runs at 97 to 99.5% of the line rate. 384-byte writes still lost a few; 4 KB writes
+with a 2 ms pause lost as many as without. So what the adapter's driver does with a large write is
+the loss, not a receiver that cannot keep up, and the remedy costs nothing. `SerialPort.write` now
+hands anything longer than `TX_CHUNK_BYTES` (192, half the FT232R's FIFO) to the driver in pieces
+that size, one `>` line for the whole write, under the config key `tx_chunking`, on by default
+(migration v39); off sends each write whole. No pause between pieces: none was needed, and a
+sub-millisecond `time.sleep` on Windows is 1 to 2 ms anyway, while a spin on a dispatch worker
+would hold the GIL against the reader. Chuck's framing: a boolean, on, explained as helping large
+high-speed transfers, and a toggle rather than tunable sizes on purpose: a serial terminal sending a
+massive payload in one shot is the wrong tool for the job, the transfer protocols are for that, so
+the chunking needs to be good enough to forget about, not a surface to tune. Left open: whether a device streaming into termapy loses anything at these
+rates, which needs two adapters crossed with the sender in its own process. **Where:** registry
+`tx-chunked-writes`; `scripts/throughput.py --chunk` and `--gap-us` reproduce the sweep.
+
+## 2026-11-10 — tree-sitter stops below 0.26.1
+
+The v0.80.0 release prep's `uv lock --upgrade` moved tree-sitter from 0.26.0 to 0.26.1, inside the
+existing `<0.27` cap, and the full suite then lost test workers to a Windows access violation. Every
+crash was in the config editor's tests, while Textual's `TextArea` loaded its highlight query
+through tree-sitter. Run six times each on CPython 3.14.2, with nothing else changed,
+`tests/test_cfg_schema.py` crashed 4 times under 0.26.1 and passed 6 times under 0.26.0. CI could not
+have shown it: it runs the committed lock, and the crash is Windows-only. The cap is now
+`>=0.25.0,<0.26.1`, which keeps the lock at 0.26.0. Lift it on a chore branch once a later
+tree-sitter passes that test file repeatedly on Windows, as the cap's comment says of every move.
+**Where:** `pyproject.toml`'s tree-sitter line.
+
+## 2026-11-11 — The release gate runs each Python once, without coverage, and stops at the first failure
+
+One `release_prep` run had grown to about an hour on the Windows dev machine: the full suite once in
+the pytest step and once more for each of tox's five Pythons, every run with coverage on. The v0.80.0
+run failed four times on Pilot and subprocess tests whose time windows a loaded machine outran, and
+each failure cost a full restart. Three changes, none to what the gate checks:
+
+- **No coverage.** Nothing in a release reads a local coverage figure; CI measures it for Codecov.
+  `release_prep`'s pytest step passes `--no-cov`, and `tox.ini` runs `pytest --no-cov`. Measured on
+  Python 3.11 through tox: 11 min 34 s with coverage, 9 min 18 s without.
+- **No duplicate Python.** The pytest step runs the suite on uv's Python, so tox skips that env
+  (`--skip-env`, read from `uv run python` rather than written down).
+- **Stop at the first failing Python** (`tox --fail-fast`). The failing env still reports every
+  failure it found; the Pythons after it no longer run for a release that has already failed.
+
+Measured on the way, for the follow-up: the time is spread across the suite, not in its slow tests
+(`-m "not slow"` still took about 5 min), Defender used about 6% of the machine during a run, and the
+heaviest single tests are `test_config_load_state.py`'s three frontends (about 1 to 1.5 min each) and
+`test_traceability.py`'s `TestSession`, whose child sessions collect the whole suite (about 50 s each).
+**Where:** `scripts/release_prep.py` (`run_pytest`, `run_tox`), `tox.ini`, `scripts/README.md`.
+
+## 2026-11-11 — `TERMAPY_ALLOWED_PORTS` limits the ports termapy opens and lists; an MCP server with none set opens none
+
+Chuck asked for a way to limit which serial ports termapy can reach on a machine, by name or by
+serial number, several at once and by pattern, "fail correctly no matter how they are specified".
+It is one environment variable, one regex with `|` between alternatives, matched against the whole
+of a port's canonical name or its USB serial number, ignoring case. The choices, each his:
+
+- **The environment, not a config key.** An agent can write `.cfg` files; it cannot change the
+  environment of the server it is talking to. The list is read once, at import, so `/env.set`
+  (which writes its own snapshot) and anything else a session runs cannot widen it.
+- **Unset: everything for a person, nothing under MCP.** A person at the TUI or CLI keeps today's
+  behavior. An MCP server with no list opens and lists no hardware or network port, so a
+  registration that loses its environment fails closed; `.*` allows every device.
+- **The simulator and `loop://` are always allowed.** They reach no device and no network.
+- **A network port is named exactly.** `socket://` and `rfc2217://` open only when one alternative
+  spells the endpoint out as `scheme://host:port`; `.*` allows every device and no host, and the
+  decision is made on the text, so a refused host is never looked up. Under MCP
+  `TERMAPY_MCP_NET_EGRESS` is needed too, now checked where the port opens rather than only in
+  `/port.connect`, which `/port <url>`, `/cfg port`, a config load and the startup connect skipped.
+  `hwgrep://` is always refused (pyserial picks its port after the check, and `&skip_busy` opens
+  every match), as is any scheme termapy cannot read.
+- **Hidden, not just refused.** Every listing leaves out what the list does not allow, before
+  anything is looked up, so the Windows in-use probe (which opens the port) never touches one and
+  an agent cannot read other devices' serial numbers; under MCP `/port.usb` draws only the branches
+  that lead to an allowed port. A denial names the variable, so the reader stops trying other
+  spellings. A person is told which it is, a refused port that is plugged in or one not found (a
+  port allowed only by serial number is recognized only while plugged in); an MCP client gets one
+  answer for both, `Port not allowed or not found`.
+
+A port's identity is never the spelling typed: an enumerated device is the name the system lists
+and its serial number; anything else is its canonical name, which on Windows must be a plain name
+(`COM2\..\COM5` and `COM5:` may open COM5 and have none) and on Linux and macOS is the real path.
+The list limits termapy's own commands, not the machine: any other program reaches what the
+operating system lets it, an agent's shell included, and a USB serial number is whatever the
+device's firmware says.
+**Where:** `port_allow.py`, `env_flags.ALLOWED_PORTS`, `port_control.system_ports` and
+`resolve_port_for_open`, `config.open_serial`; registry `port-policy-at-opener`,
+`ports-enumerated-once`, `network-port-named-exactly`; `help/ports.md`, `help/mcp-server.md`.
+
+## 2026-11-12 — Under MCP termapy shows the allowed devices; the machine beyond them is opt-in
+
+Chuck: code that shows the makeup of a machine is a problem under MCP; `/port.usb` lists every
+device, which can point at vulnerabilities. Against that, the usual user is a developer getting a
+board working, the facts help an agent troubleshoot, and a shell has them anyway (`lsusb`,
+`Get-PnpDevice`, `hostname`, `ps`). The line: an MCP client sees everything about the devices
+`TERMAPY_ALLOWED_PORTS` allows (`/port.list`, `/port.info` and `/port.chip` on those ports, with
+each one's location and USB interface); the whole USB bus (`/port.usb`), the programs holding a
+port, the host fingerprint and the other termapy sessions (`/app.running`: PIDs, configs, ports)
+only with `TERMAPY_MCP_HOST_INFO=1`. A person's TUI or CLI always has the view. This replaces
+2026-11-11's pruned `/port.usb` under MCP: `/port.list` already gives an allowed port's location,
+so the hubs above it were all the pruned tree added, and they describe the machine.
+
+**Why:** the shell argument holds only where the agent has an approved shell. The gate matters
+where it does not: termapy's one tool, `run_command`, is usually approved once while each shell
+command still prompts, so without the gate an approved tool would show what the shell would have
+asked about; a client with no shell (Claude Desktop, a restricted Claude Code) sees the machine
+only through termapy; and a hostile device or profile could have an agent read the host and write
+it back down the serial line. A flag, not a refusal: read-only exposure already opts in that way
+(`TERMAPY_MCP_ENV_ENABLED`); "no flag widens MCP" (2026-11-03) covers what destroys or runs code.
+`/log.fingerprint` also read terminal variables straight from the process, past the `/env` gate;
+the capability closes that too.
+**Where:** `env_flags.MCP_HOST_INFO`, `CapabilitySet.host_info` (`needs=` on `/port.usb`,
+`/log.fingerprint` and `/app.running`), `PortPolicy.hides_host` (`serial_engine.shown_holder`); registry
+`mcp-host-info-opt-in`; `help/mcp-server.md`, README's Security table.
+
+## 2026-11-12 — Stopping a session asks it to leave; termapy never ends a process itself
+
+`/app.kill` and `termapy --kill` write a request, `running/<pid>.stop` holding the session's start
+token and the asking PID, for each session they stop, and wait up to `timeout=` (default
+`STOP_GRACE_S`, 3 s). Each session's stop watch, one thread per process, looks for its own request
+every 100 ms (`STOP_POLL_S`, one file check) and leaves
+the way `/exit` makes it leave: the TUI exits through `on_unmount` (history, port, `Session End`)
+and restores its terminal, the CLI ends its prompt as Ctrl+D does or stops its script, vt100 leaves
+as a lost port does, the web server as Ctrl+C. A session still running when the wait is over, hung,
+partway through a firmware write or started by an older termapy, keeps running, and the reply names
+the command that ends it (`breadcrumbs.kill_command`: `taskkill -PID <pid> -F`, the one spelling
+cmd, PowerShell and Git Bash all accept, or `kill -9 <pid>`, a forced end like `-F`). The
+asker leaves last, through `/exit`, when it picked itself, and stays open while any session it picked
+is still running. Behavior removed: until this entry `--kill` ended every picked session outright
+(TerminateProcess on Windows, SIGTERM then SIGKILL elsewhere); termapy now signals no process.
+
+**Why:** ending a TUI outright left its window in Textual's state (Chuck's went black and white
+after `/app.kill all`) and lost its history and log ending. No OS offers a graceful "please exit"
+to a process in another console window on Windows: Ctrl+Break through `AttachConsole` reaches
+every process in that console, the shell included, and `WM_CLOSE` closes the whole tab; on POSIX
+SIGTERM would serve, but a TUI or CLI does not handle it. A request the session reads works the
+same on every OS. One request per session, not one shared file (Chuck's first sketch): a shared
+file cannot carry a target (`COM4`, `m3_bin`), a session started during the stop would see it and
+leave, and one left behind by a crashed asker would stop every termapy after it. The token is the
+session's, so a PID the OS reuses never acts on a request (`kill-verifies-identity`), and
+`prune_stale` deletes a request no live session carries. No automatic hard kill as the fallback
+(Chuck): a session that did not leave may be mid-flash or mid-transfer, and ending it is the
+person's call, made knowing that, with the command in hand.
+
+MCP ends with `os._exit` after its teardown: the SDK's stdio loop waits on a thread blocked reading
+stdin, which neither `_thread.interrupt_main` nor closing the handle wakes on Windows (tried), so a
+normal unwind would hang until the client wrote. The teardown it runs first is the one its
+shutdown always runs (`MCPHost.shut_down`), queued on the command worker behind any command in
+flight. Handling SIGTERM in every frontend, for `kill <pid>` and `docker stop`, is a separate item.
+**Where:** `breadcrumbs.request_stop` / `StopWatch` / `on_stop_request` / `stop_sessions`,
+`TerminalHost._watch_for_stop` and each frontend's `_leave_on_request`; registry `kill-asks-first`;
+`help/cli.md`.
+
+## 2026-11-12 — `--web [[HOST:]PORT]` is the one web flag; `/cli` and `/vt100` need a console
+
+`--web` takes where to serve as one optional value: bare is `localhost:8000`, digits alone are a
+port, anything else is a host with an optional `:PORT` (`[fe80::1]:9000` for IPv6), read by
+`entry._web_address`. A wildcard (`0.0.0.0`, `::`) is refused, because textual-serve builds the
+page's links from the address it listens on. Behavior removed: `--web-port` and `--web-host`
+(Chuck: "why isn't WEB_PORT just optional for --web?"); `--web 9000` and `--web 192.168.1.50`
+replace them.
+
+A new capability, `console` (the terminal the process runs in), is what `/cli`, `/vt100` and
+`/demo.vt100` need: the TUI has it unless Textual says it is served in a browser (`App.is_web`), the
+CLI always, MCP never. In a browser tab those switches ended the page; now they fail at the gate.
+The capability names what is missing, as `gui_apps` does, rather than naming the web frontend.
+
+**Why:** the other flags that take an optional value already have this shape (`--kill [TARGET]`,
+`--info [PORT]`), and three web flags were two too many. A browser tab has no terminal to hand
+over, and a command that cannot run should say so, not take the session down.
+**Where:** `entry._web_address`, `CapabilitySet.console`, the three hooks in `app_hooks`;
+`help/cli.md`. Serving to another computer is not yet tried from a second machine.

@@ -3,29 +3,22 @@
 Until 2026-10-16 /delay had four implementations -- a TUI hook, a CLI hook,
 an MCP hook and the script runner's own -- and the TUI's ``/delay.silent``
 returned without waiting (review 2026-10-15, D2).  This handler is the only
-one: it waits on the shared stop event, so Escape (TUI) and Ctrl+C (CLI)
-cancel it, and a frontend contributes only how progress is drawn
-(``ctx.internal.delay_progress``).  ``.silent`` and ``.quiet`` are the
-universal level suffixes.
+one: it waits through ``termapy.plugins.waiting``, on the shared stop event,
+so Escape (TUI) and Ctrl+C (CLI) cancel it, and a frontend contributes only
+how progress is drawn (``ctx.internal.delay_progress``).  ``.silent`` and
+``.quiet`` are the universal level suffixes.
 """
 
 from __future__ import annotations
 
-import threading
-import time
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from termapy.plugins import CmdResult, Command
 from termapy.plugins.params import ParamSpec
+from termapy.plugins.waiting import wait
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
-
-# Progress redraw and stop-check interval.
-_TICK_S = 0.25
-# Shorter waits draw no progress: the bar would flash and vanish.
-_PROGRESS_MIN_S = 1.0
 
 
 # ── Handlers ─────────────────────────────────────────────────────────────────
@@ -34,53 +27,20 @@ _PROGRESS_MIN_S = 1.0
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    """Wait the duration, cancellable by Escape or a script stop; a trailing label names the wait."""
+    """Wait the duration, cancellable by Escape or a script stop; ``msg=`` says what for, first."""
     seconds = ctx.arg("duration")
-    label = args.strip()
-    stop = ctx.internal.script_stop_event
-    # Typed, /delay is itself the outermost cancellable operation, so a stop
-    # left set by an earlier Escape must not end it at once; inside a script
-    # the stop belongs to the script (registry plugin-never-clears-stop).
-    if stop is not None and not ctx.internal.in_script():
-        stop.clear()
-    shows_progress = seconds >= _PROGRESS_MIN_S and ctx.output_level in ("normal", "verbose")
-    progress = ctx.internal.delay_progress if shows_progress else None
-    try:
-        canceled = _wait(seconds, stop, progress)
-    except KeyboardInterrupt:
-        # The CLI's Ctrl+C is the TUI's Escape: it ends the wait and any
-        # script the wait is in, instead of leaving the CLI's loop.
-        ctx.internal.script_stop()
-        canceled = True
-    if canceled:
+    # The duration as typed (200ms), for the done line; msg= is the rest.
+    label = args.split(None, 1)[0]
+    msg = ctx.arg("msg")
+    if msg:
+        ctx.io.output(msg)
+    if wait(ctx, seconds) == "stopped":
         # Inside a script the stop belongs to the script, as /expect says too.
         if ctx.internal.in_script():
             return CmdResult.fail(msg="Script stopped.")
         return CmdResult.fail(msg=f"Delay {label} canceled.")
     ctx.io.output(f"Delay {label} done.")
-    return CmdResult.ok(value=str(seconds))
-
-
-def _wait(
-    seconds: float,
-    stop: threading.Event | None,
-    progress: Callable[[float, float, bool], None] | None,
-) -> bool:
-    """Wait ``seconds``, ticking ``progress``; True when ``stop`` ended it early."""
-    t0 = time.monotonic()
-    try:
-        while (elapsed := time.monotonic() - t0) < seconds:
-            if progress is not None:
-                progress(elapsed, seconds, False)
-            step = min(_TICK_S, seconds - elapsed)
-            if stop is None:
-                time.sleep(step)
-            elif stop.wait(step):
-                return True
-        return False
-    finally:
-        if progress is not None:
-            progress(seconds, seconds, True)
+    return CmdResult.ok(value=seconds)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
@@ -95,9 +55,13 @@ COMMAND = Command(
         "(CLI) cancels the wait and the script it is in, and the command\n"
         "fails.  {prefix}delay.silent waits with no progress and no output.\n"
         "\n"
+        "msg= says what the wait is for, printed when it starts.  It takes\n"
+        "the rest of the line as written, spaces and all, so it comes last\n"
+        "and needs no quotes.\n"
+        "\n"
         "Example:\n"
         "  AT+RESET\n"
-        "  {prefix}delay 2s"
+        "  {prefix}delay 2s msg=Waiting for the board to restart..."
     ),
     handler=_handler,
     params=[
@@ -107,6 +71,13 @@ COMMAND = Command(
             positional=True,
             required=True,
             help="how long to wait, e.g. 500ms, 1.5s, 2m",
+        ),
+        ParamSpec(
+            "msg",
+            "str",
+            rest=True,
+            hint="<text>",
+            help="what the wait is for, the rest of the line",
         ),
     ],
 )

@@ -493,8 +493,8 @@ class TestTransformLoading:
             "xform.py",
             """
 from termapy.plugins import Transform
-def _repl_xf(s): return s.upper()
-def _serial_xf(s): return s.lower()
+def _repl_xf(_ctx, s): return s.upper()
+def _serial_xf(_ctx, s): return s.lower()
 TRANSFORM = Transform(
     name="vars", help="Expand variables.",
     repl=_repl_xf, serial=_serial_xf,
@@ -508,8 +508,8 @@ TRANSFORM = Transform(
         # Assert
         assert len(result.transforms) == 1, "one transform loaded"
         assert result.transforms[0].name == "vars", "correct name"
-        assert result.transforms[0].repl("hello") == "HELLO", "repl works"
-        assert result.transforms[0].serial("HELLO") == "hello", "serial works"
+        assert result.transforms[0].repl(None, "hello") == "HELLO", "repl works"
+        assert result.transforms[0].serial(None, "HELLO") == "hello", "serial works"
         assert result.transforms[0].source == "test", "source propagated"
 
     def test_transform_only_file_not_skipped(self, plugin_dir):
@@ -1239,8 +1239,9 @@ class TestRequirementHints:
 
         return {field.name for field in dataclasses.fields(CapabilitySet) if field.default is False}
 
+    @pytest.mark.rule("capability-declared-once")
     def test_every_restrictive_field_has_a_hint(self):
-        """capability-declared-once: every restrictive CapabilitySet field is declared with its /help hint."""
+        """Every restrictive CapabilitySet field is declared with its /help hint."""
         from termapy.plugins import REQUIREMENT_HINTS
 
         actual_unhinted = sorted(self._restrictive_fields() - set(REQUIREMENT_HINTS))
@@ -1249,6 +1250,7 @@ class TestRequirementHints:
             "REQUIRED CAPABILITIES -- declare it with _restricted(<hint>)"
         )
 
+    @pytest.mark.rule("capability-declared-once")
     def test_hints_fit_the_requires_stem(self):
         """Each hint is a non-empty noun phrase that reads after 'requires', no period."""
         from termapy.plugins import REQUIREMENT_HINTS

@@ -62,6 +62,7 @@ def _toolbar_labels() -> set[str]:
     return set(re.findall(r'Button\(\s*"([^"]+)"', source))
 
 
+@pytest.mark.rule("doc-shots-current")
 def test_shots_exist():
     """The doc set is present: a guard that silently checks nothing is worse than none."""
     # Arrange / Act
@@ -71,6 +72,7 @@ def test_shots_exist():
     assert len(shots) >= 20, f"only {len(shots)} screenshots found in {IMG_DIR}; the doc set is ~24"
 
 
+@pytest.mark.rule("doc-shots-current")
 @pytest.mark.parametrize("shot", _shots(), ids=lambda p: p.stem)
 def test_a_shot_shows_the_current_toolbar(shot: Path):
     """A shot whose toolbar is not the app's was taken by an older build: re-shoot it.
@@ -95,6 +97,7 @@ def test_a_shot_shows_the_current_toolbar(shot: Path):
         )
 
 
+@pytest.mark.rule("doc-shots-current")
 @pytest.mark.parametrize("shot", _shots(), ids=lambda p: p.stem)
 def test_a_shot_carries_no_ones_home_folder(shot: Path):
     """A published image shows a neutral path, never the username of whoever took it."""

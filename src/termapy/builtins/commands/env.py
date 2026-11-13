@@ -14,8 +14,8 @@ from termapy.plugins import CmdResult, Column, Command, Transform, UsageError
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
 
-# Snapshot environment at plugin load time - frozen for the session.
-_ENV = dict(os.environ)
+# The namespace holding the session's environment, name -> value.
+_ENV_NS = "env"
 
 # Shared refusal message so the command handlers and the transform speak
 # with one voice about why env access is off.
@@ -26,7 +26,25 @@ _MCP_BLOCKED_MSG = (
 )
 
 
-def _cli_transform(text: str) -> str:
+def _env(ctx: PluginContext) -> dict[str, str]:
+    """The session's environment: a snapshot of the process's, taken at first use.
+
+    A load empties the namespace, which drops what ``/env.set`` added, and the
+    next read takes the snapshot again.
+
+    Args:
+        ctx: Plugin context holding the snapshot.
+
+    Returns:
+        The live name -> value store.
+    """
+    env = ctx.ns(_ENV_NS)
+    if not env:
+        env.update(os.environ)
+    return env
+
+
+def _cli_transform(ctx: PluginContext, text: str) -> str:
     """Replace $(env.NAME) placeholders with environment variable values.
 
     Syntax:
@@ -36,6 +54,7 @@ def _cli_transform(text: str) -> str:
     Variable names must be word characters (a-z, A-Z, 0-9, _).
 
     Args:
+        ctx: Plugin context holding the snapshot.
         text: CLI command string potentially containing $(env.NAME).
 
     Returns:
@@ -51,7 +70,7 @@ def _cli_transform(text: str) -> str:
     def _replace(m: re.Match) -> str:
         name = m.group(1)
         fallback = m.group(2)
-        val = _ENV.get(name)
+        val = _env(ctx).get(name)
         if val is not None:
             return val
         if fallback is not None:
@@ -87,15 +106,15 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
     pattern = args.strip()
     # A list answer (registry list-one-format).  The data is the
     # name -> value mapping, so a consumer looks a name up.
-    names = sorted(name for name in _ENV if matches(name, pattern))
-    records = [{"name": name, "value": _ENV[name]} for name in names]
+    env = _env(ctx)
+    names = sorted(name for name in env if matches(name, pattern))
+    records = [{"name": name, "value": env[name]} for name in names]
     return CmdResult.table(
         "Environment snapshot",
         "variable",
         _ENV_COLUMNS,
         records,
-        value="\n".join(f"{name}={_ENV[name]}" for name in names),
-        data={name: _ENV[name] for name in names},
+        data={name: env[name] for name in names},
     )
 
 
@@ -110,8 +129,8 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
 
     Updates only the in-memory snapshot - does not modify the OS
     environment.  The value is available immediately for $(env.NAME)
-    expansion and persists until the app is restarted or /env.reload
-    is called.
+    expansion and persists until the next config load, /env.reload or
+    the app restarting.
 
     Args:
         ctx: Plugin context for output.
@@ -123,7 +142,7 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
     if len(parts) < 2:
         raise UsageError()
     name, value = parts
-    _ENV[name] = value
+    _env(ctx)[name] = value
     ctx.io.output(f"  {name}={value}", "green")
     return CmdResult.ok(value=value)
 
@@ -141,17 +160,19 @@ def _handler_reload(ctx: PluginContext, args: str) -> CmdResult:
     """
     if env_access_blocked():
         return CmdResult.fail(msg=_MCP_BLOCKED_MSG)
-    _ENV.clear()
-    _ENV.update(os.environ)
-    ctx.io.output(f"Environment reloaded ({len(_ENV)} vars).", "green")
-    return CmdResult.ok(value=str(len(_ENV)))
+    env = ctx.ns(_ENV_NS)
+    env.clear()
+    env.update(os.environ)
+    ctx.io.output(f"Environment reloaded ({len(env)} vars).", "green")
+    return CmdResult.ok(value=len(env))
 
 
 # ── Dynamic long_help ─────────────────────────────────────────────────────────
 
 _ENV_PROSE = """\
 The $(env.NAME) transform expands placeholders in REPL commands
-using a snapshot of the process environment taken at startup.
+using a snapshot of the process environment, taken at first use and again
+after a config load.
 
 Syntax:
   $(env.PORT)            - expand, error if not set
@@ -160,14 +181,13 @@ Syntax:
 Commands:
   {prefix}env.list              - list all captured variables
   {prefix}env.list path         - the names containing path (USER* globs)
-  {prefix}env.set PORT COM7     - set a session-scoped variable
+  {prefix}env.set PORT COM7     - set a variable until the next config load
   {prefix}env.reload            - re-snapshot from OS environment"""
 
 
 def _env_state_line(ctx: PluginContext) -> str:
     """Green one-liner: size of the frozen environment snapshot."""
-    _ = ctx  # snapshot is module-level
-    return green(f"Snapshot size = {len(_ENV)} variables")
+    return green(f"Snapshot size = {len(_env(ctx))} variables")
 
 
 def _env_long_help(ctx: PluginContext) -> str:
@@ -182,6 +202,10 @@ COMMAND = Command(
     handler=_handler_list,
     shows=True,
     help="Print environment variables for $(env.NAME) expansion (alias: {prefix}env.list).",
+    intro=(
+        "Use the process environment in commands and configs as $(env.NAME), so a "
+        "checked-in config stays portable between machines."
+    ),
     long_help=_env_long_help,
     sub_commands={
         "list": Command(
@@ -193,7 +217,7 @@ COMMAND = Command(
         ),
         "set": Command(
             args="<name> <value>",
-            help="Set a session-scoped variable (in-memory only).",
+            help="Set a variable until the next config load (in-memory only).",
             long_help=_env_state_line,
             handler=_handler_set,
         ),

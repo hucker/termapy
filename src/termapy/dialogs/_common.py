@@ -8,19 +8,23 @@ from __future__ import annotations
 
 import os
 import sys
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rich.text import Text
-from textual import events
+from textual import events, on
 from textual.binding import Binding, BindingType
-from textual.widgets import OptionList, Static, TextArea
+from textual.containers import Horizontal
+from textual.widgets import Button, Input, Label, OptionList, Static, TextArea
 from textual.widgets.option_list import Option
+from textual.widgets.text_area import Selection
 
 from termapy.folder_ops import file_columns, format_file_header
 
 if TYPE_CHECKING:
+    from textual.app import ComposeResult
+
     from termapy.port_control import ChipFacts
 
 
@@ -70,6 +74,12 @@ _TITLE_ROW_CHROME = 6
 _TITLE_PATH_GAP = 4
 
 
+#: How a picker renames or deletes a file and stays open: ``(verb, path, done)``,
+#: where ``verb`` is ``"rename"`` or ``"delete"`` and ``done(select)`` runs on the
+#: main thread once the command has finished, with the file to highlight.
+FileAction = Callable[[str, str, Callable[[str | None], None]], None]
+
+
 class FileOptionList(OptionList):
     """A file picker's list: a header and one ``name  size  age  detail`` row per file.
 
@@ -115,26 +125,53 @@ class FileOptionList(OptionList):
             id: Widget id.
         """
         super().__init__(id=id)
+        self._detail = detail
+        self._detail_header = detail_header
+        self._label = label
+        self._row_width = _FILE_PICKER_ROW_WIDTH
+        self._load(files)
+        self._fill()
+
+    def _load(self, files: list[Path]) -> None:
+        """Compute the header and the rows for ``files``."""
         rows = file_columns(files)
-        self._header = format_file_header(rows, detail_header) if rows else ""
+        self._header = format_file_header(rows, self._detail_header) if rows else ""
         # (path, name and size/age cells, detail), computed once: a resize
         # only re-truncates the detail.
         self._rows = [
             (
                 path,
                 Text.assemble(
-                    label(path, row.name) if label else row.name,
+                    self._label(path, row.name) if self._label else row.name,
                     (f"  {row.size}  {row.age}", "dim"),
                 ),
-                detail(path) if detail else "",
+                self._detail(path) if self._detail else "",
             )
             for path, row in zip(files, rows, strict=True)
         ]
-        self._row_width = _FILE_PICKER_ROW_WIDTH
         #: Index of the first FILE option (past the header) -- what a picker
         #: highlights, offset by any index it computed over ``files``.
         self.first_file = 1 if files else 0
+
+    def refill(self, files: list[Path], select: str | None = None) -> None:
+        """Show ``files`` instead, keeping the place: ``select`` if it is listed, else the row the cursor was on.
+
+        A picker that renamed or deleted a file calls this and stays open.
+        After a delete the row under the cursor is the next file, so deleting
+        several is one press each; after a rename ``select`` is the new name.
+        """
+        index = self.highlighted
+        self._load(files)
+        self.clear_options()
         self._fill()
+        if not files:
+            return
+        names = [str(path) for path in files]
+        if select in names:
+            self.highlighted = self.first_file + names.index(select)
+            return
+        last = self.first_file + len(files) - 1
+        self.highlighted = max(self.first_file, min(index if index is not None else 0, last))
 
     def dialog_width(self) -> int:
         """The picker width that shows every row whole, never below ``_FILE_PICKER_WIDTH``.
@@ -198,6 +235,193 @@ _DISMISS_BINDINGS: list[BindingType] = [
     ("escape", "dismiss_modal", "Close"),
 ]
 
+# Find bindings for an editor dialog that composes a ``FindRow``.  Alt+F is
+# the VS Code fallback: its integrated terminal keeps Ctrl+F for its own
+# find (help: environment).
+_FIND_BINDINGS: list[BindingType] = [
+    ("ctrl+f", "find", "Find"),
+    ("alt+f", "find", "Find"),
+]
+
+
+def find_occurrences(lines: Sequence[str], needle: str) -> list[tuple[int, int, int]]:
+    """``(row, col, length)`` of every occurrence of ``needle`` in ``lines``, in document order.
+
+    Literal and case-insensitive: a config holds ``\\r``, ``$(`` and
+    ``[purple]``, which a regex would read as syntax.  Every occurrence on a
+    line is listed, non-overlapping (``aa`` in ``aaa`` is one).  An empty
+    needle matches nothing.  A line is lowered only when that keeps its
+    length, so a column always maps back to the line as shown.
+    """
+    if not needle:
+        return []
+    found: list[tuple[int, int, int]] = []
+    key = needle.lower()
+    for row, line in enumerate(lines):
+        haystack = line.lower()
+        if len(haystack) != len(line):
+            haystack, key_here = line, needle
+        else:
+            key_here = key
+        col = haystack.find(key_here)
+        while col != -1:
+            found.append((row, col, len(needle)))
+            col = haystack.find(key_here, col + len(needle))
+    return found
+
+
+def pick_occurrence(
+    matches: Sequence[tuple[int, int, int]],
+    anchor: tuple[int, int],
+    direction: int,
+    *,
+    inclusive: bool,
+) -> int | None:
+    """The index in ``matches`` to show next from ``anchor``, wrapping; ``None`` when there are none.
+
+    Forward (``direction`` 1): the first match starting at or after the
+    anchor when ``inclusive`` (typing keeps the match under the cursor as
+    the needle grows), strictly after it otherwise (Enter moves on).
+    Backward (-1): the last match starting before the anchor.  Past either
+    end the search wraps.
+    """
+    if not matches:
+        return None
+    starts = [(row, col) for row, col, _ in matches]
+    if direction > 0:
+        for index, start in enumerate(starts):
+            if start >= anchor if inclusive else start > anchor:
+                return index
+        return 0
+    for index in range(len(starts) - 1, -1, -1):
+        if starts[index] < anchor:
+            return index
+    return len(starts) - 1
+
+
+class FindRow(Horizontal):
+    """A find bar for a modal editor: any text, literal, case-insensitive.
+
+    Hidden until ``open()``; the dialog binds ``_FIND_BINDINGS`` and a Find
+    button to it.  While its field has focus the row's own bindings are in
+    the key chain ahead of the screen's, so Escape closes the bar rather
+    than the dialog, and Up / Down step through the matches; Enter steps
+    forward through the field's own Submitted.  The current match is the
+    editor's selection, centered, so the dialog's selection handler (the
+    config editor's help panel) follows it for free.  Textual's TextArea
+    has no search of its own (8.2.8), hence the helpers above.
+    """
+
+    DEFAULT_CSS = """
+    FindRow { height: 1; display: none; }
+    FindRow.visible { display: block; }
+    FindRow Input { width: 1fr; }
+    FindRow Label {
+        width: auto; height: 1; content-align: right middle;
+        color: $accent; padding: 0 1;
+    }
+    FindRow Button {
+        min-width: 3; width: auto; height: 1; min-height: 1;
+        border: none; margin: 0 0 0 1; background: $boost;
+    }
+    """
+
+    BINDINGS = [
+        Binding("escape", "find_close", "Close find", show=False),
+        Binding("up", "find_prev", "Previous match", show=False),
+        Binding("down", "find_next", "Next match", show=False),
+    ]
+
+    def __init__(self, editor: TextArea, *, id: str) -> None:
+        """Build the row for ``editor``; ``id`` also prefixes the field's and count's ids."""
+        super().__init__(id=id)
+        self._editor = editor
+
+    def compose(self) -> ComposeResult:
+        """The field, the ``n/m`` count, and the same ▲ ▼ × the output pane's find bar has."""
+        yield Input(placeholder="Find", id=f"{self.id}-input", compact=True)
+        yield Label("", id=f"{self.id}-count", markup=False)
+        yield Button("▲", classes="find-prev", variant="default")
+        yield Button("▼", classes="find-next", variant="default")
+        yield Button("×", classes="find-close", variant="default")
+
+    def on_mount(self) -> None:
+        """Tooltips."""
+        self.query_one(Input).tooltip = "Any text, as typed; case does not matter."
+        self.query_one(".find-prev", Button).tooltip = "Previous match (Up)"
+        self.query_one(".find-next", Button).tooltip = "Next match (Down, Enter)"
+        self.query_one(".find-close", Button).tooltip = "Close find (Escape)"
+
+    def open(self) -> None:
+        """Show the bar and focus its field; a needle left from last time is searched afresh."""
+        self.add_class("visible")
+        field = self.query_one(Input)
+        field.focus()
+        if field.value:
+            self._jump(1, inclusive=True)
+
+    def action_find_close(self) -> None:
+        """Hide the bar, keep the cursor at the match, and give the editor the focus back."""
+        self.remove_class("visible")
+        end = self._editor.selection.end
+        self._editor.selection = Selection(end, end)
+        self._editor.focus()
+
+    def action_find_next(self) -> None:
+        """Select the next match, wrapping."""
+        self._jump(1, inclusive=False)
+
+    def action_find_prev(self) -> None:
+        """Select the previous match, wrapping."""
+        self._jump(-1, inclusive=False)
+
+    @on(Input.Changed)
+    def _needle_changed(self, event: Input.Changed) -> None:
+        """Each keystroke searches again from the match under the cursor."""
+        event.stop()
+        self._jump(1, inclusive=True)
+
+    @on(Input.Submitted)
+    def _needle_submitted(self, event: Input.Submitted) -> None:
+        event.stop()
+        self.action_find_next()
+
+    @on(Button.Pressed, ".find-prev")
+    def _prev_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        self.action_find_prev()
+
+    @on(Button.Pressed, ".find-next")
+    def _next_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        self.action_find_next()
+
+    @on(Button.Pressed, ".find-close")
+    def _close_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        self.action_find_close()
+
+    def _jump(self, direction: int, *, inclusive: bool) -> None:
+        """Select the match ``pick_occurrence`` chooses and show the count."""
+        needle = self.query_one(Input).value
+        count = self.query_one(Label)
+        editor = self._editor
+        if not needle:
+            count.update("")
+            return
+        matches = find_occurrences(editor.document.lines, needle)
+        # The selection's two ends in document order: a drag upward puts
+        # the cursor first.
+        anchor = min(editor.selection.start, editor.selection.end)
+        index = pick_occurrence(matches, anchor, direction, inclusive=inclusive)
+        if index is None:
+            count.update("0/0")
+            return
+        row, col, length = matches[index]
+        editor.selection = Selection((row, col), (row, col + length))
+        editor.scroll_cursor_visible(center=True)
+        count.update(f"{index + 1}/{len(matches)}")
+
 
 def _port_facts(ports: list) -> list[ChipFacts]:
     """The port table's facts: each listed port's, then the pyserial loopback."""
@@ -212,6 +436,8 @@ def _port_facts(ports: list) -> list[ChipFacts]:
         port_control.gather_chip_facts(port.device, fast=True, enrich=True) for port in ports
     ]
     facts_list = [fact for fact in facts_list if fact is not None]
+    # The termapy session holding each port, for its color (breadcrumbs).
+    port_control.fill_sessions(facts_list)
     # Always offer the pyserial loopback as a selectable virtual port,
     # appended below real hardware.  It echoes writes back -- handy for
     # testing without a device.  Honest facts (no invented VID/PID/SN).
@@ -219,15 +445,23 @@ def _port_facts(ports: list) -> list[ChipFacts]:
     return facts_list
 
 
-def _fill_port_rows(ol: OptionList, rows: list[tuple[str, dict]], row_width: int) -> None:
+def _fill_port_rows(
+    ol: OptionList,
+    rows: list[tuple[str, dict]],
+    row_width: int,
+    colors: dict[str, str] | None = None,
+) -> None:
     """Add a header, a separator, and one option per port row, fit to ``row_width``.
 
     Formatting lives in ``termapy.port_format`` so the CLI
     (``--ports`` / ``--watch``) can reuse it without pulling Textual
     into its code path.  This maps formatted lines to ``OptionList``
     entries, attaching each data row's port name as the option id so
-    selection returns the device string.
+    selection returns the device string.  A row whose port has a state
+    color (``_port_colors``) shows its name in it.
     """
+    from rich.text import Text
+
     from termapy.port_format import active_columns, compute_widths, format_header, format_row
 
     widths, columns = compute_widths(rows, row_width, active_columns(rows))
@@ -235,7 +469,19 @@ def _fill_port_rows(ol: OptionList, rows: list[tuple[str, dict]], row_width: int
     ol.add_option(Option(header, disabled=True))
     ol.add_option(Option(separator, disabled=True))
     for port_id, row_data in rows:
-        ol.add_option(Option(format_row(row_data, widths, columns), id=port_id))
+        prompt = Text(format_row(row_data, widths, columns))
+        color = (colors or {}).get(port_id, "")
+        if color and prompt.plain.startswith(port_id):
+            prompt.stylize(color, 0, len(port_id))
+        ol.add_option(Option(prompt, id=port_id))
+
+
+def _port_colors(facts: list[ChipFacts]) -> dict[str, str]:
+    """Each port's state color, by device (``port_control.port_state_style``); free ports omitted."""
+    from termapy.port_control import port_state_style
+
+    colors = {fact.device: port_state_style(fact.session) for fact in facts if fact.device}
+    return {device: color for device, color in colors.items() if color}
 
 
 def _populate_port_option_list(
@@ -250,7 +496,8 @@ def _populate_port_option_list(
     """
     from termapy.port_format import row_from_facts
 
-    _fill_port_rows(ol, [row_from_facts(fact) for fact in _port_facts(ports)], row_width)
+    facts = _port_facts(ports)
+    _fill_port_rows(ol, [row_from_facts(fact) for fact in facts], row_width, _port_colors(facts))
 
 
 class PortOptionList(OptionList):
@@ -269,6 +516,7 @@ class PortOptionList(OptionList):
         """Build the list from the ports' facts (``_port_facts``)."""
         super().__init__(id=id)
         self._rows: list[tuple[str, dict]] = []
+        self._colors: dict[str, str] = {}
         # 0 until layout measures the list: fill at the table's full width.
         self._row_width = 0
         self.set_facts(facts)
@@ -278,6 +526,7 @@ class PortOptionList(OptionList):
         from termapy.port_format import row_from_facts
 
         self._rows = [row_from_facts(fact) for fact in facts]
+        self._colors = _port_colors(facts)
         self._fill()
 
     def table_width(self) -> int:
@@ -295,7 +544,7 @@ class PortOptionList(OptionList):
         """Rebuild the options at the list's width, keeping the highlighted port."""
         kept = _highlighted_file(self)
         self.clear_options()
-        _fill_port_rows(self, self._rows, self._row_width or self.table_width())
+        _fill_port_rows(self, self._rows, self._row_width or self.table_width(), self._colors)
         for i in range(self.option_count):
             if kept is not None and self.get_option_at_index(i).id == kept:
                 self.highlighted = i

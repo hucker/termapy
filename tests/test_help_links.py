@@ -15,11 +15,14 @@ that exists.  The clicking itself is
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
+import pytest
 from rich.console import Console
 from rich.text import Text
 
 from termapy.builtins.commands.help import _landscape_row, _pad_markup
+from termapy.idioms import ANY_COMMAND_FLAGS
 from termapy.markup import markup_to_plain
 from termapy.plugins import (
     GROUP_TERMINAL,
@@ -66,12 +69,13 @@ def _links_of(eng, command: str) -> list[Link]:
     return links
 
 
+@pytest.mark.rule("links-are-data")
 def test_a_row_draws_the_same_characters_in_the_same_styles():
-    """A command row's markup renders exactly so: cyan name, padding, the green level, plain help."""
+    """A command row's markup renders exactly so: cyan name, padding, plain help."""
     # Arrange
     plugin = PluginInfo(name="cfg.load", args="", help="Load a config.", handler=lambda c, a: None)
-    # The row as markup: its own padding formula, then the level column.
-    before = _pad_markup("  [cyan]/cfg.load[/]", 14 + 2) + "  [green]stable[/]     Load a config."
+    # The row as markup: its own padding formula, then the help.
+    before = _pad_markup("  [cyan]/cfg.load[/]", 14 + 2) + "  Load a config."
 
     # Act
     after = pieces_markup(_landscape_row("/", "cfg.load", plugin, 14))
@@ -84,10 +88,7 @@ def test_a_search_row_keeps_its_match_underlines():
     """In /help <term> candidates, only the matched part is underlined, name and help alike."""
     # Arrange
     plugin = PluginInfo(name="cfg.load", args="", help="Load a config.", handler=lambda c, a: None)
-    before = (
-        _pad_markup("  [cyan]/cfg.[u]load[/u][/]", 14 + 2)
-        + "  [green]stable[/]     [u]Load[/u] a config."
-    )
+    before = _pad_markup("  [cyan]/cfg.[u]load[/u][/]", 14 + 2) + "  [u]Load[/u] a config."
 
     # Act
     after = pieces_markup(_landscape_row("/", "cfg.load", plugin, 14, needles=["load"]))
@@ -141,6 +142,7 @@ def _named(link: Link) -> str:
     return words[1] if words[0] == "help" and len(words) > 1 else words[0]
 
 
+@pytest.mark.rule("links-are-data")
 def test_every_help_link_names_a_command_that_exists(tmp_path):
     """Each link /help and a man page hand out opens, runs or fills a registered command."""
     # Arrange
@@ -160,6 +162,7 @@ def test_every_help_link_names_a_command_that_exists(tmp_path):
     assert bad == [], "no link points at a command that is not there"
 
 
+@pytest.mark.rule("links-are-data")
 def test_a_page_runs_nothing_but_pages_and_bare_forms(tmp_path):
     """On every command's page a click runs only /help <name>, a declared bare form or its list's own rows."""
     # Arrange
@@ -169,8 +172,11 @@ def test_a_page_runs_nothing_but_pages_and_bare_forms(tmp_path):
         f"{name}.{plugin.bare_sub}" for name, plugin in plugins.items() if plugin.bare_sub
     }
     # A help_list's rows do what they do in the list (load a config, run a
-    # script, open a screenshot), and its "more" line runs the list.
+    # script, open a screenshot), and its "more" line runs the list.  A state
+    # command's own page shows its answer the same way, and its bare form
+    # changes nothing (registry state-read-immutable).
     lists = {f"{name}.{plugin.help_list}" for name, plugin in plugins.items() if plugin.help_list}
+    lists |= {name for name, plugin in plugins.items() if plugin.state}
     list_rows = lists | {link.command for name in lists for link in _links_of(eng, name)}
 
     # Act
@@ -185,6 +191,62 @@ def test_a_page_runs_nothing_but_pages_and_bare_forms(tmp_path):
     assert bad == [], "one click on /help cap.delete must never delete the captures"
 
 
+@pytest.mark.rule("shows-declared")
+@pytest.mark.parametrize("name", ["port.info", "port.chip", "cfg.info", "find", "mem.info"])
+def test_what_acts_is_never_run_by_a_click(tmp_path, name):
+    """A query in name that opens a port, writes a file, sends to the device or closes the find bar fills the input instead."""
+    assert _engine(tmp_path)._click_runs(name) is False
+
+
+def test_what_only_shows_still_runs_on_a_click(tmp_path):
+    """Taking the tag off what acts leaves the rest: a list still runs when it is clicked."""
+    assert _engine(tmp_path)._click_runs("run.list") is True
+
+
+def test_a_suggestion_for_a_command_that_acts_fills_the_input(tmp_path):
+    """A typo's suggestion is the path a click really takes: /port.inf offers /port.info, which waits for Enter."""
+    # Act
+    links = _links_of(_engine(tmp_path), "port.inf")
+
+    # Assert
+    offered = [link for link in links if link.command.startswith("port.info")]
+    assert offered, f"the typo offers the command: {links}"
+    assert not any(link.run for link in offered), "the click fills the input and runs nothing"
+
+
+def test_the_port_info_refusal_runs_nothing_on_a_click(tmp_path):
+    """/port.info with an argument names /port.info and /port.chip: both links wait for Enter, since either can open a port."""
+    # Act
+    links = _links_of(_engine(tmp_path), "port.info COM5")
+
+    # Assert
+    named = {link.command: link.run for link in links}
+    assert named == {"port.info": False, "port.chip": False}, named
+
+
+@pytest.mark.rule("shows-declared")
+def test_a_bare_forms_link_runs_only_what_only_shows(tmp_path):
+    """Every bare form's link runs exactly when its subcommand declares shows, so /help mem sends nothing on a click."""
+    # Arrange
+    eng = _engine(tmp_path)
+    plugins = eng._plugins
+
+    # Act
+    actual = {}
+    for name, plugin in plugins.items():
+        if plugin.bare_sub:
+            sub_name = f"{name}.{plugin.bare_sub}"
+            links = _links_of(eng, f"help {name}")
+            actual[sub_name] = next(link.run for link in links if link.command == sub_name)
+
+    # Assert
+    expected = {sub_name: plugins[sub_name].shows for sub_name in actual}
+    assert actual == expected, "a bare form's link runs only what only shows"
+    assert actual["mem.info"] is False, "reading /help mem must not send MEM.INFO"
+    assert actual["run.list"] is True, "a list still runs"
+
+
+@pytest.mark.rule("links-are-data")
 def test_a_bare_form_only_opens_or_shows(tmp_path):
     """A declared bare_sub is a list, a folder, a viewer or an info page: /help's link runs it."""
     # Arrange
@@ -211,9 +273,18 @@ def test_a_command_name_on_its_page_fills_the_input_line(tmp_path):
     run_synopsis = _line_with(run_lines, "/run {")
 
     # Assert
-    assert loaded[1].link == Link("cfg.loaded", run=False), "Enter runs it, nothing runs on its own"
-    assert run_name[1].link == Link("run", run=False), "fills, for the file name to follow"
-    assert run_synopsis[1].link == Link("run", run=False), "the synopsis line does the same"
+    links = [line[1].link for line in (loaded, run_name, run_synopsis)]
+    actual = [(link.command, link.run) for link in links if link is not None]
+    expected = [("cfg.loaded", False), ("run", False), ("run", False)]
+    assert actual == expected, (
+        "Enter runs it, nothing runs on its own, and the file name can follow"
+    )
+    for link in links:
+        assert link is not None, "every one of them is a link"
+        assert isinstance(link.tip, tuple), "its tip is styled pieces"
+        tip = "".join(piece.text for piece in link.tip)
+        for flag in ANY_COMMAND_FLAGS:
+            assert flag in tip, "hovering says what any command also takes"
 
 
 def test_the_bare_line_opens_the_picker_and_runs_the_list(tmp_path):
@@ -228,7 +299,9 @@ def test_the_bare_line_opens_the_picker_and_runs_the_list(tmp_path):
     actual_text = "".join(piece.text for piece in line)
     expected_text = "  /run -- bare: opens the Run picker in the TUI; elsewhere runs /run.list"
     assert actual_text == expected_text
-    actual_links = {piece.text: piece.link for piece in line if piece.link is not None}
+    actual_links = {
+        piece.text: replace(piece.link, tip="") for piece in line if piece.link is not None
+    }
     expected_links = {
         "/run": Link("run", run=False),
         "Run picker": Link("run"),
@@ -250,6 +323,7 @@ def test_a_synopsis_draws_the_same_characters_in_the_same_styles():
     assert _styles(after) == _styles(before), "the CLI and MCP see what they always saw"
 
 
+@pytest.mark.rule("links-are-data")
 def test_the_page_lines_draw_the_same_characters_in_the_same_styles(tmp_path):
     """NAME, SYNOPSIS and the bare line of /help run render as their old markup did."""
     # Arrange
@@ -340,12 +414,12 @@ def test_help_plugin_links_each_command_to_its_page(tmp_path):
 
 
 def test_see_also_links_the_siblings_and_the_parent(tmp_path):
-    """A subcommand's SEE ALSO links each sibling and the parent."""
+    """A subcommand's SEE ALSO, on the --verbose page, links each sibling and the parent."""
     # Arrange
     eng = _engine(tmp_path)
 
     # Act
-    commands = [link.command for link in _links_of(eng, "help cfg.load")]
+    commands = [link.command for link in _links_of(eng, "help cfg.load --verbose")]
 
     # Assert
     assert "help cfg.list" in commands, "a sibling"
@@ -369,7 +443,7 @@ def _mcp_host(tmp_path):
 
 
 def test_help_log_ends_with_the_session_log_opening_on_a_click(tmp_path):
-    """/help log ends with /log.list's one row, the session log, and a click on it runs /log.show."""
+    """/help log ends with /log.list's rows, the frontend's own log first, and a click on one runs /log.show of it."""
     # Arrange -- MCP sessions default to quiet; ask at normal, as a call can.
     eng = _mcp_host(tmp_path).repl
     eng.ctx.ns("flags")["output_level"] = "normal"
@@ -381,10 +455,12 @@ def test_help_log_ends_with_the_session_log_opening_on_a_click(tmp_path):
 
     # Assert
     row = lines[-1]
-    assert "session.log" in "".join(piece.text for piece in row), "the log the frontend keeps"
+    assert "m.mcp.log" in "".join(piece.text for piece in row), "the log the frontend keeps"
     actual_links = [piece.link for piece in row if piece.link is not None]
-    assert actual_links == [Link("log.show")], "a click opens it, as the Log button does"
-    assert [record["name"] for record in listed.data] == ["session.log"], "one record, as data"
+    assert actual_links == [Link("log.show m.mcp.log")], "a click opens that log by name"
+    assert [record["name"] for record in listed.data] == ["m.mcp.log"], (
+        "the one that exists, as data"
+    )
 
 
 def test_a_long_list_shows_its_newest_ten_and_links_the_rest(tmp_path):

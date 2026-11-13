@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
 import termapy
+from termapy.defaults import cfg_value
 from termapy.plugins import CmdResult, Column
 
 if TYPE_CHECKING:
@@ -478,13 +479,7 @@ def _list(ctx: PluginContext) -> CmdResult:
         return CmdResult.fail(msg=f"Unsupported platform: {_PLATFORM}")
     # A list answer (registry list-one-format): one record per launcher.
     records = [{"name": path.name, "path": str(path)} for path in scan()]
-    return CmdResult.table(
-        f"termapy launchers in {where}",
-        "launcher",
-        _LAUNCHER_COLUMNS,
-        records,
-        value="\n".join(record["path"] for record in records),
-    )
+    return CmdResult.table(f"termapy launchers in {where}", "launcher", _LAUNCHER_COLUMNS, records)
 
 
 _LAUNCHER_COLUMNS = (
@@ -500,7 +495,7 @@ def _resolve_name(ctx: PluginContext) -> tuple[str, str, Path]:
     """Return (display_name, filename_stem, cfg_path) for the loaded config."""
     cfg_path = Path(ctx.config_path).resolve()
     stem = cfg_path.stem
-    name = str(ctx.cfg.get("title") or stem).strip() or stem
+    name = str(cfg_value(ctx.cfg, "title") or stem).strip() or stem
     return name, stem, cfg_path
 
 

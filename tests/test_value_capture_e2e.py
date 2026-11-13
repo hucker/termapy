@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.slow
+pytestmark = [pytest.mark.slow, pytest.mark.rule("value-scriptable")]
 
 FIXTURE = Path(__file__).parent / "fixtures" / "value_capture.run"
 
@@ -61,9 +61,10 @@ EXPECTED_CAPTURES = [
     # /var.capture leaked into it (v_var_set, v_var_get).  Five.
     ("var.clear", "5"),
     ("env.set", "hello_world"),
-    # /env.list is a name filter (registry name-one-matcher): its value is
-    # NAME=value lines, one here since only MYVAR contains "myvar".
-    ("env.list", "MYVAR=hello_world"),
+    # /env.list is a name filter (registry name-one-matcher) and a list: its
+    # value is the match count (registry table-value-is-count), one here since
+    # only MYVAR contains "myvar"; $(env.MYVAR) reads the one value.
+    ("env.list", "1"),
     ("cfg.get", "115200"),
     ("cfg.auto", "9600"),
     ("cfg.get2", "9600"),

@@ -379,6 +379,84 @@ class TestLevelFlagDispatch:
         assert "Conflicting" in actual, "error message names the conflict"
 
 
+def _envelopes(writes: list[tuple[str, str | None]]) -> list[dict]:
+    """The JSON envelopes among the written lines, each without its timing."""
+    found = []
+    for text, _ in writes:
+        if text.lstrip().startswith("{"):
+            envelope = json.loads(text)
+            envelope.pop("elapsed_s", None)
+            found.append(envelope)
+    return found
+
+
+class TestJsonSuffixDispatch:
+    """`/cmd.json` is `/cmd --json`, as `/cmd.quiet` is `/cmd --quiet`."""
+
+    def test_the_suffix_answers_as_the_flag_does(self, eng_with_test_command):
+        """probe.json prints the same one envelope probe --json prints, and nothing beside it."""
+        # Arrange
+        eng, writes = eng_with_test_command
+        eng.dispatch("probe --json")
+        expected = _envelopes(writes)
+        flag_lines = len(writes)
+        writes.clear()
+
+        # Act
+        eng.dispatch("probe.json")
+
+        # Assert
+        assert _envelopes(writes) == expected, "the same envelope, cmd named without the suffix"
+        assert len(writes) == flag_lines == 1, "only the envelope prints"
+
+    @pytest.mark.parametrize("name", ["probe.json.quiet", "probe.quiet.json"])
+    def test_a_level_suffix_combines_in_either_order(self, eng_with_test_command, name):
+        """A level and .json on one name, in either order, mean --json --quiet."""
+        # Arrange
+        eng, writes = eng_with_test_command
+        eng.dispatch("probe --json --quiet")
+        expected = _envelopes(writes)
+        writes.clear()
+
+        # Act
+        eng.dispatch(name)
+
+        # Assert
+        assert _envelopes(writes) == expected
+
+    def test_a_command_named_with_json_keeps_its_name(self, eng_with_test_command):
+        """A registered probe.json runs as itself: the suffix is read only when no command claims the name."""
+        # Arrange
+        eng, writes = eng_with_test_command
+
+        def _real(ctx: PluginContext, args: str) -> CmdResult:
+            """The command that owns the name probe.json."""
+            return CmdResult.ok(value="REAL")
+
+        eng._plugins["probe.json"] = PluginInfo(
+            name="probe.json", args="", help="test", handler=_real, flags={}
+        )
+
+        # Act
+        result = eng.dispatch("probe.json")
+
+        # Assert
+        assert result.value == "REAL", "the command of that name ran"
+        assert _envelopes(writes) == [], "and answered as itself, not as JSON"
+
+    def test_an_unknown_name_is_not_stripped(self, eng_with_test_command):
+        """nosuch.json is an unknown command, named as typed, not nosuch asked for as JSON."""
+        # Arrange
+        eng, _ = eng_with_test_command
+
+        # Act
+        result = eng.dispatch("nosuch.json")
+
+        # Assert
+        assert result.success is False
+        assert "nosuch.json" in (result.error or ""), "the error names what was typed"
+
+
 # ── Builtin handlers respect output levels end-to-end ─────────────────────────
 
 
@@ -468,3 +546,104 @@ class TestBuiltinsRespectLevels:
         # Assert
         texts = [t for t, _ in writes]
         assert "Hello" in texts, "/print at normal emits the payload"
+
+
+# ── A table or status page is the answer ──────────────────────────────────────
+
+
+class TestSegmentChannelGating:
+    """The pieces channels gate as their plain twins do: result_segments at quiet+, output_segments at normal+."""
+
+    @pytest.mark.parametrize(
+        "level,result_shown,output_shown",
+        [
+            ("silent", False, False),
+            ("quiet", True, False),
+            ("normal", True, True),
+            ("verbose", True, True),
+        ],
+    )
+    def test_segment_channels_for_level(self, ctx_with_writes, level, result_shown, output_shown):
+        """Each pieces channel appears from its own level up, its pieces joined where nothing can click."""
+        # Arrange
+        from termapy.plugins.views import Piece
+
+        ctx, writes = ctx_with_writes
+        ctx.ns("flags")["output_level"] = level
+
+        # Act
+        ctx.io.result_segments([Piece("ANS"), Piece("WER")])
+        ctx.io.output_segments([Piece("DA"), Piece("TA")])
+
+        # Assert
+        texts = [text for text, _ in writes]
+        assert ("ANSWER" in texts) == result_shown, f"result_segments at {level}"
+        assert ("DATA" in texts) == output_shown, f"output_segments at {level}"
+
+    def test_a_frontend_that_can_click_gets_the_pieces(self):
+        """With _write_segments wired, as the TUI wires it, result_segments hands the pieces over unjoined."""
+        # Arrange
+        from termapy.plugins import IOHandle
+        from termapy.plugins.views import Piece
+
+        handed: list[tuple[list, str | None]] = []
+        ctx = PluginContext(
+            io=IOHandle(_write_segments=lambda pieces, color: handed.append((list(pieces), color)))
+        )
+        ctx.ns("flags")["output_level"] = "quiet"
+        pieces = [Piece("COM3"), Piece(" FTDI")]
+
+        # Act
+        ctx.io.result_segments(pieces, "dim")
+
+        # Assert
+        assert handed == [(pieces, "dim")], "the clickable frontend renders each piece itself"
+
+
+@pytest.mark.rule("view-is-the-answer")
+class TestTheAnswerShowsAtQuiet:
+    """Dispatch prints a command's table or status page on the result channel."""
+
+    @pytest.mark.rule("view-is-the-answer")
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [("/port.mode", "115200 8N1"), ("/var", "LAUNCH_DATE")],
+        ids=["status-page", "table"],
+    )
+    def test_quiet_keeps_the_answer(self, cli, capsys, command, expected):
+        """At quiet a status page and a table both print; the level drops chatter, not the answer."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full(f"{command}.quiet")
+
+        # Assert
+        assert result.success is True, result.error
+        assert expected in capsys.readouterr().out, f"{command}.quiet shows what was asked for"
+
+    @pytest.mark.parametrize("command", ["/port.mode", "/var"], ids=["status-page", "table"])
+    def test_silent_prints_nothing(self, cli, capsys, command):
+        """At silent neither prints, and the value is still the answer a script reads."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full(f"{command}.silent")
+
+        # Assert
+        assert capsys.readouterr().out.strip() == "", f"{command}.silent prints nothing"
+        assert result.value, "the value still carries the answer"
+
+    def test_a_json_answer_carries_the_data_alone(self, cli, capsys):
+        """/port.mode.quiet.json: the envelope holds the facts as data and no printed copy of the page."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/port.mode.quiet.json")
+        envelope = json.loads(capsys.readouterr().out)
+
+        # Assert
+        assert envelope["data"], "the facts are the data"
+        assert envelope["output_lines"] == [], "the page is never printed beside its data"

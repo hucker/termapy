@@ -196,6 +196,30 @@ def parse_bool_setting(args: str) -> str | bool:
         raise ValueError(f"Invalid value: {args.strip()} (use {SETTING_TOKENS_HELP})") from None
 
 
+def value_text(value: object) -> str:
+    """A command's value as a person reads it: the one speller at the REPL's boundary.
+
+    A ``CmdResult.value`` carries its natural type (registry
+    ``value-typed``): a count is an int, a switch a bool, and a JSON
+    envelope passes it through as it is.  Where the REPL turns it into
+    text, a captured variable (``$(X) <- cmd``), a ``/cap.poll`` cell or
+    ``/help``'s CURRENT STATE line, it is spelled here: a bool as ``on`` /
+    ``off``, the boolean vocabulary's answer, a number as its digits, None
+    as nothing.
+
+    Args:
+        value: The value as the command returned it.
+
+    Returns:
+        The text.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "on" if value else "off"
+    return str(value)
+
+
 _CycleT = TypeVar("_CycleT")
 
 
@@ -525,6 +549,29 @@ def split_cmd_lines(text: str) -> list[str]:
     return [line.strip() for line in text.replace("\\n", "\n").split("\n") if line.strip()]
 
 
+def transcript_commands(lines: list[str], prompt: str) -> list[str] | None:
+    """The commands in a pasted transcript, or None when the paste is not one.
+
+    A transcript is copied output: each command it ran follows the echo's
+    prompt (``esp32s3> ``), and everything else is what came back.  A paste
+    with at least one line starting with the prompt is a transcript; its
+    commands are those lines with the prompt taken off, each kept as it was
+    typed after it.  A paste with no such line, or no prompt to look for,
+    is a paste of commands.
+
+    Args:
+        lines: The pasted lines.
+        prompt: The plain text the echo puts before a command.
+
+    Returns:
+        The commands in order, or None for a paste that is not a transcript.
+    """
+    if not prompt.strip():
+        return None
+    commands = [line[len(prompt) :] for line in lines if line.startswith(prompt)]
+    return commands or None
+
+
 # A line-count token: an optional sign followed by digits.  Shared by every
 # command that takes a "how many lines" argument so the parse stays uniform.
 _COUNT_RE = re.compile(r"[+-]?\d+")
@@ -534,7 +581,7 @@ def select_lines(lines: list[str], n: int | None) -> list[str]:
     """Return the last n (n>0) or first n (n<0) lines; n is None -> all.
 
     The shared counting scheme behind ``/ss.txt``, ``/log.dump`` and
-    ``/mcp.log.dump``: a positive N is the most-recent N (tail), a
+    ``/log.diag.dump``: a positive N is the most-recent N (tail), a
     negative N is the oldest N (head).  Slicing clamps, so an ``abs(n)``
     larger than ``len(lines)`` yields every line.  Callers must reject
     ``n == 0`` before calling (``parse_count_arg`` does so).

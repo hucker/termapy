@@ -25,9 +25,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
+from termapy import diag_log
 from termapy.config import cfg_relative_path, not_found_message
 from termapy.converters import SYMBOLS, read_source
-from termapy.folders import SYM, SYMBOLS_SUFFIX, default_file_name, file_suggestion
+from termapy.folders import SYM, SYMBOLS_SUFFIX, default_file_name, file_suggestion, is_inside
 from termapy.help_dynamic import compose, state_line
 from termapy.plugins import (
     BoundaryException,
@@ -57,7 +58,7 @@ from termapy.symbols import (
     table_record,
 )
 from termapy.symbols.converters import FORMATS, find_converter
-from termapy.symbols.format import hex_addr
+from termapy.symbols.format import hex_addr, symbol_columns
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -81,9 +82,8 @@ def _display_path(ctx: PluginContext, path: Path | None) -> str:
     if ctx.config_path:
         try:
             cfg_folder = Path(ctx.config_path).resolve().parent
-            resolved = path.resolve()
-            if resolved.is_relative_to(cfg_folder):
-                return resolved.relative_to(cfg_folder).as_posix()
+            if is_inside(path, cfg_folder):
+                return path.resolve().relative_to(cfg_folder).as_posix()
         except OSError:
             pass
     return str(path)
@@ -235,7 +235,10 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     # built-ins are documented as never raising on odd input; this guard
     # is for the ones a user writes.
     except BoundaryException as e:
-        return CmdResult.fail(msg=f"Converter error: {spec.format}: {e}")
+        diag_log.exception("symbol converter %s raised on %s", spec.format, path)
+        return CmdResult.fail(
+            msg=f"Converter error: {spec.format}: {type(e).__name__}: {e}{diag_log.traceback_note()}"
+        )
     if not symbols:
         return CmdResult.fail(msg=f"No symbols found in {path.name} ({spec.format})")
     if not isinstance(layout, Layout):
@@ -272,7 +275,7 @@ def _handler_import(ctx: PluginContext, args: str) -> CmdResult:
     if duplicates:
         ctx.io.output(f"  duplicate names need name@file: {', '.join(duplicates[:8])}")
     data = table_record(table, file=str(dest)) | {"format": spec.format}
-    return CmdResult.ok(value=str(len(table)), data=data)
+    return CmdResult.ok(value=len(table), data=data)
 
 
 def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
@@ -311,7 +314,7 @@ def _handler_load(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Parse error: {e}")
     install_build(ctx, table)
     ctx.io.result(f"Loaded {len(table)} symbols ({path.name})", "green")
-    return CmdResult.ok(value=str(len(table)), data=table_record(table, file=str(path)))
+    return CmdResult.ok(value=len(table), data=table_record(table, file=str(path)))
 
 
 def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
@@ -334,11 +337,16 @@ def _handler_unload(ctx: PluginContext, args: str) -> CmdResult:
             f"Unloaded build symbols ({n}); {len(remaining)} device registers remain.",
             "green",
         )
-    return CmdResult.ok(value=str(n))
+    return CmdResult.ok(value=n)
 
 
 def _handler_search(ctx: PluginContext, args: str) -> CmdResult:
-    """Search symbol names: the exact name, else a name pattern (``SymbolTable.search``)."""
+    """Search symbol names: the exact name, else a name pattern (``SymbolTable.search``), as a table of the matches.
+
+    A list answer (registry ``list-one-format``): the records are
+    ``symbol_record``s in address order, the columns every fact a symbol
+    line shows, the value the match count; no match is the empty table.
+    """
     # Hand-rolled: trivial single-arg (CLAUDE.md rates the migration
     # net-zero); a params positional would render <pattern> identically.
     pattern = args.strip()
@@ -347,25 +355,22 @@ def _handler_search(ctx: PluginContext, args: str) -> CmdResult:
     # needs=symbols_loaded: the gate answered a missing table already.
     table = get_table(ctx)
     matches = table.search(pattern) if table is not None else []
-    if table is None or not matches:
-        ctx.io.output(f"No symbols matching '{pattern}'", "yellow")
-        return CmdResult.ok(value="", data=[])
-    bits = table.address_bits
-    if ctx.wants_data:
-        return CmdResult.ok(
-            value=matches[0].name,
-            data=[symbol_record(symbol, address_bits=bits) for symbol in matches],
-        )
-    for symbol in matches:
-        ctx.io.output(f"  {format_symbol(symbol, address_bits=bits)}")
-    return CmdResult.ok(value=matches[0].name)
+    bits = table.address_bits if table is not None else 32
+    return CmdResult.table(
+        f"Symbols matching {pattern}",
+        "symbol",
+        symbol_columns(address_bits=bits),
+        [symbol_record(symbol, address_bits=bits) for symbol in matches],
+    )
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """Show the loaded table's provenance and shape.
 
     A record answer (registry ``record-one-format``): ``table_record`` is
-    the ``data``, ``info_rows`` its prose twin.
+    the ``data``, ``info_rows`` its prose twin.  Its ``loaded`` key is
+    ``True``; with no table the data is ``{"loaded": False}`` beside the
+    one-line answer, so an agent reads the state rather than the prose.
     """
     table = get_table(ctx)
     if table is None:
@@ -373,12 +378,12 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
             f"{STATE_MESSAGES['symbols_loaded']}  {ctx.prefix}sym.import <map> or {ctx.prefix}sym.load {{path}} to load one.",
             "yellow",
         )
-        return CmdResult.ok(value="")
+        return CmdResult.ok(value="", data={"loaded": False})
     file = _display_path(ctx, table.path)
     return CmdResult.record(
-        table_record(table, file=file),
+        {"loaded": True, **table_record(table, file=file)},
         info_rows(table, file=file),
-        value=str(len(table)),
+        value=len(table),
     )
 
 
@@ -429,6 +434,11 @@ COMMAND = Command(
     maturity="preview",
     args="<addr|name>",
     help="Symbol table: name -> address, or address -> name+offset.",
+    intro=(
+        "A symbol table gives the addresses in your firmware their names, so "
+        "{prefix}mem can read and write by name. It comes from your build's ELF or "
+        "linker map."
+    ),
     long_help=_long_help,
     handler=_handler_root,
     shows=True,
@@ -488,6 +498,7 @@ COMMAND = Command(
             help="Show the loaded symbol table: file, source, counts by section, address range.",
             handler=_handler_info,
             shows=True,
+            state=True,
         ),
     },
 )

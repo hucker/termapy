@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 
 import pytest
 
@@ -112,6 +111,7 @@ class TestMcpCatalog:
         assert "/term.send" in names, "/term.send in catalog"
         assert "/expect" in names, "/expect in catalog"
 
+    @pytest.mark.rule("param-mcp-catalog")
     def test_params_say_how_each_argument_binds(self, env):
         """A params entry marks positionals and the rest argument, so an agent does not write file=x for a positional."""
         # Arrange / Act
@@ -261,125 +261,66 @@ class TestMcpInfo:
         assert "1 (AT+RESET)" in full, "count + name list rendered exactly"
 
 
-# ── /mcp.log + subcommands ─────────────────────────────────────────────────
+# ── The MCP server's session log, from another frontend ────────────────────
 
 
-class TestMcpLog:
-    """Subcommands that surface the MCP server's session log to the user.
+@pytest.mark.rule("session-log-one-owner")
+class TestMcpLogFromAnotherFrontend:
+    """The MCP server's <cfg>.mcp.log is one of the config's session logs: the CLI lists and prints it by name."""
 
-    The log itself is written by ``termapy --mcp`` to
-    ``<cfg_dir>/mcp/session.log``.  These commands open / dump / locate
-    the file from any frontend (TUI/CLI/MCP) so a user debugging an
-    LLM session can review what happened without leaving termapy.
-    """
+    @staticmethod
+    def _cli_beside_an_mcp_log(tmp_path):
+        """A CLI host on a config whose MCP server has written its session log."""
+        from termapy.cli import CLITerminal
+        from termapy.defaults import default_cfg
 
-    def _seed_log(self, ctx, content: str) -> Path:
-        """Write a fake MCP session log to <cfg_dir>/mcp/session.log."""
-        cfg_dir = Path(ctx.config_path).parent
-        mcp_dir = cfg_dir / "mcp"
-        mcp_dir.mkdir(exist_ok=True)
-        log = mcp_dir / "session.log"
-        log.write_text(content, encoding="utf-8")
-        return log
-
-    def test_log_path_reports_location_when_absent(self, env):
-        """/mcp.log.path gives the path and marks it not yet created before MCP has run."""
-        # Arrange / Act -- no log file written yet
-        eng, _ctx, output = env
-        result = eng.dispatch("mcp.log.path")
-        # Assert
-        assert result.success, "/mcp.log.path always succeeds (informational)"
-        full = " ".join(t for t, _ in output)
-        assert "session.log" in full, "path includes session.log"
-        assert "(not yet created)" in full, (
-            "absent file marked explicitly so user knows MCP hasn't run"
+        cfg = default_cfg()
+        cfg["serial"]["port"] = ""
+        path = tmp_path / "dev" / "dev.cfg"
+        path.parent.mkdir()
+        path.write_text(json.dumps(cfg), encoding="utf-8")
+        (path.parent / "dev.mcp.log").write_text(
+            "[2026-11-05 10:00:00.000] $ /ver  (normal)\n[2026-11-05 10:00:00.010] # termapy 1.0\n",
+            encoding="utf-8",
         )
+        cli = CLITerminal(cfg, str(path), no_color=True, term_width=120)
+        cli.repl.global_root = tmp_path
+        return cli
 
-    def test_log_path_reports_location_when_present(self, env):
-        """An existing log is reported without the not-yet-created marker."""
+    def test_log_list_names_the_mcp_servers_log(self, tmp_path):
+        """/log.list in the CLI, which keeps no log of its own, lists the MCP server's."""
         # Arrange
-        eng, ctx, output = env
-        self._seed_log(ctx, "fake log content\n")
+        cli = self._cli_beside_an_mcp_log(tmp_path)
+        cli.repl.ctx.wants_data = True
+
         # Act
-        output.clear()
-        result = eng.dispatch("mcp.log.path")
-        # Assert
-        assert result.success, "succeeds when file exists"
-        full = " ".join(t for t, _ in output)
-        assert "session.log" in full, "path printed"
-        assert "(not yet created)" not in full, "no absent-marker when file is there"
+        result = cli.repl.dispatch("log.list", report=False)
 
-    def test_log_dump_when_absent_fails_cleanly(self, env):
-        """Dumping a missing log is a not-found error, not a crash or empty success."""
-        # Arrange / Act
-        eng, _ctx, _output = env
-        result = eng.dispatch("mcp.log.dump")
         # Assert
-        assert not result.success, "fails when log file missing"
-        assert "not found" in result.error, "names the failure mode"
+        assert [record["name"] for record in result.data] == ["dev.mcp.log"]
 
-    def test_log_dump_prints_full_log(self, env):
-        """A bare dump prints every line and returns the line count as its value."""
+    @pytest.mark.rule("file-name-default-ext")
+    def test_log_dump_prints_it_by_name(self, tmp_path, capsys):
+        """/log.dump dev.mcp 1 prints the MCP log's last line, the name taking its extension or not."""
         # Arrange
-        eng, ctx, output = env
-        self._seed_log(ctx, "line 1\nline 2\nline 3\n")
+        cli = self._cli_beside_an_mcp_log(tmp_path)
+        capsys.readouterr()
+
         # Act
-        output.clear()
-        result = eng.dispatch("mcp.log.dump")
-        # Assert
-        assert result.success, "dump succeeds"
-        assert int(result.value) == 3, "value is line count"
-        text = "\n".join(t for t, _ in output)
-        assert "line 1" in text and "line 3" in text, "all lines printed"
+        result = cli.repl.dispatch("log.dump dev.mcp 1", report=False)
 
-    def test_log_dump_n_prints_last_n(self, env):
-        """A positive N tails the log, printing only the last N lines."""
-        # Arrange
-        eng, ctx, output = env
-        self._seed_log(ctx, "a\nb\nc\nd\ne\n")
-        # Act -- last 2 lines
-        output.clear()
-        result = eng.dispatch("mcp.log.dump 2")
         # Assert
-        assert result.success, "tail-N succeeds"
-        actual = [t for t, _ in output]
-        expected = ["d", "e"]
-        assert actual == expected, "only the last 2 lines, in order"
+        assert result.success is True
+        out = capsys.readouterr().out
+        assert "termapy 1.0" in out and "/ver" not in out, "the last line only"
 
-    def test_log_dump_negative_n_prints_first_n(self, env):
-        """A negative N heads the log, printing the first N lines in order."""
+    def test_log_dump_bare_says_the_cli_keeps_none(self, tmp_path):
+        """Bare /log.dump in the CLI says it keeps no log and where to look, rather than the gate's words."""
         # Arrange
-        eng, ctx, output = env
-        self._seed_log(ctx, "a\nb\nc\nd\ne\n")
-        # Act -- first 2 lines (head)
-        output.clear()
-        result = eng.dispatch("mcp.log.dump -2")
-        # Assert
-        assert result.success, "head-N (negative) succeeds"
-        printed = [t for t, _ in output]
-        actual = printed[:2]
-        expected = ["a", "b"]
-        assert actual == expected, "first 2 lines present, in order"
-        assert "e" not in printed, "later lines suppressed"
+        cli = self._cli_beside_an_mcp_log(tmp_path)
 
-    def test_log_dump_invalid_n_fails(self, env):
-        """A non-integer N is a usage error rather than a silent full dump."""
-        # Arrange
-        eng, ctx, _output = env
-        self._seed_log(ctx, "x\n")
         # Act
-        result = eng.dispatch("mcp.log.dump notanumber")
-        # Assert
-        assert not result.success, "non-int N rejected"
-        assert "Usage" in result.error, "usage shown"
+        result = cli.repl.dispatch("log.dump", report=False)
 
-    def test_log_dump_zero_n_fails(self, env):
-        """N=0 is rejected as ambiguous between head and tail, and the error names it."""
-        # Arrange
-        eng, ctx, _output = env
-        self._seed_log(ctx, "x\ny\n")
-        # Act
-        result = eng.dispatch("mcp.log.dump 0")
         # Assert
-        assert not result.success, "0 is rejected (ambiguous, -0 == 0)"
-        assert "0" in result.error, "error names the rejected value"
+        assert result.error == "This frontend keeps no session log; /log.list names the config's"

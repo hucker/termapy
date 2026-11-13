@@ -19,10 +19,14 @@ gates them at call time.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Generator
+import codecs
+import time
+from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
+
+from termapy.defaults import cfg_value
 
 
 @dataclass
@@ -51,12 +55,18 @@ class SerialHandle:
     apply_port_effects: Callable = lambda effects: None
 
     # ── Raw I/O ──────────────────────────────────────────────────────
+    # write(data) sends bytes as given: the binary path.  A text line goes
+    # through send() below, which is built on write.
     write: Callable = lambda data: None
-    send: Callable = lambda text: None
     read_raw: Callable = lambda timeout_ms=1000, frame_gap_ms=0: b""
     drain: Callable = lambda: 0
     wait_for_data: Callable = lambda timeout_ms=250: False
-    wait_idle: Callable = lambda timeout_ms=400: None
+    # wait_idle(timeout_ms, max_wait_s): return once the device has been
+    # quiet for timeout_ms after the call, or after max_wait_s at most.
+    wait_idle: Callable = lambda timeout_ms=400, max_wait_s=3.0: None
+    # byte_counts() -> (tx, rx): bytes sent and received since the port last
+    # opened, what /term.info and the TUI's /term.traffic display show.
+    byte_counts: Callable[[], tuple[int, int]] = lambda: (0, 0)
     # queue.Queue[bytes] - raw RX for protocol handlers.  Bounded: when full
     # the reader drops the oldest chunk, so drain() it inside io() and then
     # read as bytes arrive rather than letting it fill.
@@ -73,6 +83,57 @@ class SerialHandle:
     _remove_rx_observer: Callable = lambda cb: None
     _add_tx_observer: Callable = lambda cb: None
     _remove_tx_observer: Callable = lambda cb: None
+    # The live config send() reads (eol, encoding, the transmit delays);
+    # PluginContext wires it to its own cfg.
+    _cfg: Callable[[], Mapping[str, Any]] = lambda: {}
+
+    def send(self, text: str) -> None:
+        """Send ``text`` as one device line: the line ending added, encoded, paced.
+
+        The one way a text line goes out (registry ``tx-text-one-path``).
+        Binary -- a transfer, the protocol subsystem's packets and setup
+        lines, ``/raw`` -- goes straight to ``write`` and is never paced.
+
+        Pacing is TeraTerm's transmit delay, both off by default: with
+        ``tx_char_delay_ms`` each character is written on its own and
+        followed by that wait, and ``tx_line_delay_ms`` waits after the line
+        ending.  For a device that drops bytes arriving back to back.  The
+        wait blocks the calling thread, a worker wherever a command runs.
+
+        The whole line is encoded first, so a character the encoding cannot
+        take fails the send before any of it goes out.
+
+        Args:
+            text: The line without its ending (``""`` sends the ending alone).
+
+        Raises:
+            OSError: What ``write`` raises; pyserial's ``SerialException``
+                is one.
+            UnicodeError: The configured encoding cannot take the text.
+            LookupError: The configured encoding does not exist.
+        """
+        cfg = self._cfg()
+        line = text + cfg_value(cfg, "eol")
+        encoding = cfg_value(cfg, "encoding")
+        data = line.encode(encoding)
+        char_delay_s = cfg_value(cfg, "tx_char_delay_ms") / 1000
+        line_delay_s = cfg_value(cfg, "tx_line_delay_ms") / 1000
+        if char_delay_s <= 0:
+            self.write(data)
+        else:
+            # Incremental, so a multi-byte character goes out whole and a
+            # stateful encoding writes its preamble once, not per character.
+            encoder = codecs.getincrementalencoder(encoding)()
+            for char in line:
+                chunk = encoder.encode(char)
+                if chunk:
+                    self.write(chunk)
+                    time.sleep(char_delay_s)
+            tail = encoder.encode("", final=True)
+            if tail:
+                self.write(tail)
+        if line_delay_s > 0:
+            time.sleep(line_delay_s)
 
     # ── Context managers (the public path for synchronous I/O) ───────
 

@@ -8,7 +8,10 @@ import pytest
 
 from termapy.matching import closest, did_you_mean, edit_distance, is_glob, matches
 
+pytestmark = [pytest.mark.rule("name-one-matcher"), pytest.mark.rule("did-you-mean-one")]
 
+
+@pytest.mark.rule("name-one-matcher")
 @pytest.mark.parametrize(
     ("pattern", "expected"),
     [
@@ -20,10 +23,11 @@ from termapy.matching import closest, did_you_mean, edit_distance, is_glob, matc
     ],
 )
 def test_a_wildcard_makes_a_glob(pattern, expected):
-    """name-one-matcher: any of * ? [ makes the pattern a glob, and nothing else does."""
+    """Any of * ? [ makes the pattern a glob, and nothing else does."""
     assert is_glob(pattern) is expected
 
 
+@pytest.mark.rule("name-one-matcher")
 @pytest.mark.parametrize(
     ("name", "pattern", "expected"),
     [
@@ -38,13 +42,14 @@ def test_a_wildcard_makes_a_glob(pattern, expected):
     ],
 )
 def test_plain_text_contains_and_a_glob_is_anchored(name, pattern, expected):
-    """name-one-matcher: plain text is a case-insensitive contains; a glob is anchored, case ignored."""
+    """Plain text is a case-insensitive contains; a glob is anchored, case ignored."""
     assert matches(name, pattern) is expected
 
 
 # -- did-you-mean-one ----------------------------------------------------------
 
 
+@pytest.mark.rule("did-you-mean-one")
 @pytest.mark.parametrize(
     ("a", "b", "expected"),
     [
@@ -59,10 +64,11 @@ def test_plain_text_contains_and_a_glob_is_anchored(name, pattern, expected):
     ],
 )
 def test_each_kind_of_edit_counts_once(a, b, expected):
-    """did-you-mean-one: insert, delete, substitute and a neighbor swap each cost one edit."""
+    """insert, delete, substitute and a neighbor swap each cost one edit."""
     assert edit_distance(a, b) == expected
 
 
+@pytest.mark.rule("did-you-mean-one")
 @pytest.mark.parametrize(
     ("typed", "names", "expected"),
     [
@@ -81,26 +87,29 @@ def test_each_kind_of_edit_counts_once(a, b, expected):
     ],
 )
 def test_the_name_meant_comes_first(typed, names, expected):
-    """did-you-mean-one: a swap, a one-for-L, a case slip and a moved digit each find the name meant."""
+    """A swap, a one-for-L, a case slip and a moved digit each find the name meant."""
     assert closest(typed, names)[: len(expected)] == expected
 
 
+@pytest.mark.rule("did-you-mean-one")
 @pytest.mark.parametrize("word", ["xyz", "foo", "quit"])
 def test_a_short_word_is_not_a_typo_of_everything(word):
-    """did-you-mean-one: the reach grows with the name, so three letters reach one edit, not two."""
+    """The reach grows with the name, so three letters reach one edit, not two."""
     commands = ["sym", "log", "os", "edit", "exit", "tui", "cls", "ss"]
     assert closest(word, commands) == [], f"{word} is not a typo of any of them"
 
 
+@pytest.mark.rule("did-you-mean-one")
 def test_nearest_first_at_most_the_limit_and_never_itself():
-    """did-you-mean-one: closer names lead, the limit caps the answer, and the typed name never returns."""
+    """Closer names lead, the limit caps the answer, and the typed name never returns."""
     names = ["dev.list", "dev.lib", "dev.use", "dev.lsit"]
     assert closest("dev.lsit", names, limit=1) == ["dev.list"], "one swap beats two edits"
     assert "dev.lsit" not in closest("dev.lsit", names), "a name is not its own suggestion"
 
 
+@pytest.mark.rule("did-you-mean-one")
 def test_did_you_mean_is_one_phrasing():
-    """did-you-mean-one: one or more names read the same way everywhere, and none reads as nothing."""
+    """One or more names read the same way everywhere, and none reads as nothing."""
     assert did_you_mean(["help"], prefix="/") == " -- did you mean /help?"
     assert did_you_mean(["a", "b"]) == " -- did you mean a, b?"
     assert did_you_mean([]) == "", "no suggestion adds nothing to the error"

@@ -18,7 +18,8 @@ import pytest
 pytest.importorskip("mcp", reason="mcp SDK not installed; install with [mcp] extra")
 
 from termapy.defaults import default_cfg  # noqa: E402
-from termapy.mcp.server import MCPHost  # noqa: E402
+from termapy.mcp.server import MCPHost
+from termapy.session_log import SESSION_END  # noqa: E402
 
 
 def _make_cfg_dir(parent: Path, name: str, **overrides) -> Path:
@@ -142,8 +143,8 @@ class TestMcpCfgLoad:
 
 class TestZeroConfigMcpHost:
     """Slot-pool case: ``termapy --mcp`` with no cfg starts cleanly,
-    suppresses file logging, and routes logs to the cfg's mcp/ once
-    /cfg.load runs.
+    keeps its session log closed, and opens the cfg's ``<cfg>.mcp.log``
+    once /cfg.load runs.
     """
 
     @pytest.fixture
@@ -152,54 +153,51 @@ class TestZeroConfigMcpHost:
         monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
         _make_cfg_dir(tmp_path, "alpha")
         _make_cfg_dir(tmp_path, "beta")
-        # MCPHost with no cfg loaded (mimics zero-config slot startup)
-
-        cfg = default_cfg()
-        return MCPHost(cfg, "", verbose=False)
+        # MCPHost with no cfg loaded (mimics zero-config slot startup), its
+        # session started as run_mcp_stdio's _fire_app_start starts it
+        host = MCPHost(default_cfg(), "", verbose=False)
+        host._on_app_prestart()
+        return host
 
     def test_starts_with_no_log_path(self, zero_host):
-        """A host started without a cfg has no log file and no mcp/ folder."""
+        """A host started without a cfg has no session log open and no file to open."""
         # Assert
-        assert zero_host._log_path is None, "no log path before cfg.load"
-        assert zero_host._mcp_dir is None, "no mcp dir before cfg.load"
+        assert zero_host.session_log_path() is None, "no log path before cfg.load"
+        assert zero_host.session_log.fh is None, "and nothing open"
 
     def test_log_line_no_op_without_cfg(self, zero_host):
         """Logging before any cfg is loaded is silently dropped, never raised."""
-        # Act - should not raise even with _log_path=None
-        zero_host._log_line("startup message")
+        # Act - should not raise with the log closed
+        zero_host._log_line("#", "startup message")
 
         # Assert (no exception is the test; nothing to file-check)
 
     def test_load_routes_log_to_cfg_dir(self, zero_host, tmp_path):
-        """The first /cfg.load binds the log under that cfg's mcp/ folder."""
-        # Arrange - confirm starting state
-        assert zero_host._log_path is None, "starts unbound"
-
+        """The first /cfg.load opens that cfg's <cfg>.mcp.log beside its .cfg."""
         # Act
         zero_host._load_config("alpha")
 
         # Assert
-        actual_log = zero_host._log_path
-        expected_parent = tmp_path / "alpha" / "mcp"
-        assert actual_log is not None, "log path now set"
-        assert actual_log.parent == expected_parent, (
-            f"log lives under cfg's mcp/, got: {actual_log}"
-        )
+        actual = zero_host.session_log.path
+        expected = tmp_path / "alpha" / "alpha.mcp.log"
+        assert actual is not None, "the log is open"
+        assert actual.resolve() == expected.resolve(), f"beside the cfg, got: {actual}"
 
     def test_switch_re_routes_log(self, zero_host, tmp_path):
-        """Switching configs moves the log to the new cfg, away from the old one."""
+        """Switching configs moves the log to the new cfg, and ends the old one."""
         # Arrange - load alpha first
         zero_host._load_config("alpha")
-        first_log = zero_host._log_path
-        assert first_log is not None and "alpha" in str(first_log), "alpha log path"
+        first_log = zero_host.session_log.path
+        assert first_log is not None and first_log.name == "alpha.mcp.log", "alpha log open"
 
         # Act - switch to beta
         zero_host._load_config("beta")
 
         # Assert
-        actual_log = zero_host._log_path
-        assert "beta" in str(actual_log), f"log re-routed to beta cfg, got: {actual_log}"
-        assert "alpha" not in str(actual_log), "old alpha log path cleared"
+        actual = zero_host.session_log.path
+        assert actual is not None and actual.name == "beta.mcp.log", f"re-routed to beta: {actual}"
+        last = first_log.read_text(encoding="utf-8").splitlines()[-1]
+        assert last.endswith(SESSION_END), "the old log ends with its Session End"
 
 
 class TestCfgLoadIdentity:
@@ -238,7 +236,7 @@ class TestCfgLoadIdentity:
         # Assert
         assert set_result.success, f"set failed: {set_result.error}"
         actual = query.value
-        expected = "5000"
+        expected = 5000
         assert actual == expected, "session set is visible through the ctx.cfg read path"
 
 
@@ -277,12 +275,13 @@ class TestCfgLoadFiresOnConnected:
         """A load that auto-connects runs the new cfg's mcp_on_connect_cmd."""
         # Arrange - cfg with mcp_on_connect_cmd set, monkeypatched cfg_dir
         monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
-        self._make_cfg(tmp_path, "target", mcp_on_connect_cmd="/ver")
+        self._make_cfg(tmp_path, "target", mcp_on_connect_cmd="/app.ver")
 
         # Build host on a different cfg with no on-connect cmds
         unrelated = self._make_cfg(tmp_path, "unrelated")
         cfg = json.loads(unrelated.read_text())
         h = MCPHost(cfg, str(unrelated), verbose=False)
+        h._on_app_prestart()  # the session has started, so its log is open
 
         # Act - /cfg.load to the target cfg, which auto-connects
         try:
@@ -296,10 +295,11 @@ class TestCfgLoadFiresOnConnected:
 
         # Assert
         assert result.success, f"cfg.load succeeded: {result.error}"
-        # Log path now points at the target cfg's mcp/ dir
-        assert h._log_path is not None, "log path set after switch"
-        log = h._log_path.read_text(encoding="utf-8")
-        assert "$ /ver  (mcp_on_connect_cmd)" in log, (
+        # The log now is the target cfg's <cfg>.mcp.log
+        log_path = h.session_log_path()
+        assert log_path is not None, "log path set after switch"
+        log = log_path.read_text(encoding="utf-8")
+        assert "$ /app.ver  (mcp_on_connect_cmd)" in log, (
             f"mcp_on_connect_cmd fired on cfg.load reconnect, log was:\n{log}"
         )
 
@@ -307,10 +307,11 @@ class TestCfgLoadFiresOnConnected:
         """Same regression for the universal on_connect_cmd."""
         # Arrange
         monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
-        self._make_cfg(tmp_path, "target", on_connect_cmd="/ver")
+        self._make_cfg(tmp_path, "target", on_connect_cmd="/app.ver")
         unrelated = self._make_cfg(tmp_path, "unrelated")
         cfg = json.loads(unrelated.read_text())
         h = MCPHost(cfg, str(unrelated), verbose=False)
+        h._on_app_prestart()  # the session has started, so its log is open
 
         # Act
         try:
@@ -323,8 +324,10 @@ class TestCfgLoadFiresOnConnected:
                 h._disconnect()
 
         # Assert
-        log = h._log_path.read_text(encoding="utf-8") if h._log_path else ""
-        assert "$ /ver  (on_connect_cmd)" in log, (
+        log = (lambda path: path.read_text(encoding="utf-8") if path is not None else "")(
+            h.session_log_path()
+        )
+        assert "$ /app.ver  (on_connect_cmd)" in log, (
             f"on_connect_cmd fired on cfg.load reconnect, log was:\n{log}"
         )
 
@@ -332,8 +335,9 @@ class TestCfgLoadFiresOnConnected:
 class TestMcpCfgNew:
     """/cfg.new under MCP: an agent can create a config, but never overwrite one."""
 
+    @pytest.mark.rule("config-created-once")
     def test_cfg_new_creates_a_config_an_agent_can_load(self, host, two_cfgs):
-        """config-created-once: /cfg.new writes NAME/NAME.cfg beside the others and returns its path."""
+        """/cfg.new writes NAME/NAME.cfg beside the others and returns its path."""
         # Arrange
         cfg_a, _ = two_cfgs
         expected_path = cfg_a.parent.parent / "gamma" / "gamma.cfg"
@@ -347,8 +351,9 @@ class TestMcpCfgNew:
         assert result.data == {"name": "gamma", "path": str(expected_path), "overwritten": False}
         assert json.loads(expected_path.read_text(encoding="utf-8"))["title"] == "gamma"
 
+    @pytest.mark.rule("config-created-once")
     def test_cfg_new_over_an_existing_config_is_refused(self, host, two_cfgs):
-        """config-created-once: with no one to ask, an existing config is left alone and the call fails."""
+        """With no one to ask, an existing config is left alone and the call fails."""
         # Arrange
         _, cfg_b = two_cfgs
         before = cfg_b.read_text(encoding="utf-8")
@@ -370,28 +375,18 @@ def _run_mcp(host, line: str, *, confirm: bool = False) -> dict:
 
 
 class TestMcpCfgDelete:
-    """/cfg.delete under MCP: destructive, so it runs only with confirm=true."""
+    """/cfg.delete under MCP: refused outright, because deleting a config is a person's job."""
 
-    def test_cfg_delete_without_confirm_is_refused(self, host, two_cfgs):
-        """config-deleted-once: no confirm, nothing deleted, and the marker an agent asks the user on."""
+    @pytest.mark.rule("mcp-no-file-management")
+    @pytest.mark.parametrize("confirm", [False, True])
+    def test_cfg_delete_is_refused(self, host, two_cfgs, confirm):
+        """confirm=true or not, nothing is deleted and there is nothing to ask the user."""
         # Arrange
         _, cfg_b = two_cfgs
 
         # Act
-        result = _run_mcp(host, "/cfg.delete beta")
+        result = _run_mcp(host, "/cfg.delete beta", confirm=confirm)
 
         # Assert
-        assert result["value"]["needs_confirmation"] is True, "the destructive gate"
+        assert "interactive" in result["error"], result["error"]
         assert cfg_b.exists(), "beta is untouched"
-
-    def test_cfg_delete_with_confirm_removes_the_folder(self, host, two_cfgs):
-        """config-deleted-once: with confirm=true the whole beta folder goes."""
-        # Arrange
-        _, cfg_b = two_cfgs
-
-        # Act
-        result = _run_mcp(host, "/cfg.delete beta", confirm=True)
-
-        # Assert
-        assert result["success"] is True, result["error"]
-        assert not cfg_b.parent.exists(), "beta's folder, subfolders and all, is gone"

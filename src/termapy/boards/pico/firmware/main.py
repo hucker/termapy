@@ -1,14 +1,19 @@
 """termapy's starter monitor for a Raspberry Pi Pico running MicroPython.
 
 One command per line over USB serial, ended by CR, LF or both.  It runs on
-the board, not in termapy: copy it and termapy_json.py to the board, and
-MicroPython starts it at every power-up.  Ctrl-C in a terminal stops it and
-returns to the MicroPython prompt; Ctrl-D restarts it.
+the board, not in termapy: copy it, termapy_json.py and termapy_mem.py to
+the board, and MicroPython starts it at every power-up.  Ctrl-C in a
+terminal stops it and returns to the MicroPython prompt; Ctrl-D restarts it.
 
 The commands are the COMMANDS table at the bottom, each a one-line help and
 a handler.  The monitor adds two of its own: ``help`` lists every command
 with its help line, and ``json {on|off}`` switches the reply framing.  A new
-command is a handler and a row.
+command is a handler and a row.  termapy_mem.py adds the MEM commands that
+termapy's /mem.* speaks.
+
+The board runs asyncio: the monitor is one task, ``monitor.run()``, and the
+project's own tasks start beside it in ``main()``.  A project with a super
+loop of its own calls ``monitor.poll()`` on every pass instead.
 
 termapy_json.py is the monitor every MicroPython starter shares: in text
 framing a reply is the value and a failure ``ERR <reason>``; in JSON framing
@@ -17,8 +22,11 @@ switches to it by itself.  termapy's Pico profile describes these commands,
 so they show in /help and reach an MCP agent as typed tools.
 """
 
+import asyncio
+
 import machine
-from termapy_json import CommandError, on_off_arg, serve
+from termapy_json import CommandError, Monitor, on_off_arg
+from termapy_mem import direct
 
 led = machine.Pin("LED", machine.Pin.OUT)
 sensor = machine.ADC(4)
@@ -49,4 +57,15 @@ COMMANDS = {
     "id": ("the board's unique ID in hex, also its USB serial number", cmd_id),
 }
 
-serve(COMMANDS)
+
+async def main():
+    # The MEM commands for termapy's /mem.*: pure reads and writes of any address.
+    # termapy checks addresses against the part's JSON; this board's own rules,
+    # if it needs any, are a guard(addr, count, write) passed to direct().
+    monitor = Monitor(COMMANDS, native=direct().commands())
+    # The project's own tasks start here, beside the monitor's:
+    # asyncio.create_task(my_task())
+    await monitor.run()
+
+
+asyncio.run(main())

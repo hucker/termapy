@@ -5,7 +5,8 @@ A working example of the ``ctx.serial.rx_observer()`` and
 real debugging tools any plugin author would find useful when working
 with an unfamiliar serial device:
 
-  /traffic.count <cmd>            - run a command, count bytes both ways
+  /traffic.count <cmd>            - run a command, count bytes both ways,
+                                    the reply included (wait_gap=, 50ms)
   /traffic.hexdump <file> [dur]   - tee timestamped hex of all I/O
                                     to a file for a duration
   /traffic.rate [duration]        - bytes/sec sample over a window
@@ -26,14 +27,17 @@ from __future__ import annotations
 
 import threading
 import time
-from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.folders import ensure_folder
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
+from termapy.plugins.params import ParamSpec
 from termapy.protocol import parse_data
 from termapy.scripting import parse_duration, parse_keywords
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from termapy.plugins import PluginContext
 
 
@@ -46,15 +50,20 @@ if TYPE_CHECKING:
 
 
 def _handler_count(ctx: PluginContext, args: str) -> CmdResult:
-    """Run the wrapped command; report TX/RX bytes that flowed during it.
+    """Run the wrapped command, wait for the reply to go quiet, report the TX/RX bytes.
 
     The simplest use of the observer context managers: declare two
     counter callbacks, register them for the duration of the dispatch,
     let the safe-by-construction context exit unregister them.
-    """
-    if not args.strip():
-        raise UsageError()
 
+    A device line returns as soon as it is written, so the reply arrives
+    after the dispatch does.  The observers stay registered through
+    ``ctx.serial.wait_idle``: one ``wait_gap`` of silence after the
+    command, longer while bytes keep coming, 5 s at most.  A device that
+    takes longer than ``wait_gap`` to START answering needs a bigger gap
+    (``wait_gap=200ms``); ``wait_gap=0ms`` counts only what the dispatch
+    itself saw.
+    """
     rx_count = [0]
     tx_count = [0]
 
@@ -65,12 +74,18 @@ def _handler_count(ctx: PluginContext, args: str) -> CmdResult:
         tx_count[0] += len(data)
 
     with ctx.serial.rx_observer(count_rx), ctx.serial.tx_observer(count_tx):
-        ctx.dispatch(args)
+        ctx.dispatch(ctx.arg("cmd"))
+        ctx.serial.wait_idle(round(ctx.arg("wait_gap") * 1000), 5.0)
 
     ctx.io.output_markup(
         f"  TX: [yellow]{tx_count[0]:d}[/]  RX: [cyan]{rx_count[0]:d}[/]  bytes",
     )
-    return CmdResult.ok(value={"tx": tx_count[0], "rx": rx_count[0]})
+    # value is the scriptable scalar, the reply's size; the counts both ways
+    # are the data, keyed as /cap.wire keys them.
+    return CmdResult.ok(
+        value=rx_count[0],
+        data={"tx_bytes": tx_count[0], "rx_bytes": rx_count[0]},
+    )
 
 
 # ── /traffic.hexdump ────────────────────────────────────────────────────────
@@ -91,16 +106,22 @@ def _handler_hexdump(ctx: PluginContext, args: str) -> CmdResult:
     parts = args.split()
     if not parts:
         raise UsageError()
-    out_path = Path(parts[0])
+    # What any plugin writing a user-named file calls: a relative name lands in
+    # cap/, and an MCP client stays in the config's folder, away from its code
+    # folders, and replaces a file only inside it.
+    out_path = ctx.fs.resolve(parts[0], "cap")
+    ctx.fs.guard_code_folder(out_path.parent)
+    ctx.fs.guard_replace(out_path)
     try:
         duration_s = parse_duration(parts[1]) if len(parts) > 1 else 5.0
     except ValueError as e:
         return CmdResult.fail(msg=f"Invalid duration: {e}")
 
     t0 = time.monotonic()
+    ensure_folder(out_path.parent)
     with out_path.open("w", encoding="utf-8") as f:
 
-        def tee(direction: str):
+        def tee(direction: str) -> Callable[[bytes], None]:
             def cb(data: bytes) -> None:
                 ts = time.monotonic() - t0
                 f.write(f"[+{ts:6.3f}s] {direction}  {data.hex(' ').upper()}\n")
@@ -112,7 +133,7 @@ def _handler_hexdump(ctx: PluginContext, args: str) -> CmdResult:
             ctx.io.output(f"  Hex dump -> {out_path} for {duration_s:.1f}s")
             time.sleep(duration_s)
 
-    return CmdResult.ok(value={"path": str(out_path), "duration_s": duration_s})
+    return CmdResult.ok(value=str(out_path), data={"path": str(out_path), "duration_s": duration_s})
 
 
 # ── /traffic.rate ───────────────────────────────────────────────────────────
@@ -149,13 +170,14 @@ def _handler_rate(ctx: PluginContext, args: str) -> CmdResult:
         f"  RX: [cyan]{rx_count[0]:d}[/] bytes ([cyan]{rx_rate:.1f}[/] B/s)",
     )
     return CmdResult.ok(
-        value={
+        value=round(rx_rate, 1),
+        data={
             "duration_s": duration_s,
             "tx_bytes": tx_count[0],
             "rx_bytes": rx_count[0],
             "tx_rate_bps": tx_rate,
             "rx_rate_bps": rx_rate,
-        }
+        },
     )
 
 
@@ -200,7 +222,7 @@ def _handler_snoop(ctx: PluginContext, args: str) -> CmdResult:
         if not found.wait(timeout=timeout_s):
             return CmdResult.fail(
                 msg=f"Timeout ({timeout_s:.1f}s) waiting for {pattern_hex}",
-                value={"matched": False, "pattern": pattern_hex},
+                data={"matched": False, "pattern": pattern_hex},
             )
 
     # Find the offset of the match within the captured buffer so the LLM
@@ -212,12 +234,13 @@ def _handler_snoop(ctx: PluginContext, args: str) -> CmdResult:
         f"trailing bytes captured)",
     )
     return CmdResult.ok(
-        value={
+        value=offset,
+        data={
             "matched": True,
             "pattern": pattern_hex,
             "offset": offset,
             "bytes_captured": len(buf),
-        }
+        },
     )
 
 
@@ -230,7 +253,7 @@ subcommand uses RX/TX observers (passive byte taps) so the device's
 output continues to render in scrollback while traffic is also being
 measured / logged / pattern-matched in the background.
 
-  {prefix}traffic.count <cmd>            run cmd; report TX/RX bytes
+  {prefix}traffic.count <cmd>            run cmd; report TX/RX bytes, reply included
   {prefix}traffic.hexdump <file> [dur]   tee hex to file for a duration
   {prefix}traffic.rate [duration]        bytes/sec rate over a window
   {prefix}traffic.snoop <hex> [timeout]  wait for byte pattern in RX
@@ -238,6 +261,7 @@ measured / logged / pattern-matched in the background.
 Examples:
 
   {prefix}traffic.count AT+INFO            - bytes used by one command
+  {prefix}traffic.count wait_gap=200ms AT+INFO - for a device slow to answer
   {prefix}traffic.hexdump bug.log 30s      - capture 30s of wire-trace
   {prefix}traffic.rate 10s                 - 10s bytes/sec sample
   {prefix}traffic.snoop FF55 timeout=2s    - wait for sync sequence
@@ -255,9 +279,25 @@ COMMAND = Command(
     handler=None,
     sub_commands={
         "count": Command(
-            args="<cmd>",
-            help="Run a command and report TX/RX bytes during it.",
+            help="Run a command and report the TX/RX bytes, its reply included.",
             handler=_handler_count,
+            params=[
+                ParamSpec(
+                    "wait_gap",
+                    "duration",
+                    default=0.05,
+                    help="quiet gap that ends the wait for the reply, e.g. 200ms",
+                ),
+                ParamSpec(
+                    "cmd",
+                    "str",
+                    positional=True,
+                    required=True,
+                    rest=True,
+                    hint="<cmd>",
+                    help="the command to run and count",
+                ),
+            ],
             needs=CapabilitySet.SERIAL_CONNECTED,
         ),
         "hexdump": Command(

@@ -45,6 +45,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from termapy import diag_log
 from termapy.folders import FOLDER_NAMES
 from termapy.plugins.capabilities import CapabilitySet
 from termapy.plugins.params import (
@@ -224,8 +225,8 @@ GROUPS = (GROUP_TERMINAL, "protocol", "devices", "advanced", GROUP_DEFAULT)
 # command declares one, its subcommands inherit it from the nearest
 # ancestor that declares one, and any of them may override; an
 # undeclared root is stable.  The words follow Node.js's stability index
-# and Python's PEP 411 provisional packages: anything not stable is
-# outside termapy's compatibility promise.  ``/help`` shows the level in
+# and Python's PEP 411 provisional packages: anything not stable may
+# change in any release.  ``/help`` shows the level in
 # its color, the MCP catalog carries it, and a prototype family notes
 # itself once a session when it first runs.
 MATURITY_LEVELS = ("stable", "preview", "prototype")
@@ -235,8 +236,8 @@ MATURITY_COLORS = {"stable": "green", "preview": "yellow", "prototype": "red"}
 
 # What each level promises, in the words /help and the MCP catalog use.
 MATURITY_MEANINGS = {
-    "stable": "covered by termapy's compatibility promise",
-    "preview": "works, but may change in any release, outside the compatibility promise",
+    "stable": "tested and part of the standard release",
+    "preview": "works and is used daily, but may change in any release",
     "prototype": "new and incomplete: may change or be removed in any release",
 }
 
@@ -334,7 +335,7 @@ class CmdResult:
     scriptable data (a config value, a port property, a CRC, a ping time,
     a toggle state) should pass ``value=`` so scripts can capture it:
 
-        return CmdResult.ok(value=str(baud_rate))
+        return CmdResult.ok(value=baud_rate)
 
     Handlers that only perform side effects (clear screen, edit file,
     start capture, send break) don't need a value.  When in doubt: if a
@@ -348,20 +349,21 @@ class CmdResult:
     error: str = ""
     elapsed_s: float = 0.0
     # ``value`` is the scriptable SCALAR: what ``$(X) <- cmd`` captures and
-    # what quiet-mode scripts read.  Keep it a string (or number) -- shaped
-    # structures belong in ``data``.  (Historically profile executors put
-    # dicts here; that traffic moved to ``data`` when the MCP envelope was
-    # unified.)
+    # what quiet-mode scripts read, in its natural type (registry
+    # value-typed): a count is an int, a switch a bool, text a str.  A JSON
+    # envelope passes it through as it is; the REPL spells it for a person
+    # at its boundary (``scripting.value_text``).  Shaped structures belong
+    # in ``data``.
     value: Any = ""
     # ``data`` is the STRUCTURED view of the same result: a JSON-shaped
     # dict/list/scalar for agent consumers (MCP, ``--json``).  ``None``
     # means "this command has no structured form" -- a legitimate permanent
     # state for side-effect and prose-page commands.  Never put a prose
-    # string here; that is what ``value``/``output_lines`` are for.
-    # A handler that hand-renders a large listing should build EITHER the
-    # prose OR ``data``, branching on ``ctx.wants_data``, so neither
-    # audience pays for the other's rendering -- or, better, return
-    # ``CmdResult.table(...)`` and let dispatch choose.
+    # string here; that is what ``value``/``output_lines`` are for.  A
+    # handler never branches on ``ctx.wants_data`` (registry
+    # plugins-never-read-wants-data): it returns ``CmdResult.table(...)``
+    # or ``CmdResult.record(...)`` and dispatch prints the view for a
+    # person or hands ``data`` to a caller that wants it.
     data: Any = None
     # ``view`` is how ``data`` reads as prose (a ``views.TableView`` or
     # ``views.RecordView``):
@@ -378,21 +380,22 @@ class CmdResult:
         columns: Sequence[Column],
         records: Sequence[dict[str, Any]],
         *,
-        value: Any,
         data: dict[str, Any] | None = None,
     ) -> CmdResult:
-        """A list answer: ``records`` as ``data``, their table as the view.
+        """A list answer: ``records`` as ``data``, their table as the view, their count as the value.
 
         The handler renders nothing; dispatch prints the table, or hands
         the records to a caller that wants data (``--json``,
-        ``/term.request``, MCP).  Registry ``list-one-format``.
+        ``/term.request``, MCP).  Registry ``list-one-format``.  The value
+        is the row count, an int (registry ``table-value-is-count``): a
+        script counts, an agent reads ``data``, and a JSON envelope never
+        carries the names twice.
 
         Args:
             title: What is listed (``run/``).
             noun: Singular noun the count is in (``script``).
             columns: The columns the prose shows, left to right.
             records: One raw-valued dict per row, in display order.
-            value: The scriptable scalar (usually the newline-joined names).
             data: A name-to-value mapping to answer with instead of the
                 records, when each row is one value under a unique name
                 (``/env.list``): a consumer looks a name up rather than
@@ -400,7 +403,7 @@ class CmdResult:
         """
         rows = tuple(records)
         return cls(
-            value=value,
+            value=len(rows),
             data=list(rows) if data is None else data,
             view=TableView(title, noun, tuple(columns), rows),
         )
@@ -512,7 +515,8 @@ class Command:
             ``resolve_long_help`` and the "Dynamic help" section of
             ``writing-plugins.md``.
         handler: The command function. Required for leaf nodes.
-            Signature: ``handler(ctx: PluginContext, args: str) -> None``.
+            Signature: ``handler(ctx: PluginContext, args: str) -> CmdResult``;
+            dispatch fails a handler that returns anything else.
         sub_commands: Dict mapping subcommand names to ``Command`` instances.
         bare_sub: The subcommand a BARE invocation runs instead of the
             handler (or the children listing) -- ``/mem`` with
@@ -537,13 +541,6 @@ class Command:
             the context lacks any declared capability, failing with a
             clear message naming what's missing.  See ``CapabilitySet``
             for the full vocabulary.
-        hidden: When True, this command is omitted from ``/help``
-            listings, the ``/`` popup, ``/search`` results, and other
-            discovery surfaces.  Still dispatches normally -- so legacy
-            aliases (``/echo`` -> ``/term.echo``) can forward silently
-            without polluting the user's sense of the "real" command
-            surface.  ``/help <name>`` with an exact hidden name still
-            shows the help.
         safety: Safety tier, the profile vocabulary -- ``safe`` (default),
             ``readonly``, ``mutable``, ``destructive``.  Over MCP a
             destructive command needs ``confirm=true`` exactly like a
@@ -553,6 +550,17 @@ class Command:
             ...) whose files the FIRST argument names, so frontends can
             suggest them as the user types.  ``""`` (default) means the
             first argument is not a data-folder file.  Validated at load.
+        cfg: The config keys the command depends on, each with how it
+            uses the value: ``{"eol": "appended to each sent line"}``.
+            A key is a path as ``defaults.cfg_key_paths`` spells it
+            (``serial.baud_rate``); a bare leaf of a nested key is
+            resolved.  ``/help`` renders them as the page's CONFIG
+            section with their live values, ``/help <key>``, the config
+            editor and ``/search`` say which commands use a key, and the
+            MCP catalog carries them, so no long_help has to say what a
+            key does to the command or where a change lasts (registry
+            ``cfg-declared``).  An unknown key or an empty phrase fails
+            at construction.
         picker: The picker (one of ``PICKERS``) a BARE invocation opens
             where the host has pickers (the TUI) -- the same dialog its
             button opens.  The dispatcher opens it instead of calling the
@@ -585,6 +593,20 @@ class Command:
             command fills the input line for Enter (registry
             ``links-are-data``).  Not inherited: each command says so for
             itself.  Requires ``safety="safe"``, checked at construction.
+        state: True when running the command BARE reports its current
+            state: it changes nothing, sends no bytes, opens no port,
+            writes no file, is fast, and answers with a ``value`` or a
+            view.  ``/help`` runs it and shows the answer under CURRENT
+            STATE (registry ``state-read-immutable``).  Not the same as
+            ``shows``: ``/term.echo`` reports state bare and acts with an
+            argument, so a click on it must not run it.  Not inherited.
+            Requires ``safety="safe"``, no ``picker`` and no required
+            argument, checked at construction.
+        intro: What this family of commands is for, in a sentence or two of
+            plain words.  Shown above the list when a bare call lists the
+            subcommands, and first on the ``/help`` page.  Requires
+            ``sub_commands``; written as one line, wrapped when shown
+            (registry ``family-has-intro``).
     """
 
     help: str
@@ -597,15 +619,17 @@ class Command:
     raw_args: bool = False
     flags: dict[str, str] = field(default_factory=dict)
     needs: CapabilitySet = field(default_factory=CapabilitySet)
-    hidden: bool = False
     params: list[ParamSpec] = field(default_factory=list)
     safety: str = "safe"
     files: str = ""
+    cfg: dict[str, str] = field(default_factory=dict)
     picker: str = ""
     help_list: str = ""
     group: str = GROUP_DEFAULT
     maturity: str = ""
     shows: bool = False
+    state: bool = False
+    intro: str = ""
 
     def __post_init__(self) -> None:
         """Validate the declaration at construction (== load) time.
@@ -637,6 +661,13 @@ class Command:
             raise ValueError(
                 f"/{self.name or '<command>'}: shows= is for a command that changes "
                 f"nothing, and safety {self.safety!r} says this one does"
+            )
+        self.cfg = validate_cfg_uses(self.cfg, self.name)
+        _validate_state(self)
+        if self.intro and not self.sub_commands:
+            raise ValueError(
+                f"/{self.name or '<command>'}: intro= introduces a family, "
+                "and this command has no subcommands"
             )
         if not self.params:
             return
@@ -728,14 +759,14 @@ class Transform:
     Attributes:
         name: Identifier for the transform (shown in /info listings).
         help: One-line description of what the transform does.
-        repl: Rewriter for REPL commands.  ``(str) -> str``.
-        serial: Rewriter for device commands.  ``(str) -> str``.
+        repl: Rewriter for REPL commands.  ``(ctx, str) -> str``.
+        serial: Rewriter for device commands.  ``(ctx, str) -> str``.
     """
 
     name: str
     help: str
-    repl: Callable | None = None  # (str) -> str, rewrites REPL commands
-    serial: Callable | None = None  # (str) -> str, rewrites device commands
+    repl: Callable | None = None  # (ctx, str) -> str, rewrites REPL commands
+    serial: Callable | None = None  # (ctx, str) -> str, rewrites device commands
 
 
 @dataclass
@@ -781,7 +812,9 @@ class LifecycleHook:
                             guaranteed on crash.
     - ``on_connect``      - fires after the serial port is successfully opened.
     - ``on_disconnect``   - fires before the serial port is closed (user-initiated).
-    - ``on_config_load``  - fires after switching to a new config via ``/cfg.load``.
+    - ``on_config_load``  - fires after switching to a new config via ``/cfg.load``,
+      with the namespaces already emptied; a plugin does here what a cleared dict
+      cannot, such as closing a file or telling a widget.
     - ``on_script_start`` - fires when a script begins executing.
     - ``on_script_stop``  - fires after a script finishes, including on
                             ``/stop`` or exception.  Mirrors ``on_script_start``.
@@ -923,7 +956,7 @@ class PluginInfo:
             render time.  When empty/callable-returning-empty, the one-line
             ``help`` is shown instead.  See ``resolve_long_help``.
         handler: The command function. Signature:
-            ``handler(ctx: PluginContext, args: str) -> None``.
+            ``handler(ctx: PluginContext, args: str) -> CmdResult``.
         source: Where the plugin was loaded from (``"built-in"``, ``"global"``,
             or the config name).
         children: Dotted names of direct subcommands (empty for leaf commands).
@@ -937,6 +970,8 @@ class PluginInfo:
         safety: Safety tier inherited from ``Command.safety``.
         files: Data folder the first argument's file lives in, inherited
             from ``Command.files``; ``""`` when it names no data-folder file.
+        cfg: The config keys it depends on, each path to how it uses the
+            value, inherited from ``Command.cfg`` (registry ``cfg-declared``).
         picker: Picker a bare invocation opens in a host with pickers,
             inherited from ``Command.picker``.
         bare_sub: Subcommand a bare invocation runs (after ``picker``,
@@ -952,28 +987,33 @@ class PluginInfo:
             ``"stable"`` (registry ``maturity-declared-once``).
         shows: ``Command.shows``: it only shows or opens, so a click on a
             link to it runs it.
+        state: ``Command.state``: its bare form reports current state, so
+            ``/help`` runs it for CURRENT STATE.
+        intro: ``Command.intro``: what this family is for, first on its page.
     """
 
     name: str
     args: str
     help: str
-    handler: Callable  # handler(ctx: PluginContext, args: str) -> None
+    handler: Callable  # handler(ctx: PluginContext, args: str) -> CmdResult
     long_help: LongHelp = ""
     source: str = "built-in"
     children: list[str] = field(default_factory=list)
     raw_args: bool = False
     flags: dict[str, str] = field(default_factory=dict)
     needs: CapabilitySet = field(default_factory=CapabilitySet)
-    hidden: bool = False
     params: list[ParamSpec] = field(default_factory=list)
     safety: str = "safe"
     files: str = ""
+    cfg: dict[str, str] = field(default_factory=dict)
     picker: str = ""
     bare_sub: str = ""
     help_list: str = ""
     group: str = GROUP_DEFAULT
     maturity: str = "stable"
     shows: bool = False
+    state: bool = False
+    intro: str = ""
 
     def __post_init__(self) -> None:
         """Validate the args synopsis at registration time.
@@ -1006,6 +1046,86 @@ class PluginInfo:
         group_error = validate_group(self.group)
         if group_error:
             raise ValueError(f"/{self.name}: invalid group {self.group!r}: {group_error}")
+        self.cfg = validate_cfg_uses(self.cfg, self.name)
+        _validate_state(self)
+
+
+# An optional group of a synopsis, ``{...}``: what a bare call may leave out.
+_OPTIONAL_GROUP = re.compile(r"\{[^{}]*\}")
+
+
+# The width a family's intro wraps to, the width long_help is written to.
+INTRO_WIDTH = 72
+
+
+def has_required_arg(args: str) -> bool:
+    """True when a synopsis names an argument outside every ``{optional}`` group.
+
+    ``/dev.lib``'s ``{<pattern>}`` is optional; ``/sym.search``'s
+    ``<pattern>`` is not, so a bare call to it is a usage error.
+    """
+    return "<" in _OPTIONAL_GROUP.sub("", args)
+
+
+def _validate_state(command: Command | PluginInfo) -> None:
+    """Refuse a ``state`` declaration ``/help`` could not run bare and silently.
+
+    One check for both records, so a host's ``register_hook`` is held to
+    what a loaded command is.
+
+    Raises:
+        ValueError: The command acts, opens a dialog bare, or needs an argument.
+    """
+    if not command.state:
+        return
+    label = f"/{command.name or '<command>'}"
+    if command.safety != "safe":
+        raise ValueError(
+            f"{label}: state= is for a command whose bare form changes nothing, "
+            f"and safety {command.safety!r} says this one does"
+        )
+    if command.picker:
+        raise ValueError(f"{label}: state= runs the bare form, and this one opens a picker")
+    if has_required_arg(command.args) or any(spec.required for spec in command.params):
+        raise ValueError(f"{label}: state= runs the bare form, and this one needs an argument")
+
+
+def validate_cfg_uses(cfg: Mapping[str, str], name: str) -> dict[str, str]:
+    """A ``cfg=`` declaration with every key resolved to its path; ``ValueError`` names the first bad entry.
+
+    The one check for ``Command`` and ``PluginInfo`` alike: a key
+    ``defaults.cfg_key_path`` cannot place (a typo, a key that is no
+    longer in ``DEFAULT_CFG``) and a phrase that says nothing both fail
+    at load, as a bad synopsis does, rather than rendering a wrong page.
+    """
+    # Lazy as the other validators' imports are: defaults is pure data,
+    # but this module is imported by everything.
+    from termapy.defaults import cfg_key_path
+
+    resolved: dict[str, str] = {}
+    for key, use in cfg.items():
+        path = cfg_key_path(key)
+        if path is None:
+            raise ValueError(f"/{name or '<command>'}: unknown config key {key!r} in cfg=")
+        if not isinstance(use, str) or not use.strip():
+            raise ValueError(f"/{name or '<command>'}: cfg= must say how {key!r} is used")
+        resolved[path] = use.strip()
+    return resolved
+
+
+def cfg_users(plugins: Mapping[str, PluginInfo]) -> dict[str, list[tuple[str, str]]]:
+    """Key path -> ``(command name, how it uses the key)`` for every command that declared it, names sorted.
+
+    The reverse of the declarations, read by ``/help <key>``, the config
+    editor's help line and anything else that answers "who uses this
+    key" (registry ``cfg-declared``).
+    """
+    users: dict[str, list[tuple[str, str]]] = {}
+    for name in sorted(plugins):
+        info = plugins[name]
+        for path, use in info.cfg.items():
+            users.setdefault(path, []).append((name, use))
+    return users
 
 
 def interpolate_help(text: str, prefix: str) -> str:
@@ -1029,12 +1149,20 @@ def interpolate_help(text: str, prefix: str) -> str:
     return text.replace("{prefix}", prefix)
 
 
+def intro_text(intro: str, prefix: str) -> str:
+    """A family's intro as shown: the prefix filled in, wrapped to a page's width."""
+    from textwrap import fill
+
+    return fill(interpolate_help(intro, prefix), INTRO_WIDTH) if intro else ""
+
+
 def resolve_long_help(plugin: PluginInfo, ctx: PluginContext) -> str:
-    """Return ``plugin.long_help`` as a prefix-interpolated string.
+    """Return ``plugin.long_help`` as a prefix-interpolated string, its intro first.
 
     Static strings pass through with ``{prefix}`` substituted.  Callables
     are invoked with the live ``PluginContext`` and their return value
-    gets the same substitution.
+    gets the same substitution.  ``Command.intro`` comes first, so the
+    page, ``/search`` and the MCP catalog all read it from here.
 
     Any exception raised by a callable is caught and returned as a
     fallback string so that ``/help`` rendering can never itself fail.
@@ -1050,8 +1178,11 @@ def resolve_long_help(plugin: PluginInfo, ctx: PluginContext) -> str:
         try:
             hp = hp(ctx)
         except BoundaryException as e:
-            hp = f"(dynamic help failed: {e})"
-    return interpolate_help(hp or "", ctx.prefix)
+            diag_log.exception("dynamic help for %s raised", plugin.name)
+            hp = f"(dynamic help failed: {type(e).__name__}: {e}{diag_log.traceback_note()})"
+    body = interpolate_help(hp or "", ctx.prefix)
+    intro = intro_text(plugin.intro, ctx.prefix)
+    return "\n\n".join(part for part in (intro, body) if part)
 
 
 # Device commands live in ``active_profile.commands`` (dicts in the

@@ -37,7 +37,8 @@ from typing import NoReturn
 import pytest
 
 from termapy.capture import CaptureEngine
-from termapy.config import SERIAL_READ_TIMEOUT_S, SERIAL_RX_BUFFER_BYTES
+from termapy.config import SERIAL_READ_TIMEOUT_S, SERIAL_RX_BUFFER_BYTES, open_serial
+from termapy.defaults import DEFAULT_CFG
 from termapy.port_control import resolve_port
 from termapy.serial_engine import READER_JOIN_TIMEOUT_S, SerialEngine
 
@@ -358,6 +359,29 @@ class TestReaderTeardown:
         assert getattr(new_port, "is_open", False) is True, "new port stays open"
 
 
+class TestOneProcessOnePort:
+    """hw_loopback: a real port is held by one opener, whichever OS enforces it."""
+
+    @pytest.mark.rule("port-open-exclusive")
+    def test_a_held_adapter_refuses_a_second_open(self, loopback_device):
+        """A second open of a held port fails, and the port opens again once released, twice over."""
+        import serial
+
+        # Arrange
+        cfg = {"serial": {**DEFAULT_CFG["serial"], "port": loopback_device}}
+
+        for _ in range(2):
+            # Act
+            first = open_serial(cfg)
+
+            # Assert
+            try:
+                with pytest.raises(serial.SerialException):
+                    open_serial(cfg)
+            finally:
+                first.close()
+
+
 class TestAdapterIdentity:
     """hw_loopback: what the real adapter says about itself reaches the port facts."""
 
@@ -373,3 +397,122 @@ class TestAdapterIdentity:
         # the devnode climb to the USB device node finds it
         assert facts is not None, f"{loopback_device} is listed"
         assert facts.product, "the device's own product string reaches the facts"
+
+
+class TestSpyUrl:
+    """hw_loopback: pyserial's spy:// logs a real port's traffic, as help/ports.md says."""
+
+    @pytest.mark.rule("spy-log-in-cap")
+    def test_a_spy_port_logs_both_directions_and_each_connect_starts_over(
+        self, loopback_device, tmp_path
+    ):
+        """A spy:// port logs what went out and what came back in cap/, and a second connect erases the first log."""
+        # Arrange
+        cap = tmp_path / "cap"
+        log = cap / "traffic.txt"
+        port_text = f"spy://{loopback_device}?file=traffic.txt"
+        cfg = {"serial": {**DEFAULT_CFG["serial"], "port": port_text}}
+
+        for sent in (b"FIRST\r", b"SECOND\r"):
+            # Act
+            port = open_serial(cfg, cap_folder=cap)
+            received = b""
+            try:
+                port.write(sent)
+                port.flush()
+                deadline = time.monotonic() + 1.0
+                while time.monotonic() < deadline and received != sent:
+                    received += port.read(port.in_waiting or 1)
+            finally:
+                port.close()
+                port.formatter.output.close()  # spy never closes the file it opened
+
+            # Assert
+            assert received == sent, "the port still works with spy wrapped around it"
+
+        rows = log.read_text(encoding="utf-8").splitlines()
+        tx_rows = [row for row in rows if " TX " in row]
+        rx_rows = [row for row in rows if " RX " in row]
+        assert len(tx_rows) == 1, "only the second connect's send is left in the file"
+        assert "SECOND" in tx_rows[0], "the send is logged with its text"
+        assert rx_rows, "what came back is logged too"
+
+
+@pytest.mark.rule("tx-chunked-writes")
+class TestChunkedWrites:
+    """The claim help/ports.md makes: a large send through termapy's own write path arrives intact at 921600."""
+
+    def test_a_2mb_stream_through_termapys_write_arrives_intact(self, engine):
+        """2 MB of numbered lines written through SerialPort.write at 921600 come back with no line lost."""
+        # Arrange -- the fixture's cfg leaves tx_chunking at its default, on;
+        # 32768 lines of 64 bytes, the stream help/ports.md measured.
+        count = 32768
+        fill = "x" * (64 - len("00000000 ") - len("\r\n"))
+        data = "".join(f"{seq:08d} {fill}\r\n" for seq in range(count)).encode()
+        seen: list[str] = []
+        taken = [0]
+
+        def on_lines(lines: list[str]) -> None:
+            seen.extend(lines)
+            taken[0] = len(seen)
+
+        engine.start_reader(on_lines=on_lines)
+        port = engine.serial_port
+        assert port is not None, "the fixture connected"
+
+        # Act -- one write, as a transfer or /raw would make it; the pieces are the port's
+        port.write(data)
+        _settle(taken, quiet_s=2.0, cap_s=90.0)
+
+        # Assert
+        heads = {line[:8] for line in seen if line[:8].isdigit()}
+        missing = [seq for seq in range(count) if f"{seq:08d}" not in heads]
+        assert missing == [], (
+            f"{len(missing)} of {count} lines lost through SerialPort.write at {BAUD}, first"
+            f" {missing[:5]}; the chunked write path should deliver every line on this adapter"
+        )
+
+
+@pytest.mark.rule("port-policy-at-opener")
+class TestPortListOnTheRig:
+    """TERMAPY_ALLOWED_PORTS against a real adapter: identity is the device, however it is named."""
+
+    def test_an_allowed_serial_number_opens_the_port_by_name(self, loopback_device):
+        """The adapter's serial number on the list lets its COM name open."""
+        # Arrange
+        from termapy.port_allow import PortAllowlist, PortPolicy
+
+        policy = PortPolicy(allowlist=PortAllowlist.parse(HW_LOOPBACK_SN))
+        cfg = {**DEFAULT_CFG, "serial": {**DEFAULT_CFG["serial"], "port": loopback_device}}
+
+        # Act
+        port = open_serial(cfg, policy=policy)
+
+        # Assert
+        try:
+            assert port.is_open, "the port named by its COM name opened"
+        finally:
+            port.close()
+
+    def test_a_list_without_it_refuses_its_serial_number(self, loopback_device):
+        """A list that leaves the adapter out refuses it by serial number, opens nothing, and tells a person it is plugged in."""
+        # Arrange
+        from termapy.port_allow import (
+            PortAllowlist,
+            PortNotAllowedError,
+            PortPolicy,
+            not_allowed_message,
+        )
+
+        policy = PortPolicy(allowlist=PortAllowlist.parse("COM254"))
+        cfg = {**DEFAULT_CFG, "serial": {**DEFAULT_CFG["serial"], "port": HW_LOOPBACK_SN}}
+        expected = not_allowed_message(HW_LOOPBACK_SN, policy, present=loopback_device)
+
+        # Act
+        with pytest.raises(PortNotAllowedError) as caught:
+            open_serial(cfg, policy=policy)
+
+        # Assert
+        assert str(caught.value) == expected
+        probe = _open_raw(loopback_device, 115200)
+        probe.close()  # the refusal left the port free: nothing held it open

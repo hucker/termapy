@@ -59,6 +59,11 @@ def on_script_start(ctx: PluginContext) -> None:
     seq["_start_perf"] = time.monotonic()
 
 
+def on_config_load(ctx: PluginContext) -> None:
+    """A load starts the clock again, as a fresh start does; the reset already took the counters."""
+    on_app_prestart(ctx)
+
+
 # ── Handlers ─────────────────────────────────────────────────────────────────
 # A handler's docstring is its developer help: /help.dev <command> prints it
 # and developer /search indexes it, so keep it true (registry handler-docstring).
@@ -112,8 +117,6 @@ def _handler_reset(ctx: PluginContext, args: str) -> CmdResult:
 # ── Dynamic long_help ─────────────────────────────────────────────────────────
 
 _SEQ_PROSE = """\
-Sequence counters are used in script templates for auto-numbering.
-
 Placeholders:
   {seq1+}  - increment counter 1, then substitute its value
   {seq1}   - substitute counter 1 without incrementing
@@ -153,6 +156,7 @@ COMMAND = Command(
     group="advanced",
     name="seq",
     help="Print sequence counters.",
+    intro="Sequence counters are used in script templates for auto-numbering.",
     long_help=_seq_long_help,
     handler=_handler,
     needs=CapabilitySet.INTERACTIVE,  # script-state primitive
@@ -164,4 +168,5 @@ COMMAND = Command(
             needs=CapabilitySet.INTERACTIVE,
         ),
     },
+    state=True,
 )

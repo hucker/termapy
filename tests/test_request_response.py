@@ -1,9 +1,9 @@
 """Tests for ``termapy.request_response.request_response``.
 
 Pure plumbing helper — drain -> send -> wait -> collect.  Tests use
-fake callables so we don't need real serial I/O.  The MCP profile
-executor and the json_mode REPL fallthrough both depend on this
-helper behaving correctly; regression here breaks both paths.
+fake callables so we don't need real serial I/O, and send through the
+real line sender (``SerialHandle.send``) over a fake writer.  The MCP
+profile executor depends on this helper behaving correctly.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from collections.abc import Callable
 
 import pytest
 
+from termapy.plugins.handles.serial import SerialHandle
 from termapy.request_response import request_response
 
 # ── Fakes ────────────────────────────────────────────────────────────────────
@@ -28,6 +29,11 @@ class _FakeWriter:
         if self._raise is not None:
             raise self._raise
         self.writes.append(payload)
+
+
+def _sender(writer: _FakeWriter, encoding: str, eol: str) -> Callable[[str], None]:
+    """The real line sender, ``ctx.serial.send``, writing to ``writer``."""
+    return SerialHandle(write=writer, _cfg=lambda: {"eol": eol, "encoding": encoding}).send
 
 
 def _fake_drain_factory(stale: list[str]) -> Callable[[], list[str]]:
@@ -62,12 +68,10 @@ def test_unencodable_command_is_a_send_error():
 
     # Act
     rr = request_response(
-        serial_write=writer,
+        send=_sender(writer, "ascii", "\r"),
         drain_recent_lines=_fake_drain_factory([]),
         wait_for_lines=_fake_wait_factory([]),
         command="café",
-        encoding="ascii",
-        line_ending="\r",
         timeout_s=1.0,
     )
 
@@ -85,12 +89,10 @@ def test_send_and_collect_basic():
 
     # Act
     rr = request_response(
-        serial_write=writer,
+        send=_sender(writer, "utf-8", "\r"),
         drain_recent_lines=drain,
         wait_for_lines=wait,
         command="get_voltage",
-        encoding="utf-8",
-        line_ending="\r",
         timeout_s=1.0,
     )
 
@@ -116,12 +118,10 @@ def test_drained_stale_lines_passed_to_callback():
 
     # Act
     rr = request_response(
-        serial_write=writer,
+        send=_sender(writer, "utf-8", "\n"),
         drain_recent_lines=drain,
         wait_for_lines=wait,
         command="cmd",
-        encoding="utf-8",
-        line_ending="\n",
         timeout_s=1.0,
         on_drained_line=recorded.append,
     )
@@ -142,12 +142,10 @@ def test_drained_stale_lines_silently_discarded_when_no_callback():
 
     # Act
     rr = request_response(
-        serial_write=writer,
+        send=_sender(writer, "utf-8", "\r"),
         drain_recent_lines=drain,
         wait_for_lines=wait,
         command="cmd",
-        encoding="utf-8",
-        line_ending="\r",
         timeout_s=1.0,
     )
 
@@ -169,12 +167,10 @@ def test_send_error_returns_error_field_no_wait():
 
     # Act
     rr = request_response(
-        serial_write=writer,
+        send=_sender(writer, "utf-8", "\r"),
         drain_recent_lines=drain,
         wait_for_lines=wait,
         command="cmd",
-        encoding="utf-8",
-        line_ending="\r",
         timeout_s=1.0,
     )
 
@@ -199,12 +195,10 @@ def test_wait_false_skips_collection():
 
     # Act
     rr = request_response(
-        serial_write=writer,
+        send=_sender(writer, "utf-8", "\r"),
         drain_recent_lines=drain,
         wait_for_lines=wait,
         command="fire-and-forget",
-        encoding="utf-8",
-        line_ending="\r",
         timeout_s=1.0,
         wait=False,
     )
@@ -232,12 +226,10 @@ def test_terminator_passed_to_wait_for_lines():
 
     # Act
     request_response(
-        serial_write=writer,
+        send=_sender(writer, "utf-8", "\r"),
         drain_recent_lines=drain,
         wait_for_lines=wait,
         command="cmd",
-        encoding="utf-8",
-        line_ending="\r",
         timeout_s=2.5,
         terminator=r"^OK$",
         idle_gap_s=0.2,
@@ -258,12 +250,10 @@ def test_encoding_used_for_send():
 
     # Act — latin-1 encoded "café"
     request_response(
-        serial_write=writer,
+        send=_sender(writer, "latin-1", ""),
         drain_recent_lines=drain,
         wait_for_lines=wait,
         command="café",
-        encoding="latin-1",
-        line_ending="",
         timeout_s=1.0,
     )
 
@@ -283,12 +273,10 @@ def test_line_ending_appended(eol):
 
     # Act
     request_response(
-        serial_write=writer,
+        send=_sender(writer, "ascii", eol),
         drain_recent_lines=drain,
         wait_for_lines=wait,
         command="cmd",
-        encoding="ascii",
-        line_ending=eol,
         timeout_s=1.0,
     )
 

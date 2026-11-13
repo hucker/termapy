@@ -14,9 +14,12 @@ import time
 from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
-from termapy.config import open_serial
-from termapy.folders import ensure_folder
+from termapy import diag_log
+from termapy.config import cap_folder_of, open_serial
+from termapy.defaults import cfg_value
+from termapy.folders import ensure_folder, inside
 from termapy.protocol.core import (
     FrameCollector,
     ProtoScript,
@@ -41,7 +44,7 @@ def _bytes_to_text(data: bytes) -> str:
     return repr(text)[1:-1]  # strip surrounding quotes
 
 
-def _read_frame(ser, frame_gap_ms: int, timeout_ms: int) -> bytes:
+def _read_frame(ser: Any, frame_gap_ms: int, timeout_ms: int) -> bytes:
     """Read a complete frame from the serial port using silence-gap detection.
 
     Reads directly from the serial object (no queue, no Textual).
@@ -79,7 +82,7 @@ def _read_frame(ser, frame_gap_ms: int, timeout_ms: int) -> bytes:
 _DRAIN_LIMIT_S = 0.5
 
 
-def _drain(ser) -> None:
+def _drain(ser: Any) -> None:
     """Discard pending input, bounded in time."""
     deadline = time.monotonic() + _DRAIN_LIMIT_S
     while time.monotonic() < deadline:
@@ -89,10 +92,10 @@ def _drain(ser) -> None:
         ser.read(waiting)
 
 
-def _run_setup_cmds(ser, cmds: list[str], cfg: dict, frame_gap_ms: int) -> None:
+def _run_setup_cmds(ser: Any, cmds: list[str], cfg: dict, frame_gap_ms: int) -> None:
     """Send setup/teardown commands and drain responses."""
-    line_ending = cfg.get("eol", "\r")
-    enc = cfg.get("encoding", "utf-8")
+    line_ending = cfg_value(cfg, "eol")
+    enc = cfg_value(cfg, "encoding")
     for cmd_text in cmds:
         ser.write((cmd_text + line_ending).encode(enc))
         _read_frame(ser, frame_gap_ms, 1000)  # drain response
@@ -203,7 +206,7 @@ def build_results(
             "config": config_name,
             "port": cfg["serial"]["port"],
             "baud_rate": cfg["serial"]["baud_rate"],
-            "encoding": cfg.get("encoding", "utf-8"),
+            "encoding": cfg_value(cfg, "encoding"),
         },
         "summary": {
             "total": pass_count + fail_count,
@@ -216,29 +219,57 @@ def build_results(
     }
 
 
-def write_results(
-    results: dict,
-    output_dir: Path,
-    template: str,
-    proto_name: str,
-    config_name: str,
-) -> Path:
-    """Write a results document under ``output_dir`` and return its path.
+def result_path(output_dir: Path, template: str, proto_name: str, config_name: str = "") -> Path:
+    """Where a results document goes: ``template``, expanded, names a file in ``output_dir``.
 
-    The file is named by expanding ``template``
-    (:func:`expand_result_template`); the folder is created at the write.
+    A name or a path under ``output_dir`` (``run2/x.json``), never one that
+    leaves it (registry ``proto-results-in-folder``): a template often comes
+    from a ``.pro`` someone else wrote, and running that script must not
+    choose where on the disk a file lands.
+
+    Args:
+        output_dir: The folder the document goes in.
+        template: The file name template (:func:`expand_result_template`).
+        proto_name: The ``.pro`` file's stem.
+        config_name: The config's name.
+
+    Returns:
+        The file's path; nothing is created.
+
+    Raises:
+        ValueError: The template names a placeholder that does not exist, or
+            does not expand to a plain file name.
+    """
+    try:
+        name = expand_result_template(template, proto_name, config_name)
+    except (KeyError, IndexError, ValueError, AttributeError):
+        # str.format's own errors: {oops}, {0}, a lone brace, {name.x}.
+        raise ValueError(
+            f"Invalid results file name: {template} "
+            "(placeholders: {name} {proto_name} {datetime} {date} {time})"
+        ) from None
+    # A backslash is a folder on every OS, so a template means one place
+    # everywhere; a colon is a drive, or on Windows a hidden stream in a file.
+    path = None if ":" in name else inside(output_dir, name.replace("\\", "/"))
+    if path is None or path == Path(output_dir).resolve():
+        raise ValueError(
+            f"Invalid results file name: {name} (it must stay inside {Path(output_dir).name}/)"
+        )
+    return path
+
+
+def write_results(results: dict, out_path: Path) -> None:
+    """Write a results document to :func:`result_path`'s answer, creating its folder.
 
     Raises:
         OSError: The file cannot be written.
     """
-    ensure_folder(output_dir)
-    out_path = output_dir / expand_result_template(template, proto_name, config_name)
+    ensure_folder(out_path.parent)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
-    return out_path
 
 
-def run_script_tests(ser, script: ProtoScript, cfg: dict) -> tuple[list[dict], int, int]:
+def run_script_tests(ser: Any, script: ProtoScript, cfg: dict) -> tuple[list[dict], int, int]:
     """Run every test of ``script`` on an open port.
 
     A port error mid-run (the device unplugged, a driver fault) is
@@ -316,11 +347,12 @@ def run_proto_tests(
         JSON-serializable results dict.
 
     Raises:
-        ValueError: If the .pro file is not TOML format with [[test]] sections.
+        ValueError: If the .pro file is not TOML format with [[test]] sections,
+            or its results template is not a plain file name.
         serial.SerialException: If the serial port cannot be opened.
     """
     # Parse script
-    text = pro_path.read_text(encoding="utf-8")
+    text = pro_path.read_text(encoding="utf-8-sig")  # skip a byte-order mark an editor saved
     result = load_proto_script(text)
     if result[0] != "toml":
         raise ValueError(
@@ -329,12 +361,16 @@ def run_proto_tests(
         )
     script = result[1]
 
-    # Open serial port
-    ser = open_serial(cfg)
-
-    # Resolve output directory
+    # Where the results go, refused before the port opens: a script-level
+    # json_file overrides the config template.
     if output_dir is None:
         output_dir = pro_path.parent / "test"
+    config_name = Path(cfg.get("_config_path", "")).stem or ""
+    out_path = result_path(output_dir, script.json_file or template, pro_path.stem, config_name)
+
+    # Open serial port
+    diag_log.info("proto start: %s", pro_path)
+    ser = open_serial(cfg, cap_folder=cap_folder_of(cfg.get("_config_path", "")))
 
     t_start = time.monotonic()
 
@@ -352,7 +388,13 @@ def run_proto_tests(
             pass
 
     total_elapsed = (time.monotonic() - t_start) * 1000
-    config_name = Path(cfg.get("_config_path", "")).stem or ""
+    diag_log.info(
+        "proto end: %s, %d passed, %d failed (%.0f ms)",
+        pro_path.name,
+        pass_count,
+        fail_count,
+        total_elapsed,
+    )
     results = build_results(
         script,
         pro_path,
@@ -365,7 +407,6 @@ def run_proto_tests(
         total_elapsed,
     )
 
-    # Write JSON file - script-level json_file overrides config template
-    write_results(results, output_dir, script.json_file or template, pro_path.stem, config_name)
+    write_results(results, out_path)
 
     return results

@@ -182,9 +182,50 @@ class TestProtoPicker:
 
         _run(scenario)
 
-    @pytest.mark.parametrize("button", ["run", "debug", "edit", "rename", "delete"])
+    @pytest.mark.parametrize("button", ["rename", "delete"])
+    def test_rename_and_delete_stay_open_and_hand_off_the_newest_script(self, tmp_path, button):
+        """Rename and Delete pass (verb, path) for the highlighted row to file_action, and the picker stays open."""
+
+        async def scenario():
+            older = tmp_path / "older.pro"
+            newer = tmp_path / "newer.pro"
+            older.write_text("# a\n", encoding="utf-8")
+            newer.write_text("# b\n", encoding="utf-8")
+            _age(newer, 60)
+            asked: list = []
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                picker = ProtoPicker(
+                    tmp_path, file_action=lambda verb, path, done: asked.append((verb, path))
+                )
+                results = await _push(app, pilot, picker)
+                await pilot.click(f"#proto-{button}")
+                await pilot.pause()
+                assert asked == [(button, str(newer))], "the newest is highlighted first"
+                assert results == [], "nothing dismissed"
+                assert app.screen is picker, "the picker is still in front"
+
+        _run(scenario)
+
+    def test_without_a_file_action_rename_and_delete_are_off(self, tmp_path):
+        """A picker given no way to change files disables Rename and Delete, and keeps the rest live."""
+
+        async def scenario():
+            (tmp_path / "a.pro").write_text("# a\n", encoding="utf-8")
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                await _push(app, pilot, ProtoPicker(tmp_path))
+                state = {
+                    name: app.screen.query_one(f"#proto-{name}", Button).disabled
+                    for name in ("run", "edit", "rename", "delete")
+                }
+                assert state == {"run": False, "edit": False, "rename": True, "delete": True}
+
+        _run(scenario)
+
+    @pytest.mark.parametrize("button", ["run", "debug", "edit"])
     def test_each_file_button_dismisses_with_its_verb_and_the_newest_script(self, tmp_path, button):
-        """Each per-file button dismisses with (verb, path) for the highlighted row, which is the newest script."""
+        """Run, Debug and Edit dismiss with (verb, path) for the highlighted row, which is the newest script."""
 
         async def scenario():
             older = tmp_path / "older.pro"
@@ -525,6 +566,7 @@ class TestPortPicker:
 
         _run(scenario)
 
+    @pytest.mark.rule("pickers-fit-content")
     def test_the_dialog_is_as_wide_as_its_table(self):
         """On a wide terminal the picker fits its table, not a share of the screen, and every row fits on one line."""
 
@@ -561,6 +603,7 @@ class _PortListHost(App):
 
 
 class TestPortOptionList:
+    @pytest.mark.rule("pickers-fit-content")
     def test_a_narrow_list_drops_columns_instead_of_wrapping(self):
         """Given less room than the table needs, the rows refit to the measured width by dropping columns."""
 

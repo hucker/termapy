@@ -17,7 +17,7 @@ The output-level vocabulary (``OUTPUT_LEVELS``, ``LEVEL_FLAGS``,
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, ItemsView, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -112,7 +112,7 @@ class PluginConfig:
     def __contains__(self, key: str) -> bool:
         return key in self._ensure_loaded()
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         return iter(self._ensure_loaded())
 
     def __len__(self) -> int:
@@ -122,7 +122,7 @@ class PluginConfig:
         """Remove and return a value.  Accepts an optional default."""
         return self._ensure_loaded().pop(key, *args)
 
-    def items(self):
+    def items(self) -> ItemsView[str, Any]:
         """Return key-value pairs."""
         return self._ensure_loaded().items()
 
@@ -216,11 +216,12 @@ class PluginContext:
     # True when the consumer of this dispatch wants machine-readable
     # structure (``CmdResult.data``) rather than rendered prose: the MCP
     # host sets it for every call; the universal ``--json`` flag sets it
-    # for one dispatch (any frontend).  Handlers producing LARGE
-    # listings should branch on it and build either the prose or the
-    # ``data`` records -- not both -- so neither audience pays for the
-    # other's rendering.  Handlers that ignore it keep working: their
-    # prose reaches structured consumers via ``output_lines``.
+    # for one dispatch (any frontend).  Read by dispatch alone (registry
+    # plugins-never-read-wants-data): a handler returns a view
+    # (``CmdResult.table`` / ``.record``) and dispatch prints it for a
+    # person or hands ``data`` on, so neither audience pays for the
+    # other's rendering.  A handler's plain ``ctx.io`` lines reach a
+    # structured consumer via ``output_lines``, as progress should.
     wants_data: bool = False
 
     # ── Internal storage (not part of the plugin-author API) ─────────
@@ -243,7 +244,7 @@ class PluginContext:
 
         The handles are constructed by the host (or auto-defaulted to
         no-op handles by the dataclass field defaults), so we don't
-        rebuild them here.  But two handles need information that
+        rebuild them here.  But some handles need information that
         only PluginContext knows:
 
           - ``IOHandle.output_level_fn`` needs to read the current
@@ -252,9 +253,12 @@ class PluginContext:
             ``UIHandle.capabilities`` need the same ``CapabilitySet``
             the dispatcher reads, so capability gates fire correctly.
 
-        Set them here so hosts don't have to remember.
+        Set them here so hosts don't have to remember.  So is
+        ``SerialHandle._cfg``: ``ctx.serial.send`` reads the line ending,
+        encoding and transmit delays from the live config.
         """
         self.io.output_level_fn = lambda: self.output_level
+        self.serial._cfg = lambda: self.cfg
         self.sync_capabilities()
 
     def sync_capabilities(self) -> None:
@@ -310,6 +314,15 @@ class PluginContext:
         if name not in self._namespaces:
             self._namespaces[name] = {}
         return self._namespaces[name]
+
+    def reset_namespaces(self) -> None:
+        """Empty every namespace: what a config load starts from.
+
+        In place, because a plugin may keep the dict ``ns`` handed it, and
+        that reference has to stay the session's namespace after the load.
+        """
+        for namespace in self._namespaces.values():
+            namespace.clear()
 
     def flag(self, name: str) -> bool:
         """Return True if the given flag was passed on the invoking command.

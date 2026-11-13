@@ -27,15 +27,15 @@ from rich.text import Text
 from textual.widgets import Input, OptionList
 from textual.widgets.option_list import Option
 
-from termapy.defaults import cmd_prefix
+from termapy.defaults import cfg_value, cmd_prefix
 from termapy.dialogs import PortPicker
 from termapy.plugins import interpolate_help
 
 if TYPE_CHECKING:
-    from termapy.app import SerialTerminal  # noqa: F401 -- type-hint surface
+    from termapy.app import SerialTerminal
 
 
-def show_config_info(app, path: str) -> None:
+def show_config_info(app: SerialTerminal, path: str) -> None:
     """Print config dir, file, and log file paths (verbose only)."""
     if not getattr(app.repl, "ctx", None):
         return
@@ -44,7 +44,7 @@ def show_config_info(app, path: str) -> None:
     resolved = Path(path).resolve()
     app._status(f"Config dir:  {resolved.parent}", "green")
     app._status(f"Config file: {resolved}", "green")
-    xfer_root = app.cfg.get("file_xfer_root", "")
+    xfer_root = cfg_value(app.cfg, "file_xfer_root")
     if xfer_root:
         app._status(f"Xfer root:   {Path(xfer_root).resolve()}", "green")
     else:
@@ -54,7 +54,7 @@ def show_config_info(app, path: str) -> None:
         app._status(f"Log file:    {log_path}", "green")
 
 
-def show_port_picker(app) -> None:
+def show_port_picker(app: SerialTerminal) -> None:
     """Open the PortPicker modal, or short-circuit to the only port.
 
     When the system has exactly one serial port, skips the modal and
@@ -64,16 +64,16 @@ def show_port_picker(app) -> None:
     Args:
         app: The SerialTerminal instance.
     """
-    from serial.tools.list_ports import comports
+    from termapy.port_control import system_ports
 
-    ports = sorted(comports(), key=lambda p: p.device)
+    ports = sorted(system_ports(), key=lambda p: p.device)
     if len(ports) == 1:
         app._on_port_picked(ports[0].device)
         return
     app.push_screen(PortPicker(), callback=app._on_port_picked)
 
 
-def show_commands(app) -> None:
+def show_commands(app: SerialTerminal) -> None:
     """Show the REPL command picker with smart arg handling.
 
     Filters to commands whose name contains the substring currently
@@ -124,8 +124,6 @@ def show_commands(app) -> None:
 
     groups: dict[str, list] = {}
     for name, plugin in app.repl._plugins.items():
-        if getattr(plugin, "hidden", False):
-            continue
         if skip_linux_only and app._LINUX_ONLY_RE.search(plugin.help or ""):
             continue
         if filter_term and filter_term not in name.lower():

@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from termapy.defaults import (
     CFG_HELP,
     COLOR_ALIASES,
     DEFAULT_CFG,
+    DEFAULT_CMD_PREFIX,
     STANDARD_BAUD_RATES,
     VALID_BYTE_SIZES,
     VALID_FLOW_CONTROLS,
@@ -16,8 +19,12 @@ from termapy.defaults import (
     _list_ports,
     _preview_color,
     _preview_markup,
+    cfg_key_path,
+    cfg_key_paths,
+    cfg_value,
     resolve_color,
 )
+from termapy.plugins.command import interpolate_help
 
 # -- Validation constants ----------------------------------------------------
 
@@ -91,8 +98,11 @@ class TestCfgHelpCoverage:
     the structural fix for CFG_HELP drifting out of sync by hand.
     """
 
-    DESC_MAX = 80  # "Line N: <desc>" stays on one line in the help panel
-    VALID_MAX = 90  # "Valid: <hint>" stays on one line too
+    # Measured as the editor shows it, {prefix} filled in: the panel shares
+    # its row with three buttons and is three lines tall, so a wrapped line
+    # pushes the Value line out of sight.
+    DESC_MAX = 70  # "Line N: <desc>"
+    VALID_MAX = 70  # "Valid: <hint>"
 
     def test_every_landable_key_has_help(self):
         """Every cfg key, nested ones included, has a help entry -- no 'unknown key' line."""
@@ -113,8 +123,11 @@ class TestCfgHelpCoverage:
         bad = []
         for key, entry in CFG_HELP.items():
             desc = entry[0] if isinstance(entry, tuple) else entry
-            if isinstance(desc, str) and ("\n" in desc or len(desc) > self.DESC_MAX):
-                bad.append((key, len(desc)))
+            if not isinstance(desc, str):
+                continue
+            shown = interpolate_help(desc, DEFAULT_CMD_PREFIX)
+            if "\n" in desc or len(shown) > self.DESC_MAX:
+                bad.append((key, len(shown)))
         assert bad == [], (
             f"help descriptions must be one line (<= {self.DESC_MAX} chars, no newline): {bad}"
         )
@@ -127,9 +140,34 @@ class TestCfgHelpCoverage:
                 continue
             valid = entry[1]
             # entry[1] may be a dynamic callable (e.g. _list_ports); skip those.
-            if isinstance(valid, str) and ("\n" in valid or len(valid) > self.VALID_MAX):
-                bad.append((key, len(valid)))
+            if not isinstance(valid, str):
+                continue
+            shown = interpolate_help(valid, DEFAULT_CMD_PREFIX)
+            if "\n" in valid or len(shown) > self.VALID_MAX:
+                bad.append((key, len(shown)))
         assert bad == [], f"help 'valid' hints must be one line (<= {self.VALID_MAX} chars): {bad}"
+
+    # Keys whose help shows markup as an example of what to type, so the
+    # editor showing it literally is right.
+    MARKUP_EXAMPLE_KEYS = frozenset({"echo_fmt"})
+
+    @pytest.mark.rule("markup-escape")
+    def test_help_text_holds_no_markup(self):
+        """CFG_HELP is plain prose the editor escapes, so a markup tag in it shows as literal text."""
+        # Arrange / Act -- a closing tag is the sign of markup; a bare [x] may be prose
+        bad = [
+            (key, part)
+            for key, entry in CFG_HELP.items()
+            if key not in self.MARKUP_EXAMPLE_KEYS
+            for part in (entry if isinstance(entry, tuple) else (entry,))[:2]
+            if isinstance(part, str) and "[/" in part
+        ]
+
+        # Assert
+        assert bad == [], (
+            "the config editor escapes help text, so markup here shows as literal"
+            f" tags (config_version's [bold red] did, 2026-10-13 to 2026-11-01): {bad}"
+        )
 
 
 class TestDefaultCfg:
@@ -160,6 +198,58 @@ class TestDefaultCfg:
         # Assert
         assert isinstance(DEFAULT_CFG["custom_buttons"], list), "buttons array"
         assert len(DEFAULT_CFG["custom_buttons"]) == 4, "four button slots"
+
+
+# -- Key paths and the one reader --------------------------------------------
+
+
+class TestCfgKeyPaths:
+    """cfg_key_paths, cfg_key_path and cfg_value: the one spelling of a config key and the one reader with the table's default."""
+
+    def test_paths_follow_the_file_order_with_a_dicts_leaves_right_after_it(self):
+        """Every top-level key in DEFAULT_CFG order, a nested key's leaves after the key itself, and no custom-button field."""
+        # Act
+        paths = cfg_key_paths()
+
+        # Assert
+        assert paths[:2] == ("config_version", "title"), "DEFAULT_CFG order"
+        serial_at = paths.index("serial")
+        assert paths[serial_at + 1 : serial_at + 3] == ("serial.port", "serial.baud_rate"), (
+            "a dict's leaves follow it as dotted paths"
+        )
+        assert "custom_buttons" in paths and "name" not in paths, "a list's fields are not keys"
+
+    def test_a_leaf_resolves_only_when_it_names_one_key(self):
+        """A path is itself, a unique leaf resolves to its path, and an unknown name or a button field is None."""
+        # Act / Assert
+        assert cfg_key_path("serial.port") == "serial.port"
+        assert cfg_key_path("baud_rate") == "serial.baud_rate", "a bare leaf resolves"
+        assert cfg_key_path("eol") == "eol"
+        assert cfg_key_path("nope") is None
+        assert cfg_key_path("tooltip") is None, "a custom-button field is not a key"
+
+    def test_cfg_value_walks_a_path_and_falls_back_to_the_table(self):
+        """A nested value is read; a missing leaf or dict gives DEFAULT_CFG's value; an unknown path fails loud."""
+        # Act / Assert
+        assert cfg_value({"serial": {"baud_rate": 9600}}, "serial.baud_rate") == 9600
+        assert cfg_value({"serial": {}}, "serial.baud_rate") == 115200, "a missing leaf"
+        assert cfg_value({}, "serial.baud_rate") == 115200, "a missing dict"
+        assert cfg_value({"eol": "\n"}, "eol") == "\n"
+        with pytest.raises(KeyError):
+            cfg_value({}, "serial.nope")
+
+    @pytest.mark.rule("cfg-read-one-reader")
+    def test_a_container_default_comes_back_as_a_copy(self):
+        """A missing list or dict key yields a copy of the table's default, so a caller cannot mutate the table."""
+        # Act
+        buttons = cfg_value({}, "custom_buttons")
+        buttons.append({"enabled": False, "name": "X", "command": "", "tooltip": ""})
+
+        # Assert
+        assert len(cfg_value({}, "custom_buttons")) == 4, "the table is untouched"
+        assert cfg_value({}, "custom_buttons") == DEFAULT_CFG["custom_buttons"], (
+            "a fresh copy each time"
+        )
 
 
 # -- _list_ports -------------------------------------------------------------

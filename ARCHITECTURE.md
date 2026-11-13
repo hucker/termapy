@@ -53,7 +53,7 @@ src/termapy/
 │   │   ├── firmware.py     #     /firmware -- the device-side sources termapy ships, one command away
 │   │   ├── grep.py         #     search the scrollback for matching lines
 │   │   ├── help.py         #     forgiving /help with man-page detail view
-│   │   ├── log.py          #     `/log.*` -- session-log commands
+│   │   ├── log.py          #     `/log.*` -- session-log commands, and `/log.diag.*` for the diagnostic log
 │   │   ├── mcp.py          #     /mcp.* commands -- MCP catalog and status
 │   │   ├── mem.py          #     /mem.* -- device memory over the MEM spec or a template
 │   │   ├── os_cmd.py       #     run a shell command
@@ -81,7 +81,7 @@ src/termapy/
 ├── devices/                #              Device files -- the registers of a memory-mapped part, as data termapy owns
 │   └── converters/         #   Device converters -- a vendor's register description in, a device document out
 │       └── svd.py          #     CMSIS-SVD converter -- ARM's System View Description into a device document
-├── dialogs/                # (2955 lines) Modal dialog screens for termapy
+├── dialogs/                # (3445 lines) Modal dialog screens for termapy
 │   ├── _common.py          #   Shared constants and helpers for the dialog submodules
 │   ├── cfg_confirm.py      #   CfgConfirm -- confirms a config value change (/cfg <key> <value> in the TUI)
 │   ├── config_editor.py    #   ConfigEditor -- edit a config's JSON, validated before it is saved
@@ -99,11 +99,11 @@ src/termapy/
 ├── firmware/               #              The device-side sources termapy ships, one command away: the `/firmware` registry
 ├── help/                   #              Markdown help pages, the source of the HTML help
 ├── html/                   #              Generated HTML help, what the wheel ships (rebuilt at release)
-├── mcp/                    # (2112 lines) Termapy MCP (Model Context Protocol) server package
+├── mcp/                    # (2248 lines) Termapy MCP (Model Context Protocol) server package
 │   ├── catalog.py          #   Build JSON catalog/state snapshots from a running PluginContext
 │   ├── prompts.py          #   MCP prompts: user-invocable conversation recipes
 │   └── server.py           #   MCP stdio server: MCPHost + run_command tool + resources
-├── plugins/                # (3831 lines) Plugin system for termapy - discovery, loading, and context API
+├── plugins/                # (4952 lines) Plugin system for termapy - discovery, loading, and context API
 │   ├── handles/            #   The handles a PluginContext carries: io, serial, fs, ui, and the internal escape hatch
 │   ├── capabilities.py     #   Capability model: what a command needs and what a frontend provides, checked before dispatch
 │   ├── command.py          #   Command, transform, directive, and lifecycle dataclasses
@@ -111,19 +111,20 @@ src/termapy/
 │   ├── loader.py           #   Plugin discovery and loading
 │   ├── output_levels.py    #   Output-level vocabulary shared between `PluginContext` and `IOHandle`
 │   ├── params.py           #   Declarative command parameters -- parse/coerce/validate before the handler
-│   └── views.py            #   Views: how a typed answer looks in prose, kept apart from the answer itself
-├── profile/                # (1326 lines) Device-profile schema, loader, validator, and type registry
+│   ├── views.py            #   Views: how a typed answer looks in prose, kept apart from the answer itself
+│   └── waiting.py          #   A wait a person can watch and stop: the one loop behind `/delay` and `/port.connect timeout=`
+├── profile/                # (1328 lines) Device-profile schema, loader, validator, and type registry
 │   ├── loader.py           #   Device profile: declarative description of a serial device
 │   ├── matcher.py          #   Match a typed command line against a profile's command catalog
 │   ├── schema.json         #   The JSON Schema a device profile is validated against (Draft 2020-12)
 │   └── types.py            #   Profile-local user-defined types for the v2 device profile schema
-├── protocol/               # (2756 lines) Binary-protocol toolkit: format-spec parser, CRC catalog, .pro runner
+├── protocol/               # (2829 lines) Binary-protocol toolkit: format-spec parser, CRC catalog, .pro runner
 │   ├── core.py             #   Binary protocol utilities - hex parsing, framing, pattern matching, script parsing
 │   ├── crc.py              #   CRC plugin loading and registry (termapy-side)
 │   ├── runner.py           #   Headless protocol test runner with JSON result output
 │   ├── type_codes.py       #   The format-spec type codes -- one table, every consumer iterates it
 │   └── viz.py              #   Visualizer plugin discovery and loading
-├── symbols/                # (1890 lines) Symbol tables -- named addresses for a firmware build
+├── symbols/                # (3072 lines) Symbol tables -- named addresses for a firmware build
 │   ├── converters/         #   Symbol converters -- a build's ELF or linker map in, termapy symbols out
 │   │   ├── elf.py          #     ELF converter -- a build's symbols, with their C types from its debug info
 │   │   └── xc32.py         #     Microchip XC32 (GNU ld) linker-map converter -- the only home of XC32 knowledge
@@ -133,7 +134,7 @@ src/termapy/
 │   ├── session.py          #   Session state for the loaded symbol table, and the auto-load rule
 │   └── table.py            #   The symbol model and termapy's one symbol-file format
 ├── templates/              #              Desktop-shortcut templates and icons for /cfg.icon (Windows, macOS, Linux)
-├── usb/                    # (3909 lines) USB lookup tables for serial-port debugging tools
+├── usb/                    # (3973 lines) USB lookup tables for serial-port debugging tools
 │   ├── _vendors_full.py    #   USB Vendor ID -> canonical vendor name (generated)
 │   ├── aliases.py          #   USB manufacturer descriptor -> short display alias
 │   ├── chips.py            #   USB-serial chip identification by (vendor_id, product_id)
@@ -147,22 +148,24 @@ src/termapy/
 │   ├── selection_list.py   #   StrongSelectionList -- a SelectionList with a clearer on/off glyph
 │   ├── status_bar.py       #   The transient status line beside the REPL input
 │   └── suggester.py        #   CommandSuggester -- input type-ahead from REPL commands + history
-├── app.py                  # (3925 lines) Textual TUI frontend: the app, its panes and buttons, and the wiring around the engines
+├── app.py                  # (4344 lines) Textual TUI frontend: the app, its panes and buttons, and the wiring around the engines
 ├── app_dirs.py             #              User-level application directories and files for termapy
 ├── app_hooks.py            #              TUI-specific REPL hooks registered against the app's ReplEngine
+├── breadcrumbs.py          #              Breadcrumbs: every running termapy leaves a file saying what it holds, so `--alive` and `--kill` can find it
 ├── capture.py              # (475 lines)  Capture engine - file capture state machine (no UI dependency)
 ├── capture_view.py         #              TUI capture-progress view: start/stop, status bar, and progress widget
-├── cli.py                  # (859 lines)  CLI serial terminal - no Textual dependency
+├── cli.py                  # (908 lines)  CLI serial terminal - no Textual dependency
 ├── cli_flags.py            #              Print-and-exit handlers for termapy's CLI flags
 ├── cli_prompt.py           #              The CLI's interactive prompt: prompt_toolkit history, completion and session
-├── config.py               # (1601 lines) Config file management - paths, defaults, loading, and serial port setup
+├── config.py               # (2014 lines) Config file management - paths, defaults, loading, and serial port setup
 ├── config_resolve.py       #              Config-path resolution helpers
 ├── converters.py           #              Converter registries -- vendor files in, termapy data out, one record type
 ├── credits_data.py         #              The dependency and attribution registry -- one table, every consumer iterates it
-├── defaults.py             # (596 lines)  Default config values and file templates
-├── demo.py                 # (2122 lines) Simulated serial device for demo mode
+├── defaults.py             # (1020 lines) The config schema, one table, and the file templates
+├── demo.py                 # (2152 lines) Simulated serial device for demo mode
 ├── demo_ndjson.py          #              Simulated NDJSON serial device for `DEMO_JSON` port name
 ├── demo_vt100.py           #              Simulated VT100/ANSI serial device for the `DEMO_VT100` port name
+├── diag_log.py             #              Diagnostic log: termapy's record of itself, one file per process, for when something goes wrong
 ├── entry.py                #              Termapy CLI entry point
 ├── env_flags.py            #              Security-policy env-var gates, read once at process start
 ├── folder_ops.py           #              Shared folder-operation handlers for per-config data folders
@@ -170,35 +173,37 @@ src/termapy/
 ├── help_dynamic.py         #              Helpers for building dynamic `long_help` callables
 ├── help_tooltip.py         #              The Help-button tooltip: version status + open-source attributions
 ├── history_nav.py          #              Command-history browsing cursor and file merge for the REPL input
+├── idioms.py               #              The global idioms: what reads the same on every command, one row each
 ├── info_views.py           #              Read-only info views for the TUI
 ├── install_info.py         #              Detect how termapy was installed, for upgrade-command hints
-├── legacy.py               #              Legacy-command forwarding helper
 ├── load_report.py          #              The load report: what the last config load put in the session, one row per file
 ├── markup.py               #              Rich markup: the one home for turning text into markup and back
 ├── matching.py             #              The one reader for a typed name: every name filter and every did-you-mean shares its rules
 ├── memory.py               # (880 lines)  Device memory access -- bytes in, bytes out, over an injected exchange
-├── memory_views.py         # (317 lines)  Typed views over device bytes -- layer 3 of the memory design
-├── migration.py            # (749 lines)  Config schema versioning and migration chain
+├── memory_views.py         # (395 lines)  Typed views over device bytes -- layer 3 of the memory design
+├── migration.py            # (880 lines)  Config schema versioning and migration chain
 ├── palette_provider.py     #              Textual command-provider that surfaces termapy's PALETTE_CMDS
 ├── pickers.py              #              Modal-picker callbacks for the TUI
-├── port_control.py         # (2040 lines) Pure functions for serial port control - no Textual, no pyserial imports
+├── port_allow.py           #              Which ports this process may open and list: `TERMAPY_ALLOWED_PORTS`, read once
+├── port_control.py         # (2408 lines) Pure functions for serial port control - no Textual, no pyserial imports
 ├── port_format.py          #              One-line-per-port formatting for serial-port tables
-├── proto_debug.py          # (1224 lines) Interactive protocol debug screen
-├── repl.py                 # (2477 lines) REPL engine for termapy - plugin-based command dispatch and scripting
+├── proto_debug.py          # (1420 lines) Interactive protocol debug screen
+├── repl.py                 # (2845 lines) REPL engine for termapy - plugin-based command dispatch and scripting
 ├── request_response.py     #              Request/response I/O pipeline for synchronous device exchanges
 ├── response_parsers.py     #              Pure response parsers for the profile response formats
 ├── run_docstring.py        #              Parse a `.run` script file's leading docstring block
-├── run_legacy.py           #              Implementation of /run.legacy -- scan a .run script for legacy commands
-├── scripting.py            # (703 lines)  Template expansion, script parsing, and shared utilities for termapy
-├── serial_engine.py        # (778 lines)  SerialEngine - orchestrates serial port, reader, and capture
-├── serial_port.py          # (618 lines)  Serial port I/O wrapper and reader data processor
+├── scripting.py            # (798 lines)  Template expansion, script parsing, and shared utilities for termapy
+├── serial_engine.py        # (839 lines)  SerialEngine - orchestrates serial port, reader, and capture
+├── serial_port.py          # (679 lines)  Serial port I/O wrapper and reader data processor
+├── session_log.py          #              Session log: a frontend's transcript of a config's sessions, written by one class in every frontend
 ├── terminal_host.py        #              Base class for the TUI, CLI and MCP frontends: builds the PluginContext, owns the one TX path
 ├── title_bar.py            #              Title-bar rendering for the TUI App
 ├── tree_render.py          #              Render a 2-level file tree with box-drawing connectors
+├── typed_lines.py          #              The lines typed at the prompt, in order, per config: what `/run.last` replays
 ├── update_check.py         #              Background PyPI update check for termapy
 ├── usb_tree.py             #              Enumerate the whole USB tree, not just the ports that carry a UART
 ├── variables.py            #              Variable engine: the `$(NAME)` namespace, storage, and expansion
-└── vt100.py                #              --vt100 passthrough mode: a raw, Textual-free serial terminal
+└── vt100.py                #              --vt100 passthrough mode: a raw, Textual-free serial terminal on the engine
 ```
 
 <!-- module-tree:end -->
@@ -214,8 +219,7 @@ expands on the dispatch path, while `builtins/commands/var.py` is just `/var` an
 the symbol table, its file format, the address grammar and the auto-load rule are core
 (`ReplEngine.fire_lifecycle` loads the sidecar), and `/sym.*` is the thin command surface.
 `memory.py` <- `builtins/commands/mem.py` is the fourth: the wire dialect, chunking and
-continuity are core, `/mem.*` wires them to `ctx.serial` and renders.
-Infrastructure core needs does not live under `builtins/`, however natural the matching
+continuity are core, `/mem.*` wires them to `ctx.serial` and renders.Infrastructure core needs does not live under `builtins/`, however natural the matching
 command feels.
 
 `usb/` is a different kind of thing: a dependency-free table package kept separable for a
@@ -324,7 +328,7 @@ Layers 2 and 3 are resolved by the engine (`ReplEngine.resolve_plugins`) inside 
 
 ### Transforms
 
-A `Transform` rewrites command text after the REPL/serial routing decision. Separate chains for REPL commands and serial commands. Used by the `var` plugin to expand `$(NAME)` placeholders and by `env` to expand `$(env.NAME)`:
+A `Transform` rewrites command text after the REPL/serial routing decision. Separate chains for REPL commands and serial commands, each a `(ctx, text) -> text`. Used by the `var` plugin to expand `$(NAME)` placeholders and by `env` to expand `$(env.NAME)`:
 
 ```python
 TRANSFORM = Transform(
@@ -379,8 +383,9 @@ A converter is four names rather than a dataclass because it is one function plu
 A linker map holds what the firmware defines, never the registers the silicon fixes, so those live in **device files** (`devices/`; `<cfg>/dev/*.device.json`, plus a global `termapy_cfg/dev/` that loads into every config, per-config overriding by `device` name). The symbol session (`symbols/session.py`) keeps the two inputs apart — `build` (the sidecar) and `devices` — and rebuilds one merged `table` from them through a single installer, so `/sym.import` replaces the build half and cannot drop the board half, and the sidecar never receives a device row. The merge also derives **aliases** from the build: a pointer constant to a struct whose value is exactly one block's base names that block's registers under its own name (`SPI_PORT_DIR` for `PORTC_DIR`), copies of the registers with the safety trio unchanged, so a system name comes from the firmware's own `volatile PortGroup *const SPI_PORT = ...` line rather than from a hand-copied address (`devices.alias_blocks`, registry `alias-from-pointer-constant`); a pointer to one word, an address at no base, a shared base or a taken name yields none, and the skipped ones are said at load (decision 2026-10-20). `Symbol` carries the three safety fields the memory commands act on (`rmw`, `access`, `read_effect`), an unstated `access` taking its section's (`text` and `rodata` are read-only), so an `ro` variable, constant or register refuses every writing command; everything a viewer shows (peripheral, description, reset, structured fields) stays on `devices.Register`. Loading a device file also changes what `/mem.*` will *read* at those addresses, because a register is an intrusive probe on live silicon where a variable is not: `devices.registers_in_range` answers the one question the gates ask — does this byte range touch a register — and `devices.distinct_spans` collapses the mode aliases SVD emits (a SERCOM's `CTRLA` is six definitions at one address, 410 such addresses on a PIC32CM5164LE00100, and counting entries rather than spans wrongly refused a single-register read on 47% of that part), so `/mem.dump` refuses a span covering two or more distinct registers, `/mem.str` refuses a scan that could reach any, a `wo` register refuses every reading path (including the read half of `/mem.or` and `/mem.not`), and an allowed peripheral read is logged like a write. Naming one register stays allowed; the *sweep* is what is refused. The gate is address containment rather than per-register knowledge on purpose — the eight PIC32CM-LE SVDs checked populate `access` but carry no `readAction`, which would say which registers are destructive to read, so a safety list is not something termapy could honestly offer; where a vendor's file does carry it, on a register or on any of its fields, the import sets `read_effect`. There is deliberately no shipped catalog and no cfg key: a catalog would be a copy-from folder, never a load layer, and a relocatable part cannot load until its file says where it sits (`instances`). The user's own **library** is that copy-from pool made explicit — nothing in it loads. It has the same two layers as `plugin/` and `dev/`: the config's own `<cfg>/lib/` over the shared `termapy_cfg/lib/`, the per-config one winning a name clash (`devices.library_layers`), so a checked-in config folder carries its parts and its references resolve on any machine. Each layer is a `vendor/type/family` tree listed by `/dev.lib` (with its layer) and scanned header-only by `devices.scan_library`, which refuses a file whose `device` field disagrees with its filename. `/dev.import` writes the converted part to the config's own library by default (`to=global` shares it with every config), under `<vendor>/<category>/` with the vendor slugged from the file's own metadata, and drops a reference into `dev/`, so importing a 2 MB MCU leaves 61 bytes in `dev/` rather than a second copy; `/dev.use <part> {at=NAME@ADDR ...}` adds one that is already in the library. A `dev/` file reaches it with `{"ref": "<part>", "instances": [...]}`: the library part keeps the registers and stays pristine while the reference supplies only this board's placement, so one 2517-register MCU file serves every config that uses that chip and re-importing a newer conversion cannot lose a board's bases. A reference may override `instances` and nothing else, since one that could redefine registers would be a fork, and a **relocatable** part must state its own placement rather than inheriting the library part's — those are an example written by whoever prepared the part, and inheriting them would load every register at a plausible but wrong address, which is the same hazard that makes a bare relocatable file an error. `dev/` remains the bill of materials either way — folder presence is still the declaration, which is why this is a file and not the cfg key that was built and deleted during the original device work. The format normalizes whatever a vendor publishes the way `xc32.py` normalizes a linker map: `/dev.import` runs a device converter (`devices/converters/`, CMSIS-SVD built in) and writes the document it returns as `dev/<device>.device.json`, so a converted part and a hand-written one pass the same validation and the file on disk is the source of truth. Symbol and device converters share one record type and lookup (`converters.py`); a plugin file picks its kind with `KIND`, and the engine keys them by `(kind, format)` so the two never collide or cross over.
 
 ```python
-def _handler(ctx: PluginContext, args: str) -> None:
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
     ctx.io.result("Hello!")
+    return CmdResult.ok(value="Hello!")
 
 
 def on_app_start(ctx: PluginContext) -> None:
@@ -466,6 +471,10 @@ The frontends decide **when** a session moment happens; the engine decides **wha
 Some things must be running before the session starts, and depend on nothing the config load brings: the session variables, which every hook and command after them may expand, and the session log, since the startup load report should be in it. `TerminalHost._fire_app_start` is the one place the app start is announced, in every frontend: the shared pre-start work (`_register_vars`: `$(FRONT_END)` from the host's `front_end` name, `$(CFG)` and `$(CFG.*)`), then the frontend's own (`_on_app_prestart`, where the TUI opens its log and then shows the VS Code tip, so the tip is first on screen, once per run, and logged; the MCP log needs no opening and the CLI keeps none), then the `on_app_prestart` hooks, then `on_app_start`. A host that was built but never started has no variables, no folder plugins and no symbols, so a test that drives one starts it the same way. A test fails if any other code fires either event (registry `prestart-before-start`). Only built-ins and the frontend can use pre-start (`seq` starts the session clock there): folder plugins load during `on_app_start`, so a folder plugin's `on_app_prestart` would never run, and the engine skips it with a warning rather than drop it silently.
 
 ### One config-load pass
+
+A load first calls `TerminalHost._reset_session`, which forgets the session and
+seeds the flags from the new config (registry `config-load-deterministic`), then
+fires this pass. A start has nothing to forget and goes straight to the pass.
 
 ```text
 fire_lifecycle("on_app_start" | "on_config_load")
@@ -654,7 +663,7 @@ A client discovers what a device can do from a JSON **catalog** (`mcp/catalog.py
 
 ## VT100 mode (`vt100.py`)
 
-`termapy --vt100` is the one mode that does **not** go through `ReplEngine` / `PluginContext`. It is a raw passthrough for devices that emit terminal control beyond plain lines (cursor addressing, full-screen menus, `vi`/`top`, bootloader UIs): the surface is *already* a terminal, so the right move is to hand it the byte stream and let it emulate, rather than run an emulator. `run_vt100_mode` resolves the config (mirroring the CLI resolver), opens the raw pyserial object via the shared `open_serial` path (no `SerialEngine`, no `SerialReader`), and hands it to the vendored pyserial `Miniterm` (`vendor/serial/tools/miniterm.py`), which owns the read/write loop and enables VT processing on Windows 10+. It is Textual-free by design: dropping the TUI avoids stacking a third key-interception layer (VS Code → Textual → widget), which is why interactive VT100 is *not* built inside the TUI. miniterm is treated as a hidden implementation detail: `run_vt100_mode` replaces its banner with a termapy-branded line and disables its Ctrl-T settings menu (menu key set to an inert value, so Ctrl-T passes through to the device), so the passthrough reads as a native termapy view rather than "you dropped into pyserial." It also saves/restores `sys.stdout`/`sys.stderr` around the session, because miniterm's Windows console swaps them and never restores them -- required for re-entry across mode switches. `vt100` is a peer mode of `cli`/`tui` — selected by the `--vt100` flag or `"default_ui": "vt100"`, resolved in `entry.py`'s mode loop. It is also a reversible toggle from the TUI (`/vt100` for the current device, `/demo.vt100` for the demo), mirroring `/cli` <-> `/tui`: `app._switch_to_vt100()` sets `switch_to="vt100"` and exits; the mode loop tracks the previous mode and tells `run_vt100_mode` to return `"tui"` (so Ctrl-] comes back) when entered from the TUI, or `None` (quit) when launched via the flag. Driving such a device from an LLM is a separate, future concern (a headless emulator over MCP), deliberately not this passthrough.
+`termapy --vt100` is the one mode that does **not** go through `ReplEngine` / `PluginContext`. It is a raw passthrough for devices that emit terminal control beyond plain lines (cursor addressing, full-screen menus, `vi`/`top`, bootloader UIs): the surface is *already* a terminal, so the right move is to hand it the byte stream and let it emulate, rather than run an emulator. `run_vt100_mode` resolves the config (mirroring the CLI resolver) and opens the port through a `PassthroughSession` on `SerialEngine`, as every frontend does (registry `vt100-on-engine`): the engine's reader hands each raw chunk to the console through an RX observer and its line path writes the session log, the TUI's `<cfg>.log` (received lines only, ANSI stripped; a key is not a line, so nothing typed is logged). The vendored pyserial `Miniterm` (`vendor/serial/tools/miniterm.py`) supplies the console and the key pump: raw single-key input, VT processing on Windows 10+, and the writer thread that sends each key through `SerialPort.write`; its own reader is never started. It is Textual-free by design: dropping the TUI avoids stacking a third key-interception layer (VS Code → Textual → widget), which is why interactive VT100 is *not* built inside the TUI. miniterm is treated as a hidden implementation detail: `run_vt100_mode` replaces its banner with a termapy-branded line and disables its Ctrl-T settings menu (menu key set to an inert value, so Ctrl-T passes through to the device), so the passthrough reads as a native termapy view rather than "you dropped into pyserial." It also saves/restores `sys.stdout`/`sys.stderr` around the session, because miniterm's Windows console swaps them and never restores them -- required for re-entry across mode switches. `vt100` is a peer mode of `cli`/`tui` — selected by the `--vt100` flag or `"default_ui": "vt100"`, resolved in `entry.py`'s mode loop. It is also a reversible toggle from the TUI (`/vt100` for the current device, `/demo.vt100` for the demo), mirroring `/cli` <-> `/tui`: `app._switch_to_vt100()` sets `switch_to="vt100"` and exits; the mode loop tracks the previous mode and tells `run_vt100_mode` to return `"tui"` (so Ctrl-] comes back) when entered from the TUI, or `None` (quit) when launched via the flag. Driving such a device from an LLM is a separate, future concern (a headless emulator over MCP), deliberately not this passthrough.
 
 To show the mode doing something a terminal-aware frontend uniquely can, `--vt100 --demo` resolves (in-memory, no disk write) to the reserved `DEMO_VT100` port, backed by `demo_vt100.py`'s `FakeSerialVT100`. It subclasses `FakeSerial` for the serial duck-type surface and overrides only the I/O: `write` decodes keystrokes (arrows/`jk`/Enter/`q`) into navigation, and `in_waiting` ticks a live redraw. Frames are absolutely positioned (`ESC[row;colH`) so they carry no `\r`/`\n` and survive the RX EOL transform.
 
@@ -743,9 +752,11 @@ termapy_cfg/
 ├── plugin/               # user plugins (all configs)
 ├── dev/                  # device files loaded by every config
 ├── lib/                  # shared device library: vendor/type/family tree, NOTHING loads
+├── log/                  # diagnostic log, <stamp>-<pid>.log per process (diag_log)
 └── <name>/
     ├── <name>.cfg        # JSON config file
-    ├── <name>.log        # session log
+    ├── <name>.log        # session log (the TUI's)
+    ├── <name>.mcp.log    # session log (the MCP server's), the same format (session_log)
     ├── <name>.md         # info report (from /cfg.info)
     ├── <name>.history    # command history
     ├── plugin/           # per-config plugins
@@ -772,7 +783,7 @@ config_version: N  ──migrators──▶  CURRENT_CONFIG_VERSION
    vN→vN+1, vN+1→vN+2, ...     (each step is one function in MIGRATIONS)
 ```
 
-A migrator does whatever a schema change needs: rename a key, nest keys under a sub-dict (`port` → `serial.port`), rewrite a renamed command verb in the `*_on_connect_cmd` fields (`/color` → `/term.color`, `/ver` → `/app.ver`), move what a field held into a file (v30: a multi-command on-connect field becomes `run/<field>.run` and the field `/run <field>`), or retire a key. Two supporting tables back it: `DEPRECATED_CFG` (the reason each removed key went away, surfaced as a warning) and the legacy-command tables in `legacy.py` (so `/run.legacy` can rewrite old command names inside `.run` scripts).
+A migrator does whatever a schema change needs: rename a key, nest keys under a sub-dict (`port` → `serial.port`), rewrite a renamed command verb in the `*_on_connect_cmd` fields (`/color` → `/term.color`, `/ver` → `/app.ver`), move what a field held into a file (v30: a multi-command on-connect field becomes `run/<field>.run` and the field `/run <field>`), or retire a key. One supporting table backs it: `DEPRECATED_CFG` (the reason each removed key went away, surfaced as a warning).
 
 The payoff — and the reason this is a core concept, not plumbing — is that schema and command changes ship freely: an old config opens, upgrades itself with a chatty per-step summary, and the user never hand-edits JSON. A config written by a *newer* termapy is detected and gets one clear upgrade hint instead of a wall of "unknown key" warnings.
 
@@ -790,6 +801,11 @@ The payoff — and the reason this is a core concept, not plumbing — is that s
 │ engine.start_reader │  (start_reader / stop_reader), so teardown
 │                     │  can Thread.join() it.  Callbacks hand off
 │                     │  via _rx_enqueue and NEVER block on main.
+├─────────────────────┤
+│ termapy-stop-watch  │  Long-lived, one per process, OWNED BY
+│ breadcrumbs         │  breadcrumbs.  Looks every 100 ms for a
+│                     │  request to leave; the TUI's answer reaches
+│                     │  main through _on_main (kill-asks-first).
 ├─────────────────────┤
 │ _dispatch_on_thread │  One short-lived worker per typed line,
 │ (+ _interactive,    │  button or palette entry; runs
@@ -812,7 +828,7 @@ The payoff — and the reason this is a core concept, not plumbing — is that s
 └─────────────────────┘
 ```
 
-Only the reader is long-lived. Dispatch and scripts are each serialized: one
+Only the reader and the stop watch are long-lived. Dispatch and scripts are each serialized: one
 `dispatch_full` at a time (nested dispatch on the same thread is allowed) and
 one outermost script; the reconnect and update-check workers run independently
 of both.
@@ -855,19 +871,57 @@ the same path as `SerialEngine.connect`, and the TUI finishes the connection
 it hands back; the throwaway probe open it replaced put an extra DTR edge on
 every reconnect.
 
+## Diagnostic log and exceptions
+
+When something goes wrong, the user sees one line and the diagnostic log keeps the rest
+(`diag_log`, decision 2026-11-05). The session log is the transcript, what was typed and
+what the device sent; the diagnostic log is termapy's record of itself: the process
+starting (pid, Python, platform, command line), each frontend and every switch between
+them, config loads and each file a load brings in (the load report's rows: folder plugins
+with their commands, symbol tables, device files, MCP's profile), each on-connect command
+with its config key (`config.on_connect_commands`, which every frontend calls before
+running them), ports opening and closing, the reader stopping, script and proto runs, and
+every exception a broad catch stops, with its traceback.
+
+```text
+handler raises KeyError('port')
+  -> dispatch's catch: diag_log.exception("command raised: thing ...")  -> traceback in log/
+  -> CmdResult.fail("Plugin error (thing): KeyError: 'port' (traceback in <path>)")
+```
+
+- **Where:** `log/<stamp>-<pid>.log` in the config root when it exists, else in the app
+  state folder; `TERMAPY_DIAG_DIR` overrides. A log never creates a config root
+  (registry `diag-log-folder`).
+- **One file per process** (registry `diag-log-per-process`): a TUI and MCP servers on one
+  project would otherwise share a file, which Windows' seek-then-write append and its
+  refusal to rename an open file make unsafe. `start` prunes to the newest 100
+  (`KEEP_FILES`; every one-shot and MCP start is a run), never a running process's file.
+  A file stops at 1 MB (`MAX_BYTES`), so the folder's worst case is 100 MB; a normal run's
+  file is a few KB.
+- **Opened once**, by `TerminalHost._fire_app_start` in every frontend and by the
+  headless proto run; never by a print-and-exit flag. `logging` itself loads at the first
+  record, so those flags never import it.
+- **Read with `/log.diag`** (`.show`, `.dump`, `.list`), in every frontend, the CLI
+  included: unlike the session log, every run has one.
+- **The rule** (registry `broad-catch-logged`): a broad `except` records its exception or
+  re-raises, and its user-facing line ends with `diag_log.traceback_note()`. A failure
+  that can repeat per chunk (an RX observer) records once.
+- **Not on the root logger:** the handler sits on `termapy` and the vendored libraries'
+  loggers (`pySerial`, `xmodem`, `ModemSocket`, their warnings only), so a host's logging
+  setup, the MCP SDK's `basicConfig`, is untouched.
+
 ## Built-in plugins
 
 Every built-in command is one file in `builtins/commands/`, listed with its
 `/command` and purpose in the [Module structure](#module-structure) tree
 above — that tree is the single source of truth, so there's no second list
 to drift out of sync. They are ordinary plugins: the same `Command` +
-`PluginContext` API a user plugin uses. Hidden legacy aliases (e.g. `/echo`
-→ `/term.echo`) are registered centrally from `legacy.py` rather than as
-files (see [Hooks](#hooks) for the host-registered exceptions).
+`PluginContext` API a user plugin uses (see [Hooks](#hooks) for the
+host-registered exceptions).
 
 ## Suppressions
 
-27 lint/type/coverage pragmas in `src/termapy` (excluding vendor). Every one carries a specific rule code and a reason; `release_prep` hard-fails any newly-added suppression that lacks either. Run `python scripts/suppression_audit.py` for the current list, or `--since <tag>` to gate a diff.
+11 lint/type/coverage pragmas in `src/termapy` (excluding vendor). Every one carries a specific rule code and a reason; `release_prep` hard-fails any newly-added suppression that lacks either. Run `python scripts/suppression_audit.py` for the current list, or `--since <tag>` to gate a diff.
 
 ## Test coverage
 
@@ -876,193 +930,236 @@ carries the current count).  Every test module and what it covers, from its docs
 
 <!-- test-table:start (generated by scripts/sync_architecture.py from the test module docstrings -- do not edit by hand) -->
 
-| File                                | Covers                                                                                                                                             |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| test_alias_chip_coverage.py         | Cross-module contract: every chip family has a matching mfg alias                                                                                  |
-| test_app_config.py                  | Tests for app.py config utilities, custom buttons, and script editor                                                                               |
-| test_app_dirs.py                    | Tests for app_dirs.app_state_dir and app_config_dir                                                                                                |
-| test_app_pilot.py                   | Pilot-driven tests for the real SerialTerminal app                                                                                                 |
-| test_app_pilot_prefix.py            | The TUI's own buttons, menus and palette actions under a non-default REPL prefix                                                                   |
-| test_app_pilot_targets.py           | app.py state transitions the August Pilot pass listed as next                                                                                      |
-| test_app_pilot_views.py             | The capture overlay, the delay bar, and the read-only info views, driven in the real app                                                           |
-| test_app_plugin.py                  | Tests for the /app builtin plugin                                                                                                                  |
-| test_architecture.py                | Structural rules checked against the source tree itself                                                                                            |
-| test_architecture_sync.py           | Guard ARCHITECTURE.md's generated module tree and test table against hand edits and drift                                                          |
-| test_bare_forms.py                  | bare-declared: a bare call's behavior is a declaration the dispatcher honors                                                                       |
-| test_boards.py                      | Dev-board starter projects: the `/board` table, finding a board, its config, its firmware                                                          |
-| test_builtins.py                    | Tests for built-in REPL commands dispatched through ReplEngine                                                                                     |
-| test_cap_poll.py                    | `/cap.poll`: the scheduled polling loop, its files, its validation, and its stop                                                                   |
-| test_capture.py                     | Tests for CaptureEngine - file capture state machine                                                                                               |
-| test_capture_claim.py               | A capture owns its serial claim from start to stop, inside a script or not                                                                         |
-| test_cfg_icon.py                    | Tests for /cfg.icon -- per-cfg desktop launcher creation                                                                                           |
-| test_cfg_info_report.py             | The /cfg.info project report: its tails, and the exit hook that rewrites it                                                                        |
-| test_cfg_load.py                    | End-to-end tests for /cfg.load                                                                                                                     |
-| test_checkbox.py                    | Behavioral tests for StrongCheckbox -- the glyph flips with the value                                                                              |
-| test_cli.py                         | Unit tests for CLITerminal - hooks, helpers, output, and dispatch                                                                                  |
-| test_cli_exec.py                    | End-to-end tests for `--exec` / `-e` one-shot CLI mode                                                                                             |
-| test_cli_gold.py                    | CLI gold-standard tests - run .run scripts and compare stdout to expected output                                                                   |
-| test_cli_improvements.py            | The print-and-exit port flags: --ports / --chips JSON, the VID/PID/mfg/SN filters, and the driver column                                           |
-| test_cli_prefix.py                  | End-to-end test: the REPL command prefix is actually configurable                                                                                  |
-| test_cli_zero_config.py             | End-to-end tests for zero-config CLI mode                                                                                                          |
-| test_commands_doc_sync.py           | Freshness guard: every command listed in help/commands.md must exist                                                                               |
-| test_config_create.py               | Tests for creating a config: `config.new_config`, `config.create_config` and `--new`                                                               |
-| test_config_reference_sync.py       | Guard the config field-reference table against drift                                                                                               |
-| test_config_rename.py               | Tests for `config.rename_config`, `config.delete_config` and `config.validate_file_stem`                                                           |
-| test_crc_builtins.py                | Tests for built-in CRC checksum modules (sum8, sum16)                                                                                              |
-| test_crcglot_abi.py                 | Does crcglot's compiled extension run on THIS interpreter?                                                                                         |
-| test_credits_data.py                | The dependency registry must agree with pyproject.toml, the vendored tree, and the surfaces that render it                                         |
-| test_credits_sync.py                | Guard the markdown -> credits.py sync                                                                                                              |
-| test_defaults.py                    | Tests for defaults.py - validation constants, resolve_color, preview helpers                                                                       |
-| test_demo.py                        | Tests for FakeSerial demo device - ASCII, GPS/NMEA, Modbus RTU, and config setup                                                                   |
-| test_demo_memory.py                 | The demo device's native memory: `MEM.R` / `MEM.W` / `MEM.INFO`                                                                                    |
-| test_demo_ndjson.py                 | Tests for the DEMO_JSON NDJSON simulator                                                                                                           |
-| test_demo_profiles.py               | Tests for the bundled DEMO profiles                                                                                                                |
-| test_demo_random_packet.py          | Tests for the demo's AT+RND random-packet emitter                                                                                                  |
-| test_demo_symbols.py                | Tests for the bundled demo symbol table (mirrors `test_demo_profiles.py`)                                                                          |
-| test_demo_traffic.py                | The demo traffic plugin's /traffic.snoop, on the per-config plugin path --demo uses                                                                |
-| test_demo_vt100.py                  | Tests for the DEMO_VT100 interactive demo device                                                                                                   |
-| test_detect_gui_apps.py             | Tests for `termapy.plugins.detect_gui_apps`                                                                                                        |
-| test_devices.py                     | Unit tests for device files: the format, instances, layering and merge                                                                             |
-| test_devices_svd.py                 | The CMSIS-SVD converter, against a trimmed fixture that has every shape                                                                            |
-| test_dialogs.py                     | Behavioral tests for the modal dialogs' result contracts                                                                                           |
-| test_dialogs_config_editor.py       | The ConfigEditor dialog: what it shows, how it validates, what it dismisses with                                                                   |
-| test_dialogs_quick_setup.py         | The QuickSetup dialog: name, baud entry, and the tuple it dismisses with                                                                           |
-| test_dialogs_small.py               | The seven small dialogs: what each shows and what it dismisses with                                                                                |
-| test_did_you_mean.py                | did-you-mean-one: every name typed from memory answers a typo with the names it most likely meant                                                  |
-| test_doc_shots.py                   | The documentation screenshots show the app that ships, not an older one                                                                            |
-| test_engine.py                      | Tests for ReplEngine internals: start_script, run_script, properties                                                                               |
-| test_env_var.py                     | Tests for the env_var built-in transform and commands                                                                                              |
-| test_env_var_gates.py               | Tests for the env-var security gates                                                                                                               |
-| test_examples_load.py               | Guard: every plugin under examples/plugins/ must load cleanly                                                                                      |
-| test_expect.py                      | Tests for the /expect and /expect.regex commands                                                                                                   |
-| test_file_completion.py             | File-argument completion: the `Command.files` declaration and the engine's reader                                                                  |
-| test_find.py                        | Tests for /find -- interactive scrollback match navigation                                                                                         |
-| test_firmware.py                    | The `/firmware` command and the tables behind it: every shipped target is listed, copyable and printable                                           |
-| test_firmware_json.py               | The drop-in JSON wrapper, `termapy/firmware/c/termapy_json.c`, on the host                                                                         |
-| test_firmware_mem.py                | The drop-in MEM handler, `termapy/firmware/c/termapy_mem.c`, run on the host                                                                       |
-| test_folder_ops_delete.py           | The shared `.delete` folder handler (`/cap.delete`, `/run.delete`, ...)                                                                            |
-| test_folder_ops_dump.py             | Containment tests for the shared `.dump` folder handler                                                                                            |
-| test_folder_ops_listing.py          | Tests for the shared listing producers in `folder_ops`                                                                                             |
-| test_folders.py                     | Tests for termapy.folders -- folder/file constants                                                                                                 |
-| test_format_tables_sync.py          | Guard the format-spec type tables against hand edits and decoder drift                                                                             |
-| test_fs_sandbox.py                  | MCP filesystem/network sandbox: the fs chokepoint and its command gates                                                                            |
-| test_handles.py                     | Tests for the namespaced PluginContext handles                                                                                                     |
-| test_help_dynamic.py                | Tests for `help_dynamic` helpers                                                                                                                   |
-| test_help_groups.py                 | The grouped /help landscape: what a first session sees, and how a group is reached                                                                 |
-| test_help_images.py                 | Verify help content: image references exist and tagged config examples stay current                                                                |
-| test_help_links.py                  | links-are-data for /help: names link to pages, a page tries its command, and nothing else changes                                                  |
-| test_help_tooltip.py                | Tests for the Help-button tooltip renderable                                                                                                       |
-| test_hex_vocabulary.py              | Hex has one vocabulary: one reader for input, in any case; one case for output                                                                     |
-| test_history_nav.py                 | Unit tests for history_nav: the Up/Down cursor and the file merge                                                                                  |
-| test_hw_loopback.py                 | hw_loopback: tests that run only on the hardware loopback, the TX-RX-jumpered adapter                                                              |
-| test_hw_loopback_gate.py            | The hw_loopback gate: a demanded run fails loud, and nothing runs on GitHub Actions                                                                |
-| test_install_info.py                | Tests for `termapy.install_info.upgrade_command`                                                                                                   |
-| test_lazy_folders.py                | The data-folder rule, driven end to end from a config with NO data folders                                                                         |
-| test_legacy_migration.py            | Tests for the verbose/.quiet -> output-level migration                                                                                             |
-| test_load_report.py                 | Tests for termapy.load_report: the record shape, the table and the session report                                                                  |
-| test_log_fingerprint.py             | `/log.fingerprint`: the session provenance report and each of its sections                                                                         |
-| test_markup_escape.py               | markup-escape: text reaches the terminal as typed, through every markup path                                                                       |
-| test_matching.py                    | `termapy.matching`: the one name-pattern reader every name filter shares                                                                           |
-| test_maturity.py                    | maturity-declared-once: each command says how settled it is, and every surface reads that one value                                                |
-| test_mcp_cfg_load.py                | Tests for /cfg.load via MCP frontend                                                                                                               |
-| test_mcp_entry.py                   | Tests for the --mcp / --mcp-verbose entry-point wiring                                                                                             |
-| test_mcp_lifecycle.py               | Tests for MCP lifecycle: profile-load rejection, on-connect fetch, banner watcher                                                                  |
-| test_mcp_plugin.py                  | Tests for the /mcp.* REPL plugin                                                                                                                   |
-| test_mcp_profile_executor.py        | Tests for the profile-aware MCP request/response executor                                                                                          |
-| test_mcp_prompts.py                 | Tests for the MCP prompts surface                                                                                                                  |
-| test_mcp_safety.py                  | `Command.safety`: termapy commands carry the profile's safety tiers                                                                                |
-| test_mcp_server.py                  | Tests for the MCP server core: MCPHost + run_command + resources                                                                                   |
-| test_mcp_stdio.py                   | End-to-end MCP over real stdio: the wire an actual client speaks                                                                                   |
-| test_mcp_symbols.py                 | The symbol sidecar through the MCP frontend: auto-load and the data record                                                                         |
-| test_mem_commands.py                | Behavior tests for the built-in `/mem.*` commands against the demo device                                                                          |
-| test_memory_engine.py               | Unit tests for `termapy.memory` -- the bytes-only engine over the MEM spec                                                                         |
-| test_memory_views.py                | Unit tests for `termapy.memory_views` -- scalars, chars, bit targets                                                                               |
-| test_migration.py                   | Tests for config schema versioning and migration chain                                                                                             |
-| test_observer_safety.py             | Exception-safety + behavior tests for `ctx.serial.rx_observer()` and `ctx.serial.tx_observer()` context managers                                   |
-| test_output_level.py                | Tests for the output-level dial: levels, channel gating, suffix/flag dispatch                                                                      |
-| test_palette.py                     | Tests for the command-palette additions that surface /find, /grep, /search                                                                         |
-| test_params.py                      | Tests for declarative command parameters (plugins/params.py + dispatch)                                                                            |
-| test_pickers.py                     | Tests for picker callbacks in `src/termapy/pickers.py`                                                                                             |
-| test_plugin_resolve.py              | Tests for ReplEngine.resolve_plugins -- the one plugin-resolution step                                                                             |
-| test_plugins.py                     | Tests for plugin loading, COMMAND dataclass, and PluginContext                                                                                     |
-| test_port_commands.py               | The /port command family driven through the dispatcher on the CLI DEMO rig                                                                         |
-| test_port_connect_cli.py            | End-to-end tests for the extended /port.connect command                                                                                            |
-| test_port_control.py                | Tests for port_control.py - pure serial port control functions                                                                                     |
-| test_port_noninvasive.py            | K1 regression: resolution and plain enumeration must never open a port                                                                             |
-| test_port_serial_resolution.py      | End-to-end tests for USB serial-number resolution in port specs                                                                                    |
-| test_post_dispatch_observer.py      | Tests for `ReplEngine.add_post_dispatch_observer` and friends                                                                                      |
-| test_profile_memory_block.py        | The profile `memory` block: schema-known, lint-warned, never load-blocking                                                                         |
-| test_profile_plugin.py              | Tests for /profile.load and /profile.info                                                                                                          |
-| test_profile_schema.py              | Tests for termapy.profile and termapy.response_parsers                                                                                             |
-| test_profile_types.py               | Tests for profile-local user-defined types (TypeRegistry + validators)                                                                             |
-| test_proto_commands.py              | The non-CRC half of the /proto family driven through the dispatcher on the CLI DEMO rig                                                            |
-| test_proto_crc_custom.py            | Tests for termapy's CLI handler around the CRC codegen surface                                                                                     |
-| test_proto_crc_detect.py            | Tests for /proto.crc.detect -- generated from crcglot.VERBS                                                                                        |
-| test_proto_crc_dispatch.py          | Smoke tests for the `/proto.crc.<lang>` REPL handlers                                                                                              |
-| test_proto_crc_errors.py            | Regression test: /proto.crc.{c,python,rust} with an unknown algorithm                                                                              |
-| test_proto_crc_find.py              | Tests for /proto.crc.find -- CRC algorithm identification                                                                                          |
-| test_proto_crc_form.py              | Tests for /proto.crc.find `form=NAME` (crcglot 0.23+ payload forms)                                                                                |
-| test_proto_crc_list.py              | `/proto.crc.list {pattern}`: the CRC catalogue filtered by a name pattern                                                                          |
-| test_proto_crc_reverse.py           | End-to-end tests for /proto.crc.reverse and /proto.crc.find cmd=                                                                                   |
-| test_proto_crc_styles_and_bundle.py | Tests for the `style=` kv arg and multi-algorithm bundling on `/proto.crc.<lang>`                                                                  |
-| test_proto_crc_suggest.py           | Tests for the "did you mean" suggestion suffix on unknown algorithm names                                                                          |
-| test_proto_crc_terminator.py        | The line ending on a cmd= capture is stripped only when it is one (/proto.crc.find and .reverse)                                                   |
-| test_proto_debug_pilot.py           | The proto debug screen's Run and Stop buttons, driven headless with Pilot                                                                          |
-| test_proto_run_command.py           | `/proto.run` writes `json_file`, returns the results as data, runs a test's own teardown, and stops on the engine's script-stop event              |
-| test_proto_runner.py                | Tests for headless protocol test runner and JSON result output                                                                                     |
-| test_proto_send_crc.py              | Tests for proto.send CRC-append feature                                                                                                            |
-| test_protocol.py                    | Tests for termapy.protocol - hex utilities, framing, matching, script parsing                                                                      |
-| test_protocol_word_fields.py        | Word-relative bit fields: `NAME:B.<bits>` binds to a register word, not to packet bytes                                                            |
-| test_python_versions.py             | The supported-Python list must agree everywhere it is written down                                                                                 |
-| test_repl_cfg.py                    | Tests for the /cfg and /cfg.auto REPL commands                                                                                                     |
-| test_repl_coverage.py               | repl.py corners the engine tests miss -- covering suggest_command, edit_distance, ScriptCtx, directive dispatch paths, and script special commands |
-| test_request_response.py            | Tests for `termapy.request_response.request_response`                                                                                              |
-| test_resolve_config.py              | Tests for resolve_config - command-line config resolution chain                                                                                    |
-| test_run_docstring.py               | Tests for the .run-file docstring parser (termapy.run_docstring)                                                                                   |
-| test_run_record.py                  | Tests for /run.record -- session capture to a .run file                                                                                            |
-| test_scripting.py                   | Tests for termapy.scripting - pure functions, no serial or Textual needed                                                                          |
-| test_search_markup.py               | Regression tests for /search and cli output rendering markup-safety                                                                                |
-| test_selectable_log.py              | SelectableRichLog: the output pane selects by mouse or keyboard, and Ctrl+C copies the text shown                                                  |
-| test_selection_list.py              | Behavioral tests for StrongSelectionList -- the glyph flips per row                                                                                |
-| test_serial_engine.py               | Tests for SerialEngine - connection lifecycle and reader loop                                                                                      |
-| test_serial_io_safety.py            | Exception-safety tests for the `ctx.serial.io()` context manager                                                                                   |
-| test_serial_port.py                 | Tests for SerialPort and SerialReader                                                                                                              |
-| test_shutdown_race.py               | Contract tests for the SHUTDOWN_RACE exception tuple                                                                                               |
-| test_status_bar.py                  | Behavioral tests for the StatusBar widget                                                                                                          |
-| test_suggester.py                   | Behavioral tests for CommandSuggester -- prefix type-ahead logic                                                                                   |
-| test_suppression_audit.py           | Tests for scripts/suppression_audit.py -- the release-prep suppression gate                                                                        |
-| test_sw_loopback.py                 | sw_loopback: the software loopback (pyserial's loop://) as a selectable virtual port                                                               |
-| test_sw_loopback_crc_find.py        | sw_loopback: /proto.crc.find cmd= keeps a CRC byte of 0x0A, on pyserial's loop:// port                                                             |
-| test_sw_loopback_io.py              | sw_loopback: end-to-end I/O tests using pyserial's `loop://` backend                                                                               |
-| test_sym_commands.py                | Behavior tests for the built-in `/sym.*` commands and the symbol auto-load                                                                         |
-| test_symbols_address.py             | Tests for `termapy.symbols.address` -- the address grammar                                                                                         |
-| test_symbols_elf.py                 | The ELF converter against three builds of one C file, and its place in the registry                                                                |
-| test_symbols_format.py              | Tests for `termapy.symbols.format` -- prose renderers and their `data=` twins                                                                      |
-| test_symbols_provenance.py          | Unit tests for the symbol-table staleness verdict                                                                                                  |
-| test_symbols_table.py               | Tests for `termapy.symbols.table` -- the model and the file format                                                                                 |
-| test_symbols_xc32.py                | Tests for the xc32 converter and the converter registry                                                                                            |
-| test_synopsis_validation.py         | Synopsis grammar validation: load-time chokepoint + registry conformance                                                                           |
-| test_term_request.py                | Tests for /term.request toggle and the request_mode dispatcher fallthrough                                                                         |
-| test_term_send.py                   | Tests for /term.send <text> and dispatch_full's rewrite of a bare device line to it                                                                |
-| test_terminal_host.py               | Unit tests for TerminalHost - context builders, serial I/O, hooks                                                                                  |
-| test_title_bar.py                   | Regression tests for title_bar.update_port with a read-only cfg                                                                                    |
-| test_title_tooltip.py               | Tests for the title-bar tooltip formatters (pure string logic)                                                                                     |
-| test_tree_render.py                 | Unit tests for `termapy.tree_render` (the `FileTree` renderer)                                                                                     |
-| test_update_check.py                | Tests for update_check.check and its bail-out paths                                                                                                |
-| test_usage_error.py                 | Dispatch-level tests for the UsageError mechanism                                                                                                  |
-| test_usb_mfg.py                     | Tests for termapy.usb.aliases -- USB manufacturer alias folding                                                                                    |
-| test_usb_serial_chips.py            | Tests for termapy.usb.chips -- VID:PID -> ChipInfo lookup                                                                                          |
-| test_usb_tree.py                    | The USB tree: assembly, rendering, and the serial-port cross-reference                                                                             |
-| test_usb_vendor.py                  | Tests for usb_vendor lookup + scripts/refresh_usb_ids.py transformer                                                                               |
-| test_value_capture_e2e.py           | End-to-end check that handlers populate `CmdResult.value`                                                                                          |
-| test_var.py                         | Tests for the user-defined variables plugin (var.py)                                                                                               |
-| test_variable_isolation.py          | variables-isolated: a test cannot see the `$(NAME)` state an earlier test left behind                                                              |
-| test_vfs.py                         | Tests for FakeSerial virtual filesystem - AT+FS commands and VFS state                                                                             |
-| test_views.py                       | list-one-format: a list answer is records plus a view, and dispatch renders the view once                                                          |
-| test_vt100.py                       | Tests for vt100.py - settings/transform mappings, config resolution, streams                                                                       |
-| test_xmodem.py                      | Tests for XMODEM file transfer - QueueByteReader, FakeSerial responder, and protocol integration                                                   |
-| test_ymodem.py                      | Tests for YMODEM file transfer - FakeSerial responder and ymodem library integration                                                               |
+| File                                | Covers                                                                                                                                                                              |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| test_alias_chip_coverage.py         | Cross-module contract: every chip family has a matching mfg alias                                                                                                                   |
+| test_app_config.py                  | Tests for app.py config utilities, custom buttons, and script editor                                                                                                                |
+| test_app_dirs.py                    | Tests for app_dirs.app_state_dir and app_config_dir                                                                                                                                 |
+| test_app_pilot.py                   | Pilot-driven tests for the real SerialTerminal app                                                                                                                                  |
+| test_app_pilot_prefix.py            | The TUI's own buttons, menus and palette actions under a non-default REPL prefix                                                                                                    |
+| test_app_pilot_targets.py           | app.py state transitions the August Pilot pass listed as next                                                                                                                       |
+| test_app_pilot_views.py             | The capture overlay, the delay bar, and the read-only info views, driven in the real app                                                                                            |
+| test_app_plugin.py                  | Tests for the /app builtin plugin                                                                                                                                                   |
+| test_architecture.py                | Structural rules checked against the source tree itself                                                                                                                             |
+| test_architecture_sync.py           | Guard ARCHITECTURE.md's generated module tree, test table and marker table against hand edits and drift                                                                             |
+| test_bare_forms.py                  | A bare call's behavior is a declaration the dispatcher honors                                                                                                                       |
+| test_boards.py                      | Dev-board starter projects: the `/board` table, finding a board, its config, its firmware                                                                                           |
+| test_bom_files.py                   | A file a person writes, saved with a UTF-8 byte-order mark, reads as if it had none                                                                                                 |
+| test_breadcrumbs.py                 | breadcrumbs: the file each running termapy leaves, how --alive lists them, and how --kill picks and stops them                                                                      |
+| test_builtins.py                    | Tests for built-in REPL commands dispatched through ReplEngine                                                                                                                      |
+| test_cap_poll.py                    | `/cap.poll`: the scheduled polling loop, its files, its validation, and its stop                                                                                                    |
+| test_capture.py                     | Tests for CaptureEngine - file capture state machine                                                                                                                                |
+| test_capture_claim.py               | A capture owns its serial claim from start to stop, inside a script or not                                                                                                          |
+| test_cfg_declared.py                | A command declares the config keys it uses, with how, and every surface derives from it (registry cfg-declared)                                                                     |
+| test_cfg_icon.py                    | Tests for /cfg.icon -- per-cfg desktop launcher creation                                                                                                                            |
+| test_cfg_info_report.py             | The /cfg.info project report: its tails, and the exit hook that rewrites it                                                                                                         |
+| test_cfg_load.py                    | End-to-end tests for /cfg.load                                                                                                                                                      |
+| test_cfg_schema.py                  | The config schema is one table, and one validator answers for the file, the editor and /cfg (registry cfg-schema-one-table)                                                         |
+| test_checkbox.py                    | Behavioral tests for StrongCheckbox -- the glyph flips with the value                                                                                                               |
+| test_cli.py                         | Unit tests for CLITerminal - hooks, helpers, output, and dispatch                                                                                                                   |
+| test_cli_exec.py                    | End-to-end tests for `--exec` / `-e` one-shot CLI mode                                                                                                                              |
+| test_cli_gold.py                    | CLI gold-standard tests - run .run scripts and compare stdout to expected output                                                                                                    |
+| test_cli_improvements.py            | The print-and-exit port flags: --ports / --chips JSON, the VID/PID/mfg/SN filters, and the driver column                                                                            |
+| test_cli_prefix.py                  | End-to-end test: the REPL command prefix is actually configurable                                                                                                                   |
+| test_cli_zero_config.py             | End-to-end tests for zero-config CLI mode                                                                                                                                           |
+| test_commands_doc_sync.py           | Freshness guard: every command listed in help/commands.md must exist                                                                                                                |
+| test_config_create.py               | Tests for creating a config: `config.new_config`, `config.create_config` and `--new`                                                                                                |
+| test_config_load_state.py           | A config load ends with what a fresh start on that config has, whatever ran before                                                                                                  |
+| test_config_reference_sync.py       | Guard the config field-reference table against drift                                                                                                                                |
+| test_config_rename.py               | Tests for `config.rename_config`, `config.delete_config` and `config.validate_file_stem`                                                                                            |
+| test_crc_builtins.py                | Tests for built-in CRC checksum modules (sum8, sum16)                                                                                                                               |
+| test_crcglot_abi.py                 | Does crcglot's compiled extension run on THIS interpreter?                                                                                                                          |
+| test_credits_data.py                | The dependency registry must agree with pyproject.toml, the vendored tree, and the surfaces that render it                                                                          |
+| test_credits_sync.py                | Guard the markdown -> credits.py sync                                                                                                                                               |
+| test_ctrl_keys.py                   | Tests for control characters reaching the device: /term.ctrl, and the TUI's Ctrl+C and Ctrl+D                                                                                       |
+| test_defaults.py                    | Tests for defaults.py - validation constants, resolve_color, preview helpers                                                                                                        |
+| test_defaults_untouched.py          | A test that leaves `DEFAULT_CFG` changed fails, and the next test sees the real defaults                                                                                            |
+| test_demo.py                        | Tests for FakeSerial demo device - ASCII, GPS/NMEA, Modbus RTU, and config setup                                                                                                    |
+| test_demo_memory.py                 | The demo device's native memory: `MEM.R` / `MEM.W` / `MEM.INFO`                                                                                                                     |
+| test_demo_ndjson.py                 | Tests for the DEMO_JSON NDJSON simulator                                                                                                                                            |
+| test_demo_profiles.py               | Tests for the bundled DEMO profiles                                                                                                                                                 |
+| test_demo_random_packet.py          | Tests for the demo's AT+RND random-packet emitter                                                                                                                                   |
+| test_demo_symbols.py                | Tests for the bundled demo symbol table (mirrors `test_demo_profiles.py`)                                                                                                           |
+| test_demo_traffic.py                | The demo traffic plugin's /traffic.count, .hexdump and .snoop, on the per-config plugin path --demo uses                                                                            |
+| test_demo_vt100.py                  | Tests for the DEMO_VT100 interactive demo device                                                                                                                                    |
+| test_detect_gui_apps.py             | Tests for `termapy.plugins.detect_gui_apps`                                                                                                                                         |
+| test_devices.py                     | Unit tests for device files: the format, instances, layering and merge                                                                                                              |
+| test_devices_svd.py                 | The CMSIS-SVD converter, against a trimmed fixture that has every shape                                                                                                             |
+| test_diag_log.py                    | Tests for termapy.diag_log: where the diagnostic log goes, what a session writes there, and what a broad catch records                                                              |
+| test_dialogs.py                     | Behavioral tests for the modal dialogs' result contracts                                                                                                                            |
+| test_dialogs_config_editor.py       | The ConfigEditor dialog: what it shows, how it validates, what it dismisses with                                                                                                    |
+| test_dialogs_quick_setup.py         | The QuickSetup dialog: name, baud entry, and the tuple it dismisses with                                                                                                            |
+| test_dialogs_small.py               | The seven small dialogs: what each shows and what it dismisses with                                                                                                                 |
+| test_did_you_mean.py                | Every name typed from memory answers a typo with the names it most likely meant                                                                                                     |
+| test_doc_shots.py                   | The documentation screenshots show the app that ships, not an older one                                                                                                             |
+| test_engine.py                      | Tests for ReplEngine internals: start_script, run_script, properties                                                                                                                |
+| test_env_var.py                     | Tests for the env_var built-in transform and commands                                                                                                                               |
+| test_env_var_gates.py               | Tests for the env-var security gates                                                                                                                                                |
+| test_examples_load.py               | Guard: every plugin under examples/plugins/ must load cleanly                                                                                                                       |
+| test_expect.py                      | Tests for the /expect and /expect.regex commands                                                                                                                                    |
+| test_family_intro.py                | A family of commands says what it is for (registry family-has-intro)                                                                                                                |
+| test_file_completion.py             | File-argument completion: the `Command.files` declaration and the engine's reader                                                                                                   |
+| test_find.py                        | Tests for /find -- interactive scrollback match navigation                                                                                                                          |
+| test_firmware.py                    | The `/firmware` command and the tables behind it: every shipped target is listed, copyable and printable                                                                            |
+| test_firmware_json.py               | The drop-in JSON wrapper, `termapy/firmware/c/termapy_json.c`, on the host                                                                                                          |
+| test_firmware_mem.py                | The drop-in MEM handler, `termapy/firmware/c/termapy_mem.c`, run on the host                                                                                                        |
+| test_folder_ops_delete.py           | The shared `.delete` folder handler (`/cap.delete`, `/run.delete`, ...)                                                                                                             |
+| test_folder_ops_dump.py             | Containment tests for the shared `.dump` folder handler                                                                                                                             |
+| test_folder_ops_listing.py          | Tests for the shared listing producers in `folder_ops`                                                                                                                              |
+| test_folder_ops_stamped.py          | folder_ops.stamped_path: a timestamped file name never lands on one that exists                                                                                                     |
+| test_folders.py                     | Tests for termapy.folders -- folder/file constants                                                                                                                                  |
+| test_format_tables_sync.py          | Guard the format-spec type tables against hand edits and decoder drift                                                                                                              |
+| test_fs_sandbox.py                  | MCP filesystem/network sandbox: the fs chokepoint and its command gates                                                                                                             |
+| test_handler_returns.py             | A handler that returns anything but a CmdResult fails the dispatch                                                                                                                  |
+| test_handles.py                     | Tests for the namespaced PluginContext handles                                                                                                                                      |
+| test_help_dynamic.py                | Tests for `help_dynamic` helpers                                                                                                                                                    |
+| test_help_groups.py                 | The grouped /help landscape: what a first session sees, and how a group is reached                                                                                                  |
+| test_help_idioms.py                 | The words commands share explain themselves (registry idioms-one-table)                                                                                                             |
+| test_help_images.py                 | Verify help content: image references exist and tagged config examples stay current                                                                                                 |
+| test_help_links.py                  | links-are-data for /help: names link to pages, a page tries its command, and nothing else changes                                                                                   |
+| test_help_page.py                   | A help page shows what is about this command (registry help-page-specific)                                                                                                          |
+| test_help_state.py                  | A command declares that its bare form reports state, and /help shows the answer (registry state-read-immutable)                                                                     |
+| test_help_tooltip.py                | Tests for the Help-button tooltip renderable                                                                                                                                        |
+| test_hex_vocabulary.py              | Hex has one vocabulary: one reader for input, in any case; one case for output                                                                                                      |
+| test_history_nav.py                 | Unit tests for history_nav: the Up/Down cursor and the file merge                                                                                                                   |
+| test_hw_loopback.py                 | hw_loopback: tests that run only on the hardware loopback, the TX-RX-jumpered adapter                                                                                               |
+| test_hw_loopback_gate.py            | The hw_loopback gate: a demanded run fails loud, and nothing runs on GitHub Actions                                                                                                 |
+| test_hygiene.py                     | The three tool gates as tests: ruff finds nothing, ruff format would change nothing, ty finds nothing                                                                               |
+| test_install_info.py                | Tests for `termapy.install_info.upgrade_command`                                                                                                                                    |
+| test_lazy_folders.py                | The data-folder rule, driven end to end from a config with NO data folders                                                                                                          |
+| test_load_report.py                 | Tests for termapy.load_report: the record shape, the table and the session report                                                                                                   |
+| test_log_fingerprint.py             | `/log.fingerprint`: the session provenance report and each of its sections                                                                                                          |
+| test_markup_escape.py               | Text reaches the terminal as typed, through every markup path                                                                                                                       |
+| test_matching.py                    | `termapy.matching`: the one name-pattern reader every name filter shares                                                                                                            |
+| test_maturity.py                    | Each command says how settled it is, and every surface reads that one value                                                                                                         |
+| test_mcp_boundary.py                | What an MCP client can never do to the host: no shell, no rename or delete, no code written                                                                                         |
+| test_mcp_cfg_load.py                | Tests for /cfg.load via MCP frontend                                                                                                                                                |
+| test_mcp_config_discovery.py        | How an MCP server finds its project's config folder and its config at launch                                                                                                        |
+| test_mcp_entry.py                   | Tests for the --mcp / --mcp-verbose entry-point wiring                                                                                                                              |
+| test_mcp_lifecycle.py               | Tests for MCP lifecycle: profile-load rejection, on-connect fetch, banner watcher                                                                                                   |
+| test_mcp_plugin.py                  | Tests for the /mcp.* REPL plugin                                                                                                                                                    |
+| test_mcp_profile_executor.py        | Tests for the profile-aware MCP request/response executor                                                                                                                           |
+| test_mcp_prompts.py                 | Tests for the MCP prompts surface                                                                                                                                                   |
+| test_mcp_safety.py                  | `Command.safety`: termapy commands carry the profile's safety tiers                                                                                                                 |
+| test_mcp_server.py                  | Tests for the MCP server core: MCPHost + run_command + resources                                                                                                                    |
+| test_mcp_stdio.py                   | End-to-end MCP over real stdio: the wire an actual client speaks                                                                                                                    |
+| test_mcp_symbols.py                 | The symbol sidecar through the MCP frontend: auto-load and the data record                                                                                                          |
+| test_mem_commands.py                | Behavior tests for the built-in `/mem.*` commands against the demo device                                                                                                           |
+| test_memory_engine.py               | Unit tests for `termapy.memory` -- the bytes-only engine over the MEM spec                                                                                                          |
+| test_memory_views.py                | Unit tests for `termapy.memory_views` -- scalars, chars, bit targets                                                                                                                |
+| test_migration.py                   | Tests for config schema versioning and migration chain                                                                                                                              |
+| test_observer_safety.py             | Exception-safety + behavior tests for `ctx.serial.rx_observer()` and `ctx.serial.tx_observer()` context managers                                                                    |
+| test_output_level.py                | Tests for the output-level dial: levels, channel gating, suffix/flag dispatch                                                                                                       |
+| test_palette.py                     | Tests for the command-palette additions that surface /find, /grep, /search                                                                                                          |
+| test_params.py                      | Tests for declarative command parameters (plugins/params.py + dispatch)                                                                                                             |
+| test_pickers.py                     | Tests for picker callbacks in `src/termapy/pickers.py`                                                                                                                              |
+| test_ping.py                        | /ping on the CLI DEMO rig: the value is the mean reply time, the data every round trip, the level what prints                                                                       |
+| test_plugin_resolve.py              | Tests for ReplEngine.resolve_plugins -- the one plugin-resolution step                                                                                                              |
+| test_plugins.py                     | Tests for plugin loading, COMMAND dataclass, and PluginContext                                                                                                                      |
+| test_port_allow.py                  | TERMAPY_ALLOWED_PORTS: which ports termapy may open and list, however a port is named                                                                                               |
+| test_port_commands.py               | The /port command family driven through the dispatcher on the CLI DEMO rig                                                                                                          |
+| test_port_connect_cli.py            | End-to-end tests for the extended /port.connect command                                                                                                                             |
+| test_port_control.py                | Tests for port_control.py - pure serial port control functions                                                                                                                      |
+| test_port_noninvasive.py            | K1 regression: resolution and plain enumeration must never open a port                                                                                                              |
+| test_port_serial_resolution.py      | End-to-end tests for USB serial-number resolution in port specs                                                                                                                     |
+| test_port_state.py                  | A port's state color: green held by this termapy session, yellow by another termapy session                                                                                         |
+| test_post_dispatch_observer.py      | Tests for `ReplEngine.add_post_dispatch_observer` and friends                                                                                                                       |
+| test_profile_memory_block.py        | The profile `memory` block: schema-known, lint-warned, never load-blocking                                                                                                          |
+| test_profile_plugin.py              | Tests for /profile.load and /profile.info                                                                                                                                           |
+| test_profile_schema.py              | Tests for termapy.profile and termapy.response_parsers                                                                                                                              |
+| test_profile_types.py               | Tests for profile-local user-defined types (TypeRegistry + validators)                                                                                                              |
+| test_proto_commands.py              | The non-CRC half of the /proto family driven through the dispatcher on the CLI DEMO rig                                                                                             |
+| test_proto_crc_custom.py            | Tests for termapy's CLI handler around the CRC codegen surface                                                                                                                      |
+| test_proto_crc_detect.py            | Tests for /proto.crc.detect -- generated from crcglot.VERBS                                                                                                                         |
+| test_proto_crc_dispatch.py          | Smoke tests for the `/proto.crc.<lang>` REPL handlers                                                                                                                               |
+| test_proto_crc_errors.py            | Regression test: /proto.crc.{c,python,rust} with an unknown algorithm                                                                                                               |
+| test_proto_crc_find.py              | Tests for /proto.crc.find -- CRC algorithm identification                                                                                                                           |
+| test_proto_crc_form.py              | Tests for /proto.crc.find `form=NAME` (crcglot 0.23+ payload forms)                                                                                                                 |
+| test_proto_crc_list.py              | `/proto.crc.list {pattern}`: the CRC catalogue filtered by a name pattern                                                                                                           |
+| test_proto_crc_reverse.py           | End-to-end tests for /proto.crc.reverse and /proto.crc.find cmd=                                                                                                                    |
+| test_proto_crc_styles_and_bundle.py | Tests for the `style=` kv arg and multi-algorithm bundling on `/proto.crc.<lang>`                                                                                                   |
+| test_proto_crc_suggest.py           | Tests for the "did you mean" suggestion suffix on unknown algorithm names                                                                                                           |
+| test_proto_crc_terminator.py        | The line ending on a cmd= capture is stripped only when it is one (/proto.crc.find and .reverse)                                                                                    |
+| test_proto_debug_pilot.py           | The proto debug screen's Run and Stop buttons, driven headless with Pilot                                                                                                           |
+| test_proto_run_command.py           | `/proto.run` writes `json_file`, returns the results as data, runs a test's own teardown, and stops on the engine's script-stop event                                               |
+| test_proto_runner.py                | Tests for headless protocol test runner and JSON result output                                                                                                                      |
+| test_proto_send_crc.py              | Tests for proto.send CRC-append feature                                                                                                                                             |
+| test_protocol.py                    | Tests for termapy.protocol - hex utilities, framing, matching, script parsing                                                                                                       |
+| test_protocol_word_fields.py        | Word-relative bit fields: `NAME:B.<bits>` binds to a register word, not to packet bytes                                                                                             |
+| test_python_versions.py             | The supported-Python list must agree everywhere it is written down                                                                                                                  |
+| test_quick_open.py                  | Quick open: `termapy PORT [SETTING ...]` opens the port's own config, made at first use and kept                                                                                    |
+| test_repl_cfg.py                    | Tests for the /cfg and /cfg.auto REPL commands                                                                                                                                      |
+| test_repl_coverage.py               | repl.py corners the engine tests miss -- covering suggest_command, edit_distance, ScriptCtx, directive dispatch paths, and script special commands                                  |
+| test_request_response.py            | Tests for `termapy.request_response.request_response`                                                                                                                               |
+| test_resolve_config.py              | Tests for resolve_config - command-line config resolution chain                                                                                                                     |
+| test_run_docstring.py               | Tests for the .run-file docstring parser (termapy.run_docstring)                                                                                                                    |
+| test_run_last.py                    | Tests for /run.last -- list the lines typed at the prompt, and replay the newest of them                                                                                            |
+| test_run_record.py                  | Tests for /run.record -- session capture to a .run file                                                                                                                             |
+| test_scripting.py                   | Tests for termapy.scripting - pure functions, no serial or Textual needed                                                                                                           |
+| test_search_markup.py               | Regression tests for /search and cli output rendering markup-safety                                                                                                                 |
+| test_selectable_log.py              | SelectableRichLog: the output pane selects by mouse or keyboard, and Ctrl+C copies the text shown                                                                                   |
+| test_selection_list.py              | Behavioral tests for StrongSelectionList -- the glyph flips per row                                                                                                                 |
+| test_serial_engine.py               | Tests for SerialEngine - connection lifecycle and reader loop                                                                                                                       |
+| test_serial_io_safety.py            | Exception-safety tests for the `ctx.serial.io()` context manager                                                                                                                    |
+| test_serial_port.py                 | Tests for SerialPort and SerialReader                                                                                                                                               |
+| test_session_log.py                 | Tests for termapy.session_log: the one session-log writer, its line format and markers, and the old MCP log's move                                                                  |
+| test_shutdown_race.py               | Contract tests for the SHUTDOWN_RACE exception tuple                                                                                                                                |
+| test_status_bar.py                  | Behavioral tests for the StatusBar widget                                                                                                                                           |
+| test_suggester.py                   | Behavioral tests for CommandSuggester -- prefix type-ahead logic                                                                                                                    |
+| test_suppression_audit.py           | Tests for scripts/suppression_audit.py -- the release-prep suppression gate                                                                                                         |
+| test_sw_loopback.py                 | sw_loopback: the software loopback (pyserial's loop://) as a selectable virtual port                                                                                                |
+| test_sw_loopback_crc_find.py        | sw_loopback: /proto.crc.find cmd= keeps a CRC byte of 0x0A, on pyserial's loop:// port                                                                                              |
+| test_sw_loopback_io.py              | sw_loopback: end-to-end I/O tests using pyserial's `loop://` backend                                                                                                                |
+| test_sym_commands.py                | Behavior tests for the built-in `/sym.*` commands and the symbol auto-load                                                                                                          |
+| test_symbols_address.py             | Tests for `termapy.symbols.address` -- the address grammar                                                                                                                          |
+| test_symbols_elf.py                 | The ELF converter against three builds of one C file, and its place in the registry                                                                                                 |
+| test_symbols_format.py              | Tests for `termapy.symbols.format` -- prose renderers and their `data=` twins                                                                                                       |
+| test_symbols_provenance.py          | Unit tests for the symbol-table staleness verdict                                                                                                                                   |
+| test_symbols_table.py               | Tests for `termapy.symbols.table` -- the model and the file format                                                                                                                  |
+| test_symbols_xc32.py                | Tests for the xc32 converter and the converter registry                                                                                                                             |
+| test_synopsis_validation.py         | Synopsis grammar validation: load-time chokepoint + registry conformance                                                                                                            |
+| test_term_request.py                | Tests for /term.request toggle and the request_mode dispatcher fallthrough                                                                                                          |
+| test_term_send.py                   | Tests for /term.send <text> and dispatch_full's rewrite of a bare device line to it                                                                                                 |
+| test_term_traffic.py                | /term.traffic: the engine's TX/RX byte counts, the TUI-only toggle that shows them, and /term.info's copy                                                                           |
+| test_terminal_host.py               | Unit tests for TerminalHost - context builders, serial I/O, hooks                                                                                                                   |
+| test_title_bar.py                   | Regression tests for title_bar.update_port with a read-only cfg                                                                                                                     |
+| test_title_tooltip.py               | Tests for the title-bar tooltip formatters (pure string logic)                                                                                                                      |
+| test_traceability.py                | The rule marker's checks and the matrix: an unknown id is refused at collection, `--rule` selects by id, the index reads every marker shape, and the generated matrix stays current |
+| test_tree_render.py                 | Unit tests for `termapy.tree_render` (the `FileTree` renderer)                                                                                                                      |
+| test_tx_chunk.py                    | Tests for chunked writes: with tx_chunking on, SerialPort.write hands a long write to the driver in 192-byte pieces                                                                 |
+| test_tx_pacing.py                   | Tests for transmit pacing -- tx_char_delay_ms and tx_line_delay_ms on every device line, never on binary                                                                            |
+| test_typed_lines.py                 | Tests for typed_lines -- the lines typed at the prompt, per config, that /run.last replays                                                                                          |
+| test_update_check.py                | Tests for update_check.check and its bail-out paths                                                                                                                                 |
+| test_usage_error.py                 | Dispatch-level tests for the UsageError mechanism                                                                                                                                   |
+| test_usb_mfg.py                     | Tests for termapy.usb.aliases -- USB manufacturer alias folding                                                                                                                     |
+| test_usb_serial_chips.py            | Tests for termapy.usb.chips -- VID:PID -> ChipInfo lookup                                                                                                                           |
+| test_usb_tree.py                    | The USB tree: assembly, rendering, and the serial-port cross-reference                                                                                                              |
+| test_usb_vendor.py                  | Tests for usb_vendor lookup + scripts/refresh_usb_ids.py transformer                                                                                                                |
+| test_value_capture_e2e.py           | End-to-end check that handlers populate `CmdResult.value`                                                                                                                           |
+| test_var.py                         | Tests for the user-defined variables plugin (var.py)                                                                                                                                |
+| test_variable_isolation.py          | A test cannot see the `$(NAME)` state an earlier test left behind                                                                                                                   |
+| test_vfs.py                         | Tests for FakeSerial virtual filesystem - AT+FS commands and VFS state                                                                                                              |
+| test_views.py                       | A list answer is records plus a view, and dispatch renders the view once                                                                                                            |
+| test_vt100.py                       | Tests for vt100.py - the passthrough session on the engine, settings, config resolution, streams                                                                                    |
+| test_xmodem.py                      | Tests for XMODEM file transfer - QueueByteReader, FakeSerial responder, and protocol integration                                                                                    |
+| test_ymodem.py                      | Tests for YMODEM file transfer - FakeSerial responder and ymodem library integration                                                                                                |
 
 <!-- test-table:end -->
 
 `app.py` is driven headless by `tests/test_app_pilot.py` (Textual Pilot) and the dialogs by `tests/test_dialogs.py`; `proto_debug.py` is tested manually. The serial engine, capture, reader, and dispatch layers are fully testable using `FakeSerial`.
+
+### Test markers
+
+pytest refuses a marker that `pyproject.toml` does not register (`--strict-markers`), so this table, generated from that registration, is every project marker there is. Wherever the suite is a gate (`release_prep`, tox, CI) it runs in two passes, `pytest -m "not timing"` on every worker and then `pytest -m timing -n 0` alone (registry `timing-tests-run-alone`). pytest's own `parametrize`, `skip` and `skipif` are in use too, and pytest-xdist's `xdist_group`, which keeps a group on one worker: `c_toolchain` (the C firmware tests share one compiler) and `hw_loopback` (one process may hold the adapter).
+
+<!-- marker-table:start (generated by scripts/sync_architecture.py from pyproject.toml's pytest markers -- do not edit by hand) -->
+
+| Marker        | Meaning                                                                                                                                                                                                                                                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `rule(id)`    | the rule this test pins, a docs/rules.md row or a spec section id (tests/traceability.py SOURCES).  One marker per rule, pytestmark for a module; collection refuses an id no source holds.  --rule <id> runs the tests of one rule (docs/traceability.md).                                                                          |
+| `slow`        | subprocess-spawning, hw_loopback, or sleep-based test.  Skip during fast iteration with -m 'not slow'.                                                                                                                                                                                                                               |
+| `sw_loopback` | software loopback, pyserial's virtual loop:// port.  No hardware; runs anywhere, CI included.                                                                                                                                                                                                                                        |
+| `hw_loopback` | hardware loopback, a TX-RX-jumpered USB-serial adapter attached; found by serial number (TERMAPY_HW_LOOPBACK_SN, default BG03U7VTA).  Gated: deselected unless --run-hw-loopback, FAILS when absent under --require-hw-loopback (release_prep), refused on GitHub Actions.  Run with --run-hw-loopback -m hw_loopback -n 0 --no-cov. |
+| `timing`      | the result depends on wall-clock time (an elapsed bound, a real-time window, pacing or a timer), so a loaded machine can fail it.  Runs alone, after the parallel pass: pytest -m 'not timing', then pytest -m timing -n 0.                                                                                                          |
+
+<!-- marker-table:end -->

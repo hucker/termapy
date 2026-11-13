@@ -12,6 +12,11 @@ docstring summary, and has six actions:
 - **Delete:** delete the highlighted script, after a yes: it runs `/run.delete <name>`
 - **Cancel:** close the picker
 
+Rename and Delete leave the picker open: the list refreshes in place, the
+highlight on the renamed script or on the next one after a delete, so
+several scripts can be tidied in one visit.  The Proto picker works the
+same way.
+
 ![Script picker](img/doc_21_script_picker.svg)
 
 The script editor provides syntax highlighting (bash-style) for comments
@@ -70,13 +75,49 @@ refused if it already exists (delete or pick a new name).  Add a `#`
 docstring at the top of the recorded file and it becomes self-describing
 in `/run.list` and `/run.help`.
 
+## Replaying what you typed: `/run.last`
+
+To run the last few commands again without retyping them or writing a
+script, list them with bare `/run.last`:
+
+```text
+demo> /run.last
+  typed in demo - 4 lines
+  #  COMMAND     RESULT
+  -  ----------  -----------------------
+  3  /port.info  ok
+  2  AT+VER      ok
+     /nosuch     Unknown command: nosuch
+  1  AT+STATUS   ok
+```
+
+`/run.last 2` runs lines 2 and 1 again, in the order you typed them. Each
+command is echoed as it runs, as `/run --echo` does; a device line echoes
+as your `echo` setting says, as it did when you typed it. Escape stops the
+replay, and so does the first line that fails. In the TUI, clicking a
+number puts `/run.last N` in the prompt for you to run.
+
+The list is what you typed, line for line. A typed `/run my_script` is one
+line: replaying it runs the script again, and the script runs its own
+steps. The lines inside a script are never listed, nor a paste, nor
+`/run.last` itself.
+
+`/run.last` is a convenience for the prompt, not a script command: a
+script that runs it is refused (`Not available in a script.`), and so is
+a replay inside a replay.
+
+Only a line that succeeded gets a number. A failed one is listed with its
+error and never replays: fix it from the Up-arrow history instead. Each
+config keeps its own list while termapy runs; a restart starts every list
+empty.
+
 ## Script commands
 
 | Command | Description |
 |---------|-------------|
-| `/delay <duration>` | Pause execution (e.g. `500ms`, `2s`, `1.5s`). Escape or Ctrl+C cancels it and the script. |
-| `/expect {timeout=<dur>} match=<text>` | Wait for a serial line containing `<text>` (default 5s). A timeout fails the line and stops the script. |
-| `/expect.regex {timeout=<dur>} match=<pattern>` | Same but the pattern is a regex. |
+| `/delay <duration> {msg=<text>}` | Pause execution (e.g. `500ms`, `2s`, `1.5s`). `msg=` prints what the wait is for when it starts, the rest of the line with no quotes: `/delay 2s msg=Waiting for reboot...`. Escape or Ctrl+C cancels it and the script. |
+| `/expect {timeout=<dur>} {fail=<text>} match=<text>` | Wait for a serial line containing `<text>` (default 5s). A timeout fails the line and stops the script; so does a line containing the `fail=` text, as soon as it arrives. |
+| `/expect.regex {timeout=<dur>} {fail=<pattern>} match=<pattern>` | Same, but both patterns are regexes. |
 | `/confirm {message}` | Ask Yes/Cancel: a dialog in the TUI, a y/n prompt in the CLI. Canceling stops the script. |
 | `/run <script>` | Run a nested script (max 5 levels deep) |
 | `/run.profile <script>` | Run nested script with per-line timing |
@@ -86,8 +127,19 @@ Keywords use `key=value` syntax (spaces around `=` are OK). `match=` must be
 last -- everything after it is the pattern.
 
 `/expect` also searches lines that arrived before it ran, so a fast reply is
-not missed. A match consumes the output up to and including the matched line:
-two `AT` / `/expect match=OK` pairs in a row each wait for their own `OK`.
+not missed, back to the start of the script: output from before the script
+never answers it. A match consumes the output up to and including the
+matched line: two `AT` / `/expect match=OK` pairs in a row each wait for
+their own `OK`.
+
+`fail=` ends the wait on an error reply instead of waiting out the timeout:
+`/expect timeout=5s fail=ERROR match=OK` fails the moment the device answers
+`ERROR`, and the message names the line. A line that contains both fails, so
+`ERROR: not OK` is an error. The `fail=` text cannot hold a space (keywords
+split on spaces); in `/expect.regex` write `\s` for one, as in
+`fail=\+CME\sERROR`. Regex covers the other shapes: `^OK$` is the whole
+line, `OK$` its end, `ERROR|FAIL` either. Each line is compared as the
+device sent it, without its line ending.
 
 ## Profiling
 
@@ -118,6 +170,9 @@ A single dial controls how loud commands are. Four monotonic levels:
 | `normal`  |   ✓    |   ✓    |   —    | default                                   |
 | `verbose` |   ✓    |   ✓    |   ✓    | show progress chatter and timing          |
 
+A table or status page is a command's answer, so `quiet` shows it:
+`/var.quiet` is the variable table and `/port.mode.quiet` is `115200 8N1`.
+
 Set the session default with `/term.output <level>`. Override for a single
 call with `cmd --<level>` or `cmd.<level>`:
 
@@ -127,6 +182,11 @@ call with `cmd --<level>` or `cmd.<level>`:
 /help port --verbose            # one call back to verbose
 /cap.dump capture.bin --silent  # run, drop output, only value returns
 ```
+
+The flag and the suffix mean the same. A silent call is not echoed either
+way, and a connect or disconnect banner (`Connected: COM9`) is the command's
+output, so `/port.disconnect --quiet` closes the port without one. The
+session log keeps the banner.
 
 Set the level at startup with `--silent`, `--quiet`, or `--verbose` on the
 `termapy` command line.
@@ -139,15 +199,18 @@ commands as result envelopes.  The device/termapy demarcation is deliberately
 invisible; the session is either in JSON mode or in prose mode.
 
 For a single call in a prose-mode session, every command also accepts
-`--json`, which renders that one result as an envelope:
+`--json`, or a `.json` suffix on its name (`/port.list.json`, as `.quiet` is
+for `--quiet`), which renders that one result as an envelope:
 
 ```text
 /port.list --json
-{"cmd": "/port.list", "success": true, "error": "", "value": "COM3,COM4",
+{"cmd": "/port.list", "success": true, "error": "", "value": 2,
  "data": [{"device": "COM3", ...}], "output_lines": [], "elapsed_s": 0.02}
 ```
 
-`data` carries the structured form, with no rows of text beside it:
+`value` is one scalar in its own type: a list's row count as a number, a
+switch as a boolean, text as a string.  `data` carries the structured form,
+with no rows of text beside it:
 
 - **Every list** (`/port.list`, `/port.chip.list`, `/proto.crc.list`, the
   folder listings `/run.list` / `/cap.list` / `/ss.list` / `/proto.list` /
@@ -158,6 +221,14 @@ For a single call in a prose-mode session, every command also accepts
 - **Every status page** (`/mcp.info` with the server's `pid`, `/term.info`,
   `/port.info`, `/mem.info`, `/sym.info`, `/profile.info`, `/seq`, ...) is
   one record of real values; `/port.chip *` is a list of them.
+- **A query or measurement with more than one fact** is one record:
+  `/port.mode` and `/port.baud_rate` (`{"baud": 115200, "custom": false, ...}`),
+  `/ping` (every round trip, `null` for a timeout, and the stats over the
+  replies), `/cap.wire` (both directions as counts, hex and text),
+  `/expect.regex` (the line and its `groups` and `named` captures), and
+  `/proto.crc.detect` (crcglot's own result).
+- `/cfg <key>` answers the key's value with its JSON type, a container as
+  the structure itself.
 - `/var`, `/port.usb` and profile-mapped device commands have their own shapes.
 
 For everything else it
@@ -178,13 +249,6 @@ For plugin authors: `ctx.result()` is the answer, `ctx.output()` is bulk
 data, `ctx.status()` is progress chatter. Each gates on the active level.
 Handlers that produce scriptable data must call `CmdResult.ok(value=...)`
 so silent mode is useful.
-
-> **Migrating older scripts.** Scripts that used `/verbose on/off`,
-> `/term.verbose on/off`, or `*.quiet` as a "set silently" idiom keep
-> working via hidden forwarders. Run `/run.legacy <file>` to preview
-> the canonical replacements, or `/run.legacy --fix <file>` to rewrite
-> in place. A [name pattern](commands.md#name-patterns) processes every
-> script it matches: `/run.legacy *` is all of `run/`.
 
 ## Example script
 

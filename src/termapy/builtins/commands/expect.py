@@ -12,7 +12,8 @@ match line.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from termapy.plugins import CapabilitySet, CmdResult, Command
 from termapy.plugins.params import ParamSpec
@@ -33,38 +34,84 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_regex(ctx: PluginContext, args: str) -> CmdResult:
-    """Wait for a received line matching the ``match=`` regex; that line is the value."""
+    """Wait for a received line matching the ``match=`` regex; that line is the value, its captures the data."""
     return _expect(ctx, use_regex=True)
 
 
-def _expect(ctx: PluginContext, *, use_regex: bool) -> CmdResult:
-    """Wait for a line containing (or matching) ``match=``; its value is the line."""
-    pattern = ctx.arg("match").strip()
-    timeout_s = ctx.arg("timeout")
+def _line_test(pattern: str, use_regex: bool) -> Callable[[str], bool]:
+    """``pattern`` as a test of one line: a regex search, or plain containment.
+
+    Raises:
+        re.error: ``use_regex`` is set and ``pattern`` is not a valid regex.
+    """
     if use_regex:
-        try:
-            compiled = re.compile(pattern)
-        except re.error as e:
-            return CmdResult.fail(msg=f"Expect: invalid regex: {e}")
+        compiled = re.compile(pattern)
 
-        def predicate(line: str) -> bool:
+        def searches(line: str) -> bool:
             return bool(compiled.search(line))
-    else:
 
-        def predicate(line: str) -> bool:
-            return pattern in line
+        return searches
 
-    match = ctx.wait_for_match(predicate, timeout=timeout_s)
-    if match is None:
-        if ctx.internal.in_script():
-            stop = ctx.internal.script_stop_event
-            if stop is not None and stop.is_set():
-                return CmdResult.fail(msg="Script stopped.")
-            # A missed expect is a failed assertion: the script stops here.
-            ctx.internal.script_stop()
-        return CmdResult.fail(msg=f'Expect "{pattern}" timeout after {format_duration(timeout_s)}')
+    def contains(line: str) -> bool:
+        return pattern in line
+
+    return contains
+
+
+def _expect(ctx: PluginContext, *, use_regex: bool) -> CmdResult:
+    """Wait for a line containing (or matching) ``match=``; its value is the line.
+
+    ``fail=`` is tested the same way and ends the wait at once: an error
+    reply fails the expect when it arrives instead of after the timeout.
+    A line that passes both tests fails, since an error reply that
+    mentions the expected text is still an error.
+    """
+    pattern = ctx.arg("match").strip()
+    fail_pattern = ctx.arg("fail").strip()
+    timeout_s = ctx.arg("timeout")
+    try:
+        matches = _line_test(pattern, use_regex)
+        fails = _line_test(fail_pattern, use_regex) if fail_pattern else None
+    except re.error as e:
+        return CmdResult.fail(msg=f"Expect: invalid regex: {e}")
+
+    def predicate(line: str) -> bool:
+        return matches(line) or (fails is not None and fails(line))
+
+    line = ctx.wait_for_match(predicate, timeout=timeout_s)
+    if line is None:
+        return _missed(ctx, f'Expect "{pattern}" timeout after {format_duration(timeout_s)}')
+    if fails is not None and fails(line):
+        return _missed(ctx, f'Expect "{pattern}" failed: {line}')
     ctx.io.output(f'Expect "{pattern}" matched', "green")
-    return CmdResult.ok(value=match)
+    return CmdResult.ok(value=line, data=_regex_record(pattern, line) if use_regex else None)
+
+
+def _regex_record(pattern: str, line: str) -> dict[str, Any]:
+    """A regex expect's data: the line and what the pattern captured from it.
+
+    ``groups`` lists the numbered groups (``None`` for one that took no
+    part), ``named`` the named ones, so an agent reads a reading out of the
+    reply without applying its own pattern a second time.
+    """
+    found = re.search(pattern, line)
+    groups = list(found.groups()) if found else []
+    named = found.groupdict() if found else {}
+    return {"line": line, "groups": groups, "named": named}
+
+
+def _missed(ctx: PluginContext, msg: str) -> CmdResult:
+    """The failure for an expect that timed out or met its ``fail=`` line.
+
+    Inside a .run script a missed expect is a failed assertion, so the
+    script stops here; a stop the user already asked for answers as such.
+    """
+    if ctx.internal.in_script():
+        stop = ctx.internal.script_stop_event
+        if stop is not None and stop.is_set():
+            return CmdResult.fail(msg="Script stopped.")
+        ctx.internal.script_stop()
+    return CmdResult.fail(msg=msg)
 
 
 _PARAMS = [
@@ -73,6 +120,12 @@ _PARAMS = [
         "duration",
         default=5.0,
         help="how long to wait, e.g. 2s (default 5s)",
+    ),
+    ParamSpec(
+        "fail",
+        "str",
+        default="",
+        help="text that fails the wait as soon as it arrives, e.g. ERROR (no spaces)",
     ),
     ParamSpec(
         "match",
@@ -88,16 +141,29 @@ COMMAND = Command(
     group="advanced",
     name="expect",
     help="Wait for text in serial output (blocks until match or timeout).",
+    intro=(
+        "Wait for a line from the device before going on, which is how a script "
+        "pauses for a reply and fails when the reply is wrong."
+    ),
     long_help=(
         "Block until the device outputs a line containing <text>.\n"
         "Returns the matched line as the result value; fails on\n"
         "timeout (default 5s).  Inside a .run script a timeout also\n"
         "stops the script.\n"
         "\n"
+        "fail=<text> fails at once when a line containing it arrives,\n"
+        "instead of waiting out the timeout: an error reply.  A line\n"
+        "containing both fails.  It stops a script the same way.  Its\n"
+        "text cannot hold a space; {prefix}expect.regex can (\\s).\n"
+        "\n"
+        "Each line is compared as the device sent it, without its line\n"
+        "ending.\n"
+        "\n"
         "Lines that arrived before {prefix}expect ran are searched\n"
-        "too.  A match consumes the output up to and including the\n"
-        "matched line, so the next {prefix}expect waits for new\n"
-        "output instead of finding the same reply again.\n"
+        "too, back to the start of the script: output from before the\n"
+        "script never answers it.  A match consumes the output up to\n"
+        "and including the matched line, so the next {prefix}expect\n"
+        "waits for new output instead of finding the same reply again.\n"
         "\n"
         "Available wherever ``block_until`` is provided: inside\n"
         "a .run script (always), and from the MCP server (the\n"
@@ -110,7 +176,7 @@ COMMAND = Command(
         "\n"
         "Example:\n"
         "  AT+CONNECT\n"
-        "  {prefix}expect timeout=5s match=CONNECTED"
+        "  {prefix}expect timeout=5s fail=ERROR match=CONNECTED"
     ),
     handler=_handler,
     params=_PARAMS,
@@ -121,16 +187,18 @@ COMMAND = Command(
             help="Wait for regex match in serial output (blocks until match or timeout).",
             long_help=(
                 "Block until the device outputs a line matching <pattern>.\n"
-                "<pattern> is a Python regex.  See {prefix}expect for the\n"
-                "non-regex variant, how a match consumes earlier output,\n"
-                "and the capability gate that decides where this command\n"
-                "runs.\n"
+                "<pattern> is a Python regex, searched in the line: ^OK$ is\n"
+                "the whole line, OK$ its end.  fail=<pattern> is a regex too\n"
+                "(^ERROR|^FAIL), and \\s stands for a space it cannot hold.\n"
+                "See {prefix}expect for fail=, how a match consumes earlier\n"
+                "output, and the capability gate that decides where this\n"
+                "command runs.\n"
                 "\n"
                 "**match= must be the LAST keyword.**\n"
                 "\n"
                 "Example:\n"
                 "  AT+STATUS\n"
-                "  {prefix}expect.regex timeout=2s match=^\\+STATUS: \\d+$"
+                "  {prefix}expect.regex timeout=2s fail=^ERROR match=^\\+STATUS: \\d+$"
             ),
             handler=_handler_regex,
             params=_PARAMS,

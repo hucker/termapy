@@ -31,24 +31,37 @@ pytestmark = pytest.mark.slow  # subprocess spawn + real stdio round-trips
 
 from termapy.defaults import DEFAULT_CFG  # noqa: E402
 
+# The first reply waits for a fresh server process to start: a second or two
+# on an idle machine, past 20 s under tox's parallel load on Python 3.11.
+STARTUP_S = 60.0
+
 
 class _StdioClient:
     """A minimal JSON-RPC 2.0 client over a subprocess's stdio."""
 
-    def __init__(self, cfg_file: Path, cfg_dir: Path) -> None:
+    def __init__(
+        self, args: list[str], *, project: Path | None = None, cwd: Path | None = None
+    ) -> None:
         import os
 
         env = dict(os.environ)
         # Deterministic ports: the subprocess enumerates the demo fleet,
         # not this machine's hardware.
         env["TERMAPY_DEMO_FLEET"] = "1"
+        # An MCP server with no port list lists and opens no port (decision
+        # 2026-11-11); .* allows every device, as an operator would set it.
+        env["TERMAPY_ALLOWED_PORTS"] = ".*"
+        # What finds the config is what this test sets, not what the test run inherited.
+        env.pop("CLAUDE_PROJECT_DIR", None)
+        env.pop("TERMAPY_CFG_DIR", None)
+        if project is not None:
+            env["CLAUDE_PROJECT_DIR"] = str(project)
+        argv = ["termapy", "--mcp", *args]
         self.proc = subprocess.Popen(
             [
                 sys.executable,
                 "-c",
-                "import sys; sys.argv = ['termapy', '--mcp', "
-                f"{str(cfg_file)!r}, '--cfg-dir', {str(cfg_dir)!r}]; "
-                "from termapy.entry import main; main()",
+                f"import sys; sys.argv = {argv!r}; from termapy.entry import main; main()",
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -56,6 +69,7 @@ class _StdioClient:
             text=True,
             encoding="utf-8",
             env=env,
+            cwd=cwd,
         )
         self._lines: queue.Queue[str] = queue.Queue()
         self._id = 0
@@ -146,7 +160,7 @@ class TestMcpStdioEndToEnd:
         cfg_file.write_text(json.dumps(cfg))
         for sub in ("plugin", "ss", "run", "cap"):
             (slot / sub).mkdir()
-        client = _StdioClient(cfg_file, tmp_path)
+        client = _StdioClient([str(cfg_file), "--cfg-dir", str(tmp_path)])
 
         try:
             # Act / Assert -- one conversation, the way an agent has it.
@@ -159,6 +173,7 @@ class TestMcpStdioEndToEnd:
                     "capabilities": {},
                     "clientInfo": {"name": "pytest-stdio", "version": "0"},
                 },
+                timeout=STARTUP_S,
             )
             server_name = init["result"]["serverInfo"]["name"]
             assert server_name == "termapy", "server identifies itself"
@@ -186,7 +201,9 @@ class TestMcpStdioEndToEnd:
                 "fire-and-forget: the agent learns nothing"
             )
             on = _run_command(client, "/term.request on")
-            assert on["value"] == "on", "session flipped to request mode"
+            assert on["value"] is True, (
+                "session flipped to request mode; a switch is a boolean on the wire"
+            )
             at = _run_command(client, "AT")
             assert at["success"] is True, "request/response exchange succeeds"
             assert at["value"] == "OK", (
@@ -198,5 +215,186 @@ class TestMcpStdioEndToEnd:
             res = client.rpc("resources/read", {"uri": "termapy://device_state.json"})
             state = json.loads(res["result"]["contents"][0]["text"])
             assert state["last_command"]["cmd"] == "AT", "device_state tracks the conversation"
+        finally:
+            client.close()
+
+
+def _write_config(root: Path, name: str, port: str) -> None:
+    """A config on disk: ``root/<name>/<name>.cfg``."""
+    cfg = json.loads(json.dumps(DEFAULT_CFG))
+    cfg["serial"]["port"] = port
+    path = root / name / f"{name}.cfg"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(cfg))
+
+
+def _instructions(client: _StdioClient) -> str:
+    """Handshake, and return what the server told the agent on connecting."""
+    init = client.rpc(
+        "initialize",
+        {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "pytest-stdio", "version": "0"},
+        },
+        timeout=STARTUP_S,
+    )
+    client.rpc("notifications/initialized", {}, notify=True)
+    return init["result"]["instructions"]
+
+
+class TestFindsItsConfig:
+    @pytest.mark.rule("mcp-finds-its-config")
+    def test_two_bare_servers_are_two_free_slots(self, tmp_path):
+        """termapy-a and termapy-b debug two ports at once: each holds nothing until told, then its own device."""
+        # Arrange -- the two configs open different simulated devices.
+        root = tmp_path / "termapy_cfg"
+        for name, port in (("left", "DEMO"), ("right", "DEMO_JSON")):
+            _write_config(root, name, port)
+            path = root / name / f"{name}.cfg"
+            path.write_text(json.dumps({**json.loads(path.read_text()), "auto_connect": True}))
+        first = _StdioClient([], project=tmp_path)
+        second = _StdioClient([], project=tmp_path)
+
+        # Act / Assert
+        try:
+            assert _instructions(first).startswith("No config is loaded."), "holds no port yet"
+            assert _instructions(second).startswith("No config is loaded."), "nor does the other"
+            assert _run_command(first, "/cfg.load left")["success"] is True
+            assert _run_command(second, "/cfg.load right")["success"] is True
+            assert _run_command(first, "/port.info")["value"] == "DEMO", "each has its own"
+            assert _run_command(second, "/port.info")["value"] == "DEMO_JSON", "and keeps it"
+            assert _run_command(first, "/cfg.load right")["success"] is True, "and can move on"
+            assert _run_command(second, "/port.info")["value"] == "DEMO_JSON", "untouched by that"
+        finally:
+            first.close()
+            second.close()
+
+    @pytest.mark.rule("mcp-finds-its-config")
+    def test_a_missing_named_config_stops_there(self, tmp_path):
+        """A name given at launch is the only choice, so a typo exits instead of landing on another device's config."""
+        # Arrange -- an mcp_* it could wrongly fall to.
+        root = tmp_path / "termapy_cfg"
+        _write_config(root, "mcp_board", "DEMO")
+        client = _StdioClient(["mcp_bord"], project=tmp_path)
+
+        # Act
+        returncode = client.proc.wait(timeout=STARTUP_S)
+        stderr = client.proc.stderr
+        assert stderr is not None, "opened with stderr=PIPE"
+        message = stderr.read()
+
+        # Assert
+        assert returncode == 1, "the client shows a failed server"
+        assert "No config matching 'mcp_bord'" in message, message
+        assert "did you mean mcp_board?" in message, "and the likely name, as every typed name gets"
+
+    @pytest.mark.rule("mcp-finds-its-config")
+    def test_a_config_named_by_path_brings_its_folder(self, tmp_path):
+        """The command line outranks the search, so the folder is the named config's, not the project's."""
+        # Arrange -- the project has its own configs, which must not be offered.
+        project = tmp_path / "project"
+        _write_config(project / "termapy_cfg", "mcp_here", "DEMO")
+        other = tmp_path / "other" / "termapy_cfg"
+        _write_config(other, "left", "")
+        _write_config(other, "right", "")
+        client = _StdioClient([str(other / "left" / "left.cfg")], project=project)
+
+        # Act / Assert
+        try:
+            told = _instructions(client)
+            assert told.startswith("Active config: left."), told
+            listed = _run_command(client, "/cfg.list")
+            names = [record["name"] for record in listed["data"]]
+            assert sorted(names) == ["left", "right"], "its siblings, not the search's"
+        finally:
+            client.close()
+
+    @pytest.mark.rule("mcp-finds-its-config")
+    def test_enabled_in_a_project_it_finds_the_config_there(self, tmp_path):
+        """Bare --mcp reads CLAUDE_PROJECT_DIR over the working folder, walks the chain and tells the agent."""
+        # Arrange -- the folder is at the second place searched, and the
+        # working folder is somewhere else entirely.
+        project = tmp_path / "project"
+        root = project / "src" / "termapy_cfg"
+        _write_config(root, "mcp_a", "DEMO_FAIL")
+        _write_config(root, "mcp_b", "DEMO")
+        _write_config(root, "other", "")
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        client = _StdioClient([], project=project, cwd=elsewhere)
+
+        # Act / Assert
+        try:
+            told = _instructions(client)
+            assert told.startswith("Active config: mcp_b. Skipped mcp_a: Cannot open DEMO_FAIL"), (
+                told
+            )
+            assert "mcp_a, mcp_b, other" in told, "and what else it may load"
+            loaded = _run_command(client, "/cfg.load other")
+            assert loaded["success"] is True, loaded["error"]
+            refused = _run_command(client, "/cfg.load src/termapy_cfg/mcp_b/mcp_b.cfg")
+            assert refused["success"] is False, "a bare name, never a path"
+        finally:
+            client.close()
+
+    @pytest.mark.rule("mcp-finds-its-config")
+    def test_a_project_with_no_folder_stays_out_of_the_os_folder(self, tmp_path):
+        """No folder means no configs, so a user-scope server sees nothing of the user's other projects."""
+        # Arrange
+        project = tmp_path / "project"
+        project.mkdir()
+        client = _StdioClient([], project=project, cwd=tmp_path)
+
+        # Act / Assert
+        try:
+            told = _instructions(client)
+            assert told.startswith("No config is loaded. No configs in "), told
+            listed = _run_command(client, "/cfg.list")
+            assert listed["data"] == [], "and the OS config folder's are not offered"
+            assert not (project / "termapy_cfg").exists(), "looking created nothing"
+        finally:
+            client.close()
+
+    @pytest.mark.rule("mcp-finds-its-config")
+    def test_several_with_no_mcp_name_starts_with_none_and_lists_them(self, tmp_path):
+        """Rather than guess at a device, it starts with none and the agent picks from the list."""
+        # Arrange
+        root = tmp_path / "termapy_cfg"
+        _write_config(root, "demo", "DEMO")
+        _write_config(root, "pico", "")
+        client = _StdioClient([], project=tmp_path)
+
+        # Act / Assert
+        try:
+            told = _instructions(client)
+            assert told.startswith("No config is loaded. 2 configs and none named mcp_*"), told
+            assert "demo, pico" in told
+            first_try = _run_command(client, "/run.list")
+            assert "demo, pico" in first_try["error"], "the first refusal repeats the choices"
+            loaded = _run_command(client, "/cfg.load demo")
+            assert loaded["success"] is True, loaded["error"]
+        finally:
+            client.close()
+
+    @pytest.mark.rule("mcp-finds-its-config")
+    def test_a_config_named_at_launch_wins(self, tmp_path):
+        """The explicit path: --mcp <name> needs no absolute path, and never walks."""
+        # Arrange
+        root = tmp_path / "termapy_cfg"
+        _write_config(root, "mcp_a", "DEMO")
+        _write_config(root, "left", "DEMO_FAIL")
+        client = _StdioClient(["left"], project=tmp_path)
+
+        # Act / Assert
+        try:
+            told = _instructions(client)
+            assert told.startswith("Active config: left."), told
+            assert "Skipped" not in told, (
+                "a named config is where it starts, its port failing or not"
+            )
+            assert "mcp_a" in told, "and the agent is told what else it can load"
+            moved = _run_command(client, "/cfg.load mcp_a")
+            assert moved["success"] is True, moved["error"]
         finally:
             client.close()

@@ -52,6 +52,10 @@ COMMAND = Command(
     name="print",
     args="<text>",
     help="Print a message to the terminal.",
+    intro=(
+        "Print your own text to the output, plain or styled with Rich markup, usually"
+        " from a script."
+    ),
     handler=_handler,
     sub_commands={
         "r": Command(

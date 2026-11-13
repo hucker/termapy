@@ -23,13 +23,15 @@ from rich.text import Text
 from textual.css.query import NoMatches
 from textual.widgets import Button
 
+from termapy.defaults import cfg_value
+
 # Mirror of app.py's SHUTDOWN_RACE for the same reason capture_view
 # has one -- widget-touching code in here must swallow the Textual
 # teardown race the same way.
 SHUTDOWN_RACE: tuple[type[BaseException], ...] = (NoMatches, RuntimeError)
 
 if TYPE_CHECKING:
-    from termapy.app import SerialTerminal  # noqa: F401 -- type-hint surface
+    from termapy.app import SerialTerminal
     from termapy.port_control import ChipFacts
 
 
@@ -122,7 +124,7 @@ def port_identity_pairs(device: str, facts: ChipFacts | None) -> list[tuple[str,
     return pairs
 
 
-def _port_display(app) -> tuple[str, ChipFacts | None]:
+def _port_display(app: SerialTerminal) -> tuple[str, ChipFacts | None]:
     """The config's port as the device it is now, with that device's facts."""
     from termapy import port_control
 
@@ -172,7 +174,7 @@ def format_title_tooltip(title: str, kv_pairs: list[tuple[str, object]], action:
     return "\n".join(lines)
 
 
-def update_title(app) -> None:
+def update_title(app: SerialTerminal) -> None:
     """Refresh all three title-bar buttons with the current cfg/connection state.
 
     Called from lifecycle hooks (on_mount, _on_connected,
@@ -197,11 +199,11 @@ def update_title(app) -> None:
         center = app.query_one("#title-center", Button)
     except SHUTDOWN_RACE:
         return
-    title = app.cfg.get("title", "") or app.config_path
+    title = cfg_value(app.cfg, "title") or app.config_path
     center.label = Text(title)
 
     # Cfg button (center) tooltip
-    cfg_title = app.cfg.get("title", "") or (
+    cfg_title = cfg_value(app.cfg, "title") or (
         Path(app.config_path).stem if app.config_path else "Config"
     )
     serial = app.cfg["serial"]
@@ -216,18 +218,18 @@ def update_title(app) -> None:
         ("baud_rate", serial["baud_rate"]),
         ("frame", frame),
         ("flow_control", serial["flow_control"]),
-        ("encoding", app.cfg.get("encoding", "utf-8")),
-        ("eol", app.cfg.get("eol", "\r")),
-        ("on_connect_cmd", app.cfg.get("on_connect_cmd") or None),
-        ("auto_connect", bool(app.cfg.get("auto_connect"))),
-        ("auto_reconnect", bool(app.cfg.get("auto_reconnect"))),
+        ("encoding", cfg_value(app.cfg, "encoding")),
+        ("eol", cfg_value(app.cfg, "eol")),
+        ("on_connect_cmd", cfg_value(app.cfg, "on_connect_cmd") or None),
+        ("auto_connect", bool(cfg_value(app.cfg, "auto_connect"))),
+        ("auto_reconnect", bool(cfg_value(app.cfg, "auto_reconnect"))),
         # Live echo flags (what /term.echo and /term.echo_repl toggle), so
         # the tooltip reflects current state and moves with the toggles.
         # echo = device-command echo (flag seeded from cfg); echo_repl
         # = REPL/slash-command echo (session-only, no cfg key).
         ("echo", bool(app.repl.echo)),
         ("echo_repl", bool(app.repl.echo_repl)),
-        ("timestamps", bool(app.cfg.get("timestamps"))),
+        ("timestamps", bool(cfg_value(app.cfg, "timestamps"))),
     ]
     # The tooltips are text (paths, ports, on_connect_cmd), so Text: Textual
     # would read a str as markup (registry widget-text-literal).
@@ -253,7 +255,9 @@ def update_title(app) -> None:
 
 
 def update_conn_tooltip(
-    app, widget: Button | None = None, display: tuple[str, ChipFacts | None] | None = None
+    app: SerialTerminal,
+    widget: Button | None = None,
+    display: tuple[str, ChipFacts | None] | None = None,
 ) -> None:
     """Update the connection button tooltip with status and config.
 
@@ -279,15 +283,15 @@ def update_conn_tooltip(
         device, facts = display if display is not None else _port_display(app)
         pairs: list[tuple[str, object]] = [
             *port_identity_pairs(device, facts),
-            ("auto_connect", bool(app.cfg.get("auto_connect"))),
-            ("auto_reconnect", bool(app.cfg.get("auto_reconnect"))),
+            ("auto_connect", bool(cfg_value(app.cfg, "auto_connect"))),
+            ("auto_reconnect", bool(cfg_value(app.cfg, "auto_reconnect"))),
         ]
         widget.tooltip = Text(format_title_tooltip(title, pairs, action))
     except SHUTDOWN_RACE:
         pass  # title widgets unmounted during teardown / reload
 
 
-def update_port(app, port: str) -> None:
+def update_port(app: SerialTerminal, port: str) -> None:
     """Change serial port for this session and reconnect.
 
     Does not write to disk - the config editor is the only path
@@ -300,6 +304,6 @@ def update_port(app, port: str) -> None:
     # copy; deepcopy chokes on a mappingproxy ("cannot pickle 'mappingproxy'").
     cfg = copy.deepcopy(dict(app.cfg))
     cfg["serial"]["port"] = port
-    app._switch_config(cfg, app.config_path)
+    app._switch_config(cfg, app.config_path, keep_connection=True, keep_session=True)
     if app.is_connected:
         app._status(f"Port changed to {port} (session)", "green")

@@ -1,7 +1,7 @@
 {
     "title": "ESP32-S3 DevKitC-1",
+    "on_connect_cmd": "json on",
     "tui_on_connect_cmd": "help",
-    "mcp_on_connect_cmd": "json on",
     "custom_buttons": [
         {"enabled": true, "name": "LED On", "command": "led on", "tooltip": "Turn the RGB LED on"},
         {"enabled": true, "name": "LED Off", "command": "led off", "tooltip": "Turn the RGB LED off"},

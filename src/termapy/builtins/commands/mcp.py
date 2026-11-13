@@ -24,10 +24,9 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.config import mcp_log_path, open_with_system
-from termapy.folder_ops import dump_text_slice
+from termapy.defaults import cfg_value
 from termapy.mcp.catalog import build_catalog, catalog_json
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CmdResult, Command
 
 if TYPE_CHECKING:
     from termapy.plugins import KvRow, PluginContext
@@ -101,15 +100,12 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """
     from termapy.plugins import ENVIRONMENTS
 
-    # Catalog metadata is host-independent (profile + device come from
-    # the active profile namespace, not capabilities).  Wire-level
-    # values (protocol, baud) live in the cfg now.
     cat = build_catalog(ctx)
     device_count = len(cat.get("device_commands", []))
     profile_rev = cat.get("profile_revision") or None
     profile_date = cat.get("profile_date") or None
     device_name = (cat.get("device") or {}).get("name")
-    protocol = ctx.cfg.get("protocol", "text")
+    protocol = cfg_value(ctx.cfg, "protocol")
     baud = ctx.cfg["serial"]["baud_rate"]
 
     # Command count: always count what MCP would see, not what the
@@ -198,69 +194,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         f"(Use {ctx.prefix}help --mcp for the human-readable command list, "
         f"{ctx.prefix}mcp.catalog for raw JSON.)"
     )
-    return CmdResult.record(data, rows, value=str(cmd_count), notes=((hint, "dim"),))
-
-
-# ── /mcp.log ────────────────────────────────────────────────────────────────
-
-
-def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
-    """Open the MCP session log in the system viewer.
-
-    The log is written by termapy's MCP server (``--mcp``) to
-    ``<cfg_dir>/mcp/session.log`` and contains every dispatch, every
-    tool result, every TX/RX line, with timestamps.  Useful when
-    debugging an LLM session that didn't behave the way you expected
-    -- the log shows exactly what the LLM sent and what came back,
-    in order.
-
-    Mirrors ``/log.show`` for the regular session log.  Same idiom,
-    different file.
-    """
-    path = mcp_log_path(ctx.config_path)
-    if not path.exists():
-        return CmdResult.fail(
-            msg=(
-                f"MCP session log not found: {path}\n"
-                "Run termapy --mcp to start an MCP server (it writes the log)."
-            )
-        )
-    open_with_system(str(path))
-    ctx.io.output(f"  Opening {path.name}", "green")
-    return CmdResult.ok(value=path)
-
-
-def _handler_log_dump(ctx: PluginContext, args: str) -> CmdResult:
-    """Print the MCP session log to the terminal (all, or an N-line slice).
-
-    With no argument prints the entire log; with a signed integer N
-    prints a slice: N>0 the last N lines (most recent), N<0 the first
-    N (oldest).  Useful when you want to see the log inline rather than
-    launching an external viewer -- particularly in CLI/SSH sessions
-    where /mcp.log can't open anything.
-
-    Mirrors ``/log.dump`` for the regular session log (same count scheme).
-    """
-    path = mcp_log_path(ctx.config_path)
-    if not path.exists():
-        return CmdResult.fail(msg=f"MCP session log not found: {path}")
-    # MCP's own log is inside the session dir (in-sandbox), so no external
-    # guard is needed -- just share /log.dump's slice/print tail.
-    return dump_text_slice(ctx, path, args)
-
-
-def _handler_log_path(ctx: PluginContext, args: str) -> CmdResult:
-    """Print the MCP session log path (without opening it).
-
-    Useful for piping into other tools (``tail -f $(...)``, etc.)
-    or for confirming where the log will land before starting an
-    MCP server.  Reports the path whether or not the file exists,
-    with a marker noting absence.
-    """
-    path = mcp_log_path(ctx.config_path)
-    marker = "" if path.exists() else "  (not yet created)"
-    ctx.io.output(f"{path}{marker}")
-    return CmdResult.ok(value=path)
+    return CmdResult.record(data, rows, value=cmd_count, notes=((hint, "dim"),))
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
@@ -269,14 +203,18 @@ COMMAND = Command(
     name="mcp",
     maturity="preview",
     help="MCP catalog and status (Model Context Protocol).",
+    intro=(
+        "The MCP server lets an AI agent drive termapy and the device. These commands"
+        " show what it offers and what it has done."
+    ),
     long_help=(
-        "MCP-mode tools.  {prefix}mcp.catalog dumps the JSON command catalog\n"
+        "{prefix}mcp.catalog dumps the JSON command catalog\n"
         "(same content as the termapy://commands.json MCP resource).\n"
         "{prefix}mcp.info shows MCP-mode state: this process's pid, catalog\n"
         "size, port, active profile metadata, capture artifact count.\n"
-        "{prefix}mcp.log opens the MCP session log written by termapy --mcp;\n"
-        "{prefix}mcp.log.dump prints it inline; {prefix}mcp.log.path reports its\n"
-        "location.\n"
+        "The MCP server's session log, <cfg>.mcp.log, is one of the config's\n"
+        "session logs: {prefix}log.list lists it, and {prefix}log.show and\n"
+        "{prefix}log.dump open or print it by name.\n"
         "\n"
         "Every termapy MCP server has the same command line, so the pid\n"
         "is how to find a particular one in tasklist or ps.  On Windows\n"
@@ -286,7 +224,7 @@ COMMAND = Command(
         "\n"
         "Both commands work in any frontend (TUI/CLI/MCP); they don't\n"
         "require --mcp to be running.  See also: {prefix}profile, {prefix}port.info,\n"
-        "{prefix}term.info, {prefix}log.show (for the regular session log)."
+        "{prefix}term.info, {prefix}log.list."
     ),
     handler=None,
     sub_commands={
@@ -298,26 +236,12 @@ COMMAND = Command(
         "info": Command(
             help="Print MCP-mode status (pid/catalog/profile/port/captures).",
             handler=_handler_info,
-            shows=True,
-        ),
-        "log": Command(
-            help="Open the MCP session log in the system viewer.",
-            handler=_handler_log,
-            needs=CapabilitySet.CONFIG_GUI_APPS,
-            sub_commands={
-                "dump": Command(
-                    args="{N}",
-                    help="Print the MCP session log; N>0 last N lines, N<0 first N.",
-                    handler=_handler_log_dump,
-                    shows=True,
-                    needs=CapabilitySet.CONFIG_LOADED,
-                ),
-                "path": Command(
-                    help="Print the MCP session log file path.",
-                    handler=_handler_log_path,
-                    needs=CapabilitySet.CONFIG_LOADED,
-                ),
+            cfg={
+                "protocol": "in the summary",
+                "serial.baud_rate": "in the summary",
+                "serial.port": "the port the state line names",
             },
+            shows=True,
         ),
     },
 )

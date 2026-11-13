@@ -28,7 +28,11 @@ from pathlib import Path
 import pytest
 
 # The software loopback needs no hardware: it runs anywhere, CI included.
-pytestmark = [pytest.mark.slow, pytest.mark.sw_loopback]  # real pyserial + subprocess CLI
+pytestmark = [
+    pytest.mark.slow,
+    pytest.mark.sw_loopback,
+    pytest.mark.timing,
+]  # real pyserial + subprocess CLI
 
 
 def _run_cli(

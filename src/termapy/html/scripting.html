@@ -20,18 +20,18 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.71">
+      <meta name="generator" content="zensical-0.1.1">
     
     
       
-        <title>Scripting - Termapy Help v0.78.0</title>
+        <title>Scripting - Termapy Help v0.80.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.e442bf79.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.ebb7f775.min.css">
       
         
           
@@ -87,21 +87,22 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.78.0" class="md-header__button md-logo" aria-label="Termapy Help v0.78.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.80.0" class="md-header__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+    <label class="md-header__button md-icon" for="__drawer">
       
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
     </label>
     <div class="md-header__title" data-md-component="header-title">
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.78.0
+            Termapy Help v0.80.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -133,9 +134,10 @@
     
       
       
-        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+        <label class="md-header__button md-icon" for="__search">
           
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
         </label>
         <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
   <button type="button" class="md-search__button">
@@ -172,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.78.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.78.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.80.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.78.0
+    Termapy Help v0.80.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -598,10 +600,32 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#watching-a-run-run-echo" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Watching a run: <code>/run --echo</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#recording-a-session" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         Recording a session
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#replaying-what-you-typed-runlast" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Replaying what you typed: <code>/run.last</code>
       </span>
     </span>
   </a>
@@ -816,6 +840,84 @@
     
   
   Memory
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./firmware.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Firmware
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./firmware-json.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Integration
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./boards.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Dev Boards
 
     
   </span>
@@ -1087,10 +1189,32 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#watching-a-run-run-echo" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Watching a run: <code>/run --echo</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#recording-a-session" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         Recording a session
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#replaying-what-you-typed-runlast" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Replaying what you typed: <code>/run.last</code>
       </span>
     </span>
   </a>
@@ -1179,9 +1303,13 @@ docstring summary, and has six actions:</p>
 <li><strong>Edit:</strong> open the highlighted script in the editor</li>
 <li><strong>New:</strong> create a new script (opens the editor with a template)</li>
 <li><strong>Rename:</strong> rename the highlighted script (<code>.run</code> is kept; never overwrites)</li>
-<li><strong>Delete:</strong> delete the highlighted script (asks for confirmation)</li>
+<li><strong>Delete:</strong> delete the highlighted script, after a yes: it runs <code>/run.delete &lt;name&gt;</code></li>
 <li><strong>Cancel:</strong> close the picker</li>
 </ul>
+<p>Rename and Delete leave the picker open: the list refreshes in place, the
+highlight on the renamed script or on the next one after a delete, so
+several scripts can be tidied in one visit.  The Proto picker works the
+same way.</p>
 <p><img alt="Script picker" src="img/doc_21_script_picker.svg" /></p>
 <p>The script editor provides syntax highlighting (bash-style) for comments
 and a name field. Scripts are saved with a <code>.run</code> extension in the per-config
@@ -1199,6 +1327,22 @@ and a name field. Scripts are saved with a <code>.run</code> extension in the pe
 non-comment line) is the script's docstring: the first line is the
 summary shown by <code>/run.list</code>; the full block is what <code>/run.help &lt;script&gt;</code>
 prints.</p>
+<h2 id="watching-a-run-run-echo">Watching a run: <code>/run --echo</code><a class="headerlink" href="#watching-a-run-run-echo" title="Permanent link">&para;</a></h2>
+<p>A script runs quiet: its command lines are not echoed, only their output,
+so a script does not flood the prompt with its own text. To follow along,
+add <code>--echo</code> and each line prints as it runs, as if typed:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>/run --echo smoke_test
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>demo&gt; /print one
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  one
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>demo&gt; /mem.dump gTemp 16
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  1B 00 ...
+</span></code></pre></div>
+<p><code>--echo</code> turns command echo on for that run only, regardless of the
+session's <code>echo_repl</code> setting, and restores it when the script ends. It
+pairs with <code>/run.verbose</code>, which adds a per-line <code>[step/total] (time)</code>
+progress line, and with the output level, so <code>/run.verbose --echo</code> shows
+the command, its full verbose output, and the timing. Useful when a script
+misbehaves and you need to see which line did what.</p>
 <h2 id="recording-a-session">Recording a session<a class="headerlink" href="#recording-a-session" title="Permanent link">&para;</a></h2>
 <p>The fastest way to make a <code>.run</code> script is to record what you typed.</p>
 <ul>
@@ -1213,6 +1357,34 @@ typos, and <code>/run.record</code> itself are skipped.  The target file is
 refused if it already exists (delete or pick a new name).  Add a <code>#</code>
 docstring at the top of the recorded file and it becomes self-describing
 in <code>/run.list</code> and <code>/run.help</code>.</p>
+<h2 id="replaying-what-you-typed-runlast">Replaying what you typed: <code>/run.last</code><a class="headerlink" href="#replaying-what-you-typed-runlast" title="Permanent link">&para;</a></h2>
+<p>To run the last few commands again without retyping them or writing a
+script, list them with bare <code>/run.last</code>:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>demo&gt; /run.last
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  typed in demo - 4 lines
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  #  COMMAND     RESULT
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  -  ----------  -----------------------
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>  3  /port.info  ok
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>  2  AT+VER      ok
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>     /nosuch     Unknown command: nosuch
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>  1  AT+STATUS   ok
+</span></code></pre></div>
+<p><code>/run.last 2</code> runs lines 2 and 1 again, in the order you typed them. Each
+command is echoed as it runs, as <code>/run --echo</code> does; a device line echoes
+as your <code>echo</code> setting says, as it did when you typed it. Escape stops the
+replay, and so does the first line that fails. In the TUI, clicking a
+number puts <code>/run.last N</code> in the prompt for you to run.</p>
+<p>The list is what you typed, line for line. A typed <code>/run my_script</code> is one
+line: replaying it runs the script again, and the script runs its own
+steps. The lines inside a script are never listed, nor a paste, nor
+<code>/run.last</code> itself.</p>
+<p><code>/run.last</code> is a convenience for the prompt, not a script command: a
+script that runs it is refused (<code>Not available in a script.</code>), and so is
+a replay inside a replay.</p>
+<p>Only a line that succeeded gets a number. A failed one is listed with its
+error and never replays: fix it from the Up-arrow history instead. Each
+config keeps its own list while termapy runs; a restart starts every list
+empty.</p>
 <h2 id="script-commands">Script commands<a class="headerlink" href="#script-commands" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1223,16 +1395,16 @@ in <code>/run.list</code> and <code>/run.help</code>.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>/delay &lt;duration&gt;</code></td>
-<td>Pause execution (e.g. <code>500ms</code>, <code>2s</code>, <code>1.5s</code>). Escape or Ctrl+C cancels it and the script.</td>
+<td><code>/delay &lt;duration&gt; {msg=&lt;text&gt;}</code></td>
+<td>Pause execution (e.g. <code>500ms</code>, <code>2s</code>, <code>1.5s</code>). <code>msg=</code> prints what the wait is for when it starts, the rest of the line with no quotes: <code>/delay 2s msg=Waiting for reboot...</code>. Escape or Ctrl+C cancels it and the script.</td>
 </tr>
 <tr>
-<td><code>/expect {timeout=&lt;dur&gt;} match=&lt;text&gt;</code></td>
-<td>Wait for a serial line containing <code>&lt;text&gt;</code> (default 5s). A timeout fails the line and stops the script.</td>
+<td><code>/expect {timeout=&lt;dur&gt;} {fail=&lt;text&gt;} match=&lt;text&gt;</code></td>
+<td>Wait for a serial line containing <code>&lt;text&gt;</code> (default 5s). A timeout fails the line and stops the script; so does a line containing the <code>fail=</code> text, as soon as it arrives.</td>
 </tr>
 <tr>
-<td><code>/expect.regex {timeout=&lt;dur&gt;} match=&lt;pattern&gt;</code></td>
-<td>Same but the pattern is a regex.</td>
+<td><code>/expect.regex {timeout=&lt;dur&gt;} {fail=&lt;pattern&gt;} match=&lt;pattern&gt;</code></td>
+<td>Same, but both patterns are regexes.</td>
 </tr>
 <tr>
 <td><code>/confirm {message}</code></td>
@@ -1255,11 +1427,21 @@ in <code>/run.list</code> and <code>/run.help</code>.</p>
 <p>Keywords use <code>key=value</code> syntax (spaces around <code>=</code> are OK). <code>match=</code> must be
 last -- everything after it is the pattern.</p>
 <p><code>/expect</code> also searches lines that arrived before it ran, so a fast reply is
-not missed. A match consumes the output up to and including the matched line:
-two <code>AT</code> / <code>/expect match=OK</code> pairs in a row each wait for their own <code>OK</code>.</p>
+not missed, back to the start of the script: output from before the script
+never answers it. A match consumes the output up to and including the
+matched line: two <code>AT</code> / <code>/expect match=OK</code> pairs in a row each wait for
+their own <code>OK</code>.</p>
+<p><code>fail=</code> ends the wait on an error reply instead of waiting out the timeout:
+<code>/expect timeout=5s fail=ERROR match=OK</code> fails the moment the device answers
+<code>ERROR</code>, and the message names the line. A line that contains both fails, so
+<code>ERROR: not OK</code> is an error. The <code>fail=</code> text cannot hold a space (keywords
+split on spaces); in <code>/expect.regex</code> write <code>\s</code> for one, as in
+<code>fail=\+CME\sERROR</code>. Regex covers the other shapes: <code>^OK$</code> is the whole
+line, <code>OK$</code> its end, <code>ERROR|FAIL</code> either. Each line is compared as the
+device sent it, without its line ending.</p>
 <h2 id="profiling">Profiling<a class="headerlink" href="#profiling" title="Permanent link">&para;</a></h2>
 <p>Run a script with per-line timing to find slow spots:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>/run.profile smoke_test
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>/run.profile smoke_test
 </span></code></pre></div>
 <p>This saves a CSV to the <code>prof/</code> folder with elapsed time for each line.</p>
 <table>
@@ -1325,13 +1507,19 @@ two <code>AT</code> / <code>/expect match=OK</code> pairs in a row each wait for
 </tr>
 </tbody>
 </table>
+<p>A table or status page is a command's answer, so <code>quiet</code> shows it:
+<code>/var.quiet</code> is the variable table and <code>/port.mode.quiet</code> is <code>115200 8N1</code>.</p>
 <p>Set the session default with <code>/term.output &lt;level&gt;</code>. Override for a single
 call with <code>cmd --&lt;level&gt;</code> or <code>cmd.&lt;level&gt;</code>:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>/term.output quiet              # session default
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>/cfg baud_rate                  # shows 115200
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>/help port --verbose            # one call back to verbose
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>/cap.dump capture.bin --silent  # run, drop output, only value returns
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>/term.output quiet              # session default
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>/cfg baud_rate                  # shows 115200
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>/help port --verbose            # one call back to verbose
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>/cap.dump capture.bin --silent  # run, drop output, only value returns
 </span></code></pre></div>
+<p>The flag and the suffix mean the same. A silent call is not echoed either
+way, and a connect or disconnect banner (<code>Connected: COM9</code>) is the command's
+output, so <code>/port.disconnect --quiet</code> closes the port without one. The
+session log keeps the banner.</p>
 <p>Set the level at startup with <code>--silent</code>, <code>--quiet</code>, or <code>--verbose</code> on the
 <code>termapy</code> command line.</p>
 <h2 id="json-output-termrequest-on-or-json-per-call">JSON output: <code>/term.request on</code>, or <code>--json</code> per call<a class="headerlink" href="#json-output-termrequest-on-or-json-per-call" title="Permanent link">&para;</a></h2>
@@ -1340,12 +1528,15 @@ in JSON -- bare device commands as request/response envelopes, termapy
 commands as result envelopes.  The device/termapy demarcation is deliberately
 invisible; the session is either in JSON mode or in prose mode.</p>
 <p>For a single call in a prose-mode session, every command also accepts
-<code>--json</code>, which renders that one result as an envelope:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>/port.list --json
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>{"cmd": "/port.list", "success": true, "error": "", "value": "COM3,COM4",
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a> "data": [{"device": "COM3", ...}], "output_lines": [], "elapsed_s": 0.02}
+<code>--json</code>, or a <code>.json</code> suffix on its name (<code>/port.list.json</code>, as <code>.quiet</code> is
+for <code>--quiet</code>), which renders that one result as an envelope:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>/port.list --json
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>{"cmd": "/port.list", "success": true, "error": "", "value": 2,
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a> "data": [{"device": "COM3", ...}], "output_lines": [], "elapsed_s": 0.02}
 </span></code></pre></div>
-<p><code>data</code> carries the structured form, with no rows of text beside it:</p>
+<p><code>value</code> is one scalar in its own type: a list's row count as a number, a
+switch as a boolean, text as a string.  <code>data</code> carries the structured form,
+with no rows of text beside it:</p>
 <ul>
 <li><strong>Every list</strong> (<code>/port.list</code>, <code>/port.chip.list</code>, <code>/proto.crc.list</code>, the
   folder listings <code>/run.list</code> / <code>/cap.list</code> / <code>/ss.list</code> / <code>/proto.list</code> /
@@ -1356,6 +1547,14 @@ invisible; the session is either in JSON mode or in prose mode.</p>
 <li><strong>Every status page</strong> (<code>/mcp.info</code> with the server's <code>pid</code>, <code>/term.info</code>,
   <code>/port.info</code>, <code>/mem.info</code>, <code>/sym.info</code>, <code>/profile.info</code>, <code>/seq</code>, ...) is
   one record of real values; <code>/port.chip *</code> is a list of them.</li>
+<li><strong>A query or measurement with more than one fact</strong> is one record:
+  <code>/port.mode</code> and <code>/port.baud_rate</code> (<code>{"baud": 115200, "custom": false, ...}</code>),
+  <code>/ping</code> (every round trip, <code>null</code> for a timeout, and the stats over the
+  replies), <code>/cap.wire</code> (both directions as counts, hex and text),
+  <code>/expect.regex</code> (the line and its <code>groups</code> and <code>named</code> captures), and
+  <code>/proto.crc.detect</code> (crcglot's own result).</li>
+<li><code>/cfg &lt;key&gt;</code> answers the key's value with its JSON type, a container as
+  the structure itself.</li>
 <li><code>/var</code>, <code>/port.usb</code> and profile-mapped device commands have their own shapes.</li>
 </ul>
 <p>For everything else it
@@ -1374,23 +1573,16 @@ the flag a bare line is a plain send, and the reply arrives in the scrollback.</
 data, <code>ctx.status()</code> is progress chatter. Each gates on the active level.
 Handlers that produce scriptable data must call <code>CmdResult.ok(value=...)</code>
 so silent mode is useful.</p>
-<blockquote>
-<p><strong>Migrating older scripts.</strong> Scripts that used <code>/verbose on/off</code>,
-<code>/term.verbose on/off</code>, or <code>*.quiet</code> as a "set silently" idiom keep
-working via hidden forwarders. Run <code>/run.legacy &lt;file&gt;</code> to preview
-the canonical replacements, or <code>/run.legacy --fix &lt;file&gt;</code> to rewrite
-in place. <code>/run.legacy *</code> processes every script in <code>run/</code>.</p>
-</blockquote>
 <h2 id="example-script">Example script<a class="headerlink" href="#example-script" title="Permanent link">&para;</a></h2>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a># smoke_test.run -- quick device check
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>AT
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>/expect match=OK
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>AT+INFO
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>/expect timeout=2s match=Bassomatic
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>AT+TEMP
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>/expect.regex timeout=2s match=\d+\.\d+C
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>AT+STATUS
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>/ss.svg smoke_{seq1+}
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a># smoke_test.run -- quick device check
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>AT
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>/expect match=OK
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>AT+INFO
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>/expect timeout=2s match=Bassomatic
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>AT+TEMP
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>/expect.regex timeout=2s match=\d+\.\d+C
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>AT+STATUS
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>/ss.svg smoke_{seq1+}
 </span></code></pre></div>
 
 
@@ -1487,10 +1679,10 @@ in place. <code>/run.legacy *</code> processes every script in <code>run/</code>
       
         
         
-      <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.c47bb847.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.a2388154.min.js"></script>
+      <script src="./assets/javascripts/bundle.3cb411a8.min.js"></script>
       
     
   </body>

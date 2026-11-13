@@ -33,7 +33,7 @@ Input transforms are declared with ``TRANSFORM``::
     TRANSFORM = Transform(
         name="vars",
         help="Expand $variables in serial commands.",
-        serial=lambda s: expand_vars(s),
+        serial=expand_vars,
     )
 
 A file may export both ``COMMAND`` and ``TRANSFORM``.
@@ -83,6 +83,7 @@ from termapy.plugins.command import (
     TransformInfo,
     UsageError,
     canonical_flags,
+    cfg_users,
     format_usage,
     interpolate_help,
     resolve_long_help,
@@ -113,7 +114,17 @@ from termapy.plugins.output_levels import (
     format_kv_lines,
     parse_output_level,
 )
-from termapy.plugins.views import Column, Item, KvRow, RecordView, TableView, TextLine
+from termapy.plugins.views import (
+    Column,
+    Item,
+    KvRow,
+    Link,
+    Piece,
+    PieceLine,
+    RecordView,
+    TableView,
+    TextLine,
+)
 
 __all__ = [
     # Capabilities
@@ -130,6 +141,9 @@ __all__ = [
     "Command",
     "Item",
     "KvRow",
+    "Link",
+    "Piece",
+    "PieceLine",
     "RecordView",
     "TableView",
     "TextLine",
@@ -146,6 +160,7 @@ __all__ = [
     "TransformInfo",
     "UsageError",
     "canonical_flags",
+    "cfg_users",
     "format_usage",
     "interpolate_help",
     "resolve_long_help",

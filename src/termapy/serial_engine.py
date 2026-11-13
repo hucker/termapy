@@ -16,8 +16,9 @@ from collections.abc import Callable
 from threading import Event
 from typing import TYPE_CHECKING, Any
 
+from termapy import diag_log
 from termapy.capture import CaptureEngine
-from termapy.defaults import DEFAULT_CMD_PREFIX, cmd_prefix
+from termapy.defaults import DEFAULT_CMD_PREFIX, cfg_value, cmd_prefix
 from termapy.plugins import BoundaryException
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.serial_port import SerialPort, SerialReader
@@ -57,6 +58,24 @@ RX_READ_MAX_BYTES = 4096
 # connection.  When full the reader discards the OLDEST chunk (registry
 # ``rx-queue-bounded``).
 RX_QUEUE_MAX_CHUNKS = 1024
+
+
+def shown_holder(holder: str, *, hides_host: bool | None = None) -> str:
+    """A port's holder as a page may name it: the program, or "another program" under MCP.
+
+    An MCP server without ``TERMAPY_MCP_HOST_INFO`` says a port is held but
+    not by what (decision 2026-11-12): the processes on the machine are not
+    the agent's business.  The port is still reported in use either way.
+
+    Args:
+        holder: What ``_find_port_holder`` found, ``"python (PID 8842)"``.
+        hides_host: Whether to hide it; None asks this process's policy.
+    """
+    if hides_host is None:
+        from termapy.env_flags import port_policy
+
+        hides_host = port_policy().hides_host
+    return "another program" if hides_host else holder
 
 
 def _find_port_holder(port_name: str) -> str | None:
@@ -159,7 +178,7 @@ def _classify_serial_error(
     def _in_use() -> str:
         base = "Permission denied -- port may be in use by another application"
         holder = _find_port_holder(port_name) if port_name else None
-        return f"{base}: held by {holder}" if holder else base
+        return f"{base}: held by {shown_holder(holder)}" if holder else base
 
     def _not_found() -> str:
         base = f"Port not found -- check the port name with {prefix}port.list"
@@ -274,6 +293,12 @@ class SerialEngine:
         self._serial_claimed: bool = False
         self._rx_observers: list[Callable[[bytes], None]] = []
         self._tx_observers: list[Callable[[bytes], None]] = []
+        # Bytes each way since the port last opened, what /term.traffic
+        # shows.  RX is added on the reader thread, TX on whichever worker
+        # wrote, so the pair moves under one lock.
+        self._traffic_lock = threading.Lock()
+        self._tx_bytes = 0
+        self._rx_bytes = 0
         self.last_error: str = ""
         # Makes check-and-open atomic: a /port.connect worker and an
         # auto-reconnect run can open at once, and POSIX lets both succeed,
@@ -413,19 +438,27 @@ class SerialEngine:
         except ValueError:
             pass
 
+    def byte_counts(self) -> tuple[int, int]:
+        """Bytes sent and received since the port last opened, as ``(tx, rx)``."""
+        with self._traffic_lock:
+            return self._tx_bytes, self._rx_bytes
+
     def notify_tx(self, data: bytes) -> None:
-        """Fire TX observers. Called by the app/cli write path.
+        """Count the bytes written and fire TX observers. Called by the app/cli write path.
 
         Observers are registered by plugins / callers and can raise
         anything -- BoundaryException signals the reviewed broad
         catch so one bad observer can't break the others or fail
         the write.
         """
+        with self._traffic_lock:
+            self._tx_bytes += len(data)
         for tx_observer in self._tx_observers:
             try:
                 tx_observer(data)
             except BoundaryException:
-                pass
+                # Once per observer: one that raises does so on every write.
+                diag_log.exception("TX observer %r raised", tx_observer, once=("tx", tx_observer))
 
     def connect(self) -> bool:
         """Open the serial port and create SerialPort + SerialReader.
@@ -436,7 +469,12 @@ class SerialEngine:
         with self._connect_lock:
             if self.is_connected:
                 return True
-            return self._open()
+            opened = self._open()
+        if not opened:
+            # Here, not in ``_open``: the reconnect loop's retries fail every
+            # few seconds and are not news.
+            diag_log.warning("port open failed: %s", self.last_error)
+        return opened
 
     def _open(self) -> bool:
         """The body of ``connect``, also run by ``reconnect_loop``; the caller holds ``_connect_lock``.
@@ -450,6 +488,7 @@ class SerialEngine:
         self.stop_reader()
         import serial as _serial
 
+        from termapy.port_allow import PortNotAllowedError
         from termapy.port_control import AmbiguousSerialNumberError
 
         # pyserial open() can raise SerialException (typical: port in
@@ -458,10 +497,14 @@ class SerialEngine:
         # AmbiguousSerialNumberError comes from resolve_port() when a
         # user's SN spec matches 2+ connected devices.
         # _classify_serial_error normalizes each into a friendly
-        # message for the user.
+        # message for the user.  A port policy refusal is already worded
+        # for the reader (it names TERMAPY_ALLOWED_PORTS) and stays as is.
         try:
             self._port_obj = self._open_fn(self._cfg)
             self.last_error = ""
+        except PortNotAllowedError as e:
+            self.last_error = str(e)
+            return False
         except AmbiguousSerialNumberError as e:
             matches = ", ".join(e.matches)
             self.last_error = (
@@ -477,23 +520,30 @@ class SerialEngine:
             return False
 
         self._last_rx_monotonic = time.monotonic()
+        with self._traffic_lock:
+            self._tx_bytes = 0
+            self._rx_bytes = 0
         self._serial_port = SerialPort(
             port=self._port_obj,
             rx_queue=self._rx_queue,
             log=self._log,
-            encoding=self._cfg.get("encoding", "utf-8"),
+            encoding=cfg_value(self._cfg, "encoding"),
             # Lets wait_for_idle ask "when did the DEVICE last speak?" instead
             # of inspecting a port buffer this engine keeps drained.
             last_rx=lambda: self._last_rx_monotonic,
+            tx_chunking=lambda: bool(cfg_value(self._cfg, "tx_chunking")),
         )
         self._reader = SerialReader(
-            encoding=self._cfg.get("encoding", "utf-8"),
-            show_line_endings=self._cfg.get("eol_markers", False),
+            encoding=cfg_value(self._cfg, "encoding"),
+            show_line_endings=cfg_value(self._cfg, "eol_markers"),
             capture=self._capture,
             serial_claimed=lambda: self._serial_claimed,
-            rx_newline=self._cfg.get("eol_rx", "auto"),
+            rx_newline=cfg_value(self._cfg, "eol_rx"),
         )
         self._stop_event.clear()
+        diag_log.info(
+            "port open: %s at %s baud", self.open_device, getattr(self._port_obj, "baudrate", "?")
+        )
         return True
 
     def start_reader(self, **callbacks: Any) -> None:
@@ -549,6 +599,7 @@ class SerialEngine:
                 f"reader thread did not exit within {READER_JOIN_TIMEOUT_S}s "
                 f"-- a read_loop callback is blocking"
             )
+            diag_log.warning(self.last_error)
         return not alive
 
     def disconnect(self) -> None:
@@ -560,7 +611,11 @@ class SerialEngine:
         """
         import serial as _serial
 
+        # Read before stop_reader: the reader closes and disowns its port on the way out.
+        device = self.open_device
         self.stop_reader()
+        if device:
+            diag_log.info("port close: %s", device)
         if self._port_obj:
             # Close can raise if the device already vanished; nothing
             # to recover from during disconnect, just drop the handle.
@@ -624,6 +679,8 @@ class SerialEngine:
                         # sample taken mid-response reads 0 and looks like
                         # silence.
                         self._last_rx_monotonic = time.monotonic()
+                        with self._traffic_lock:
+                            self._rx_bytes += len(data)
                         self._queue_rx(data)
                         for rx_observer in self._rx_observers:
                             # RX observers are third-party callbacks;
@@ -633,13 +690,16 @@ class SerialEngine:
                             try:
                                 rx_observer(data)
                             except BoundaryException:
-                                pass
+                                # Once per observer: one that raises does so on every chunk.
+                                diag_log.exception(
+                                    "RX observer %r raised", rx_observer, once=("rx", rx_observer)
+                                )
 
                     # Resync the receive-newline mode from the (shared) cfg
                     # each chunk so /term.eol.rx takes effect live, without a
                     # reconnect.  Cheap dict read; the cfg dict is the same
                     # object /cfg mutates (see how TX line_ending stays live).
-                    reader.rx_newline = self._cfg.get("eol_rx", "auto")
+                    reader.rx_newline = cfg_value(self._cfg, "eol_rx")
                     # The same live resync for /term.hex, which is a session
                     # flag the host owns rather than a cfg key.
                     reader.hex_display = bool(on_hex and hex_view and hex_view())
@@ -668,10 +728,13 @@ class SerialEngine:
                     # frontend showing Connected over a port the ``finally``
                     # below closes, so it is reported like a lost port
                     # (registry ``reader-failure-reported``).
+                    diag_log.exception("reader stopped by an internal error")
                     failure = (
-                        f"reader stopped by an internal error -- {exc.__class__.__name__}: {exc}"
+                        f"reader stopped by an internal error -- {exc.__class__.__name__}: "
+                        f"{exc}{diag_log.traceback_note()}"
                     )
                 if failure:
+                    diag_log.warning("reader stopped: %s", failure)
                     if on_error:
                         on_error(failure)
                     if on_disconnect:

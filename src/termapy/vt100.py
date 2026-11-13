@@ -30,6 +30,7 @@ from __future__ import annotations
 import codecs
 import os
 import sys
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -361,6 +362,9 @@ def run_vt100_mode(args: argparse.Namespace) -> str | None:
     # this is a harmless no-op (that Console doesn't touch sys.stdout).
     saved_stdout, saved_stderr = sys.stdout, sys.stderr
     pump: _KeyPump | None = None
+    # Set when another termapy asks this session to leave (``on_stop``).
+    stop_asked = threading.Event()
+    stop_handler: Callable[[int], None] | None = None
     try:
         pump = key_pump = _KeyPump(session, echo=settings["echo"])
         # Miniterm.__init__ leaves tx_encoder UNSET; writer() AttributeErrors
@@ -396,13 +400,23 @@ def run_vt100_mode(args: argparse.Namespace) -> str | None:
             key_pump.stop()
             key_pump.console.cancel()
 
+        def on_stop(by: int) -> None:
+            # The stop watch's thread: another termapy asked this session to
+            # leave.  Leave as a lost port does, and end the process rather
+            # than return to the TUI.
+            stop_asked.set()
+            on_lost(f"Stop requested by termapy PID {by}")
+
+        breadcrumbs.on_stop_request(on_stop)
+        stop_handler = on_stop
         session.start(console_write=key_pump.console.write, on_lost=on_lost)
         key_pump.start()
         try:
             key_pump.join(True)  # wait on the transmitter until Ctrl-] or a lost port
         except KeyboardInterrupt:
             pass
-        sys.stderr.write("\nreturning to termapy...\n" if return_to == "tui" else "\nexit\n")
+        returning = return_to == "tui" and not stop_asked.is_set()
+        sys.stderr.write("\nreturning to termapy...\n" if returning else "\nexit\n")
     finally:
         # The reader first, so no chunk reaches a console being restored.
         session.close()
@@ -413,4 +427,6 @@ def run_vt100_mode(args: argparse.Namespace) -> str | None:
                 # Teardown is best-effort; never crash on console restore.
                 diag_log.exception("vt100 console restore raised")
         sys.stdout, sys.stderr = saved_stdout, saved_stderr
-    return return_to
+        if stop_handler is not None:
+            breadcrumbs.release_stop_request(stop_handler)
+    return None if stop_asked.is_set() else return_to

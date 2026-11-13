@@ -1314,6 +1314,7 @@ class SerialTerminal(TerminalHost, App):
 
     def on_unmount(self) -> None:
         self._shutting_down = True
+        self._stop_watching()
         # History saved BEFORE the exit event fires: a plugin's on_app_stop
         # (the cfg info report tails it and the log) must see THIS session's
         # lines.  The session log needs no flush: every write flushes.
@@ -1329,6 +1330,17 @@ class SerialTerminal(TerminalHost, App):
         # genuinely exited rather than probably-exited.  Last, so the end
         # marker follows the Disconnected line and the stop hooks' output.
         self._end_session_log()
+
+    def _leave_on_request(self, by: int) -> None:
+        """Another termapy asked this TUI to leave: exit as ``/exit`` does, and open no next mode.
+
+        On the stop watch's thread.  ``on_unmount`` saves the history, closes
+        the port and ends the session log, and the terminal is restored after
+        ``run()``; a question on screen answers no once ``_shutting_down`` is set.
+        """
+        self._log_line("#", f"Stop requested by termapy PID {by}")
+        self.switch_to = None
+        self._on_main(self.exit)
 
     def _connect(self, port: str | None = None, *, report: bool = True) -> bool:
         if self.is_connected:
@@ -4222,6 +4234,17 @@ def _run_web_mode(args: argparse.Namespace) -> None:
     from termapy import breadcrumbs
 
     breadcrumbs.leave("web", config=args.config or "", detailed=True)
+
+    def _stop_server(by: int) -> None:
+        """Another termapy asked this server to stop: unwind as Ctrl+C does (the stop watch's thread).
+
+        aiohttp cleans up and tells each browser session's TUI to quit.
+        """
+        import _thread
+
+        _thread.interrupt_main()
+
+    breadcrumbs.on_stop_request(_stop_server)
     server = Server(
         " ".join(cmd_parts),
         host="localhost",

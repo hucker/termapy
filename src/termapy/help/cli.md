@@ -278,25 +278,38 @@ that started the session, past python, termapy and uv.  A one-shot (`-e`,
 `--run`) records no version or starter, which take a tenth of a second to
 read.  A narrow terminal drops STARTED BY first.
 
-`--kill` stops them, after a yes; bare, it lists them as `--alive` does:
+`--kill` stops them, after a yes; bare, it lists them as `--alive` does.
+Each session is asked to leave and leaves as `/exit` does: its terminal
+restored, its port closed, its history saved, its session log ended.
+termapy never ends a session itself.  One still running when `timeout=`
+is up (3 s unless you give one), hung, partway through a firmware write,
+or started by an older termapy, keeps running, and the reply names the
+command that ends it (`taskkill /PID 22056 /F` on Windows, `kill 22056`
+elsewhere):
 
 ```sh
 termapy --kill all      # every termapy, say before an update
+termapy --kill 21552    # the session with that PID, as --alive lists it
 termapy --kill COM4     # whichever session holds COM4
 termapy --kill m3_bin   # the sessions on that config (m3* picks several)
+termapy --kill all timeout=10s   # give them longer to leave
+termapy --kill all -y            # no question: yes (-y / --yes)
 ```
 
 Inside termapy the same two are `/app.alive` and `/app.kill <target>`:
 `/app.kill others` stops every session but the one you type it in,
-`/app.kill all` that one too.  When a target picks the session you type it
-in, that one goes last, through `/exit`, so it saves its history.
+`/app.kill all` that one too, and `/app.kill me` that one alone, which is
+`/exit`.  When a target picks the session you type it in, that one goes
+last, through `/exit`, so it saves its history.
 `/app.alive.json` adds what does not fit a row: the config, the Python
 executable, the folder the session started in and its session log, each
 an absolute path, and the open port's serial number.
 
-With no terminal to answer on (a pipe), the answer is no.  A stopped session
-writes no `Session End` to its log.  A session started before breadcrumbs
-existed is not listed: end that one from Task Manager or `kill`, once.
+With no terminal to answer on (a pipe), the answer is no.  A session you
+end with `taskkill` or `kill` writes no `Session End` to its log, and a TUI
+ended that way leaves its window as the TUI had it: close the window.  A
+session started before breadcrumbs existed is not listed: end that one
+from Task Manager or `kill`, once.
 
 ## Other flags worth knowing
 
@@ -312,6 +325,7 @@ existed is not listed: end that one from Task Manager or `kill`, once.
 | `--new NAME PORT [SETTING ...]` | Create config NAME for PORT and start it connected (see [Quick setup](getting-started.md#quick-setup)). |
 | `PORT [SETTING ...]` | Not a flag: a port where the config goes opens the port with its own config, kept in your user folder (see [Quick open](getting-started.md#quick-open-just-a-port)). |
 | `--vt100`         | Start in VT100 passthrough mode (see [VT100 mode](vt100.md)). |
+| `-y`, `--yes`     | Answer yes to the command line's questions: `--kill`, `--new`'s overwrite, a CLI session's. Not the TUI's dialogs; never under `--mcp`. |
 | `--no-color`      | Plain output without ANSI color (implied by `-e`).            |
 | `--cfg-dir PATH`  | Override the default config directory for this run.           |
 | `--cli`           | Plain-text mode instead of the TUI.  Default form is an interactive REPL; pair with `--run` or `--exec` for one-shot.  With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |

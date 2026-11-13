@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
 
 class _Version(argparse.Action):
@@ -231,13 +231,23 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--kill",
-        nargs="?",
-        const="",
+        nargs="*",
         default=None,
-        metavar="TARGET",
+        metavar="TARGET [timeout=DUR]",
         help=(
-            "Stop the termapys a TARGET picks -- all, a port (COM3) or a config "
-            "name -- after a yes (/app.kill).  Bare, list them as --alive does"
+            "Stop the termapys a TARGET picks -- all, a PID, a port (COM3) or a "
+            "config name -- after a yes (/app.kill), waiting timeout= (default 3s) "
+            "for them to leave.  Bare, list them as --alive does"
+        ),
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help=(
+            "Answer yes to the command line's questions: --kill, --new's overwrite, "
+            "and a CLI session's (--cli, -e, --run).  Not the TUI's dialogs, and "
+            "never under --mcp"
         ),
     )
     parser.add_argument(
@@ -402,6 +412,15 @@ def _no_terminal_to_confirm(question: str) -> bool:
     return False
 
 
+def _flag_confirm(args: argparse.Namespace) -> Callable[[str], bool]:
+    """How ``--kill`` and ``--new`` ask: yes under ``--yes``, else on stdin, else no."""
+    from termapy.cli_flags import assume_yes, confirm_on_stdin
+
+    if args.yes:
+        return assume_yes
+    return confirm_on_stdin if sys.stdin.isatty() else _no_terminal_to_confirm
+
+
 def _resolve_port_positional(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     """Turn a positional that names a port into its quick config's path (``cli_flags.run_quick``).
 
@@ -471,10 +490,9 @@ def main() -> None:
 
         run_alive()
     if args.kill is not None:
-        from termapy.cli_flags import confirm_on_stdin, run_kill
+        from termapy.cli_flags import run_kill
 
-        confirm = confirm_on_stdin if sys.stdin.isatty() else _no_terminal_to_confirm
-        run_kill(args, confirm=confirm)
+        run_kill(args, confirm=_flag_confirm(args))
     if args.validate_profile is not None:
         _run_validate_profile(args.validate_profile, strict=args.strict)
 
@@ -492,10 +510,9 @@ def main() -> None:
     if args.new is not None:
         if args.config or args.demo:
             parser.error("--new cannot be combined with a config or --demo")
-        from termapy.cli_flags import confirm_on_stdin, run_new
+        from termapy.cli_flags import run_new
 
-        confirm = confirm_on_stdin if sys.stdin.isatty() else _no_terminal_to_confirm
-        args.config = str(run_new(args.new, confirm=confirm, usage_error=parser.error))
+        args.config = str(run_new(args.new, confirm=_flag_confirm(args), usage_error=parser.error))
 
     # --board starts a dev board's starter config the same way: found or
     # created, then handed on as the positional config.

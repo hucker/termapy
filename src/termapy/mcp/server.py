@@ -108,6 +108,35 @@ class MCPHost(TerminalHost):
     """
 
     front_end = "mcp"
+    # A request to leave is answered once ``run_mcp_stdio`` is serving,
+    # not at the start.
+    _watch_stop_at_start = False
+
+    def shut_down(self) -> None:
+        """The server's teardown, at every end: ``on_app_stop``, close the port, end the session log."""
+        self.repl.fire_lifecycle("on_app_stop")
+        if self.engine.is_connected:
+            self._disconnect()
+        self._end_session_log()
+
+    def _leave_on_request(self, by: int) -> None:
+        """Another termapy asked this server to stop: tear down as at any shutdown, then end.
+
+        On the stop watch's thread.  A running script is stopped and the
+        teardown queued behind the command in flight, on the one command
+        worker, so it never runs beside a dispatch.  The process then ends
+        with ``os._exit``: the SDK's stdio loop waits on a thread blocked
+        reading stdin, which neither an interrupt nor closing the handle
+        wakes on Windows (tried 2026-11-12), so a normal unwind would hang
+        until the client wrote again.  What ``os._exit`` skips is done
+        here or by the asker: the port and log are closed above, and
+        ``stop_sessions`` deletes the breadcrumb of a session that is gone.
+        """
+        self._log_line("!", f"stop requested by termapy PID {by}; shutting down")
+        self.repl._script_stop.set()
+        _command_executor(self).submit(self.shut_down).result()
+        diag_log.info("process exit: stopped by termapy PID %s", by)
+        os._exit(0)
 
     # Lazily attached by ``_serialize_lock`` (created on first
     # ``run_command_async`` call so the lock binds to whichever event
@@ -1565,6 +1594,8 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
         except (ValueError, OSError):  # noqa: PERF203 -- small set
             # Not in main thread on Windows, etc.  Skip.
             pass
+    # Now a request to leave can unwind through the handler above.
+    host._watch_for_stop()
 
     try:
         # MCPServer.run() blocks until the stdio peer disconnects.  No
@@ -1575,6 +1606,7 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
         # Clean shutdown: fall through to finally.
         pass
     finally:
+        host._stop_watching()
         # Restore signal handlers so we don't leave the process in
         # an unexpected state if termapy is invoked from a parent
         # that owns SIGINT.
@@ -1583,7 +1615,4 @@ def run_mcp_stdio(args: argparse.Namespace) -> None:
                 _signal.signal(sig, old)
             except (ValueError, OSError):
                 pass
-        host.repl.fire_lifecycle("on_app_stop")
-        if host.engine.is_connected:
-            host._disconnect()
-        host._end_session_log()
+        host.shut_down()

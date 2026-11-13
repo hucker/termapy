@@ -802,6 +802,11 @@ The payoff — and the reason this is a core concept, not plumbing — is that s
 │                     │  can Thread.join() it.  Callbacks hand off
 │                     │  via _rx_enqueue and NEVER block on main.
 ├─────────────────────┤
+│ termapy-stop-watch  │  Long-lived, one per process, OWNED BY
+│ breadcrumbs         │  breadcrumbs.  Looks every 100 ms for a
+│                     │  request to leave; the TUI's answer reaches
+│                     │  main through _on_main (kill-asks-first).
+├─────────────────────┤
 │ _dispatch_on_thread │  One short-lived worker per typed line,
 │ (+ _interactive,    │  button or palette entry; runs
 │  _sequence_)        │  repl.dispatch_full INLINE on that thread,
@@ -823,7 +828,7 @@ The payoff — and the reason this is a core concept, not plumbing — is that s
 └─────────────────────┘
 ```
 
-Only the reader is long-lived. Dispatch and scripts are each serialized: one
+Only the reader and the stop watch are long-lived. Dispatch and scripts are each serialized: one
 `dispatch_full` at a time (nested dispatch on the same thread is allowed) and
 one outermost script; the reconnect and update-check workers run independently
 of both.

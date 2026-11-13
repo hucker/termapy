@@ -96,6 +96,41 @@ def app_factory(tmp_path):
 class TestAppBoots:
     """Booting the real app is itself coverage: __init__ and compose run."""
 
+    @pytest.mark.rule("kill-asks-first")
+    def test_a_request_to_leave_exits_as_exit_does(self, app_factory, tmp_path, monkeypatch):
+        """Another termapy's request ends the TUI through its own teardown: history, Session End."""
+        # Arrange
+        import os
+
+        from termapy import breadcrumbs
+
+        monkeypatch.setenv("TERMAPY_STATE_DIR", str(tmp_path / "state"))
+        app, _, _ = app_factory()
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                own = breadcrumbs.Crumb(
+                    pid=os.getpid(),
+                    token=breadcrumbs.process_token(os.getpid()) or "",
+                    started="",
+                    frontend="tui",
+                )
+
+                # Act
+                breadcrumbs.request_stop(own, by=99)
+                await until(pilot, lambda: app._shutting_down, seconds=10)
+
+        _run(scenario)
+
+        # Assert
+        log_path = app.session_log_path()
+        assert log_path is not None, "the TUI keeps a session log"
+        log = log_path.read_text(encoding="utf-8")
+        assert app._shutting_down is True, "the app went through on_unmount"
+        assert "Stop requested by termapy PID 99" in log, "the log says why it ended"
+        assert "Session End" in log, "the session log was ended, as /exit ends it"
+
     def test_mounts_its_widget_tree(self, app_factory):
         """The full app composes a real widget tree and keeps the config path it was given."""
 

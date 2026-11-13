@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 186: 171 registry rows (guarantees 136, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 182. Pinned by none: 4.
+Ids: 187: 172 registry rows (guarantees 137, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 183. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -428,9 +428,14 @@ Ids: 186: 171 registry rows (guarantees 136, assumptions 35), 15 spec sections i
 
 - `test_architecture.py`: `test_plugins_do_not_use_engine_io_primitives` **guard**
 
+### `kill-asks-first` (guarantee, contract)
+
+- `test_app_pilot.py`: `TestAppBoots.test_a_request_to_leave_exits_as_exit_does`
+- `test_breadcrumbs.py`: `TestFrontendsLeaveWhenAsked` (2 functions), `TestStopRequest` (3 functions), `TestStopSessions` (4 functions), `TestStopWatch` (6 functions), `TestAppCommands.test_a_prompt_that_starts_after_the_request_ends_at_once`, `TestAppCommands.test_a_request_before_the_script_starts_is_not_lost`, `TestAppCommands.test_a_session_that_does_not_leave_fails_with_the_command`, `TestAppCommands.test_a_waiting_prompt_ends_as_ctrl_d_when_asked`
+
 ### `kill-verifies-identity` (guarantee, contract)
 
-- `test_breadcrumbs.py`: `TestReadRunning.test_a_reused_pid_is_not_the_same_process` **guard**, `TestStop.test_a_reused_pid_is_never_signalled` **guard**
+- `test_breadcrumbs.py`: `TestReadRunning.test_a_reused_pid_is_not_the_same_process` **guard**, `TestStopRequest.test_another_process_under_the_pid_ignores_it` **guard**
 
 ### `labels-title-case` (assumption, requirement)
 

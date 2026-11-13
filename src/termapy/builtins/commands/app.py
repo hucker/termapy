@@ -321,9 +321,13 @@ def _handler_alive(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_kill(ctx: PluginContext, args: str) -> CmdResult:
-    """Stop the termapys a target picks, after a yes (``breadcrumbs.stop``).
+    """Stop the termapys a target picks, after a yes (``breadcrumbs.stop_sessions``).
 
-    ``others`` is every session but this one (tmux's ``kill-session -a``);
+    Each one is asked to leave the way ``/exit`` makes it leave; one still
+    running after the grace period keeps running, and the failure names the
+    command that ends it (registry ``kill-asks-first``).  ``others`` is every session but this one (tmux's
+    ``kill-session -a``); ``me`` is this session alone, and is ``/exit``, which
+    asks nothing;
     ``all`` and any target that picks this session include it.  This
     session is never killed: it goes last, through ``exit``, so it saves
     its history and ends its log like any exit.  If another session would
@@ -333,6 +337,8 @@ def _handler_kill(ctx: PluginContext, args: str) -> CmdResult:
     target = ctx.arg("target") or ""
     if not target:
         return ctx.internal.dispatch("app.alive")
+    if target.casefold() == "me":
+        return ctx.internal.dispatch("exit")
     running = breadcrumbs.read_running()
     picked = breadcrumbs.select(running, target)
     if target.casefold() == "others":
@@ -352,27 +358,33 @@ def _handler_kill(ctx: PluginContext, args: str) -> CmdResult:
     if not ctx.ui.confirm(f"Stop {len(picked)} termapy {noun}: {listing}?"):
         return CmdResult.fail(msg="Nothing stopped.")
     breadcrumbs.prune_stale()
-    stopped = [crumb for crumb in others if breadcrumbs.stop(crumb)]
-    for crumb in stopped:
-        ctx.io.result(f"Stopped {crumb.pid} ({crumb.summary})")
-    failed = [crumb for crumb in others if crumb not in stopped]
-    if failed:
-        return CmdResult.fail(
-            msg="Could not stop " + ", ".join(f"{crumb.pid} ({crumb.summary})" for crumb in failed)
-        )
+    if others:
+        asked = "session" if len(others) == 1 else "sessions"
+        ctx.io.output(f"Asking {len(others)} termapy {asked} to leave...")
+    outcome = breadcrumbs.stop_sessions(others, grace_s=ctx.arg("timeout"))
+    for line in outcome.stopped_lines():
+        ctx.io.result(line)
+    if outcome.refused:
+        return CmdResult.fail(msg=" ".join(outcome.refused_lines()))
     if own:
         return ctx.internal.dispatch("exit")
     return CmdResult.ok(
-        value="\n".join(str(crumb.pid) for crumb in stopped),
-        data=[breadcrumbs.session_record(crumb) for crumb in stopped],
+        value="\n".join(str(crumb.pid) for crumb in outcome.left),
+        data=[breadcrumbs.session_record(crumb) for crumb in outcome.left],
     )
 
 
 _KILL_LONG_HELP = (
-    "Stops termapy sessions, after a yes.  <target> is one of:\n"
+    "Stops termapy sessions, after a yes.  Each is asked to leave the way\n"
+    "{prefix}exit leaves, restoring its terminal and saving its history.  termapy\n"
+    "never ends one itself: one still running when timeout= is up (default\n"
+    f"{breadcrumbs.STOP_GRACE_S:g}s) is named with the command that ends it (taskkill, kill).\n"
+    "<target> is one of:\n"
     "\n"
     "  others   every session but this one\n"
     "  all      every session, this one last\n"
+    "  me       this session alone: the same as {prefix}exit\n"
+    "  22056    the session with that PID ({prefix}app.alive lists them)\n"
     "  COM3     the session holding that port\n"
     "  rig      the sessions on that config (rig* picks several)\n"
     "\n"
@@ -419,7 +431,7 @@ COMMAND = Command(
             needs=CapabilitySet(host_info=True),
         ),
         "kill": Command(
-            help="Stop termapy sessions: others, all, a port or a config (asks first); bare lists.",
+            help="Stop termapy sessions: others, all, me, a PID, a port or a config; bare lists.",
             long_help=_KILL_LONG_HELP,
             handler=_handler_kill,
             params=[
@@ -428,8 +440,14 @@ COMMAND = Command(
                     "str",
                     positional=True,
                     hint="<target>",
-                    help="others, all, a port such as COM3, or a config name; none lists",
-                )
+                    help="others, all, me, a PID, a port such as COM3, or a config name; none lists",
+                ),
+                ParamSpec(
+                    "timeout",
+                    "duration",
+                    default=breadcrumbs.STOP_GRACE_S,
+                    help="how long to wait for them to leave, e.g. 10s",
+                ),
             ],
             needs=CapabilitySet(interactive=True, confirm_dialog=True),
             safety="destructive",

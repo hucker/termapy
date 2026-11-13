@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from contextlib import contextmanager
 from unittest.mock import patch
 
@@ -25,9 +26,38 @@ def state_dir(tmp_path, monkeypatch):
     return folder
 
 
+def _end(crumb: Crumb) -> None:
+    """End a test's own child session, if its process is still the one the breadcrumb names."""
+    import signal
+
+    if breadcrumbs._is_live(crumb):
+        try:
+            os.kill(crumb.pid, signal.SIGTERM)
+        except OSError:
+            pass
+
+
+# A child that also answers a request to leave: it watches, and once asked it
+# returns, so the interpreter exits normally (exit code 0, breadcrumb removed).
+_ANSWERS = (
+    "import threading\n"
+    "from termapy.breadcrumbs import StopWatch\n"
+    "asked = threading.Event()\n"
+    "watch = StopWatch(crumb.pid, crumb.token, poll_s=0.05)\n"
+    "watch.set_handler(lambda by: asked.set())\n"
+    "watch.start()\n"
+)
+
+
 @contextmanager
-def _child_session(state_dir, *, config: str = "rig.cfg", open_port: str = "COM9"):
+def _child_session(
+    state_dir, *, config: str = "rig.cfg", open_port: str = "COM9", answers: bool = False
+):
     """A child process that leaves a breadcrumb and waits; yields it and its breadcrumb.
+
+    With ``answers`` it also watches for a request to leave and exits
+    normally when asked; without, only a signal ends it, as an older
+    termapy that never answers one.
 
     The breadcrumb is found by what it holds: on Windows a venv's python.exe
     is a launcher whose own child runs the code, so the breadcrumb's PID is
@@ -40,9 +70,11 @@ def _child_session(state_dir, *, config: str = "rig.cfg", open_port: str = "COM9
             "-c",
             "import time\n"
             "from termapy.breadcrumbs import Breadcrumb\n"
-            f"Breadcrumb().write('cli', config={config!r}, open_port={open_port!r})\n"
-            "print('ready', flush=True)\n"
-            "time.sleep(60)\n",
+            "crumb = Breadcrumb()\n"
+            f"crumb.write('cli', config={config!r}, open_port={open_port!r})\n"
+            + (_ANSWERS if answers else "")
+            + "print('ready', flush=True)\n"
+            + ("asked.wait(60)\n" if answers else "time.sleep(60)\n"),
         ],
         stdout=subprocess.PIPE,
         text=True,
@@ -56,7 +88,7 @@ def _child_session(state_dir, *, config: str = "rig.cfg", open_port: str = "COM9
         yield child, crumb
     finally:
         if crumb is not None:
-            breadcrumbs.stop(crumb)
+            _end(crumb)
         if child.poll() is None:
             child.kill()
         if child.stdout is not None:
@@ -156,7 +188,7 @@ class TestWhoStartedIt:
             ("powershell.exe", False),
             ("bash", False),
             ("Code.exe", False),
-            ("pythonista", False),
+            ("python3-config", False),
             ("termapy-web", False),
         ],
     )
@@ -354,7 +386,18 @@ class TestReadRunning:
 
 
 class TestSelect:
-    """--kill's target: all, a port, or a config name."""
+    """--kill's target: all, a PID, a port, or a config name."""
+
+    def test_a_mistyped_pid_suggests_the_running_one(self):
+        """A PID one digit off is answered with the PID that is running."""
+        # Arrange
+        crumbs = [_crumb(pid=22056, config="a/rig.cfg")]
+
+        # Act
+        actual = breadcrumbs.suggest(crumbs, "22057")
+
+        # Assert
+        assert actual == " -- did you mean 22056?"
 
     @pytest.mark.parametrize(
         ("target", "expected"),
@@ -367,6 +410,7 @@ class TestSelect:
             ("rig", [1]),
             ("RIG", [1]),
             ("rig*", [1, 2]),
+            ("2", [2]),
             ("nothing", []),
         ],
         ids=[
@@ -378,6 +422,7 @@ class TestSelect:
             "a config name",
             "a config name, any case",
             "a glob picks several",
+            "a PID",
             "no match",
         ],
     )
@@ -397,37 +442,298 @@ class TestSelect:
         assert actual == expected
 
 
-class TestStop:
-    """Stopping ends the named process, and only that process."""
+_ASKED_PID = 4242  # a PID the tests' requests name; no process is behind it
+
+
+def _asked(token: str = "t") -> Crumb:
+    """The breadcrumb of a session at ``_ASKED_PID`` with start ``token``."""
+    return _crumb(pid=_ASKED_PID, token=token)
+
+
+@pytest.mark.rule("kill-asks-first")
+class TestStopRequest:
+    """A request to leave names the session by PID and start token, and says who asked."""
+
+    def test_a_request_names_the_session_and_who_asked(self, state_dir):
+        """The request file holds the session's token and the asking PID, read back by the session."""
+        # Act
+        written = breadcrumbs.request_stop(_asked(), by=99)
+
+        # Assert
+        actual = json.loads((state_dir / "running" / f"{_ASKED_PID}.stop").read_text("utf-8"))
+        assert (written, actual) == (True, {"token": "t", "by": 99})
+        assert breadcrumbs._read_request(_ASKED_PID, "t") == 99, "the session reads who asked"
 
     @pytest.mark.rule("kill-verifies-identity")
-    def test_a_reused_pid_is_never_signalled(self, state_dir):
-        """A breadcrumb whose PID now belongs to another process signals nothing.
-
-        The PID here is this test's own, so a signal would end the test run.
-        """
+    def test_another_process_under_the_pid_ignores_it(self, state_dir):
+        """A request carrying an earlier process's token is never acted on by the PID's new owner."""
         # Arrange
-        crumb = _crumb(token="not-this-process")
+        breadcrumbs.request_stop(_asked(token="earlier-process"), by=99)
 
         # Act
-        actual = breadcrumbs.stop(crumb)
+        actual = breadcrumbs._read_request(_ASKED_PID, "this-process")
 
-        # Assert -- reaching this line is the proof nothing was signalled
-        assert actual is True, "the process the breadcrumb named is not running"
+        # Assert
+        assert actual is None, "the token is the session's, not the PID's"
+
+    def test_prune_drops_a_request_no_session_carries(self, state_dir):
+        """A request whose session is gone is deleted, so a crashed asker leaves nothing armed."""
+        # Arrange
+        breadcrumbs.request_stop(_asked(), by=99)
+
+        # Act
+        breadcrumbs.prune_stale()
+
+        # Assert
+        assert not (state_dir / "running" / f"{_ASKED_PID}.stop").exists()
+
+
+@pytest.mark.rule("kill-asks-first")
+class TestStopWatch:
+    """A session's watch answers its own request once, through the handler its frontend registered."""
+
+    def test_a_request_is_answered_once(self, state_dir):
+        """The handler gets the asking PID, the request is deleted, and a second look finds nothing."""
+        # Arrange
+        calls: list[int] = []
+        watch = breadcrumbs.StopWatch(_ASKED_PID, "t")
+        watch.set_handler(calls.append)
+        breadcrumbs.request_stop(_asked(), by=99)
+
+        # Act
+        first = watch.check()
+        second = watch.check()
+
+        # Assert
+        assert (first, second, calls) == (True, False, [99]), "answered once"
+        assert not (state_dir / "running" / f"{_ASKED_PID}.stop").exists(), "request consumed"
+
+    def test_twice_in_a_row_each_is_answered(self, state_dir):
+        """Two requests one after the other each reach the handler: the watch keeps watching."""
+        # Arrange
+        calls: list[int] = []
+        watch = breadcrumbs.StopWatch(_ASKED_PID, "t")
+        watch.set_handler(calls.append)
+
+        # Act
+        for asker in (98, 99):
+            breadcrumbs.request_stop(_asked(), by=asker)
+            watch.check()
+
+        # Assert
+        assert calls == [98, 99]
+
+    def test_with_no_handler_the_request_waits(self, state_dir):
+        """Between two frontends of one process a request stays on disk for the next one."""
+        # Arrange
+        calls: list[int] = []
+        watch = breadcrumbs.StopWatch(_ASKED_PID, "t")
+        breadcrumbs.request_stop(_asked(), by=99)
+
+        # Act
+        unanswered = watch.check()
+        watch.set_handler(calls.append)
+        answered = watch.check()
+
+        # Assert
+        assert (unanswered, answered, calls) == (False, True, [99]), "held, then answered"
+
+    def test_an_older_frontend_never_clears_a_newer_handler(self, state_dir):
+        """A frontend that ends releases only its own handler; one registered after it stays."""
+        # Arrange
+        calls: list[str] = []
+
+        def older(by: int) -> None:
+            calls.append("older")
+
+        def newer(by: int) -> None:
+            calls.append("newer")
+
+        watch = breadcrumbs.StopWatch(_ASKED_PID, "t")
+        watch.set_handler(older)
+        watch.set_handler(newer)
+
+        # Act
+        watch.clear_handler(older)
+        breadcrumbs.request_stop(_asked(), by=99)
+        watch.check()
+
+        # Assert
+        assert calls == ["newer"]
+
+    def test_a_handler_that_raises_does_not_stop_the_watch(self, state_dir):
+        """A failing handler is recorded and the watch answers the next request."""
+        # Arrange
+        calls: list[int] = []
+
+        def handler(by: int) -> None:
+            calls.append(by)
+            raise RuntimeError("frontend already gone")
+
+        watch = breadcrumbs.StopWatch(_ASKED_PID, "t")
+        watch.set_handler(handler)
+
+        # Act
+        breadcrumbs.request_stop(_asked(), by=98)
+        watch.check()
+        breadcrumbs.request_stop(_asked(), by=99)
+        watch.check()
+
+        # Assert
+        assert calls == [98, 99], "both requests reached the handler"
+
+    def test_the_thread_answers_and_cancel_ends_it(self, state_dir):
+        """Started, the watch finds a request by itself; cancelled, its thread ends."""
+        # Arrange
+        asked = threading.Event()
+        watch = breadcrumbs.StopWatch(_ASKED_PID, "t", poll_s=0.02)
+        watch.set_handler(lambda by: asked.set())
+        watch.start()
+
+        # Act
+        breadcrumbs.request_stop(_asked(), by=99)
+        answered = asked.wait(10)
+        watch.cancel(timeout=10)
+
+        # Assert
+        assert answered, "the watch thread answered the request"
+        assert not watch._thread.is_alive(), "cancel ended the thread"
+
+
+@pytest.mark.rule("kill-asks-first")
+class TestStopSessions:
+    """A stop asks every session to leave and never ends one: what stays is reported, not killed."""
+
+    def test_a_session_already_gone_is_left_alone(self, state_dir):
+        """A session that exited is counted gone: nothing asked, nothing signalled."""
+        # Arrange
+        child = subprocess.Popen([sys.executable, "-c", "pass"])
+        child.wait(timeout=30)
+        crumb = _crumb(pid=child.pid, token="1234")
+
+        # Act
+        actual = breadcrumbs.stop_sessions([crumb], grace_s=0)
+
+        # Assert
+        assert (actual.left, actual.refused) == ((crumb,), ())
+
+    def test_a_session_still_running_is_named_with_the_command_that_ends_it(self):
+        """A session that did not leave is reported with the OS command, which termapy never runs."""
+        # Arrange
+        left = _crumb(pid=1)
+        stayed = _crumb(pid=2)
+        expected_command = "taskkill /PID 2 /F" if sys.platform == "win32" else "kill 2"
+
+        # Act
+        outcome = breadcrumbs.StopOutcome(left=(left,), refused=(stayed,))
+
+        # Assert
+        assert outcome.stopped_lines() == [f"Stopped 1 ({left.summary})"]
+        assert outcome.refused_lines() == [
+            f"Could not shut down process 2 ({stayed.summary}). "
+            f'Please kill it using "{expected_command}".'
+        ], "it is the person's call, with the command in hand"
 
     @pytest.mark.slow
-    def test_stop_ends_a_session_and_removes_its_breadcrumb(self, state_dir):
-        """A live session's process ends and its breadcrumb is deleted."""
-        with _child_session(state_dir) as (child, crumb):
+    def test_a_session_that_answers_leaves_without_a_signal(self, state_dir):
+        """Asked, a watching session exits on its own: exit code 0, not the code of a killed process."""
+        with _child_session(state_dir, answers=True) as (child, crumb):
             # Act
-            actual = breadcrumbs.stop(crumb)
+            actual = breadcrumbs.stop_sessions([crumb], grace_s=30)
 
             # Assert
-            assert actual is True, "stop reports the process gone"
-            assert child.wait(timeout=10) is not None, "the process and its launcher have exited"
-            assert not (state_dir / "running" / f"{crumb.pid}.json").exists(), (
-                "its breadcrumb is gone"
-            )
+            assert (actual.left, actual.refused) == ((crumb,), ()), "it left when asked"
+            assert child.wait(timeout=10) == 0, "it exited normally, nothing ended it"
+
+    @pytest.mark.slow
+    def test_a_session_that_never_answers_is_reported_and_left_running(self, state_dir):
+        """A session with no watch, as an older termapy, keeps running and keeps its breadcrumb."""
+        with _child_session(state_dir) as (child, crumb):
+            # Act
+            actual = breadcrumbs.stop_sessions([crumb], grace_s=0.5)
+
+            # Assert
+            assert (actual.left, actual.refused) == ((), (crumb,)), "reported, not stopped"
+            assert child.poll() is None, "termapy signalled nothing"
+            assert breadcrumbs.read_running() == [crumb], "still listed as running"
+            assert not (state_dir / "running" / f"{crumb.pid}.stop").exists(), "request withdrawn"
+
+
+@contextmanager
+def _termapy_session(tmp_path, state_dir, *args: str):
+    """A real termapy started with ``args``; yields the process and its breadcrumb once written.
+
+    Its diagnostic log goes to ``tmp_path / "diag"``.  Whatever is still
+    running at the end is ended by the test.
+    """
+    import time
+
+    cfg_root = tmp_path / "cfg"
+    cfg_root.mkdir(exist_ok=True)
+    env = {
+        **os.environ,
+        "TERMAPY_STATE_DIR": str(state_dir),
+        "TERMAPY_DIAG_DIR": str(tmp_path / "diag"),
+    }
+    env.pop("CLAUDE_PROJECT_DIR", None)
+    child = subprocess.Popen(
+        [sys.executable, "-m", "termapy", "--cfg-dir", str(cfg_root), *args],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env=env,
+        cwd=tmp_path,
+    )
+    crumb = None
+    try:
+        deadline = time.monotonic() + 60
+        while crumb is None and time.monotonic() < deadline and child.poll() is None:
+            time.sleep(0.1)
+            crumb = next(iter(breadcrumbs.read_running()), None)
+        assert crumb is not None, "the session left its breadcrumb"
+        yield child, crumb
+    finally:
+        if crumb is not None:
+            _end(crumb)
+        if child.poll() is None:
+            child.kill()
+        if child.stdin is not None:
+            child.stdin.close()
+
+
+@pytest.mark.slow  # real termapy processes
+@pytest.mark.rule("kill-asks-first")
+class TestFrontendsLeaveWhenAsked:
+    """A real MCP server and a real CLI script leave through their own teardown when asked."""
+
+    def test_an_mcp_server_leaves_with_its_client_still_attached(self, tmp_path, state_dir):
+        """With stdin open, as under a client, the server tears down and exits 0 instead of being ended."""
+        with _termapy_session(tmp_path, state_dir, "--mcp") as (child, crumb):
+            # Act
+            actual = breadcrumbs.stop_sessions([crumb], grace_s=30)
+
+            # Assert
+            assert (actual.left, actual.refused) == ((crumb,), ()), "it left when asked"
+            assert child.wait(timeout=10) == 0, "it exited on its own"
+        diag = "".join(path.read_text("utf-8") for path in (tmp_path / "diag").glob("*.log"))
+        assert "process exit: stopped by termapy PID" in diag, "it ran its teardown first"
+
+    def test_a_script_in_a_delay_stops_when_asked(self, tmp_path, state_dir):
+        """A --run script waiting in /delay stops at once and the CLI exits 0, well before the delay ends."""
+        # Arrange
+        script = tmp_path / "wait.run"
+        script.write_text("/delay 60s\n", encoding="utf-8")
+
+        with _termapy_session(tmp_path, state_dir, "--cli", "--demo", "--run", str(script)) as (
+            child,
+            crumb,
+        ):
+            # Act
+            actual = breadcrumbs.stop_sessions([crumb], grace_s=30)
+
+            # Assert
+            assert (actual.left, actual.refused) == ((crumb,), ()), "it left when asked"
+            assert child.wait(timeout=10) == 0, "it exited on its own"
 
 
 class TestAliveFlag:
@@ -466,7 +772,7 @@ class TestKillFlag:
         from termapy.cli_flags import run_kill
 
         with pytest.raises(SystemExit) as exit_info:
-            run_kill(argparse.Namespace(kill=target), confirm=lambda question: answer)
+            run_kill(argparse.Namespace(kill=target.split()), confirm=lambda question: answer)
         return int(exit_info.value.code or 0)
 
     def test_nothing_running_says_so(self, state_dir, capsys):
@@ -502,6 +808,50 @@ class TestKillFlag:
         # Assert
         assert code == 1
         assert "no running termapy matches rgi -- did you mean rig?" in capsys.readouterr().err
+
+    def test_me_is_refused_from_the_command_line(self, state_dir, capsys):
+        """--kill me names no session (the command line is none), and says where me works."""
+        # Arrange
+        Breadcrumb().write("cli", config="a/rig.cfg", port="COM7", open_port="COM7")
+
+        # Act
+        code = self._run("me", answer=True)
+
+        # Assert
+        assert code == 1, "nothing to stop"
+        assert "app.kill me in the session" in capsys.readouterr().err, "points to where me works"
+        assert breadcrumbs.read_running(), "still running"
+
+    @pytest.mark.slow  # a real termapy and a child session
+    def test_yes_answers_for_you_with_no_terminal(self, state_dir, tmp_path):
+        """-y stops the picked sessions from a pipe, where the answer would be no, and shows the assumed yes."""
+        with _child_session(state_dir, answers=True) as (child, _):
+            # Act
+            result = subprocess.run(
+                [sys.executable, "-m", "termapy", "--kill", "all", "-y"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                cwd=tmp_path,
+                env={**os.environ, "TERMAPY_STATE_DIR": str(state_dir)},
+            )
+
+            # Assert
+            assert result.returncode == 0, result.stderr
+            assert "[y/N] y (--yes)" in result.stdout, "the log shows what was assumed"
+            assert child.wait(timeout=10) == 0, "the session left when asked"
+
+    def test_a_bad_timeout_is_refused(self, state_dir, capsys):
+        """--kill all timeout=soon names the bad duration and stops nothing."""
+        # Arrange
+        Breadcrumb().write("cli", config="a/rig.cfg", port="COM7", open_port="COM7")
+
+        # Act
+        code = self._run("all timeout=soon", answer=True)
+
+        # Assert
+        assert (code, capsys.readouterr().err.strip()) == (1, "termapy: Invalid timeout: soon")
+        assert breadcrumbs.read_running(), "still running"
 
     def test_no_answer_stops_nothing(self, state_dir, capsys):
         """Answering no leaves every session running and says so."""
@@ -700,6 +1050,32 @@ class TestAppCommands:
         assert result.success, result.error
         assert cli_demo._exit_requested is True, "the session asked to exit, the clean way"
 
+    def test_me_is_exit(self, cli_demo, state_dir):
+        """/app.kill me ends this session the way /exit does, asking nothing."""
+        # Arrange
+        cli_demo._fire_app_start()
+
+        # Act
+        with patch("builtins.input", side_effect=AssertionError("/exit asks nothing")):
+            result = cli_demo.repl.dispatch_full("/app.kill ME")
+
+        # Assert
+        assert result.success, result.error
+        assert cli_demo._exit_requested is True, "the session leaves through /exit"
+
+    def test_a_pid_picks_that_session(self, cli_demo, state_dir):
+        """This session's own PID picks it: after a yes it leaves through /exit."""
+        # Arrange
+        cli_demo._fire_app_start()
+
+        # Act
+        with patch("builtins.input", return_value="y"):
+            result = cli_demo.repl.dispatch_full(f"/app.kill {os.getpid()}")
+
+        # Assert
+        assert result.success, result.error
+        assert cli_demo._exit_requested is True, "the PID was this session's"
+
     def test_all_includes_this_session(self, cli_demo, state_dir):
         """all means every session, this one too, which leaves last through /exit (tmux kill-server)."""
         # Arrange
@@ -752,6 +1128,107 @@ class TestAppCommands:
         assert (bare.success, bare.data) == (True, alive.data), "the same answer as /app.alive"
         assert cli_demo._exit_requested is False, "a listing ends nothing"
 
+    @pytest.mark.rule("kill-asks-first")
+    def test_a_waiting_prompt_ends_as_ctrl_d_when_asked(self, cli_demo):
+        """A request while the CLI prompt waits for a line ends the prompt, as Ctrl+D does."""
+        # Arrange
+        from prompt_toolkit import PromptSession
+        from prompt_toolkit.input import create_pipe_input
+        from prompt_toolkit.output import DummyOutput
+
+        with create_pipe_input() as pipe:
+            cli_demo._session = PromptSession(input=pipe, output=DummyOutput())
+            # Either order ends it: before the prompt starts, its pre_run does.
+            asker = threading.Timer(0.2, cli_demo._leave_on_request, args=(99,))
+            asker.start()
+
+            # Act / Assert
+            with pytest.raises(EOFError):
+                cli_demo._session.prompt("> ", pre_run=cli_demo._end_prompt_if_asked)
+            asker.join(10)
+
+        # Assert
+        assert cli_demo._exit_requested is True, "the loop ends instead of prompting again"
+
+    @pytest.mark.rule("kill-asks-first")
+    def test_a_request_before_the_script_starts_is_not_lost(self, cli_demo, tmp_path, capsys):
+        """A request that came in while the session started stops its --run script before any line."""
+        # Arrange
+        script = tmp_path / "say.run"
+        script.write_text("/echo the script ran\n", encoding="utf-8")
+        cli_demo._run_script_mode(str(script))
+        before = capsys.readouterr().out
+
+        # Act
+        cli_demo._leave_on_request(99)
+        cli_demo._run_script_mode(str(script))
+        after = capsys.readouterr().out
+
+        # Assert
+        assert "the script ran" in before, "with no request the script runs"
+        assert "the script ran" not in after, "start_script's reset did not swallow the request"
+
+    @pytest.mark.rule("kill-asks-first")
+    def test_a_prompt_that_starts_after_the_request_ends_at_once(self, cli_demo):
+        """A request already in when the prompt starts ends it at once, and a script stops too."""
+        # Arrange
+        from prompt_toolkit import PromptSession
+        from prompt_toolkit.input import create_pipe_input
+        from prompt_toolkit.output import DummyOutput
+
+        cli_demo._leave_on_request(99)
+        with create_pipe_input() as pipe:
+            cli_demo._session = PromptSession(input=pipe, output=DummyOutput())
+
+            # Act / Assert
+            with pytest.raises(EOFError):
+                cli_demo._session.prompt("> ", pre_run=cli_demo._end_prompt_if_asked)
+
+        # Assert
+        assert cli_demo.repl._script_stop.is_set(), "a running script stops at its next line"
+
+    @pytest.mark.slow  # a child process
+    @pytest.mark.rule("kill-asks-first")
+    def test_a_session_that_does_not_leave_fails_with_the_command(self, cli_demo, state_dir):
+        """/app.kill all fails naming the session that stayed and its command, and this session stays."""
+        # Arrange
+        cli_demo._fire_app_start()
+        with _child_session(state_dir, config="probe.cfg") as (child, crumb):
+            # Act -- a short timeout= instead of the default wait
+            with patch("builtins.input", return_value="y"):
+                result = cli_demo.repl.dispatch_full("/app.kill all timeout=300ms")
+
+            # Assert
+            assert result.success is False, "a session is still running"
+            assert f"Could not shut down process {crumb.pid}" in result.error, result.error
+            assert breadcrumbs.kill_command(crumb.pid) in result.error, "the command to end it"
+            assert child.poll() is None, "termapy ended nothing"
+            assert cli_demo._exit_requested is False, "this session stays open to show why"
+
+    def test_a_yes_session_answers_its_own_questions(self, tmp_path, state_dir, capsys):
+        """A CLI started with -y answers /app.kill's question itself and leaves through /exit."""
+        # Arrange
+        from termapy.cli import CLITerminal
+        from termapy.defaults import DEFAULT_CFG
+
+        serial = DEFAULT_CFG["serial"]
+        assert isinstance(serial, dict)
+        cfg = {**DEFAULT_CFG, "serial": {**serial, "port": "DEMO"}, "auto_connect": False}
+        config_path = tmp_path / "rig" / "rig.cfg"
+        config_path.parent.mkdir()
+        config_path.write_text(json.dumps(cfg), encoding="utf-8")
+        cli = CLITerminal(cfg, str(config_path), assume_yes=True)
+        cli._fire_app_start()
+
+        # Act
+        with patch("builtins.input", side_effect=AssertionError("--yes asks no one")):
+            result = cli.repl.dispatch_full("/app.kill rig")
+
+        # Assert
+        assert result.success, result.error
+        assert cli._exit_requested is True, "the yes was given, so the session leaves"
+        assert "[y/N] y (--yes)" in capsys.readouterr().out, "the assumed answer is shown"
+
     def test_kill_is_out_of_an_agents_reach(self, cli_demo):
         """/app.kill needs a person and a yes, which MCP has neither of, so an agent cannot end sessions."""
         # Act
@@ -766,7 +1243,10 @@ class TestAppCommands:
         """Twice in a row: a typo gets a suggestion, a no keeps the other session, then others stops it alone."""
         # Arrange
         cli_demo._fire_app_start()
-        with _child_session(state_dir, config="probe.cfg", open_port="COM9") as (child, _):
+        with _child_session(state_dir, config="probe.cfg", open_port="COM9", answers=True) as (
+            child,
+            _,
+        ):
             # Act
             typo = cli_demo.repl.dispatch_full("/app.kill prbe")
             with patch("builtins.input", return_value="n"):

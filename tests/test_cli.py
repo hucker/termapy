@@ -2117,44 +2117,60 @@ class TestPlainFileHistory:
         assert actual == expected, "TUI plain-lines loader sees CLI entries"
 
 
-class TestWebHostFlag:
-    """--web-host chooses where the web server listens: this machine by default, a network address on request."""
+class TestWebFlag:
+    """--web [[HOST:]PORT] chooses where the web server listens: this machine by default."""
 
-    def test_the_default_is_this_machine_only(self):
-        """Without --web-host the server listens on localhost, unreachable from other computers."""
-        # Arrange
+    @pytest.mark.parametrize(
+        ("argv", "expected"),
+        [
+            (["--web"], ("localhost", 8000)),
+            (["--web", "9000"], ("localhost", 9000)),
+            (["--web", "192.168.1.50"], ("192.168.1.50", 8000)),
+            (["--web", "192.168.1.50:9000"], ("192.168.1.50", 9000)),
+            (["--web", "fe80::1"], ("fe80::1", 8000)),
+            (["--web", "[fe80::1]:9000"], ("fe80::1", 9000)),
+            ([], None),
+        ],
+        ids=[
+            "bare: this machine, the default port",
+            "a port alone",
+            "a network address, the default port",
+            "address and port",
+            "an IPv6 address",
+            "an IPv6 address and port, bracketed",
+            "no --web",
+        ],
+    )
+    def test_the_address_reads_as_host_and_port(self, argv, expected):
+        """Digits alone are a port; anything else is a host with an optional :PORT."""
         from termapy.entry import _build_parser
 
-        # Act
-        args = _build_parser().parse_args(["--web"])
+        assert _build_parser().parse_args(argv).web == expected
 
-        # Assert
-        assert args.web_host == "localhost"
-
-    def test_a_network_address_is_taken_as_given(self):
-        """A LAN address passes through, so a browser on another computer can reach the server."""
-        # Arrange
-        from termapy.entry import _build_parser
-
-        # Act
-        args = _build_parser().parse_args(["--web", "--web-host", "192.168.1.50"])
-
-        # Assert
-        assert args.web_host == "192.168.1.50"
-
-    @pytest.mark.parametrize("wildcard", ["0.0.0.0", "::", "[::]"])
-    def test_a_wildcard_is_refused_with_the_reason(self, wildcard, capsys):
-        """A listen-everywhere address is refused: the page would link back to an address no browser can reach."""
+    @pytest.mark.parametrize(
+        ("address", "reason"),
+        [
+            ("0.0.0.0", "give this machine's own address"),
+            ("::", "give this machine's own address"),
+            ("[::]:9000", "give this machine's own address"),
+            ("0.0.0.0:9000", "give this machine's own address"),
+            ("192.168.1.50:http", "Invalid port: http"),
+            ("192.168.1.50:70000", "Invalid port: 70000"),
+            (":9000", "Invalid address: :9000"),
+        ],
+    )
+    def test_a_bad_address_is_refused_with_the_reason(self, address, reason, capsys):
+        """A wildcard, a bad port or a missing host is a usage error that says what is wrong."""
         # Arrange
         from termapy.entry import _build_parser
 
         # Act
         with pytest.raises(SystemExit) as exit_info:
-            _build_parser().parse_args(["--web", "--web-host", wildcard])
+            _build_parser().parse_args(["--web", address])
 
         # Assert
         assert exit_info.value.code == 2, "a usage error"
-        assert "give this machine's own address" in capsys.readouterr().err
+        assert reason in capsys.readouterr().err
 
 
 class TestWatchPortWidth:

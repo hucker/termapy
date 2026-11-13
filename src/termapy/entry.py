@@ -71,19 +71,43 @@ class _OneCommand(argparse.Action):
         setattr(namespace, self.dest, values)
 
 
-def _web_host(text: str) -> str:
-    """Read ``--web-host``: an address a browser can come back to, never a wildcard.
+# Where --web serves when its address says nothing else: this machine only.
+WEB_HOST_DEFAULT = "localhost"
+WEB_PORT_DEFAULT = 8000
 
-    textual-serve builds the page's links from the address it listens on,
-    so ``0.0.0.0`` or ``::`` would listen everywhere and hand the browser
-    an address it cannot reach.
+
+def _web_address(text: str) -> tuple[str, int]:
+    """Read ``--web``'s ``[[HOST:]PORT]``: where the web server listens, as ``(host, port)``.
+
+    Digits alone are a port on this machine (``9000``); anything else is a
+    host, with ``:PORT`` after it or the default port (``192.168.1.50``,
+    ``192.168.1.50:9000``).  An IPv6 host takes its port after brackets
+    (``[fe80::1]:9000``).  Never a wildcard: textual-serve builds the
+    page's links from the address it listens on, so ``0.0.0.0`` or ``::``
+    would listen everywhere and hand the browser an address it cannot reach.
     """
-    if text.strip("[]") in ("0.0.0.0", "::"):
+    host, port_text = WEB_HOST_DEFAULT, ""
+    if text.isdigit():
+        port_text = text
+    elif text.startswith("["):
+        inside, _, after = text[1:].partition("]")
+        host, port_text = inside, after.removeprefix(":")
+    elif text.count(":") == 1:
+        host, _, port_text = text.partition(":")
+    else:
+        host = text
+    if not host:
+        raise argparse.ArgumentTypeError(f"Invalid address: {text}")
+    if host in ("0.0.0.0", "::"):
         raise argparse.ArgumentTypeError(
             f"{text} listens everywhere but gives the browser no address to come "
             "back to; give this machine's own address, e.g. 192.168.1.50"
         )
-    return text
+    if not port_text:
+        return host, WEB_PORT_DEFAULT
+    if not port_text.isdigit() or not 0 < int(port_text) < 65536:
+        raise argparse.ArgumentTypeError(f"Invalid port: {port_text}")
+    return host, int(port_text)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -199,24 +223,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--web",
-        action="store_true",
-        help="Serve the TUI in a web browser via textual-serve",
-    )
-    parser.add_argument(
-        "--web-port",
-        type=int,
-        default=8000,
-        help="Port for web server (default: 8000)",
-    )
-    parser.add_argument(
-        "--web-host",
-        type=_web_host,
-        default="localhost",
+        nargs="?",
+        const=(WEB_HOST_DEFAULT, WEB_PORT_DEFAULT),
+        default=None,
+        type=_web_address,
+        metavar="[HOST:]PORT",
         help=(
-            "Address the web server listens on (default: localhost, this machine "
-            "only). Give this machine's network address (e.g. 192.168.1.50) to "
-            "open it from another computer: there is no login, so anyone who can "
-            "reach it can drive the port"
+            "Serve the TUI in a web browser via textual-serve, at "
+            f"http://{WEB_HOST_DEFAULT}:{WEB_PORT_DEFAULT}, this machine only, unless "
+            "[HOST:]PORT says otherwise: --web 9000 for another port, --web "
+            "192.168.1.50 (this machine's network address) to open it from another "
+            "computer.  There is no login: anyone who can reach it can drive the port"
         ),
     )
     parser.add_argument(

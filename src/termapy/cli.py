@@ -240,6 +240,7 @@ class CLITerminal(TerminalHost):
         gui = detect_gui_apps()
         self.ctx.capabilities = CapabilitySet(
             interactive=True,
+            console=True,
             gui_apps=gui,
             # The CLI's only editor is the system one: it needs a desktop.
             file_editor=gui,

@@ -95,6 +95,40 @@ def app_factory(tmp_path):
 class TestAppBoots:
     """Booting the real app is itself coverage: __init__ and compose run."""
 
+    def test_a_tui_on_a_terminal_has_its_console(self, app_factory):
+        """Not served in a browser, the TUI has a terminal that /cli and /vt100 can take over."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                assert app.is_web is False, "run_test is a terminal, not a browser"
+                assert app.repl.ctx.capabilities.console is True
+
+        _run(scenario)
+
+    @pytest.mark.parametrize("command", ["/cli", "/vt100", "/demo.vt100"])
+    def test_without_a_console_the_mode_switches_are_refused(self, app_factory, command):
+        """In a browser tab (no console) the switches fail at the gate and the TUI stays."""
+
+        async def scenario():
+            import dataclasses
+
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                ctx = app.repl.ctx
+                ctx.capabilities = dataclasses.replace(ctx.capabilities, console=False)
+                ctx.sync_capabilities()
+
+                result = app.repl.dispatch_full(command)
+
+                assert result.success is False, f"{command} needs a terminal"
+                assert "console" in result.error, result.error
+                assert app.switch_to is None, "no mode switch was started"
+
+        _run(scenario)
+
     def test_mounts_its_widget_tree(self, app_factory):
         """The full app composes a real widget tree and keeps the config path it was given."""
 

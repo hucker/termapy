@@ -217,7 +217,8 @@ def register_tui_hooks(app) -> None:
         _switch_to_cli,
         source="app",
         group="terminal",
-        needs=CapabilitySet.INTERACTIVE,
+        # The CLI takes over this terminal; a browser tab has none.
+        needs=CapabilitySet(interactive=True, console=True),
     )
     app.repl.register_hook(
         "vt100",
@@ -226,8 +227,9 @@ def register_tui_hooks(app) -> None:
         _switch_to_vt100,
         source="app",
         group="terminal",
-        # Only the TUI offers it: the round trip returns here on Ctrl-].
-        needs=CapabilitySet.TUI_MODE,
+        # Only the TUI on a terminal offers it: the round trip returns
+        # here on Ctrl-], and a browser tab has no terminal to pass through.
+        needs=CapabilitySet(tui_mode=True, console=True),
     )
     app.repl.register_hook(
         "demo.vt100",
@@ -235,7 +237,7 @@ def register_tui_hooks(app) -> None:
         "Switch to the VT100 widget-tour demo device (Ctrl-] returns).",
         _switch_to_vt100_demo,
         source="app",
-        needs=CapabilitySet.TUI_MODE,
+        needs=CapabilitySet(tui_mode=True, console=True),
     )
     app.repl.register_hook(
         "tui",

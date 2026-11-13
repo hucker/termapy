@@ -1299,6 +1299,9 @@ class SerialTerminal(TerminalHost, App):
             screen_capture=True,
             tui_mode=True,
             interactive=True,
+            # Served in a browser (--web) the screen is a web page: no
+            # terminal for /cli or /vt100 to take over.
+            console=not self.is_web,
             gui_apps=detect_gui_apps(),
             # Its own config and script editors work over SSH too.
             file_editor=True,
@@ -4053,7 +4056,7 @@ def _run_proto_headless(args) -> None:
 
 
 def _run_web_mode(args) -> None:
-    """Serve the TUI in a web browser via textual-serve."""
+    """Serve the TUI in a web browser via textual-serve, at ``args.web``'s ``(host, port)``."""
     try:
         # No ty: ignore here -- the gate runs with all extras synced (see
         # CLAUDE.md), so textual_serve resolves and a suppression would be
@@ -4069,11 +4072,13 @@ def _run_web_mode(args) -> None:
     print("=" * 60)
     print("  EXPERIMENTAL: Web mode via textual-serve")
     print(
-        f"  {DEFAULT_CMD_PREFIX}tui and {DEFAULT_CMD_PREFIX}cli mode switching are not available."
+        f"  {DEFAULT_CMD_PREFIX}cli and {DEFAULT_CMD_PREFIX}vt100 are not available: a browser "
+        "has no terminal to switch to."
     )
     print(f"  {DEFAULT_CMD_PREFIX}help.open may not work in the browser.")
-    if args.web_host not in ("localhost", "127.0.0.1", "::1"):
-        print(f"  Open to the network at {args.web_host}. There is no login:")
+    host, port = args.web
+    if host not in ("localhost", "127.0.0.1", "::1"):
+        print(f"  Open to the network at {host}. There is no login:")
         print("  anyone who can reach this address can drive the port.")
     print("=" * 60)
     print()
@@ -4097,8 +4102,8 @@ def _run_web_mode(args) -> None:
     os.environ.setdefault("TERMAPY_GUI", "0")
     server = Server(
         " ".join(cmd_parts),
-        host=args.web_host,
-        port=args.web_port,
+        host=host,
+        port=port,
         title="Termapy",
     )
     server.serve()

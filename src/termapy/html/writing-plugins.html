@@ -24,7 +24,7 @@
     
     
       
-        <title>Writing Plugins - Termapy Help v0.80.0</title>
+        <title>Writing Plugins - Termapy Help v0.81.0</title>
       
     
     
@@ -87,7 +87,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.80.0" class="md-header__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.81.0" class="md-header__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -102,7 +102,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.80.0
+            Termapy Help v0.81.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.80.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.81.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.80.0
+    Termapy Help v0.81.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -2032,10 +2032,16 @@ what your command needs:</p>
 </span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>The dispatcher refuses to invoke a handler whose <code>needs</code> aren't satisfied,
-so most capability mismatches fail loudly <em>before</em> the handler runs.</p>
+so most capability mismatches fail loudly <em>before</em> the handler runs.
+<code>/help capability</code> lists the vocabulary, and <code>/help &lt;capability&gt;</code> names the
+commands declaring one.</p>
 <p>Gated methods today:</p>
 <ul>
-<li><code>ctx.fs.open_file</code> -- requires <code>gui_apps</code> (no-op in headless/SSH)</li>
+<li><code>ctx.fs.open_file</code> and <code>ctx.fs.reveal_file</code> -- require <code>gui_apps</code>: the
+  desktop's opener would otherwise succeed on a machine the user cannot
+  see (SSH without X11, a TUI served in a browser)</li>
+<li><code>ctx.internal.edit_file</code> -- requires <code>file_editor</code> (and the system
+  editor it falls back to, <code>gui_apps</code>)</li>
 <li><code>ctx.ui.confirm</code> -- requires <code>confirm_dialog</code> (implies <code>block_until</code>)</li>
 <li><code>ctx.ui.notify</code> -- requires <code>ui_notify</code> (use <code>ctx.io.notify</code> for the
   always-works fallback)</li>
@@ -2098,8 +2104,10 @@ record: the facts with real JSON types become <code>data</code>, and the
 <code>(label, text)</code> rows are what a person reads, aligned with cyan labels.
 termapy prints the rows unless the caller wants data, so a JSON answer
 carries each fact once.  A row's optional third element colors its text;
-leave a row out to omit it, put <code>None</code> between rows for a blank line, and
-a <code>TextLine("heading", "green")</code> among them for a plain line:</p>
+leave a row out to omit it, put <code>None</code> between rows for a blank line,
+a <code>TextLine("heading", "green")</code> among them for a plain line, and a
+<code>PieceLine((Piece("text"), Piece("part", style="bold")))</code> for a line whose
+parts differ in style (each piece's text is escaped, as a row's is):</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PluginContext</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CmdResult</span><span class="p">:</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">temp_c</span> <span class="o">=</span> <span class="n">read_temp</span><span class="p">()</span>
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">data</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"temp_c"</span><span class="p">:</span> <span class="n">temp_c</span><span class="p">,</span> <span class="s2">"alarm"</span><span class="p">:</span> <span class="n">temp_c</span> <span class="o">&gt;</span> <span class="mi">80</span><span class="p">}</span>
@@ -2474,6 +2482,22 @@ above does.</p>
 <p>A command that works in the config's folder declares
 <code>CapabilitySet.CONFIG_LOADED</code> the same way, and the dispatcher answers
 <code>No config loaded.</code> when there is none.</p>
+<p><strong>What an MCP server keeps back.</strong> The TUI and CLI are the operator on
+their own machine; an MCP server answers an agent, so some capabilities
+it holds only when the operator opts in from the server's environment. A
+command that reaches past the device declares the one it needs:</p>
+<ul>
+<li><code>host_info</code>, for a command that describes the machine beyond the
+  allowed devices: its USB bus, other programs, the OS or the hostname
+  (<code>TERMAPY_MCP_HOST_INFO</code>). <code>/port.usb</code>, <code>/app.alive</code> and
+  <code>/log.fingerprint</code> declare <code>needs=CapabilitySet(host_info=True)</code>.</li>
+<li><code>filesystem_unconfined</code>, for a path outside the config's folder
+  (<code>TERMAPY_MCP_FS_UNCONFINED</code>). You rarely declare it: <code>ctx.fs.resolve</code>
+  and its guards apply it for you.</li>
+</ul>
+<p>Which ports a command may open is not a capability: every open goes
+through the one opener, which applies <code>TERMAPY_ALLOWED_PORTS</code> (see
+<a href="ports.html#limiting-which-ports-termapy-may-open">Serial ports</a>).</p>
 <h2 id="bytes-and-hex">Bytes and hex<a class="headerlink" href="#bytes-and-hex" title="Permanent link">&para;</a></h2>
 <p>Read bytes the user typed with <code>termapy.protocol.parse_data</code> when the
 payload may hold text: hex in any spelling or case (<code>01 03</code>, <code>0x01 0x03</code>,
@@ -2739,6 +2763,10 @@ either directly.</p>
 <tr>
 <td><code>ctx.fs.open_file(path)</code></td>
 <td>Open in system viewer/editor (gated on <code>gui_apps</code>)</td>
+</tr>
+<tr>
+<td><code>ctx.fs.reveal_file(path)</code></td>
+<td>Show in the file manager, selected (gated on <code>gui_apps</code>)</td>
 </tr>
 </tbody>
 </table>

@@ -81,7 +81,7 @@ src/termapy/
 ├── devices/                #              Device files -- the registers of a memory-mapped part, as data termapy owns
 │   └── converters/         #   Device converters -- a vendor's register description in, a device document out
 │       └── svd.py          #     CMSIS-SVD converter -- ARM's System View Description into a device document
-├── dialogs/                # (3445 lines) Modal dialog screens for termapy
+├── dialogs/                # (3457 lines) Modal dialog screens for termapy
 │   ├── _common.py          #   Shared constants and helpers for the dialog submodules
 │   ├── cfg_confirm.py      #   CfgConfirm -- confirms a config value change (/cfg <key> <value> in the TUI)
 │   ├── config_editor.py    #   ConfigEditor -- edit a config's JSON, validated before it is saved
@@ -99,11 +99,11 @@ src/termapy/
 ├── firmware/               #              The device-side sources termapy ships, one command away: the `/firmware` registry
 ├── help/                   #              Markdown help pages, the source of the HTML help
 ├── html/                   #              Generated HTML help, what the wheel ships (rebuilt at release)
-├── mcp/                    # (2248 lines) Termapy MCP (Model Context Protocol) server package
+├── mcp/                    # (2270 lines) Termapy MCP (Model Context Protocol) server package
 │   ├── catalog.py          #   Build JSON catalog/state snapshots from a running PluginContext
 │   ├── prompts.py          #   MCP prompts: user-invocable conversation recipes
 │   └── server.py           #   MCP stdio server: MCPHost + run_command tool + resources
-├── plugins/                # (4952 lines) Plugin system for termapy - discovery, loading, and context API
+├── plugins/                # (5178 lines) Plugin system for termapy - discovery, loading, and context API
 │   ├── handles/            #   The handles a PluginContext carries: io, serial, fs, ui, and the internal escape hatch
 │   ├── capabilities.py     #   Capability model: what a command needs and what a frontend provides, checked before dispatch
 │   ├── command.py          #   Command, transform, directive, and lifecycle dataclasses
@@ -148,20 +148,20 @@ src/termapy/
 │   ├── selection_list.py   #   StrongSelectionList -- a SelectionList with a clearer on/off glyph
 │   ├── status_bar.py       #   The transient status line beside the REPL input
 │   └── suggester.py        #   CommandSuggester -- input type-ahead from REPL commands + history
-├── app.py                  # (4344 lines) Textual TUI frontend: the app, its panes and buttons, and the wiring around the engines
+├── app.py                  # (4364 lines) Textual TUI frontend: the app, its panes and buttons, and the wiring around the engines
 ├── app_dirs.py             #              User-level application directories and files for termapy
 ├── app_hooks.py            #              TUI-specific REPL hooks registered against the app's ReplEngine
 ├── breadcrumbs.py          #              Breadcrumbs: every running termapy leaves a file saying what it holds, so `--alive` and `--kill` can find it
 ├── capture.py              # (475 lines)  Capture engine - file capture state machine (no UI dependency)
 ├── capture_view.py         #              TUI capture-progress view: start/stop, status bar, and progress widget
-├── cli.py                  # (908 lines)  CLI serial terminal - no Textual dependency
+├── cli.py                  # (947 lines)  CLI serial terminal - no Textual dependency
 ├── cli_flags.py            #              Print-and-exit handlers for termapy's CLI flags
 ├── cli_prompt.py           #              The CLI's interactive prompt: prompt_toolkit history, completion and session
-├── config.py               # (2014 lines) Config file management - paths, defaults, loading, and serial port setup
+├── config.py               # (2032 lines) Config file management - paths, defaults, loading, and serial port setup
 ├── config_resolve.py       #              Config-path resolution helpers
 ├── converters.py           #              Converter registries -- vendor files in, termapy data out, one record type
 ├── credits_data.py         #              The dependency and attribution registry -- one table, every consumer iterates it
-├── defaults.py             # (1020 lines) The config schema, one table, and the file templates
+├── defaults.py             # (1023 lines) The config schema, one table, and the file templates
 ├── demo.py                 # (2152 lines) Simulated serial device for demo mode
 ├── demo_ndjson.py          #              Simulated NDJSON serial device for `DEMO_JSON` port name
 ├── demo_vt100.py           #              Simulated VT100/ANSI serial device for the `DEMO_VT100` port name
@@ -185,15 +185,15 @@ src/termapy/
 ├── palette_provider.py     #              Textual command-provider that surfaces termapy's PALETTE_CMDS
 ├── pickers.py              #              Modal-picker callbacks for the TUI
 ├── port_allow.py           #              Which ports this process may open and list: `TERMAPY_ALLOWED_PORTS`, read once
-├── port_control.py         # (2408 lines) Pure functions for serial port control - no Textual, no pyserial imports
+├── port_control.py         # (2700 lines) Pure functions for serial port control - no Textual, no pyserial imports
 ├── port_format.py          #              One-line-per-port formatting for serial-port tables
-├── proto_debug.py          # (1420 lines) Interactive protocol debug screen
-├── repl.py                 # (2845 lines) REPL engine for termapy - plugin-based command dispatch and scripting
+├── proto_debug.py          # (1429 lines) Interactive protocol debug screen
+├── repl.py                 # (2878 lines) REPL engine for termapy - plugin-based command dispatch and scripting
 ├── request_response.py     #              Request/response I/O pipeline for synchronous device exchanges
 ├── response_parsers.py     #              Pure response parsers for the profile response formats
 ├── run_docstring.py        #              Parse a `.run` script file's leading docstring block
-├── scripting.py            # (798 lines)  Template expansion, script parsing, and shared utilities for termapy
-├── serial_engine.py        # (839 lines)  SerialEngine - orchestrates serial port, reader, and capture
+├── scripting.py            # (761 lines)  Template expansion, script parsing, and shared utilities for termapy
+├── serial_engine.py        # (862 lines)  SerialEngine - orchestrates serial port, reader, and capture
 ├── serial_port.py          # (679 lines)  Serial port I/O wrapper and reader data processor
 ├── session_log.py          #              Session log: a frontend's transcript of a config's sessions, written by one class in every frontend
 ├── terminal_host.py        #              Base class for the TUI, CLI and MCP frontends: builds the PluginContext, owns the one TX path

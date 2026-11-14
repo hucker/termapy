@@ -1,5 +1,97 @@
 # Changelog
 
+## 0.81.0 (2026-11-13)
+
+A list of the ports termapy may open, meant for MCP registrations; a
+port that shows which termapy session holds it; sessions you can list
+and ask to leave; `--web` serving the TUI to other computers behind the
+capability gate; help pages for capabilities and for scripts; and ages
+and durations in a shorter spelling.
+
+### Ports and sessions
+
+- **`TERMAPY_ALLOWED_PORTS` limits the ports termapy opens and lists**:
+  one regex, `|` between alternatives, matched whole against a port's
+  name or its USB serial number, so a port allowed by name opens by its
+  serial number and the reverse. Unset, a person's TUI or CLI opens any
+  port and an MCP server opens and lists none, so an MCP registration
+  needs it set. `DEMO` and `loop://` are always allowed; a network port
+  opens only when an alternative spells its endpoint out exactly.
+- **A port's name is colored by the termapy session holding it**: green
+  when this session has it open, yellow when another does, in
+  `/port.list`, the port picker, `/port.usb`, and `--usb` and `--ports`
+  at a terminal. Only termapy sessions are seen, read from the
+  breadcrumbs they leave, so no port is opened to find out. Behavior
+  changed: a port record's `in_use` is null when nothing checked it,
+  where a listing used to say false.
+- **`/app.alive` and `termapy --alive`** list the running sessions with
+  their config, open port and its settings, session log, version and the
+  program that started them. `/app.running` is renamed.
+- **`/app.kill` and `--kill` ask a session to leave** instead of ending
+  its process: the TUI restores its terminal, the CLI ends its prompt or
+  script, an MCP server tears down. A session still running after
+  `timeout=` (default `3s`) is named with the command that ends it.
+  Targets gain a PID and `me`; `-y` / `--yes` answers the command line's
+  questions. Behavior removed: `--kill` no longer ends every picked
+  session.
+- **`--ports PATTERN` and `--chips PATTERN` filter with one pattern over
+  every column**, as every list filter does; `--chips 0403` lists the
+  FTDI chips. Behavior removed: `--vid`, `--pid`, `--mfg` and `--sn`;
+  `--json | jq` covers anything finer.
+- **`/port.usb` and `termapy --usb` pick out the serial-port rows**,
+  cyan with their `-> COMx` in bold green at a terminal; piped output
+  and the JSON are unchanged.
+
+### The web TUI
+
+- **`--web [[HOST:]PORT]` is the one web flag**: bare serves
+  `localhost:8000`, digits alone are a port, and a network address
+  (`--web 192.168.1.50`) serves the TUI to other computers; off
+  localhost the banner says there is no login. Behavior removed:
+  `--web-port`; `--web 9000` replaces it.
+- **A browser tab has no console and no desktop**: `/cli`, `/vt100` and
+  `/demo.vt100` fail at the gate instead of ending the page, and the
+  five places that opened a file on the serving machine (`/cfg.info
+  --display`, the Help button and palette entry, the newest-file palette
+  entries, the proto-debug Log button) go through the gate too.
+  `TERMAPY_GUI=1` grants the desktop when the browser is on it. Behavior
+  changed: the config picker's Explore button is disabled with a tooltip
+  rather than hidden.
+
+### MCP
+
+- **The machine beyond the allowed devices is opt-in**: an MCP server
+  started without `TERMAPY_MCP_HOST_INFO=1` draws only the USB branches
+  that lead to an allowed port, names a port's holder "another program",
+  and refuses `/port.usb`, `/app.alive` and `/log.fingerprint`.
+  Behavior removed: those three answered any agent before.
+
+### Help
+
+- **Capabilities explain themselves**: `/help capability` lists every
+  restrictive capability, `/help <capability>` says who provides it,
+  whether this session has it and which commands need it, and the
+  gate's refusal names the one that is missing. A command page shows
+  REQUIRED CAPABILITIES only when one is missing and ends with a link to
+  its `--verbose` form.
+- **The landscape lists scripts as `/run.list`'s table**, each row with
+  an EDIT link and the script's title, the first comment line of the
+  file; `/run.list` and the Run picker show the same TITLE column, and a
+  new script's template opens with one. Every demo script and protocol
+  file now starts with its title.
+
+### Listings and times
+
+- **Ages and durations are spelled compactly**, in every listing and
+  message: `10m ago`, `34h ago`, `3d ago`, `6w ago`, `13mo ago`,
+  `2y ago` in the UPDATED column of `/run.list`, `/cfg.list`,
+  `/proto.list` and the pickers, and `1.5m`, `2h`, `3d` for an elapsed
+  time or a timeout, where they read `10 min ago`, `1.5min`, `2hr`. A
+  unit is used only once two of it have elapsed, so no age reads "1" of
+  anything (`34h ago`, never `1 day ago`), and `just now` under 45 s
+  stays. A zero duration reads `<1us`. The spelling is frist's compact
+  style; frist 0.23 is the floor.
+
 ## 0.80.0 (2026-11-11)
 
 Control keys, transmit pacing and an end to the byte loss in long sends

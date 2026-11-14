@@ -24,7 +24,7 @@
     
     
       
-        <title>Command-Line Flags - Termapy Help v0.80.0</title>
+        <title>Command-Line Flags - Termapy Help v0.81.0</title>
       
     
     
@@ -87,7 +87,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.80.0" class="md-header__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.81.0" class="md-header__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -102,7 +102,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.80.0
+            Termapy Help v0.81.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.80.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.81.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.80.0
+    Termapy Help v0.81.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -494,15 +494,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#filtering-and-json-output" class="md-nav__link">
+  <a href="#json-output" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Filtering and JSON output
+        JSON output
       </span>
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Filtering and JSON output">
+    <nav class="md-nav" aria-label="JSON output">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -522,10 +522,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#-kill-stop-leftover-sessions" class="md-nav__link">
+  <a href="#-alive-and-kill-see-and-stop-sessions" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        <code>--kill</code>: stop leftover sessions
+        <code>--alive</code> and <code>--kill</code>: see and stop sessions
       </span>
     </span>
   </a>
@@ -1301,15 +1301,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#filtering-and-json-output" class="md-nav__link">
+  <a href="#json-output" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Filtering and JSON output
+        JSON output
       </span>
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Filtering and JSON output">
+    <nav class="md-nav" aria-label="JSON output">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1329,10 +1329,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#-kill-stop-leftover-sessions" class="md-nav__link">
+  <a href="#-alive-and-kill-see-and-stop-sessions" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        <code>--kill</code>: stop leftover sessions
+        <code>--alive</code> and <code>--kill</code>: see and stop sessions
       </span>
     </span>
   </a>
@@ -1451,10 +1451,16 @@ port has a serial number, the <code>SERIAL #</code> column disappears.  On narro
 terminals, columns drop in this order until the row fits: speed, chip,
 VID:PID, driver, vendor, PRODUCT, SERIAL #, IF, location.  PORT, MFG and
 DESCRIPTION always stay.</p>
-<p>Filter to a single port by name:</p>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>termapy<span class="w"> </span>--ports<span class="o">=</span>COM4
+<p>Give a pattern to show only the ports with any field that contains it:
+the maker, a serial number, the chip, VID:PID or the port name.  Case is
+ignored, and a wildcard (<code>*</code>, <code>?</code>, <code>[</code>) makes a glob that must match a
+whole field:</p>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>termapy<span class="w"> </span>--ports<span class="w"> </span>FTDI<span class="w">            </span><span class="c1"># every FTDI adapter</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>termapy<span class="w"> </span>--ports<span class="w"> </span>Microchip
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>termapy<span class="w"> </span>--ports<span class="w"> </span>BG03U7VTA<span class="w">       </span><span class="c1"># which COM is this adapter?</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>termapy<span class="w"> </span>--ports<span class="w"> </span><span class="s2">"COM[1]"</span><span class="w">        </span><span class="c1"># COM1 alone; plain COM1 also finds COM10-COM19</span>
 </span></code></pre></div>
-<p>Exits 0 on match, 1 on "not found" or "no ports" (script-friendly).</p>
+<p>Exits 0 on match, 1 on no match or no ports (script-friendly).</p>
 <p><code>--ports</code> lists physical ports only — the ones the OS reports via
 pyserial's <code>comports()</code>.  Termapy also accepts pyserial URL handlers
 (<code>loop://</code>, <code>socket://host:port</code>, <code>rfc2217://host:port</code>, <code>hwgrep://...</code>)
@@ -1570,40 +1576,10 @@ is always printed so you can identify it manually, and termapy nudges
 you to open an issue so the lookup table can grow.</p>
 <p>Exits 0 if at least one port was printed, 1 if the named port wasn't
 found or no ports are connected.</p>
-<h2 id="filtering-and-json-output">Filtering and JSON output<a class="headerlink" href="#filtering-and-json-output" title="Permanent link">&para;</a></h2>
-<p><code>--ports</code> accepts these script-friendly filters (AND together):</p>
-<table>
-<thead>
-<tr>
-<th>Flag</th>
-<th>Effect</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>--vid HEX</code></td>
-<td>Only USB devices matching this VID. Hex with or without <code>0x</code>.</td>
-</tr>
-<tr>
-<td><code>--pid HEX</code></td>
-<td>Only USB devices matching this PID.</td>
-</tr>
-<tr>
-<td><code>--mfg STR</code></td>
-<td>Manufacturer substring match (case-insensitive).</td>
-</tr>
-<tr>
-<td><code>--sn STR</code></td>
-<td>Exact serial-number match (case-insensitive).</td>
-</tr>
-<tr>
-<td><code>--json</code></td>
-<td>Emit a JSON array instead of the column table; also for <code>--chips</code> and <code>--usb</code>.</td>
-</tr>
-</tbody>
-</table>
-<p>Example:</p>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>termapy<span class="w"> </span>--ports<span class="w"> </span>--vid<span class="w"> </span><span class="m">0403</span><span class="w"> </span>--json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'.[].device'</span>
+<h2 id="json-output">JSON output<a class="headerlink" href="#json-output" title="Permanent link">&para;</a></h2>
+<p><code>--json</code> emits a JSON array instead of the column table, for <code>--ports</code>,
+<code>--chips</code> and <code>--usb</code>.  Filter it with the tool you script in:</p>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>termapy<span class="w"> </span>--ports<span class="w"> </span>--json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">'.[] | select(.vid_pid == "0403:6001") | .device'</span>
 </span></code></pre></div>
 <p>Each <code>--ports --json</code> record has a stable schema:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span>
@@ -1620,10 +1596,11 @@ found or no ports are connected.</p>
 </span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">  </span><span class="nt">"vid_pid"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0403:6001"</span><span class="p">,</span>
 </span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">  </span><span class="nt">"serial_number"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AL01ABCD"</span><span class="p">,</span>
 </span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">  </span><span class="nt">"in_use"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="w">  </span><span class="nt">"driver"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ftdi_sio"</span><span class="p">,</span>
-</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="w">  </span><span class="nt">"location"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Hub_#0009.Port_#0004"</span><span class="p">,</span>
-</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="w">  </span><span class="nt">"interface_number"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
-</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="p">}</span>
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="w">  </span><span class="nt">"session"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="w">  </span><span class="nt">"driver"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ftdi_sio"</span><span class="p">,</span>
+</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="w">  </span><span class="nt">"location"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Hub_#0009.Port_#0004"</span><span class="p">,</span>
+</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="w">  </span><span class="nt">"interface_number"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>Three vendor-related fields, intentionally separate:</p>
 <ul>
@@ -1641,10 +1618,19 @@ driver — a Microchip USB-serial chip running on Microsoft's
 <code>vendor = "Microchip"</code> (VID <code>0x04D8</code>).  Engineers diagnosing devices
 benefit from seeing all three.</p>
 <p>Numeric fields stay numeric; missing values are <code>null</code> (not omitted).
-<code>vid_pid</code> is the canonical lowercase-hex form for literal matching.
-<code>driver</code> is the kernel module name on Linux (<code>ftdi_sio</code>, <code>cdc_acm</code>,
-<code>ch341</code>, <code>cp210x</code>, ...) and the Windows service name (<code>FTDIBUS</code>,
-<code>usbser</code>, <code>silabser</code>, ...). On macOS <code>driver</code> is <code>null</code> for now.</p>
+<code>vid_pid</code> is the canonical uppercase-hex form (<code>10C4:EA60</code>) for literal
+matching.  <code>driver</code> is the kernel module name on Linux (<code>ftdi_sio</code>,
+<code>cdc_acm</code>, <code>ch341</code>, <code>cp210x</code>, ...) and the Windows service name
+(<code>FTDIBUS</code>, <code>usbser</code>, <code>silabser</code>, ...).  On macOS <code>driver</code> is <code>null</code> for
+now.</p>
+<p><code>session</code> is the termapy session holding the port, from the breadcrumb
+every running termapy leaves: <code>"termapy mcp, PID 17140"</code>, or <code>null</code> when
+no termapy holds it.  Only termapy sessions are seen there, on every OS,
+so <code>null</code> does not mean free: PuTTY or another program may have it.
+<code>in_use</code> is <code>true</code> or <code>false</code> only when something checked (the in-use
+probe <code>--ports --json</code> runs, or a session's breadcrumb), and <code>null</code> when
+nothing did.  At a terminal <code>--ports</code> colors a port another termapy
+session holds yellow.</p>
 <h3 id="hardware-free-ci-ports-demo">Hardware-free CI: <code>--ports DEMO</code><a class="headerlink" href="#hardware-free-ci-ports-demo" title="Permanent link">&para;</a></h3>
 <p><code>DEMO</code> and <code>DEMO_FAIL</code> are virtual port names that the OS doesn't
 enumerate but termapy can connect to.  Naming one explicitly returns
@@ -1656,30 +1642,50 @@ plugging in real hardware:</p>
 <p>Bare <code>--ports</code> (no filter) does NOT include <code>DEMO</code> in the listing --
 it only appears when you specifically ask for it, the same way
 pyserial's <code>loop://</code> URL handler is reachable but not enumerated.</p>
-<h2 id="-kill-stop-leftover-sessions"><code>--kill</code>: stop leftover sessions<a class="headerlink" href="#-kill-stop-leftover-sessions" title="Permanent link">&para;</a></h2>
+<h2 id="-alive-and-kill-see-and-stop-sessions"><code>--alive</code> and <code>--kill</code>: see and stop sessions<a class="headerlink" href="#-alive-and-kill-see-and-stop-sessions" title="Permanent link">&para;</a></h2>
 <p>Every running termapy -- a TUI, a CLI, an MCP server an editor started, a
 <code>--web</code> server -- leaves a breadcrumb in the app state folder
 (<code>%LOCALAPPDATA%\termapy\running\</code> on Windows) naming its config and the
-port it has open.  <code>--kill</code> reads them:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>$ termapy --kill
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>PID    MODE  CONFIG  PORT  STARTED
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>-----  ----  ------  ----  -------------------
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>21552  mcp   m3_bin  COM4  2026-10-27 16:38:45
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>28172  cli   demo    DEMO  2026-10-31 08:56:24
+port it has open.  <code>--alive</code> lists them:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>$ termapy --alive
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>running termapys - 2 sessions
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>PID    MODE  CONFIG  PORT  SETTINGS    VERSION  STARTED              STARTED BY
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>-----  ----  ------  ----  ----------  -------  -------------------  --------------------
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>21552  mcp   m3_bin  COM4  115200 8N1  0.80.0   2026-10-27 16:38:45  pwsh.exe 20112
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>28172  tui   demo    DEMO  115200 8N1  0.80.0   2026-10-31 08:56:24  powershell.exe 17604
 </span></code></pre></div>
-<p>Bare <code>--kill</code> only lists.  Give it a target to stop sessions, after a yes:</p>
+<p>SETTINGS is the open port's baud and frame.  STARTED BY is the program
+that started the session, past python, termapy and uv.  A one-shot (<code>-e</code>,
+<code>--run</code>) records no version or starter, which take a tenth of a second to
+read.  A narrow terminal drops STARTED BY first.</p>
+<p><code>--kill</code> stops them, after a yes; bare, it lists them as <code>--alive</code> does.
+Each session is asked to leave and leaves as <code>/exit</code> does: its terminal
+restored, its port closed, its history saved, its session log ended.
+termapy never ends a session itself.  One still running when <code>timeout=</code>
+is up (3 s unless you give one), hung, partway through a firmware write,
+or started by an older termapy, keeps running, and the reply names the
+command that ends it (<code>taskkill -PID 22056 -F</code> on Windows, which works in
+cmd, PowerShell and Git Bash alike, <code>kill -9 22056</code> elsewhere):</p>
 <div class="language-sh highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>all<span class="w">      </span><span class="c1"># every termapy, say before an update</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>COM4<span class="w">     </span><span class="c1"># whichever session holds COM4</span>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>m3_bin<span class="w">   </span><span class="c1"># the sessions on that config (m3* picks several)</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>termapy<span class="w"> </span>--kill<span class="w"> </span><span class="m">21552</span><span class="w">    </span><span class="c1"># the session with that PID, as --alive lists it</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>COM4<span class="w">     </span><span class="c1"># whichever session holds COM4</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>m3_bin<span class="w">   </span><span class="c1"># the sessions on that config (m3* picks several)</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>all<span class="w"> </span><span class="nv">timeout</span><span class="o">=</span>10s<span class="w">   </span><span class="c1"># give them longer to leave</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>all<span class="w"> </span>-y<span class="w">            </span><span class="c1"># no question: yes (-y / --yes)</span>
 </span></code></pre></div>
-<p>Inside termapy, <code>/app.running</code> lists the same sessions and
-<code>/app.kill &lt;target&gt;</code> stops them: <code>/app.kill others</code> every session but the
-one you type it in, <code>/app.kill all</code> that one too.  When a target picks the
-session you type it in, that one goes last, through <code>/exit</code>, so it saves its
-history.</p>
-<p>With no terminal to answer on (a pipe), the answer is no.  A stopped session
-writes no <code>Session End</code> to its log.  A session started before breadcrumbs
-existed is not listed: end that one from Task Manager or <code>kill</code>, once.</p>
+<p>Inside termapy the same two are <code>/app.alive</code> and <code>/app.kill &lt;target&gt;</code>:
+<code>/app.kill others</code> stops every session but the one you type it in,
+<code>/app.kill all</code> that one too, and <code>/app.kill me</code> that one alone, which is
+<code>/exit</code>.  When a target picks the session you type it in, that one goes
+last, through <code>/exit</code>, so it saves its history.
+<code>/app.alive.json</code> adds what does not fit a row: the config, the Python
+executable, the folder the session started in and its session log, each
+an absolute path, and the open port's serial number.</p>
+<p>With no terminal to answer on (a pipe), the answer is no.  A session you
+end with <code>taskkill</code> or <code>kill</code> writes no <code>Session End</code> to its log, and a TUI
+ended that way leaves its window as the TUI had it: close the window.  A
+session started before breadcrumbs existed is not listed: end that one
+from Task Manager or <code>kill</code>, once.</p>
 <h2 id="other-flags-worth-knowing">Other flags worth knowing<a class="headerlink" href="#other-flags-worth-knowing" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1695,11 +1701,11 @@ existed is not listed: end that one from Task Manager or <code>kill</code>, once
 </tr>
 <tr>
 <td><code>--chips=ftdi</code></td>
-<td>Filter the table (case-insensitive substring match).</td>
+<td>Only the chips any column of which contains it (<code>ftdi</code>, <code>0403</code>, <code>high</code>); a wildcard makes a glob.</td>
 </tr>
 <tr>
 <td><code>--usb</code></td>
-<td>Whole USB tree with serial ports marked (Windows and Linux); pairs with <code>--json</code>.</td>
+<td>Whole USB tree with serial ports marked, in color at a terminal (Windows and Linux); pairs with <code>--json</code>.</td>
 </tr>
 <tr>
 <td><code>--check</code></td>
@@ -1728,6 +1734,14 @@ existed is not listed: end that one from Task Manager or <code>kill</code>, once
 <tr>
 <td><code>--vt100</code></td>
 <td>Start in VT100 passthrough mode (see <a href="vt100.html">VT100 mode</a>).</td>
+</tr>
+<tr>
+<td><code>--web [[HOST:]PORT]</code></td>
+<td>Serve the TUI in a browser: <code>http://localhost:8000</code>, this machine only, unless <code>9000</code>, <code>192.168.1.50</code> or <code>192.168.1.50:9000</code> says otherwise. A network address opens it to other computers, with no login. A browser tab has no terminal to switch to (<code>/cli</code>, <code>/vt100</code>). Served on this machine (<code>localhost</code>), the browser is on the desktop the TUI runs on, so <code>/help.open</code> and the <code>.show</code> and <code>.explore</code> commands open things here; served on a network address they are refused, since a remote viewer cannot see this desktop, unless the server runs with <code>TERMAPY_GUI=1</code>. <code>/help &lt;command&gt;</code> says so under AVAILABLE, in a WEB column.</td>
+</tr>
+<tr>
+<td><code>-y</code>, <code>--yes</code></td>
+<td>Answer yes to the command line's questions: <code>--kill</code>, <code>--new</code>'s overwrite, a CLI session's. Not the TUI's dialogs; never under <code>--mcp</code>.</td>
 </tr>
 <tr>
 <td><code>--no-color</code></td>

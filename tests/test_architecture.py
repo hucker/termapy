@@ -2563,6 +2563,8 @@ NOT_IN_GOLD: dict[str, str] = {
     "xfer.xmodem.send": _TIMED,
     "xfer.ymodem.recv": _TIMED,
     "xfer.ymodem.send": _TIMED,
+    "xfer.zmodem.recv": _TIMED,
+    "xfer.zmodem.send": _TIMED,
 }
 
 

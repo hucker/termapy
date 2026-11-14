@@ -668,7 +668,7 @@ CFG_KEYS: tuple[CfgKey, ...] = (
         "file_xfer_root",
         "",
         "path",
-        help="Folder XMODEM/YMODEM use; empty = the config's cap/ folder.",
+        help="Folder file transfers use; empty = the config's cap/ folder.",
         hint="Absolute path, or empty. Set: {prefix}xfer.root",
     ),
     # Protocol tests

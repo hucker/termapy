@@ -1740,3 +1740,42 @@ in `/cfg custom_baud`. `/port <name>`'s banner (`Port changed to COM4 (session)`
 status, not a reply, and stays. **Where:** `docs/rules.md` row `setting-reply-is-value`;
 `tests/test_setting_replies.py`; `repl._apply_cfg`, `builtins/commands/{cfg,find,proto,xfer,
 port}.py`, `port_control.get_set_prop` / `get_set_flow` / `get_set_hw_line` / `set_mode`.
+
+## 2026-11-14 — ZMODEM is a dependency on an alpha; XMODEM and YMODEM stay vendored; a received name is the host's to place
+
+`/xfer.zmodem.send` and `/xfer.zmodem.recv` run on the `yesterwind-xyzmodem` package
+(0.1.2, MIT, pure Python, no dependencies), pinned `>=0.1.2,<0.2` and used for ZMODEM only.
+Chuck asked whether the PyPI `modem` package could replace the vendored `xmodem` and `ymodem`
+and add Z; it cannot: `modem` 1.0 (2011) has no distribution files, its code is a Python 2
+branch last touched 2011-08-24, and its ZMODEM class is receive-only. `yesterwind-xyzmodem`
+is the one live Python ZMODEM; it is five months old, alpha, async-only, and has no mid-transfer
+error recovery (a CRC error ends the session) and no local cancel. **Why a dependency:** it is
+maintained, so under the 2026-06-21 rule it is depended on, not vendored; if it dies it is
+vendored (five modules) and the pin goes. **Why X and Y stay:** they work against real devices
+and the demo responder, and a newborn library earns trust on the new protocol before it carries
+the old ones; both upstreams have shipped since the vendoring (`xmodem` 0.5.0 on 2026-03-04),
+which is a separate chore. **Why preview:** the alpha status and the missing recovery; the
+engine's one `asyncio.wait_for` is served by the bridge yielding to its private loop only while
+the queue is empty, and the bridge sends lrzsz's cancel sequence (eight CAN, ten BS) itself on
+Esc and on failure, since the engine never does. `tests/test_maturity.py` was widened to
+sub-families so a preview below a stable root cannot escape the README row and the help banner.
+**The receive-name guard:** both libraries open the received files themselves under the sender's
+name, so termapy hands them a fresh `.part-*` staging folder under the destination and moves
+the files into place only on success (`folder_ops.staged_receive`, registry
+`xfer-recv-staged`); the vendored ymodem additionally reduces the name to its base name before
+opening it, a one-line change listed in `vendor/LICENSES.md`. Found 2026-11-14 while reading
+the handlers, and left for a fix branch: the YMODEM progress callback's arguments are swapped
+(`Socket.py` calls `callback(index, name, total, sent)`), a YMODEM cancel busy-waits up to
+60 s on send and 100 s on receive, an XMODEM cancel during a send retransmits the block up to
+16 times first, and `ModemSocket` reports a remote CAN as success. The library has no logger,
+so `diag_log.VENDORED_LOGGERS` is unchanged. **The demo speaks ZMODEM:** the engine, its byte
+transports and the transfer cores are `termapy.zmodem_transport` (core, not a plugin: the demo
+device needs them, so by the infra-not-under-builtins rule they are core and the `/xfer.zmodem`
+handlers are a thin surface over them, cf. `variables.py`); the demo device's `AT+ZMODEM` runs
+the same engine on a background thread bound to the FakeSerial's buffers
+(`demo_zmodem.DemoZmodemPeer`), so `termapy --demo` is a real ZMODEM peer and the ZMODEM tests
+round-trip against it as the X/Y tests do. **Where:** `zmodem_transport.py`,
+`builtins/commands/_zmodem_handlers.py`, `demo_zmodem.py`, `folder_ops.staged_receive`,
+`vendor/ymodem/Socket.py`; `tests/test_zmodem.py` (the DEMO peer, the engine behind a
+`socket://` port, and lrzsz over pipes where installed),
+`tests/test_ymodem.py::TestRecvCommand`, `tests/test_maturity.py`.

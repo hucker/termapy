@@ -38,8 +38,11 @@ cfg, log and mcp plugins reach these from here, not from ``edit.py`` and
 
 from __future__ import annotations
 
+import shutil
+import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
@@ -280,6 +283,66 @@ def write_destination(ctx: PluginContext, given: str, default: str) -> Path:
     folder = (path if path.is_absolute() else base / path).resolve()
     ctx.fs.guard_code_folder(folder)
     return folder
+
+
+@dataclass
+class Staging:
+    """One receive's staging folder and its move into place (see ``staged_receive``).
+
+    Attributes:
+        folder: Where the protocol library writes: a fresh temp folder under
+            ``destination``, so an older partial is never resumed.
+        destination: The folder the files belong in once the transfer completes.
+    """
+
+    folder: Path
+    destination: Path
+
+    def commit(self) -> list[Path]:
+        """Move every received file to its name under ``destination``; the paths, sorted.
+
+        A file already at a name is replaced: the receive completed, so the
+        new content is what the user asked for.  A name that
+        ``folders.inside`` refuses (registry ``path-inside-one-check``) is a
+        library writing outside its folder, reported as ``ValueError``.
+        """
+        landed: list[Path] = []
+        for staged in sorted(self.folder.iterdir()):
+            final = inside(self.destination, staged.name)
+            if final is None:
+                raise ValueError(f"Invalid file name from device: {staged.name!r}")
+            staged.replace(final)
+            landed.append(final)
+        return landed
+
+
+@contextmanager
+def staged_receive(destination: Path) -> Generator[Staging, None, None]:
+    """A folder a protocol library writes received files into; ``commit`` moves them into place.
+
+    The library names the files after the sender, so nothing it writes may
+    touch ``destination`` until the transfer completes (registry
+    ``xfer-recv-staged``): it writes into a fresh ``.part-*`` folder under
+    ``destination`` (the data folder itself is made by ``ensure_folder``), and
+    ``Staging.commit`` moves each file to its name, replacing what was
+    there.  On exit the staging folder is removed whatever happened, so a
+    failed or canceled receive leaves ``destination`` as it was and no
+    ``.part-*`` behind.  The staging folder is a temp folder inside a data
+    folder, not a ``folders.FOLDERS`` data folder: ``mkdtemp`` is its one
+    maker, and ``folders-ensure-only`` is about the data folders.
+
+    Args:
+        destination: The folder received files belong in.
+
+    Yields:
+        The ``Staging`` whose ``folder`` the library writes into.
+    """
+    ensure_folder(destination)
+    staging = Path(tempfile.mkdtemp(dir=destination, prefix=".part-"))
+    try:
+        yield Staging(staging, destination)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
 
 
 def file_table(

@@ -280,6 +280,7 @@ class TestCatalog:
             "/credits",
             "/xfer.xmodem",
             "/xfer.ymodem",
+            "/xfer.zmodem",
         ):
             assert cmd not in names, (
                 f"{cmd} should be filtered (needs.interactive=True; "

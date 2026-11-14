@@ -74,7 +74,7 @@ src/termapy/
 │   │   ├── sym.py          #     /sym.* -- symbol table lookup, import, search
 │   │   ├── term.py         #     /term.* -- terminal display / session toggles
 │   │   ├── var.py          #     user-defined variables with $(NAME) syntax
-│   │   └── xfer.py         #     file-transfer commands (settings + XMODEM + YMODEM)
+│   │   └── xfer.py         #     file-transfer commands (settings + XMODEM + YMODEM + ZMODEM)
 │   ├── crc/                #   Built-in CRC plugins: simple byte-sum checksums beside the crcglot catalog
 │   ├── demo/               #   The demo config the --demo flag installs: its cfg, scripts, proto files, plugins and profiles
 │   └── viz/                #   Built-in packet visualizers for the proto debug screen (hex, text)
@@ -165,6 +165,7 @@ src/termapy/
 ├── demo.py                 # (2152 lines) Simulated serial device for demo mode
 ├── demo_ndjson.py          #              Simulated NDJSON serial device for `DEMO_JSON` port name
 ├── demo_vt100.py           #              Simulated VT100/ANSI serial device for the `DEMO_VT100` port name
+├── demo_zmodem.py          #              The demo device's ZMODEM peer: the real engine, stepped synchronously
 ├── diag_log.py             #              Diagnostic log: termapy's record of itself, one file per process, for when something goes wrong
 ├── entry.py                #              Termapy CLI entry point
 ├── env_flags.py            #              Security-policy env-var gates, read once at process start
@@ -203,7 +204,8 @@ src/termapy/
 ├── update_check.py         #              Background PyPI update check for termapy
 ├── usb_tree.py             #              Enumerate the whole USB tree, not just the ports that carry a UART
 ├── variables.py            #              Variable engine: the `$(NAME)` namespace, storage, and expansion
-└── vt100.py                #              --vt100 passthrough mode: a raw, Textual-free serial terminal on the engine
+├── vt100.py                #              --vt100 passthrough mode: a raw, Textual-free serial terminal on the engine
+└── zmodem_transport.py     #              The ZMODEM engine bound to termapy's byte transports, and the transfer cores
 ```
 
 <!-- module-tree:end -->
@@ -1147,7 +1149,8 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_views.py                       | A list answer is records plus a view, and dispatch renders the view once                                                                                                            |
 | test_vt100.py                       | Tests for vt100.py - the passthrough session on the engine, settings, config resolution, streams                                                                                    |
 | test_xmodem.py                      | Tests for XMODEM file transfer - QueueByteReader, FakeSerial responder, and protocol integration                                                                                    |
-| test_ymodem.py                      | Tests for YMODEM file transfer - FakeSerial responder and ymodem library integration                                                                                                |
+| test_ymodem.py                      | Tests for YMODEM file transfer - FakeSerial responder, ymodem library integration, and the staged receive                                                                           |
+| test_zmodem.py                      | Tests for ZMODEM file transfer - the queue transport bridge, both ends of a transfer over a socket port, and lrzsz interop                                                          |
 
 <!-- test-table:end -->
 

@@ -42,6 +42,15 @@ TUI_ONLY: dict[str, tuple[str, tuple[str, ...]]] = {
 
 _ERROR_LINE = re.compile(r"^\s*Error: (.*)$")
 
+# A protocol byte that leaked to the terminal: a device that speaks when the
+# host is not reading.  ZMODEM's headers (ZRQINIT / ZRINIT / ZFIN) start with
+# "**", which no device reply or termapy line ever does, so a line beginning
+# "**" in a transcript is always a leak -- found by hand when a ZMODEM header
+# printed between commands and its last line parsed as a stray command
+# (2026-11-14).  A device ``ERROR:`` reply is legitimate (a script may send a
+# bad command on purpose), so it is not flagged here.
+_LEAKED_PROTOCOL = re.compile(r"^\s*\*\*")
+
 
 def _run_demo_script(script: Path, tmp_path: Path) -> subprocess.CompletedProcess[str]:
     """Run ``script`` the way a user does: the CLI on the demo device, in a fresh config root."""
@@ -80,11 +89,17 @@ def test_a_demo_script_runs_without_an_error(script: Path, tmp_path: Path) -> No
         if (match := _ERROR_LINE.match(line)) is not None
     ]
 
+    leaked = [line for line in completed.stdout.splitlines() if _LEAKED_PROTOCOL.match(line)]
+
     # Assert
     assert completed.returncode == 0, f"{script.name} crashed: {completed.stderr}"
     unexpected = [error for error in errors if error not in allowed]
     assert unexpected == [], f"{script.name} failed on lines it should not: {unexpected}"
     assert demonstrated <= set(errors), f"{script.name} no longer demonstrates its miss"
+    assert leaked == [], (
+        f"{script.name} leaked a protocol byte or device error to the transcript "
+        f"(a device spoke while the host was not reading): {leaked}"
+    )
 
 
 def test_the_demo_ships_scripts() -> None:

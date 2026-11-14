@@ -284,6 +284,8 @@ sends to the device) waits in the input line for Enter.
 | `/xfer.xmodem.send <file>`     | Send a file to the device via XMODEM                                   |
 | `/xfer.ymodem.recv {dir}`      | Receive file(s) from the device via YMODEM                             |
 | `/xfer.ymodem.send <file> ...` | Send file(s) to the device via YMODEM (batch)                          |
+| `/xfer.zmodem.recv {dir}`      | Receive file(s) from the device via ZMODEM (the device runs `sz`)       |
+| `/xfer.zmodem.send <file> ...` | Send file(s) to the device via ZMODEM (the device runs `rz`)           |
 
 **Line counts:** `/ss.txt`, `/log.dump`, and `/log.diag.dump` take an
 optional `N`. `N>0` saves/prints the **last N** lines (most recent),

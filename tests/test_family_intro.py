@@ -65,7 +65,7 @@ class TestTheDeclaration:
 
     def test_the_built_ins_reach_the_table(self, cli):
         """A loaded family carries its intro; a leaf has none."""
-        assert "XMODEM or YMODEM" in cli.repl._plugins["xfer"].intro
+        assert "YMODEM or ZMODEM" in cli.repl._plugins["xfer"].intro
         assert cli.repl._plugins["term.send"].intro == ""
 
     def test_the_text_fills_the_prefix_and_wraps(self):
@@ -84,7 +84,7 @@ class TestTheBareList:
         ("line", "words"),
         [
             ("/dev", "registers as data"),
-            ("/xfer", "XMODEM or YMODEM"),
+            ("/xfer", "YMODEM or ZMODEM"),
             ("/app", "as a whole"),
             ("/xfer.xmodem", "128-byte blocks"),
             ("/proto.crc", "named algorithms"),
@@ -121,7 +121,12 @@ class TestTheBareList:
 
         # Assert
         actual = {link.command: link.run for link in links}
-        expected = {"help xfer.root": True, "help xfer.xmodem": True, "help xfer.ymodem": True}
+        expected = {
+            "help xfer.root": True,
+            "help xfer.xmodem": True,
+            "help xfer.ymodem": True,
+            "help xfer.zmodem": True,
+        }
         assert actual == expected, "reading a help page changes nothing, so the click runs it"
 
     def test_json_is_the_records_and_no_prose(self, cli, capsys):
@@ -131,14 +136,14 @@ class TestTheBareList:
 
         # Assert
         names = [record["command"] for record in envelope["data"]]
-        assert names == ["xfer.root", "xfer.xmodem", "xfer.ymodem"], envelope
+        assert names == ["xfer.root", "xfer.xmodem", "xfer.ymodem", "xfer.zmodem"], envelope
         assert envelope["output_lines"] == [], "no prose beside the records"
-        assert envelope["value"] == 3, "the value is the row count, an integer in the envelope"
+        assert envelope["value"] == 4, "the value is the row count, an integer in the envelope"
 
     def test_the_space_form_still_redirects(self, cli, capsys):
         """An argument names a subcommand as before: /xfer root reaches /xfer.root and prints no intro."""
         out = _page(cli, capsys, "/xfer root")
-        assert "XMODEM or YMODEM" not in out, out
+        assert "YMODEM or ZMODEM" not in out, out
 
 
 class TestThePage:

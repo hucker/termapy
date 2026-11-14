@@ -584,14 +584,14 @@ wheels = [
 
 [[package]]
 name = "frist"
-version = "0.21.0"
+version = "0.23.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "python-dateutil" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4c/ec/7a60a39e0ae06d8441ad2d0f59908b1ee5edad0ee56a56ce6de462e5bba6/frist-0.21.0.tar.gz", hash = "sha256:78ec4275610080b66b32e2aa7f0cc18df05501244668045145262023bdd41bfa", size = 127214, upload-time = "2026-08-28T20:46:44.458Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2a/34/78806439be7a53797b0199b3f4b9dfc6f1349388f48b7c9ae33345186217/frist-0.23.0.tar.gz", hash = "sha256:2ca24caf58a271dd48e02303003e6c2ed495afa85ac734ee9bb1dfceb642aa97", size = 141232, upload-time = "2026-11-14T00:47:34.763Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cb/8d/2dfd1fdabd26eaba5ca0470170ee0b0b627656e72f6252a93e9d76a05a57/frist-0.21.0-py3-none-any.whl", hash = "sha256:dfbc1a98e33b9addf1aa03ed1796d96333afbacced5fb131a9466d6ac8e96033", size = 50003, upload-time = "2026-08-28T20:46:43.225Z" },
+    { url = "https://files.pythonhosted.org/packages/31/39/14e7a02e40934fa84f517bc59eb3932361d22359e5016de8391c4ba259d5/frist-0.23.0-py3-none-any.whl", hash = "sha256:c418091bc60c761ce429218a5aaa425ef78f6bf34b18bc95c3b57f96658f78fb", size = 54956, upload-time = "2026-11-14T00:47:33.6Z" },
 ]
 
 [[package]]
@@ -1887,7 +1887,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "crcglot", specifier = ">=0.32.1" },
-    { name = "frist", specifier = ">=0.21" },
+    { name = "frist", specifier = ">=0.23" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2,<3" },
     { name = "packaging", specifier = ">=24.0" },
     { name = "platformdirs", specifier = ">=4.0" },

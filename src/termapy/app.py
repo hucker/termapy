@@ -3733,7 +3733,7 @@ class SerialTerminal(TerminalHost, App):
         return len(list(directory.glob(pattern)))
 
     def _newest_age(self, directory: Path) -> str:
-        """``", newest 10 min ago"`` for a tooltip, or ``""`` when the folder is empty."""
+        """``", newest 10m ago"`` for a tooltip, or ``""`` when the folder is empty."""
         newest = self._newest_file(directory)
         if newest is None:
             return ""

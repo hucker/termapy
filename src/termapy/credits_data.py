@@ -175,9 +175,9 @@ CREDITS: tuple[Credit, ...] = (
         "ages, durations",
         "Chuck Bass",
         "https://github.com/hucker/frist",
-        note='the age and duration engine behind every "10 min ago" and "1.5s" '
-        "termapy prints: unit selection and calendar-accurate months, so "
-        "termapy owns only the labels.",
+        note='the age and duration engine behind every "10m ago" and "1.5s" '
+        "termapy prints: unit selection, compact labels and calendar-accurate "
+        "months, so termapy owns only the wording around them.",
         in_tooltip=True,
     ),
     Credit(

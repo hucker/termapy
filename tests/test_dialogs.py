@@ -271,7 +271,7 @@ class TestScriptPicker:
                     f"newest file lists first even though it sorts last by name: {rows}"
                 )
                 assert "10  B" in rows[0] and "just now" in rows[0], "size and age columns"
-                assert "1 hr ago" in rows[1] and rows[1].endswith("Old summary."), (
+                assert "60m ago" in rows[1] and rows[1].endswith("Old summary."), (
                     "age plus the docstring's title as the detail column"
                 )
                 assert options[1].id == str(newer), "option id is the path the app runs"

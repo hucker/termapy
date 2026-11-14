@@ -242,9 +242,9 @@ class TestExpandTemplate:
         assert actual == "t_1.5s", "{elapsed} renders elapsed_s via format_duration"
 
     def test_elapsed_default_zero(self):
-        """{elapsed} renders 0us when no elapsed time is supplied."""
+        """{elapsed} renders a zero duration, frist's floor, when no elapsed time is supplied."""
         actual, _ = expand_template("t_{elapsed}", {})
-        assert actual == "t_0us", "{elapsed} is 0 when no start reference is given"
+        assert actual == "t_<1us", "{elapsed} is 0 when no start reference is given"
 
     def test_hierarchical_script_sequence(self):
         """Simulate a typical script: two sections with two steps each.
@@ -395,8 +395,10 @@ class TestFormatDuration:
         assert format_duration(1.0) == "1s", "exactly 1s crosses into the s tier"
 
     def test_zero(self):
-        """Zero renders as 0us rather than an empty or odd string."""
-        assert format_duration(0.0) == "0us", "zero renders as 0us"
+        """Zero is under the smallest unit, so it renders as frist's floor, <1us."""
+        assert format_duration(0.0) == "<1us", (
+            "below a microsecond frist's floor text is passed through"
+        )
 
     def test_rounding_up_to_tier_edge_never_uses_exponent(self):
         """A value rounding to 1000 at the tier edge is written out, never as 1e+03ms."""
@@ -406,15 +408,15 @@ class TestFormatDuration:
         assert format_duration(0.9996) == "1000ms"
 
     def test_under_a_minute_stays_seconds(self):
-        """Tiers break on clock boundaries: 46 s stays seconds, not 0.77min."""
-        # Clock boundaries, not humanize's 45 s: 46 s must not become 0.77min.
+        """Tiers break on clock boundaries: 46 s stays seconds, not 0.77m."""
+        # Clock boundaries, not humanize's 45 s: 46 s must not become 0.77m.
         assert format_duration(46) == "46s", "seconds tier runs to 60"
 
     def test_minutes_hours_days(self):
-        """Past 60 s the scale steps to min, hr, then days, which is the top tier."""
-        assert format_duration(90) == "1.5min", "60 s crosses into minutes"
-        assert format_duration(7200) == "2hr", "60 min crosses into hours"
-        assert format_duration(86400 * 3) == "3days", "24 hr crosses into days and stays there"
+        """Past 60 s the scale steps to m, h, then d, which is the top tier, in frist's compact spelling."""
+        assert format_duration(90) == "1.5m", "60 s crosses into minutes"
+        assert format_duration(7200) == "2h", "60 min crosses into hours"
+        assert format_duration(86400 * 3) == "3d", "24 hr crosses into days and stays there"
 
 
 # ── format_size ──────────────────────────────────────────────────
@@ -464,18 +466,21 @@ class TestFormatAge:
             (10, "just now"),
             (44.9, "just now"),
             (-5, "just now"),  # mtime slightly in the future (clock skew) is not an error
-            (45, "1 min ago"),
-            (600, "10 min ago"),
-            (3600 * 3, "3 hr ago"),
-            (86400 * 1.4, "1 day ago"),
-            (86400 * 3, "3 days ago"),
-            (86400 * 40, "1 mo ago"),
-            (86400 * 400, "1 yr ago"),
-            (86400 * 800, "2 yr ago"),
+            (45, "45s ago"),
+            (90, "90s ago"),
+            (600, "10m ago"),
+            (3600, "60m ago"),
+            (3600 * 3, "3h ago"),
+            (86400 * 1.4, "34h ago"),
+            (86400 * 3, "3d ago"),
+            (86400 * 20, "3w ago"),
+            (86400 * 40, "6w ago"),
+            (86400 * 400, "13mo ago"),
+            (86400 * 800, "2y ago"),
         ],
     )
     def test_compact_wording(self, delta_s, expected):
-        """Ages use compact wording per bucket; clock-skewed future times read just now."""
+        """Ages are whole numbers in frist's compact spelling of a unit used only once two of it have elapsed, so no age reads 1 of anything; clock-skewed future times read just now."""
         actual = format_age(self.BASE, now=self.BASE + delta_s)
         assert actual == expected
 

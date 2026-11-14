@@ -2001,7 +2001,7 @@ def _handler_crc_reverse(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.fail(
                 msg=(
                     "cmd= mode requires count=N (>=2). "
-                    f'Try: {ctx.prefix}proto.crc.reverse cmd="<trigger>\\r" '
+                    f"Try: {ctx.prefix}proto.crc.reverse cmd=<trigger> "
                     "count=13 crc_bytes=<width-in-bytes>"
                 )
             )

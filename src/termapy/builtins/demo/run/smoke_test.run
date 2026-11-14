@@ -1,7 +1,6 @@
 # Smoke Test
 # Exercises every ASCII command of the demo device, with screenshots.
 
-/ss.dir demo_smoke_{starttime}
 /print === Demo smoke test started {starttime} ===
 
 # Section 1: basic commands

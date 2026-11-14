@@ -1703,3 +1703,20 @@ primitives and at the handlers rather than at any one frontend.
 `FilesystemHandle.reveal_file`, `InternalHandle.edit_file`; `RAW_MODULE_HOMES`, `RAW_NAME_HOMES`,
 `GATED_CALLS` in `tests/test_architecture.py`; registries `web-is-an-environment`,
 `raw-primitive-one-home`, `gated-call-declares-need`; `help/cli.md`, `help/environment.md`.
+
+## 2026-11-13 — Ages and durations are frist's, tiers and labels alike
+
+`format_age` uses frist's `Age.PLURAL_UNITS`, the table frist 0.22 made its default: a unit is
+handed off at 2 min, 2 hr, 48 hr, 2 weeks, 2 months and 2 years, the rule `docker ps` uses, so no
+age reads "1" of anything. Before, the tiers were frist's humanize table, where "1 day ago" covered
+everything from 22 to 45 hours and "1 mo ago" from 26 days on. Both formatters spell the unit with
+frist 0.23's compact style (`style="compact"`: `s`, `m`, `h`, `d`, `w`, `mo`, `y`, no space, and
+`<1us` under the smallest unit), so the label tables termapy kept for its 38-column picker are
+gone and no unit label lives in termapy; `just now` under 45 s and the `ago` suffix stay here,
+wording rather than units. Behavior changed: a file saved an hour ago reads `60m ago`, not
+`1 hr ago`; 34 hours is `34h ago`, not `1 day ago`; 40 days is `6w ago`, not `1 mo ago`; a
+duration reads `1.5m`, `2h`, `3d`, and a zero duration `<1us`, not `0us`. Chuck expected the frist
+upgrade to bring the tiers by itself; it did not, because termapy passed its own tier table, so
+the table was switched and the labels followed in one chore branch (`chore/frist-0.23`).
+**Where:** `scripting.format_age`, `scripting.format_duration`;
+`tests/test_scripting.py::TestFormatAge`, `::TestFormatDuration`.

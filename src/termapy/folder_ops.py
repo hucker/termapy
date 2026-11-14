@@ -123,7 +123,7 @@ def _size_cell(record: dict[str, Any]) -> str:
 
 
 def _age_cell(record: dict[str, Any]) -> str:
-    """``3 min ago`` from the record's ``age_s``, or ``?`` for a vanished file."""
+    """``3m ago`` from the record's ``age_s``, or ``?`` for a vanished file."""
     if record["age_s"] is None:
         return "?"
     return format_age(time.time() - record["age_s"])
@@ -142,8 +142,9 @@ FILE_COLUMNS: tuple[Column, ...] = (
 class FileColumns:
     """One listing row, pre-formatted and pre-padded: ``name  size  age``.
 
-    ``name`` and ``age`` are padded to the widest in the batch and ``size``
-    is right-aligned to the widest size, so a consumer that joins the three
+    ``name`` and ``age`` are padded to the widest in the batch (``age`` to
+    its header at least) and ``size`` is right-aligned to the widest size,
+    so a consumer that joins the three
     with two spaces gets aligned columns -- and anything appended after
     ``age`` (a script's title, a config's port) lines up too.  A
     consumer that styles them (the TUI pickers dim the metadata) keeps the
@@ -174,7 +175,9 @@ def file_columns(files: list[Path]) -> list[FileColumns]:
         rows.append((file.name, format_size(st.st_size, column=True), format_age(st.st_mtime)))
     name_width = max(len(name) for name, _, _ in rows)
     size_width = max(len(size) for _, size, _ in rows)
-    age_width = max(len(age) for _, _, age in rows)
+    # A compact age ("3d ago") is narrower than its header, and the header
+    # pads to the column, so the column is at least the header's width.
+    age_width = max(len(FILE_COLUMNS[2].title), *(len(age) for _, _, age in rows))
     return [
         FileColumns(f"{name:<{name_width}}", f"{size:>{size_width}}", f"{age:<{age_width}}")
         for name, size, age in rows
@@ -188,7 +191,7 @@ def format_file_header(rows: list[FileColumns], detail: str = "") -> str:
     one over the right-aligned sizes -- one rule reads as a header row,
     per-column alignment reads as random.  Shared by the prose listings
     and the TUI pickers so a file reads the same wherever it is listed.
-    ("UPDATED" fits: the narrowest age string, "just now", is 8 cells.)
+    ("UPDATED" fits: ``file_columns`` pads the ages to its width at least.)
     """
     if not rows:
         return ""

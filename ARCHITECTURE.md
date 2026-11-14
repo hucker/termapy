@@ -605,10 +605,11 @@ Four techniques, in order of preference:
    imports `urllib` inside the background fetch; `entry.py` reads
    `importlib.metadata` only in the `--version` action, not every time it
    builds the parser.
-2. **Build on first use.** A module-level table built from a library is
+2. **Build on first use.** A module-level object built from a library is
    built by a `functools.cache` function on its first call instead, so
-   importing the module does not import the library: `scripting`'s age and
-   duration tiers from `frist`.
+   importing the module does not load the library: `port_control._cfgmgr32`
+   binds the Windows DLL calls on the first devnode walk, not when `--ports`
+   imports the module.
 3. **Split the module.** When the library is needed to define classes
    (subclasses of prompt_toolkit's `History` and `Completer`), they move to
    their own module, imported only on the path that uses them.

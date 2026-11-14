@@ -86,9 +86,9 @@ Each one below is a direct runtime dependency declared in
   build's ELF for /sym.import: the symbol table, and each variable's C
   type from its DWARF debug info; public domain.
 - [**frist**](https://github.com/hucker/frist) -- the age and duration
-  engine behind every "10 min ago" and "1.5s" termapy prints: unit
-  selection and calendar-accurate months, so termapy owns only the
-  labels.
+  engine behind every "10m ago" and "1.5s" termapy prints: unit
+  selection, compact labels and calendar-accurate months, so termapy
+  owns only the wording around them.
 
 Optional extras (`pip install termapy[<extra>]`):
 

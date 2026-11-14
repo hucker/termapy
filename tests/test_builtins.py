@@ -365,7 +365,7 @@ class TestRunDocstring:
         assert listed[0].startswith("z_newer.run"), (
             "newest file lists first even though it sorts last by name"
         )
-        assert "10  B" in listed[1] and "1 hr ago" in listed[1], (
+        assert "10  B" in listed[1] and "60m ago" in listed[1], (
             "each line carries the file's size and age"
         )
         assert result.data[0]["name"] == "z_newer.run", (

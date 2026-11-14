@@ -234,7 +234,7 @@ AT+READ {seq2+}                  # independent counter
 | `{seqN+}`     | Increment counter N (1--9) and substitute the new value     |
 | `{seqN}`      | Substitute counter N without incrementing                   |
 | `{starttime}` | This run's start stamp, frozen at script (or app) start     |
-| `{elapsed}`   | Time since start (e.g. `1.5s`, `2hr`), via the duration formatter |
+| `{elapsed}`   | Time since start (e.g. `1.5s`, `2h`), via the duration formatter |
 
 `seq1` is the top level; incrementing counter N resets all deeper
 (higher-numbered) counters to 0, so bumping an outer level restarts the inner

@@ -5,7 +5,6 @@ Pure functions and dataclasses with no Textual or serial dependencies.
 
 from __future__ import annotations
 
-import functools
 import json
 import re
 from collections.abc import Callable, Sequence
@@ -364,52 +363,21 @@ def parse_duration_ms(text: str) -> int:
 # ── Human-readable sizes, ages, and durations ────────────────────────────────
 #
 # Three display formatters, one owner each.  ``frist`` is the engine for the
-# two time-based ones: its ``Age.AGE_UNITS`` (humanize thresholds, so "1 hr
-# ago" appears when a person would say it) and ``Age.DURATION_UNITS`` (clock
-# boundaries, so 46 s is "46s", never "0.77min") pick the unit, and ``Age``
-# does the math -- no ``/60`` / ``*1000`` conversions live in termapy.  Only
-# the LABELS are termapy's: compact forms for a 38-column picker.  Sizes are
-# not a datetime concern, so ``format_size`` stays a plain function.
+# two time-based ones: its ``Age.PLURAL_UNITS`` (a unit is used only once two
+# of it have elapsed, the ``docker ps`` rule, so "36h ago" is never hidden
+# behind "1d ago") and ``Age.DURATION_UNITS`` (clock boundaries, so 46 s is
+# "46s", never "0.77m") pick the unit, ``Age`` does the math, and its compact
+# style spells the unit ("m", "h", "d"), so no ``/60`` / ``*1000`` conversion
+# and no unit label lives in termapy.  Sizes are not a datetime concern, so
+# ``format_size`` stays a plain function.
 #
-# Ages and durations deliberately share the unit VOCABULARY (min / hr / days)
-# but not the rounding: an age is coarse by nature ("10 min ago"), a duration
-# is a measurement ("1.5s") that gets compared across runs.
-
-_AGE_LABELS = {"seconds": "s", "minutes": "min", "hours": "hr", "days": "day", "months": "mo"}
-_DURATION_LABELS = {
-    "microseconds": "us",
-    "milliseconds": "ms",
-    "seconds": "s",
-    "minutes": "min",
-    "hours": "hr",
-    "days": "days",
-}
+# Ages and durations deliberately share the unit VOCABULARY (frist's compact
+# labels) but not the rounding: an age is coarse by nature ("10m ago"), a
+# duration is a measurement ("1.5s") that gets compared across runs.
 
 # frist is imported where it is used: this module loads on every termapy
 # path (env_flags reads booleans through it, so even ``--ports`` does), and
 # frist costs ~25 ms to import for the two formatters below.
-
-
-@functools.cache
-def _age_tiers() -> tuple:
-    """frist's humanize tiers, relabeled; built on first use."""
-    from frist import Age
-
-    return tuple(
-        (threshold, _AGE_LABELS[unit], getter) for threshold, unit, getter in Age.AGE_UNITS
-    )
-
-
-@functools.cache
-def _duration_tiers() -> tuple:
-    """frist's clock tiers, relabeled; built on first use."""
-    from frist import Age
-
-    return tuple(
-        (threshold, _DURATION_LABELS[unit], getter)
-        for threshold, unit, getter in Age.DURATION_UNITS
-    )
-
 
 # Under this many seconds an age reads "just now" -- a presentation choice
 # (a file saved 30 s ago has no useful age), so it lives here, not in frist.
@@ -440,13 +408,15 @@ def format_size(byte_count: int, *, column: bool = False) -> str:
 
 
 def format_age(timestamp: float, *, now: float | None = None) -> str:
-    """Render how long ago ``timestamp`` was: ``'just now'``, ``'10 min ago'``.
+    """Render how long ago ``timestamp`` was: ``'just now'``, ``'10m ago'``.
 
-    Compact wording, one unit, whole numbers: ``just now`` (under 45 s),
-    ``10 min ago``, ``3 hr ago``, ``1 day ago`` / ``2 days ago``,
-    ``1 mo ago``, ``2 yr ago``.  The single display formatter for file
-    modification times ("which script did I edit last?"); raw data fields
-    (``mtime`` / ``age_s`` records) stay numeric.
+    frist's compact style -- one unit, whole numbers, no space -- and a unit
+    only once two of it have elapsed: ``just now`` (under 45 s), ``90s ago``,
+    ``10m ago``, ``36h ago``, ``3d ago``, ``5w ago``, ``13mo ago``, ``2y ago``.
+    No age reads "1" of anything, so none hides most of the next unit.  The
+    single display formatter for file modification times ("which script did
+    I edit last?"); raw data fields (``mtime`` / ``age_s`` records) stay
+    numeric.
 
     Args:
         timestamp: POSIX timestamp (e.g. ``path.stat().st_mtime``).
@@ -455,20 +425,8 @@ def format_age(timestamp: float, *, now: float | None = None) -> str:
     """
     from frist import Age
 
-    text = Age(timestamp, now).format(
-        units=_age_tiers(),
-        fmt="{value:.0f}|{unit}",
-        now=_AGE_JUST_NOW_S,
-        now_text="just now",
-    )
-    if text == "just now":
-        return text
-    value_text, unit = text.split("|")
-    if unit == "years":  # frist's fall-through tier past months
-        unit = "yr"
-    if unit == "day" and value_text != "1":
-        unit = "days"
-    return f"{value_text} {unit} ago"
+    text = Age(timestamp, now).format(style="compact", now=_AGE_JUST_NOW_S, now_text="just now")
+    return text if text == "just now" else f"{text} ago"
 
 
 def _three_sig(value: float) -> str:
@@ -483,13 +441,14 @@ def _three_sig(value: float) -> str:
 
 
 def format_duration(seconds: float) -> str:
-    """Render a duration for humans: ``'480us'``, ``'25ms'``, ``'1.5s'``, ``'2hr'``.
+    """Render a duration for humans: ``'480us'``, ``'25ms'``, ``'1.5s'``, ``'2h'``.
 
-    One unit, three significant figures, clock-boundary tiers
-    (us < 1000, ms < 1000, s < 60, min < 60, hr < 24, then days).
-    This is the single display formatter for elapsed times, delays, and
-    timeouts; raw data fields (``CmdResult.elapsed_s``, the ``.prof`` CSV,
-    a results dict's ``elapsed_ms``) stay numeric.
+    One unit in frist's compact spelling, three significant figures,
+    clock-boundary tiers (us < 1000, ms < 1000, s < 60, m < 60, h < 24, then
+    d), and under a microsecond frist's floor, ``'<1us'``.  This is the
+    single display formatter for elapsed times, delays, and timeouts; raw
+    data fields (``CmdResult.elapsed_s``, the ``.prof`` CSV, a results dict's
+    ``elapsed_ms``) stay numeric.
 
     Args:
         seconds: A duration in seconds.
@@ -499,8 +458,12 @@ def format_duration(seconds: float) -> str:
     """
     from frist import Age
 
-    text = Age.from_seconds(seconds).format(units=_duration_tiers(), fmt="{value}|{unit}")
-    value_text, unit = text.split("|")
+    text = Age.from_seconds(seconds).format(
+        units=Age.DURATION_UNITS, style="compact", fmt="{value}|{unit}"
+    )
+    value_text, found, unit = text.partition("|")
+    if not found:
+        return text  # frist's floor text carries no value to round
     return f"{_three_sig(float(value_text))}{unit}"
 
 

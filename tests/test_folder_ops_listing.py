@@ -17,6 +17,7 @@ from termapy.folder_ops import (
     build_folder_subcommands,
     file_columns,
     file_record,
+    format_file_header,
     format_file_lines,
     list_entries,
 )
@@ -55,7 +56,7 @@ class TestListEntries:
 
 class TestFileColumns:
     def test_columns_are_padded_to_the_batch(self, tmp_path):
-        """Names pad left and sizes pad right to the widest entry in the batch."""
+        """Names pad left, sizes pad right and ages pad left, each to the widest entry in the batch."""
         # Arrange
         short = _make(tmp_path, "a.run", b"x" * 10)
         long = _make(tmp_path, "longer_name.run", b"x" * 2048, age_s=3600)
@@ -70,7 +71,25 @@ class TestFileColumns:
         assert rows[0].size == "2.0 KB" and rows[1].size == " 10  B", (
             "sizes right-aligned to the widest size, B under the B of KB"
         )
-        assert rows[0].age == "1 hr ago" and rows[1].age == "just now"
+        assert rows[0].age == "60m ago " and rows[1].age == "just now", (
+            "ages padded to the widest age, so a column after them lines up"
+        )
+
+    def test_age_column_is_at_least_as_wide_as_its_header(self, tmp_path):
+        """A batch of short compact ages pads to UPDATED's width, so a detail column still starts under its header."""
+        # Arrange -- every age is "3d ago", six cells, one narrower than "UPDATED"
+        first = _make(tmp_path, "a.run", b"x", age_s=3 * 86400)
+        second = _make(tmp_path, "b.run", b"x", age_s=3 * 86400)
+
+        # Act
+        rows = file_columns([first, second])
+        header = format_file_header(rows, "TITLE")
+
+        # Assert
+        assert rows[0].age == "3d ago ", "age padded to the header's width"
+        assert header.index("TITLE") == len(f"{rows[0].name}  {rows[0].size}  {rows[0].age}  "), (
+            "the detail header starts where the detail column does"
+        )
 
     def test_vanished_file_renders_question_marks(self, tmp_path):
         """A file deleted after globbing shows ? for size and age; the listing survives."""
@@ -78,7 +97,7 @@ class TestFileColumns:
         ghost = tmp_path / "gone.run"
 
         # Act
-        actual = format_file_lines([ghost])
+        actual = [line.rstrip() for line in format_file_lines([ghost])]
 
         # Assert
         assert actual == ["gone.run  ?  ?"], "a stat failure degrades one row, not the listing"

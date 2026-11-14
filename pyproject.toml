@@ -49,7 +49,7 @@ dependencies = [
     # Age / duration engine behind scripting.format_age / format_duration
     # (unit selection + calendar-accurate months); the only time math
     # termapy does not do itself.
-    "frist>=0.21",
+    "frist>=0.23",
     # Cross-platform user state / config directory resolution (replaces
     # per-OS hand-rolled APPDATA / XDG handling for app-level state).
     "platformdirs>=4.0",

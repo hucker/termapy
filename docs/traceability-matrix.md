@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 191: 176 registry rows (guarantees 141, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 187. Pinned by none: 4.
+Ids: 192: 177 registry rows (guarantees 142, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 188. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -238,6 +238,10 @@ Ids: 191: 176 registry rows (guarantees 141, assumptions 35), 15 spec sections i
 
 - `test_config_reference_sync.py`: `TestConfigReferenceSync.test_reference_table_in_sync`
 - `test_help_images.py`: `TestHelpConfigExamples.test_config_example_keys`
+
+### `demo-scripts-run-clean` (guarantee, repository)
+
+- `test_demo_scripts.py`: the module (2 functions)
 
 ### `destructive-declared` (assumption, contract)
 

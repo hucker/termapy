@@ -62,12 +62,19 @@ SERIAL_KEYS = {
     "flow_control",
 }
 
+
 # Maps config key -> (pyserial attribute, type coercion, description, valid values)
+def _stop_bits(text: str) -> int | float:
+    """Stop bits as typed: ``1`` and ``2`` whole, ``1.5`` the one fraction, so the answer reads as the config spells it."""
+    value = float(text)
+    return int(value) if value.is_integer() else value
+
+
 PORT_PROPS = {
     "baud_rate": ("baudrate", int, "Baud rate", None),
     "byte_size": ("bytesize", int, "Data bits", VALID_BYTE_SIZES),
     "parity": ("parity", str, "Parity", VALID_PARITIES),
-    "stop_bits": ("stopbits", float, "Stop bits", VALID_STOP_BITS),
+    "stop_bits": ("stopbits", _stop_bits, "Stop bits", VALID_STOP_BITS),
 }
 
 # Regex for mode strings like N81, E71, O81.5
@@ -385,7 +392,7 @@ def set_mode(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
             f"{cfg_update.get('parity', serial['parity'])}"
             f"{sb_str}"
         )
-        msgs.append(_msg(f"Mode -> {summary}"))
+        msgs.append(_msg(summary))
     except (ValueError, OSError) as e:
         return _result([_msg(f"Mode error: {e}", "red")])
     return _result(msgs, update_title=True, cfg_update=cfg_update)
@@ -2546,7 +2553,7 @@ def get_set_prop(ser: Any | None, cfg: Mapping[str, Any], key: str, args: str) -
     cfg_val = serial.get(key, cfg.get(key, "?"))
     if not val:
         if not connected:
-            return _result([_msg(f"{cfg_val} (disconnected)")])
+            return _result([_msg(f"{cfg_val}")])
         try:
             return _result([_msg(f"{getattr(ser, attr)}")])
         except OSError as e:
@@ -2575,7 +2582,7 @@ def get_set_prop(ser: Any | None, cfg: Mapping[str, Any], key: str, args: str) -
         if custom:
             cfg_update["custom_baud"] = True
         return _result(
-            [_msg(f"{desc} -> {typed}")],
+            [_msg(f"{typed}")],
             update_title=True,
             cfg_update=cfg_update,
         )
@@ -2595,9 +2602,7 @@ def get_set_flow(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
     """
     val = args.strip().lower()
     if not val:
-        fc = cfg["serial"]["flow_control"]
-        suffix = " (disconnected)" if ser is None else ""
-        return _result([_msg(f"{fc}{suffix}")])
+        return _result([_msg(cfg["serial"]["flow_control"])])
     if ser is None:
         return _not_connected()
     if val not in VALID_FLOW_CONTROLS:
@@ -2613,7 +2618,7 @@ def get_set_flow(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
         ser.rtscts = val == "rtscts"
         ser.xonxoff = val == "xonxoff"
         return _result(
-            [_msg(f"Flow control -> {val}")],
+            [_msg(val)],
             update_title=True,
             sync_hw=True,
             cfg_update={"flow_control": val},
@@ -2649,7 +2654,7 @@ def get_set_hw_line(ser: Any | None, line: str, args: str) -> Result:
     try:
         setattr(ser, line, state)
         return _result(
-            [_msg(f"{label} -> {int(state)}")],
+            [_msg(f"{int(state)}")],
             sync_hw=True,
         )
     except OSError as e:

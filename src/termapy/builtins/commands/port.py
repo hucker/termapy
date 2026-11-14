@@ -15,7 +15,6 @@ from termapy.plugins import (
     Column,
     Command,
     PieceLine,
-    TextLine,
     UsageError,
 )
 from termapy.plugins.waiting import wait
@@ -289,8 +288,9 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_mode(ctx: PluginContext, args: str) -> CmdResult:
     """Query (bare) or set the frame as one token such as 8N1, with an optional baud rate.
 
-    Bare is a one-line record: ``value`` is the frame as one token a script
-    captures (``115200 8N1``), ``data`` its fields (``port_control.mode_facts``).
+    Bare answers the frame as one token on the result line (``115200 8N1``),
+    the value a script captures, with ``data`` its fields
+    (``port_control.mode_facts``).
     """
     result = port_control.set_mode(ctx.internal.port(), ctx.cfg, args)
     if args.strip():
@@ -298,8 +298,9 @@ def _handler_mode(ctx: PluginContext, args: str) -> CmdResult:
     refusal = port_control.problem(result)
     if refusal is not None:
         return CmdResult.fail(msg=refusal)
-    shown = [TextLine(_joined_value(result))]
-    return CmdResult.record(port_control.mode_facts(ctx.cfg), shown, value=_read_value(result))
+    mode = _read_value(result)
+    ctx.io.result(mode)
+    return CmdResult.ok(value=mode, data=port_control.mode_facts(ctx.cfg))
 
 
 def _handler_flow(ctx: PluginContext, args: str) -> CmdResult:
@@ -400,17 +401,10 @@ def _make_chip_field_handler(field: str) -> Callable[[PluginContext, str], CmdRe
 
 
 def _read_value(result: port_control.Result) -> str:
-    """Extract the read value from a single-message non-error result.
-
-    Strips "(disconnected)" annotation if present so scripts get clean
-    values (e.g. "115200" not "115200 (disconnected)").
-    """
+    """The value a single-message non-error result answers with, else ``""``."""
     msgs, _ = result
     if len(msgs) == 1 and msgs[0][1] not in ("red", "yellow"):
-        text = msgs[0][0]
-        if text.endswith(" (disconnected)"):
-            text = text[: -len(" (disconnected)")]
-        return text
+        return msgs[0][0]
     return ""
 
 
@@ -434,9 +428,13 @@ def _level(result: port_control.Result) -> int | str:
 def _make_prop_handler(key: str) -> Callable[[PluginContext, str], CmdResult]:
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         result = port_control.get_set_prop(ctx.internal.port(), ctx.cfg, key, args)
-        # A bare query answers the setting in its own type, the config's
-        # (registry value-typed); a set returns prose not useful as a value.
-        value = cfg_value(ctx.cfg, f"serial.{key}") if not args.strip() else ""
+        # The answer is the setting in its own type, the config's (registry
+        # value-typed): on a bare query as it stands, on a set as it was set.
+        _, effects = result
+        if args.strip():
+            value = effects.get("cfg_update", {}).get(key)
+        else:
+            value = cfg_value(ctx.cfg, f"serial.{key}")
         return _answer(ctx, result, value)
 
     # The /help.dev text of each command built here (registry handler-docstring).
@@ -445,31 +443,29 @@ def _make_prop_handler(key: str) -> Callable[[PluginContext, str], CmdResult]:
 
 
 def _handler_baud_rate(ctx: PluginContext, args: str) -> CmdResult:
-    """Query (bare) or set the port's baud rate; bare says ``(custom)`` while ``custom_baud`` is on, a set takes ``custom=true``.
+    """Query (bare) or set the port's baud rate; a set takes ``custom=true`` for a rate off the standard list.
 
-    Bare is a one-line record, so ``/help port.baud_rate``'s CURRENT STATE
-    shows the mode as the command does, while ``value`` stays the number a
-    script captures and ``data`` carries both.
+    Bare answers the rate on the result line, as every setting does
+    (registry ``setting-reply-is-value``), with ``data`` carrying the rate
+    and whether it is custom.
     """
     result = port_control.get_set_prop(ctx.internal.port(), ctx.cfg, "baud_rate", args)
     if args.strip():
-        return _answer(ctx, result, "")
+        _, effects = result
+        return _answer(ctx, result, effects.get("cfg_update", {}).get("baud_rate"))
     refusal = port_control.problem(result)
     if refusal is not None:
         return CmdResult.fail(msg=refusal)
     rate = _read_value(result)
     data = port_control.baud_facts(ctx.cfg, rate)
-    connected = ctx.serial.is_connected()
-    shown = (
-        rate + (" (custom)" if data["custom"] else "") + ("" if connected else " (disconnected)")
-    )
-    return CmdResult.record(data, [TextLine(shown)], value=data["baud"])
+    ctx.io.result(rate)
+    return CmdResult.ok(value=data["baud"], data=data)
 
 
 def _make_hw_handler(line: str) -> Callable[[PluginContext, str], CmdResult]:
     def _handler(ctx: PluginContext, args: str) -> CmdResult:
         result = port_control.get_set_hw_line(ctx.internal.port(), line, args)
-        return _answer(ctx, result, _level(result) if not args.strip() else "")
+        return _answer(ctx, result, _level(result))
 
     # The /help.dev text of each command built here (registry handler-docstring).
     _handler.__doc__ = f"Query (bare) or set the {line.upper()} output line of the open port."
@@ -692,7 +688,7 @@ COMMAND = Command(
             handler=_handler_baud_rate,
             cfg={
                 "serial.baud_rate": "set for the session; bare shows it",
-                "serial.custom_baud": "set true for the session by custom=true; bare says (custom)",
+                "serial.custom_baud": "set true for the session by custom=true; bare carries it in data",
             },
             state=True,
         ),

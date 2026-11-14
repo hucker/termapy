@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
-from termapy.scripting import find_matches
+from termapy.scripting import find_matches, value_text
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -207,19 +207,19 @@ def _handler_max_count(ctx: PluginContext, args: str) -> CmdResult:
     must be a positive integer.  Setting is in-memory only; goes back
     to ``_DEFAULT_MAX_COUNT`` on the next config load.
     """
-    max_count = _max_count(ctx)
     raw = args.strip()
     if not raw:
-        ctx.io.result(f"{ctx.prefix}find.max_count = {max_count}")
+        max_count = _max_count(ctx)
+        ctx.io.result(value_text(max_count))
         return CmdResult.ok(value=max_count)
     try:
         n = int(raw)
     except ValueError:
-        raise UsageError(f"Invalid count: {raw!r}  (current = {max_count})") from None
+        n = 0
     if n < 1:
-        return CmdResult.fail(msg="Max count must be >= 1")
+        return CmdResult.fail(msg=f"Invalid count: {raw} (use a whole number >= 1)")
     ctx.ns(_FIND_NS)["max_count"] = n
-    ctx.io.result(f"{ctx.prefix}find.max_count = {n}")
+    ctx.io.result(value_text(n))
     return CmdResult.ok(value=n)
 
 

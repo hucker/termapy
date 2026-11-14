@@ -74,7 +74,7 @@ class TestTheDeclaration:
         assert plugins["grep"].cfg == {"max_grep_lines": "caps the matches shown"}
         assert plugins["port.baud_rate"].cfg == {
             "serial.baud_rate": "set for the session; bare shows it",
-            "serial.custom_baud": "set true for the session by custom=true; bare says (custom)",
+            "serial.custom_baud": "set true for the session by custom=true; bare carries it in data",
         }
         assert plugins["cls"].cfg == {}
 

@@ -375,18 +375,17 @@ class TestMaxCount:
             f"value reports current cap; got {result.value!r}"
         )
 
-    def test_max_count_bad_arg_returns_usage(self, env):
-        """A non-integer cap is a usage error that also shows the current cap."""
+    def test_max_count_bad_arg_is_refused(self, env):
+        """A non-integer cap is refused by name, as every bad value is."""
         # Arrange / Act
         eng, _, _ = env
         result = eng.dispatch("find.max_count abc")
 
         # Assert
-        assert not result.success, "non-integer is a usage error"
-        assert "Usage" in result.error, "clear usage hint"
-        assert "current" in result.error.lower(), (
-            "message includes the current cap value for context"
-        )
+        assert (result.success, result.error) == (
+            False,
+            "Invalid count: abc (use a whole number >= 1)",
+        ), "a bad value is a failure naming the value"
 
     def test_max_count_zero_rejected(self, env):
         """A cap of zero is refused, since it would make /find unusable."""

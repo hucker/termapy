@@ -128,13 +128,15 @@ class TestHelpAndRoot:
 
 class TestHex:
     def test_bare_hex_queries_without_changing_the_flag(self, cli, capsys):
-        """A bare /proto.hex reports the state and mutates nothing (setting commands query on a bare call)."""
+        """A bare /proto.hex answers the state as off and mutates nothing (setting commands query on a bare call)."""
         flags = cli.repl.ctx.ns("flags")
         capsys.readouterr()
         result = cli.repl.dispatch_full("/proto.hex")
         assert result.value is False
         assert flags["hex"] is False, "a bare setting command never flips"
-        assert "Hex display mode disabled." in capsys.readouterr().out
+        assert capsys.readouterr().out.strip() == "off", (
+            "the answer is the switch, as /term.hex answers"
+        )
 
     def test_toggle_on_and_off_drive_the_shared_hex_flag(self, cli):
         """toggle flips, a vocabulary token sets, and the flag /term.hex shares follows each one."""

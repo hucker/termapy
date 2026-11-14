@@ -58,6 +58,7 @@ from termapy.scripting import (
     format_duration,
     parse_bool,
     parse_bool_setting,
+    value_text,
 )
 from termapy.symbols import parse_number
 
@@ -843,10 +844,11 @@ def _handler_hex(ctx: PluginContext, args: str) -> CmdResult:
         flags["hex"] = not flags["hex"]
     else:
         flags["hex"] = action
-    state = "enabled" if flags["hex"] else "disabled"
-    ctx.io.output(f"Hex display mode {state}.", "bright_green")
-    # Mirror the echo convention: the new state, a bool (registry value-typed).
-    return CmdResult.ok(value=bool(flags["hex"]))
+    # The answer is the switch, a bool (registry value-typed), spelled
+    # on/off as every setting command answers (registry setting-reply-is-value).
+    state = bool(flags.get("hex", False))
+    ctx.io.result(value_text(state))
+    return CmdResult.ok(value=state)
 
 
 def _handler_list(ctx: PluginContext, args: str) -> CmdResult:

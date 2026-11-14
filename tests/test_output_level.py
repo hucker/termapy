@@ -607,7 +607,7 @@ class TestTheAnswerShowsAtQuiet:
     @pytest.mark.rule("view-is-the-answer")
     @pytest.mark.parametrize(
         ("command", "expected"),
-        [("/port.mode", "115200 8N1"), ("/var", "LAUNCH_DATE")],
+        [("/term.json_fmt", "indent"), ("/var", "LAUNCH_DATE")],
         ids=["status-page", "table"],
     )
     def test_quiet_keeps_the_answer(self, cli, capsys, command, expected):
@@ -622,7 +622,7 @@ class TestTheAnswerShowsAtQuiet:
         assert result.success is True, result.error
         assert expected in capsys.readouterr().out, f"{command}.quiet shows what was asked for"
 
-    @pytest.mark.parametrize("command", ["/port.mode", "/var"], ids=["status-page", "table"])
+    @pytest.mark.parametrize("command", ["/term.json_fmt", "/var"], ids=["status-page", "table"])
     def test_silent_prints_nothing(self, cli, capsys, command):
         """At silent neither prints, and the value is still the answer a script reads."""
         # Arrange
@@ -636,12 +636,12 @@ class TestTheAnswerShowsAtQuiet:
         assert result.value, "the value still carries the answer"
 
     def test_a_json_answer_carries_the_data_alone(self, cli, capsys):
-        """/port.mode.quiet.json: the envelope holds the facts as data and no printed copy of the page."""
+        """/term.json_fmt.quiet.json: the envelope holds the facts as data and no printed copy of the page."""
         # Arrange
         capsys.readouterr()
 
         # Act
-        cli.repl.dispatch_full("/port.mode.quiet.json")
+        cli.repl.dispatch_full("/term.json_fmt.quiet.json")
         envelope = json.loads(capsys.readouterr().out)
 
         # Assert

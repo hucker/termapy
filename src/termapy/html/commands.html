@@ -24,7 +24,7 @@
     
     
       
-        <title>REPL Commands - Termapy Help v0.80.0</title>
+        <title>REPL Commands - Termapy Help v0.81.0</title>
       
     
     
@@ -87,7 +87,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.80.0" class="md-header__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.81.0" class="md-header__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -102,7 +102,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.80.0
+            Termapy Help v0.81.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.80.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.81.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.80.0
+    Termapy Help v0.81.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1230,7 +1230,9 @@ value, in the order the synopsis lists them, and wraps at the end.  Any command
 takes <code>--json</code> for a JSON answer to that one call, and <code>--silent</code>, <code>--quiet</code>,
 <code>--normal</code> or <code>--verbose</code> for how much that call prints; each also works as a
 suffix on the name (<code>/port.list.json</code>, <code>/port.list.quiet</code>).  <code>/help.idioms</code> lists
-these words, and <code>/help cycle</code> opens a page on one, with the commands that take it.</p>
+these words, and <code>/help cycle</code> opens a page on one, with the commands that take it.
+<code>/help capability</code> lists what a command may need from where it runs (a desktop, a
+terminal, an open port), and <code>/help gui_apps</code> opens one with the commands that need it.</p>
 <p>A command that opens a file of a known type takes the name with or without
 its extension: <code>/run hex_view</code> runs <code>run/hex_view.run</code>. The same holds for
 <code>/proto.run</code>, <code>/profile.load</code>, <code>/sym.load</code> and a folder's <code>.dump</code> and
@@ -1271,8 +1273,9 @@ has to match the whole name. Case never matters. With
 </table>
 <p>A pattern that matches nothing gives an empty list, not an error. The
 filters are <code>/env</code>, <code>/dev.lib</code>, <code>/proto.crc.list</code>, <code>/port.chip.list</code>,
-<code>termapy --chips</code> and <code>/sym.search</code>, which shows an exact name alone
-before it reads the text as a pattern.</p>
+<code>termapy --chips</code>, <code>termapy --ports</code> (which reads every field of each
+row) and <code>/sym.search</code>, which shows an exact name alone before it reads
+the text as a pattern.</p>
 <p>A command that deletes or rewrites files takes a pattern the same way,
 but plain text there is one file's name, and a pattern that matches
 nothing is an error: <code>/cap.delete adc_*</code>. Only the
@@ -1802,7 +1805,7 @@ sends to the device) waits in the input line for Enter.</p>
 </tr>
 <tr>
 <td><code>/proto.list</code></td>
-<td>List .pro files in proto/, newest first, with size, age and each one's <code>name</code></td>
+<td>List .pro files in proto/, newest first, with size, age and each one's <code>name</code>; a name runs, its edit cell opens the editor</td>
 </tr>
 <tr>
 <td><code>/proto.run &lt;file&gt;</code></td>
@@ -1838,7 +1841,7 @@ sends to the device) waits in the input line for Enter.</p>
 </tr>
 <tr>
 <td><code>/run.list</code></td>
-<td>List .run files in run/, newest first, with size, age, and summary</td>
+<td>List .run files in run/, newest first, with size, age and title; a name runs, its edit cell opens the editor</td>
 </tr>
 <tr>
 <td><code>/search &lt;term&gt;</code></td>
@@ -2128,7 +2131,7 @@ family of file subcommands:</p>
 </table>
 <p>Examples:</p>
 <ul>
-<li><code>/run.list</code>: list scripts with size, age, and docstring summary</li>
+<li><code>/run.list</code>: list scripts with size, age and title; in the TUI a name runs the script and its edit cell opens it in the editor</li>
 <li><code>/run.dump</code>: print the newest script to the terminal</li>
 <li><code>/proto.show</code>: open the newest .pro file in the system viewer</li>
 <li><code>/run.show welcome</code>: open <code>run/welcome.run</code> (the extension is optional where the folder has one; <code>ss/</code> and <code>cap/</code> take the full name)</li>

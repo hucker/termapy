@@ -24,7 +24,7 @@
     
     
       
-        <title>Serial Ports - Termapy Help v0.80.0</title>
+        <title>Serial Ports - Termapy Help v0.81.0</title>
       
     
     
@@ -87,7 +87,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.80.0" class="md-header__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.81.0" class="md-header__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -102,7 +102,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.80.0
+            Termapy Help v0.81.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +174,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.80.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.80.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.81.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.80.0
+    Termapy Help v0.81.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -669,6 +669,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limiting-which-ports-termapy-may-open" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Limiting which ports termapy may open
+      </span>
+    </span>
+  </a>
   
 </li>
       
@@ -1610,6 +1621,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#limiting-which-ports-termapy-may-open" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Limiting which ports termapy may open
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1739,7 +1761,11 @@ every FTDI port on Windows shows a blank location.</p>
 <p><code>/port.list</code> shows serial ports and nothing else, on purpose -- a listing
 that included keyboards and webcams would stop being a port listing.
 When you need the other view, <code>/port.usb</code> (or <code>termapy --usb</code>) draws the
-entire USB tree and marks the nodes that carry a serial port:</p>
+entire USB tree and marks the nodes that carry a serial port, <code>-&gt; COM7</code>.
+In the TUI, and from <code>--usb</code> at a terminal, those rows are cyan and their
+port name bold: green when this session holds the port, yellow when another
+termapy session does (see below).  Piped or with <code>--no-color</code>, <code>--usb</code>
+prints plain text:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>1                       USB Root Hub (USB 3.0)  USBHUB3
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>+-- 1-8                 Generic USB Hub  2109:2817  USBHUB3
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>|   +-- 1-8.2           USB Serial Converter  0403:6001  FTDIBUS  -&gt; COM7
@@ -2101,6 +2127,17 @@ Each entry is one line — the model name, USB speed class (<code>"full"</code> 
 and chip model) and termapy identifies that chip from then on.  A
 <code>max_baud</code> of <code>0</code> marks a non-UART device (bootloader, HID, etc.).</p>
 <h2 id="when-you-hit-in-use-and-cant-connect">When you hit "In use" and can't connect<a class="headerlink" href="#when-you-hit-in-use-and-cant-connect" title="Permanent link">&para;</a></h2>
+<p>The port lists show termapy's own sessions at a glance.  In <code>/port.list</code>,
+the port picker, <code>/port.usb</code> and <code>termapy --ports</code>, a port's name is
+<strong>green</strong> when this session has it open and <strong>yellow</strong> when another
+termapy session does: a TUI in another window, or an MCP server running in
+the background.  termapy knows from the breadcrumb every running termapy
+leaves, so it opens no port to find out, and it works the same on every
+OS.  Only termapy sessions are seen this way: a port PuTTY, Arduino IDE or
+any other program holds stays uncolored, so an uncolored port is not
+necessarily free.  An MCP client gets the same fact as data, <code>session</code> on
+each port record, naming the other session only as <code>another termapy
+session</code> unless the server has <code>TERMAPY_MCP_HOST_INFO=1</code>.</p>
 <p><code>/port.info</code> and <code>/port.chip.in_use</code> report whether another process has
 the port open.  Termapy's own connection counts as "in use," so if you
 see <code>yes</code> while termapy is connected, that's expected.  This is handy
@@ -2123,7 +2160,9 @@ auto-reset.  So termapy never opens a port you didn't ask about:</p>
   kernel's open-file table without opening the port, so it is always
   safe <em>and</em> it names the holder (e.g. <code>yes (python (PID 8842))</code>, i.e.
   that MCP server).  It appears in <code>/port.info</code>, <code>/port.chip.in_use</code>,
-  <code>termapy --ports --json</code>, and live in <code>termapy --watch</code>.</li>
+  <code>termapy --ports --json</code>, and live in <code>termapy --watch</code>.  An MCP client
+  is told <code>yes (another program)</code> unless the server has
+  <code>TERMAPY_MCP_HOST_INFO=1</code>.</li>
 <li><strong>Windows:</strong> there is no non-invasive equivalent, so in-use is shown
   only on explicit request (<code>/port.info</code>, <code>/port.chip.in_use</code>,
   <code>--ports --json</code>) and the probe opens the port briefly with DTR/RTS
@@ -2282,6 +2321,28 @@ device conversations.</p>
 <li><strong>Always give <code>file=</code>.</strong> Without it the log goes to stderr, into your terminal.</li>
 <li><strong>Leave out pyserial's <code>raw</code> option.</strong> With it, every send fails with <code>write() argument must be str, not bytes</code>.</li>
 </ul>
+<h2 id="limiting-which-ports-termapy-may-open">Limiting which ports termapy may open<a class="headerlink" href="#limiting-which-ports-termapy-may-open" title="Permanent link">&para;</a></h2>
+<p><code>TERMAPY_ALLOWED_PORTS</code> names the ports termapy may open and list on this machine. Set it in the environment termapy starts from, as one regular expression with <code>|</code> between the ports:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>TERMAPY_ALLOWED_PORTS=COM7|BG03U7VTA|/dev/ttyACM[0-9]
+</span></code></pre></div>
+<ul>
+<li><strong>A port matches whole, ignoring case.</strong> <code>COM1</code> allows <code>COM1</code> and never <code>COM10</code>.</li>
+<li><strong>Name or serial number, either way round.</strong> An entry matches a port's name as the system lists it, or its USB serial number. With <code>COM7</code> allowed, the serial number that belongs to COM7 opens it too; with a serial number allowed, its COM name opens it.</li>
+<li><strong>Copy the serial number from <code>/port.list</code> or <code>termapy --ports</code>.</strong> <code>/port.usb</code> reads the USB device, whose serial number can differ: on Windows an FTDI adapter's port adds a channel letter (<code>BG03U7VTA</code>) to its device's (<code>BG03U7VT</code>).</li>
+<li><strong>The spelling you type is not what is judged.</strong> On Windows, <code>com7</code> and <code>\\.\COM7</code> are COM7, and a spelling with a path, a drive or a colon (<code>COM5:</code>, <code>COM2\..\COM5</code>) is refused. On Linux and macOS a link is judged as the device it points to.</li>
+<li><strong>A port allowed only by its serial number must be plugged in.</strong> Unplugged, its name has no serial number to check, so termapy answers <code>Port not found</code> until it is back.</li>
+<li><strong>What isn't allowed isn't shown.</strong> <code>/port.list</code>, <code>termapy --ports</code>, the port picker, <code>--info</code>, <code>--watch</code> and <code>/port.chip</code> leave it out; <code>/port.list</code> and <code>--ports</code> say the list is limited. <code>/port.usb</code> draws the bus with no serial number for a device it leaves out, and answers an MCP client only when the server has <code>TERMAPY_MCP_HOST_INFO=1</code>.</li>
+<li><strong>A refusal says why, and names the variable.</strong> In the TUI and CLI it says which it is: a refused port that is plugged in, or a port that is not found. An MCP client gets one answer for both, <code>Port not allowed or not found</code>, so a hidden port and an absent one look the same.</li>
+<li><strong>The simulator and <code>loop://</code> are always allowed.</strong> They reach no device and no network.</li>
+<li><strong><code>hwgrep://</code> is refused</strong> while the variable is set: pyserial picks its port after termapy has checked it. Name the port instead.</li>
+<li><strong>A network port must be named exactly.</strong> <code>socket://</code> and <code>rfc2217://</code> open only when an entry spells the endpoint out, <code>scheme://host:port</code>, with no wildcard. <code>.*</code> allows any device name and no network host:</li>
+</ul>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>TERMAPY_ALLOWED_PORTS=.*|rfc2217://10.0.0.5:2217
+</span></code></pre></div>
+<p>An entry matches the host as written. A host name is trusted to resolve where you expect, so name the IP address to pin it.
+- <strong>Read once, at start.</strong> A change takes effect the next time termapy starts. A value that is not a valid regular expression, or that holds a space (<code>COM7 | COM5</code>), stops termapy at startup with a message naming the variable. A comma is not a separator: <code>COM7,COM5</code> is one name, and matches nothing.</p>
+<p>Unset or blank, termapy in the TUI or CLI may open any port. Under <code>--mcp</code> it allows no serial or network port, only the simulator and <code>loop://</code>; see <a href="mcp-server.html">MCP server</a> for where to set it so an agent cannot change it.</p>
+<p>The list limits termapy's own commands, not the machine. Another program, a script or an agent's shell can still open any port the operating system lets it. A USB serial number is whatever the device's firmware reports, so the list keeps termapy off the wrong board; it does not authenticate one.</p>
 
 
 

@@ -93,23 +93,23 @@ demo> /cfg quiet_start
 demo> /print === section: config auto-set ===
   === section: config auto-set ===
 demo> /cfg.auto echo true
-  echo = on  (session)
+  on
 demo> /cfg echo
   on
 demo> /cfg.auto echo false
-  echo = off  (session)
+  off
 demo> /cfg echo
   off
 demo> /term.echo
   off
 demo> /cfg.auto echo true
-  echo = on  (session)
+  on
 demo> /cfg.auto output_level quiet
-  output_level = quiet  (session)
+  quiet
 demo> /term.output
   quiet
 demo> /cfg.auto output_level normal
-  output_level = normal  (session)
+  normal
 demo> /term.output
   normal
 demo> /cfg.auto output_level loud
@@ -294,13 +294,13 @@ AVAILABLE
 SEE ALSO
   /term.color, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.info, /term.json_fmt, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.traffic, /term.usb_db, /term
 demo> /cfg.auto custom_buttons_side Right
-  custom_buttons_side = right  (session)
+  right
 demo> /cfg custom_buttons_side
   right
 demo> /cfg.auto custom_buttons_side up
   Error: Invalid custom_buttons_side: up (use bottom/left/right)
 demo> /cfg.auto custom_buttons_side bottom
-  custom_buttons_side = bottom  (session)
+  bottom
 demo> /cfg.auto max_lines 0
   Error: Invalid max_lines: 0 (must be a positive integer)
 demo> /cfg.auto encoding nope
@@ -537,15 +537,15 @@ demo> /port.info
 demo> /print === section: port modify ===
   === section: port modify ===
 demo> /port.dtr 0
-  DTR -> 0
+  0
 demo> /port.dtr
   0
 demo> /port.dtr 1
-  DTR -> 1
+  1
 demo> /port.dtr
   1
 demo> /port.rts 0
-  RTS -> 0
+  0
 demo> /port.rts
   0
 demo> /print === section: port disconnect/connect ===
@@ -553,7 +553,7 @@ demo> /print === section: port disconnect/connect ===
 demo> /port.disconnect
 Disconnected: DEMO
 demo> /port.baud_rate
-  115200 (disconnected)
+  115200
 demo> /port.connect
 Connected: DEMO
 demo> /port.baud_rate
@@ -619,10 +619,8 @@ SUBCOMMANDS
 demo> /print === section: line endings ===
   === section: line endings ===
 demo> /term.eol.markers on
-  eol_markers = on  (session)
   on
 demo> /term.eol.markers off
-  eol_markers = off  (session)
   off
 demo> /print === section: seq ===
   === section: seq ===
@@ -907,13 +905,11 @@ demo> /term.json_fmt
 demo> /term.json_fmt.highlight
   on
 demo> /term.json_fmt.indent 4
-  json_fmt.indent = 4  (session)
   4
 demo> MEM.INFO
 {"max_block": 64, "address_bits": 32, "endian": "le", "modify": true, "regions": [{"name": "ram", "start": "0x00000000", "size": 16384, "w": true}, {"name": "sfr", "start": "0xBF806000", "size": 32, "w": true}]}
 OK
 demo> /term.json_fmt indent 2
-  json_fmt.indent = 2  (session)
   2
 demo> /print === section: help ===
   === section: help ===
@@ -1609,7 +1605,7 @@ DESCRIPTION
 
 CONFIG
   serial.baud_rate = 115200   set for the session; bare shows it
-  serial.custom_baud = false  set true for the session by custom=true; bare says (custom)
+  serial.custom_baud = false  set true for the session by custom=true; bare carries it in data
 
   /help port.baud_rate --verbose shows the rest: status, where it runs, see also.
 demo> /help port.dtr
@@ -1865,13 +1861,13 @@ demo> /port.baud_rate 11520
 demo> /port.mode 11520 8N1
   Error: Invalid baud rate: 11520 (not a standard rate: add custom=true to allow it)
 demo> /port.baud_rate 9460 custom=true
-  Baud rate -> 9460
+  9460
 demo> /port.baud_rate
-  9460 (custom)
+  9460
 demo> /port.baud_rate 115200
-  Baud rate -> 115200
+  115200
 demo> /cfg custom_baud false
-  custom_baud = off  (session)
+  off
 demo> /port.parity X
   Error: Invalid parity: X (use E, M, N, O, S)
 demo> /port.dtr maybe
@@ -1893,7 +1889,6 @@ demo> /term.line_no --json
 demo> /term.line_no.json
   {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires the tui_mode capability, the TUI (switch with /tui); not available in this environment", "value": "", "data": null, "output_lines": [], "elapsed_s": 0}
 demo> /term.request on
-  request_mode = on  (session)
   on
 demo> /print hello enveloped
   {"cmd": "/print hello enveloped", "success": true, "error": "", "value": "hello enveloped", "data": null, "output_lines": ["hello enveloped"], "elapsed_s": 0}
@@ -1910,7 +1905,6 @@ demo> /nope_bogus_cmd
 demo> /mem
   {"cmd": "/mem", "success": true, "error": "", "value": "termapy", "data": {"available": true, "dialect": "termapy", "max_block": 64, "address_bits": 32, "endian": "le", "atomic_modify": true, "sources": {"dialect": "default", "max_block": "device", "address_bits": "device", "endian": "device", "modify": "device"}, "device_info": {"max_block": 64, "address_bits": 32, "endian": "le", "modify": true, "regions": [{"name": "ram", "start": "0x00000000", "size": 16384, "w": true}, {"name": "sfr", "start": "0xBF806000", "size": 32, "w": true}]}, "device_error": null, "problem": null, "template": null}, "output_lines": [], "elapsed_s": 0}
 demo> /term.request off
-  request_mode = off  (session)
   {"cmd": "/term.request off", "success": true, "error": "", "value": false, "data": null, "output_lines": ["off"], "elapsed_s": 0}
 demo> MEM.R 0x1000 2 --json
 {"cmd": "MEM.R 0x1000 2"}
@@ -1932,7 +1926,7 @@ demo> /term.eol.rx
 demo> /term.hex
   off
 demo> /proto.hex
-  Hex display mode disabled.
+  off
 demo> /term.json_fmt
   highlight: on
   indent   : 2
@@ -2184,7 +2178,7 @@ demo> /find.prev
   Error: No active find.
 demo> /find.clear
 demo> /find.max_count
-  /find.max_count = 100
+  100
 demo> /print === section: firmware: the shipped device-side sources ===
   === section: firmware: the shipped device-side sources ===
 demo> /firmware

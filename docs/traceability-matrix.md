@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 190: 175 registry rows (guarantees 140, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 186. Pinned by none: 4.
+Ids: 191: 176 registry rows (guarantees 141, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 187. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -773,6 +773,11 @@ Ids: 190: 175 registry rows (guarantees 140, assumptions 35), 15 spec sections i
 - `test_find.py`: `TestMaxCount.test_max_count_bare_shows_current`
 - `test_repl_cfg.py`: `TestCfgShowKey.test_show_existing_key`
 - `test_term_request.py`: `TestJsonLayout.test_bare_term_json_reports_both`, `TestJsonLayout.test_term_json_highlight_is_a_boolean_setting`, `TestJsonLayout.test_term_json_indent_refuses_another_number`, `TestJsonLayout.test_term_json_indent_sets_queries_and_cycles`, `TestTermRequestCommand.test_unknown_token_fails`
+
+### `setting-reply-is-value` (guarantee, contract)
+
+- `test_cfg_schema.py`: `TestSetting.test_a_change_reports_the_value_as_termapy_spells_it`
+- `test_setting_replies.py`: the module (2 functions)
 
 ### `shows-declared` (guarantee, structure)
 

@@ -451,7 +451,7 @@ class TestEveryFrontend:
 
     @pytest.mark.rule("baud-standard-unless-custom")
     def test_the_baud_rate_page_says_when_it_is_custom(self, cli, capsys):
-        """In custom mode the page and the bare command say (custom); the value stays the number."""
+        """In custom mode the page and the bare command answer the rate alone; custom is a fact in data."""
         # Arrange
         cli._connect()
         try:
@@ -464,7 +464,7 @@ class TestEveryFrontend:
             cli._disconnect()
 
         # Assert
-        assert state == ["  9460 (custom)"], "CURRENT STATE names the mode"
+        assert state == ["  9460"], "CURRENT STATE is the rate, as the command answers"
         assert (bare.value, bare.data) == (9460, {"baud": 9460, "custom": True}), (
             "a script still captures the rate alone"
         )

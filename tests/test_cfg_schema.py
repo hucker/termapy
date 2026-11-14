@@ -269,17 +269,19 @@ class TestSetting:
         result = cli.repl.dispatch("cfg.auto max_lines 500")
         assert (result.success, cli.repl.cfg["max_lines"]) == (True, 500)
 
+    @pytest.mark.rule("setting-reply-is-value")
     def test_a_change_reports_the_value_as_termapy_spells_it(self, cli, capsys):
-        """The session line says echo = off, as /term.echo answers, never Python's False."""
+        """A change answers off, as /term.echo answers, never Python's False and never the key."""
         # Arrange
         capsys.readouterr()
 
         # Act
         cli.repl.dispatch("cfg.auto echo off")
+        changed = capsys.readouterr().out
         query = cli.repl.dispatch("cfg echo")
 
         # Assert
-        assert "echo = off  (session)" in capsys.readouterr().out, "the change line"
+        assert changed.strip() == "off", "the change line is the value alone"
         assert query.value is False, "the query answers the same spelling"
 
 

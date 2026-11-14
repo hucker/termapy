@@ -239,7 +239,7 @@ class TestRegisterPlugin:
 
 class TestApplyCfg:
     def test_apply_cfg_with_callback(self, engine):
-        """A cfg change updates the value, fires the after-cfg hook, and reports it."""
+        """A cfg change updates the value and fires the after-cfg hook, printing nothing: the command answers."""
         # Arrange
         eng, output = engine
         callback_calls = []
@@ -251,7 +251,9 @@ class TestApplyCfg:
         # Assert
         assert eng.cfg["baud_rate"] == 9600, "config value updated"
         assert callback_calls == [("baud_rate", 9600)], "callback invoked"
-        assert any("session" in t for t, _ in output), "success message shown"
+        assert [t for t, _ in output if "9600" in t or "session" in t] == [], (
+            "the engine prints nothing; the command that applied it answers with the value"
+        )
 
 
 # -- run_script --------------------------------------------------------------

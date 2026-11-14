@@ -82,6 +82,11 @@ All other paths relative to `src/termapy/`.
   enums through `next_in_cycle`. TUI buttons that flip on click dispatch the
   explicit `toggle`/`cycle` verb, never the bare command. NEVER treat an
   unrecognized argument as a flip (that hid the `/term.color 2` bug).
+  **A setting command answers with its value and nothing else**, on query
+  and on set: the line it prints is `scripting.value_text` of the value it
+  returns, never `key = value`, prose or a note, so a person reads what
+  `$(X) <- cmd` captures (registry `setting-reply-is-value`, Chuck
+  2026-11-14). `ctx.internal.apply_cfg` prints nothing; the command does.
 - **A bare command does what its button does, and says so by declaration.**
   Bare `/cfg` `/run` `/proto` `/port` (and the edit/run twins) open their
   picker: `Command(picker="run")`, which the dispatcher honors in the TUI;

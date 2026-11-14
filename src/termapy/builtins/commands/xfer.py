@@ -52,7 +52,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
             resolved = Path(root).resolve()
             ctx.io.result(str(resolved))
             return CmdResult.ok(value=str(resolved))
-        ctx.io.result(f"{ctx.fs.cap_dir}  (default)")
+        ctx.io.result(str(ctx.fs.cap_dir))
         return CmdResult.ok(value=str(ctx.fs.cap_dir))
 
     # Set the root
@@ -62,7 +62,7 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
 
     resolved = str(path.resolve())
     ctx.internal.apply_cfg("file_xfer_root", resolved)
-    ctx.io.result(f"Transfer root: {resolved}")
+    ctx.io.result(resolved)
     return CmdResult.ok(value=resolved)
 
 

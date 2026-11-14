@@ -124,10 +124,10 @@ class TestCfgShowKey:
 
 class TestCfgChange:
     def test_same_value_no_change(self, repl_env):
-        """Setting a key to the value it already holds reports a no-op instead of saving."""
+        """Setting a key to the value it already holds answers the value, as any set does."""
         engine, _, _, output = repl_env
         engine.dispatch("cfg baud_rate 115200")
-        assert any("already" in t for t, _ in output), "no-op message"
+        assert any(t.strip() == "115200" for t, _ in output), "the answer is the value"
 
     def test_bad_type_rejected(self, repl_env):
         """A value that cannot coerce to the key's type is refused with a Type error."""
@@ -185,7 +185,7 @@ class TestCfgChange:
 
         # Assert
         assert cfg["baud_rate"] == 9600, "in-memory config updated"
-        assert any("session" in t for t, _ in output), "session-only confirmation"
+        assert any(t.strip() == "9600" for t, _ in output), "the answer is the value"
 
     @pytest.mark.rule("cfg-schema-one-table")
     def test_a_choice_in_another_case_is_stored_as_the_config_spells_it(self, repl_env):
@@ -206,7 +206,7 @@ class TestCfgAuto:
 
         # Assert
         assert cfg["baud_rate"] == 9600, "in-memory config updated"
-        assert any("session" in t for t, _ in output), "session-only confirmation"
+        assert any(t.strip() == "9600" for t, _ in output), "the answer is the value"
 
     def test_auto_bool(self, repl_env):
         """/cfg.auto coerces the token "true" to a real bool for a bool key."""
@@ -293,7 +293,7 @@ class TestCfgReadOnly:
 
         # Assert
         assert cfg["baud_rate"] == 9600, "value changed despite config_read_only"
-        assert any("session" in t for t, _ in output), "session-only confirmation"
+        assert any(t.strip() == "9600" for t, _ in output), "the answer is the value"
 
     def test_cfg_show_works(self, repl_env):
         """config_read_only leaves /cfg queries working."""

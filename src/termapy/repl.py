@@ -2333,12 +2333,11 @@ class ReplEngine:
         """Apply a config change for this session (not saved to disk).
 
         The config editor is the only path that persists changes to disk.
-        This keeps $(env.NAME) templates in the JSON file intact.
+        This keeps $(env.NAME) templates in the JSON file intact.  Prints
+        nothing: the command that applied the change answers with the value
+        (registry ``setting-reply-is-value``).
         """
-        from termapy.config import cfg_value_text
-
         self.store_cfg(key, new_val)
-        self.write(f"{key} = {cfg_value_text(new_val)}  (session)", "green")
         if self._after_cfg:
             self._after_cfg(key, new_val)
 

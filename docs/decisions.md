@@ -1720,3 +1720,23 @@ upgrade to bring the tiers by itself; it did not, because termapy passed its own
 the table was switched and the labels followed in one chore branch (`chore/frist-0.23`).
 **Where:** `scripting.format_age`, `scripting.format_duration`;
 `tests/test_scripting.py::TestFormatAge`, `::TestFormatDuration`.
+
+## 2026-11-14 — A setting command answers with its value and nothing else
+
+Chuck, on seeing `/find.max_count 300` answer `/find.max_count = 300`: "These things should all
+just return a value", not even `var = 123` in verbose mode, "because you should be able to say
+`x <- func` and get the value". An audit of every setting-style command on the demo config found
+five other shapes beside the term family's bare `on` / `cr` / `2`: `/proto.hex` answered in prose
+(`Hex display mode enabled.`); the port family's set forms answered `Data bits -> 8` while their
+queries answered `8`, and `/port.stop_bits` answered `1` bare and `1.0` on set; every setter that
+applies a config key printed `key = value  (session)` from `ReplEngine._apply_cfg` and then its
+own value; `/xfer.root` and the port queries carried notes (`(default)`, `(disconnected)`,
+`(custom)`). Now the one line a setting command prints is `scripting.value_text` of the value it
+returns, on query and on set; `_apply_cfg` prints nothing; a set's `value` is what was set
+(`$(X) <- /port.baud_rate 9600` is 9600, not empty); stop bits are whole where they are whole.
+Behavior removed: the `(session)`, `(disconnected)`, `(custom)` and `(default)` notes, and
+`/cfg key value`'s "already" line; the facts stay in `data` (`/port.baud_rate`'s `custom`) and
+in `/cfg custom_baud`. `/port <name>`'s banner (`Port changed to COM4 (session)`) is a connect
+status, not a reply, and stays. **Where:** `docs/rules.md` row `setting-reply-is-value`;
+`tests/test_setting_replies.py`; `repl._apply_cfg`, `builtins/commands/{cfg,find,proto,xfer,
+port}.py`, `port_control.get_set_prop` / `get_set_flow` / `get_set_hw_line` / `set_mode`.

@@ -129,13 +129,12 @@ class TestPortInfo:
 
 class TestGetSetProp:
     def test_get_disconnected_shows_config(self):
-        """A bare query while disconnected reports the configured value, marked disconnected."""
+        """A bare query while disconnected answers the configured value, nothing beside it."""
         # Act
         msgs, effects = get_set_prop(None, _cfg(), "baud_rate", "")
 
         # Assert
-        assert any("115200" in t for t, _ in msgs), "should show config baud rate"
-        assert any("disconnected" in t for t, _ in msgs), "should indicate disconnected"
+        assert [t for t, _ in msgs] == ["115200"], "the config's rate alone, no note"
 
     def test_get_connected_shows_live_value(self):
         """A bare query while connected reports the port's live value, not the config."""
@@ -948,7 +947,7 @@ class TestSetMode:
 
         # Assert
         text = msgs[0][0]
-        assert "Mode -> 9600 8O1.5" in text, "summary should show baud and frame"
+        assert text == "9600 8O1.5", "the answer is the baud and frame, nothing else"
 
 
 # -- Port spec resolution ---------------------------------------------------

@@ -100,13 +100,13 @@ class TestHardwareLines:
         assert result.value == 1
 
     def test_a_value_sets_the_line(self, cli, capsys):
-        """/port.dtr off drives the line low and reports the new level; a set has no scriptable value."""
+        """/port.dtr off drives the line low and answers the new level, 0, as the value too."""
         port = _demo_port(cli)
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.dtr off")
         assert port.dtr is False, "the line followed the command"
-        assert "DTR -> 0" in capsys.readouterr().out
-        assert result.value == ""
+        assert capsys.readouterr().out.strip() == "0", "the answer is the level alone"
+        assert result.value == 0, "a set answers the level it set"
 
     def test_an_unknown_token_is_refused(self, cli, capsys):
         """A token outside the 0/1/on/off set changes nothing and names the valid forms."""
@@ -175,8 +175,8 @@ class TestProperties:
 
         # Assert
         assert (port.baudrate, cli.cfg["serial"]["baud_rate"]) == (9600, 9600), "port and cfg agree"
-        assert "Baud rate -> 9600" in capsys.readouterr().out
-        assert result.value == "", "a set returns prose, not a value"
+        assert capsys.readouterr().out.strip() == "9600", "the answer is the rate alone"
+        assert result.value == 9600, "a set answers the rate it set"
 
     def test_parity_is_upper_cased_before_validation(self, cli):
         """/port.parity e is parity E: the letter is normalized, not rejected."""
@@ -218,13 +218,13 @@ class TestProperties:
         envelope = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
         assert (envelope["success"], envelope["error"]) == (False, "Invalid baud rate: fast")
 
-    def test_disconnected_read_shows_the_cfg_value_and_strips_the_annotation(self, cli, capsys):
-        """Without an open port the cfg value is shown as '<v> (disconnected)' and the value is the bare number."""
+    def test_disconnected_read_shows_the_cfg_value(self, cli, capsys):
+        """Without an open port the cfg value is the answer, the bare number a script captures too."""
         cli._disconnect()
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.baud_rate")
-        assert "115200 (disconnected)" in capsys.readouterr().out
-        assert result.value == 115200, "scripts get the number, not the annotation"
+        assert capsys.readouterr().out.strip() == "115200", "the config's rate, nothing beside it"
+        assert result.value == 115200, "scripts get the number"
 
 
 # ── /port.mode ──────────────────────────────────────────────────────────────
@@ -275,14 +275,14 @@ class TestMode:
             serial["stop_bits"],
         )
         assert actual_cfg == (9600, "E", 7, 1), "the session cfg agrees with the port"
-        assert result.value == "Mode -> 9600 7E1"
+        assert result.value == "9600 7E1", "a set answers the frame it set"
 
     def test_a_frame_alone_keeps_the_baud(self, cli):
         """/port.mode N82 changes the frame and leaves the baud rate as it was."""
         port = _demo_port(cli)
         result = cli.repl.dispatch_full("/port.mode N82")
         assert (port.baudrate, port.stopbits) == (115200, 2)
-        assert result.value == "Mode -> 115200 8N2"
+        assert result.value == "115200 8N2", "a set answers the frame it set"
 
     def test_a_bad_token_is_refused(self, cli, capsys):
         """A token that is neither a baud rate nor a frame is refused with an example, and nothing changes."""
@@ -329,7 +329,7 @@ class TestFlowControl:
         # Assert
         assert (port.rtscts, port.xonxoff) == (True, False), "hardware on, software off"
         assert cli.cfg["serial"]["flow_control"] == "rtscts"
-        assert "Flow control -> rtscts" in capsys.readouterr().out
+        assert capsys.readouterr().out.strip() == "rtscts", "the answer is the mode alone"
 
     def test_xonxoff_replaces_rtscts(self, cli):
         """Switching to xonxoff turns the hardware handshake off: the modes are exclusive."""
@@ -352,12 +352,12 @@ class TestFlowControl:
             "refused mode applied nowhere"
         )
 
-    def test_disconnected_read_carries_the_annotation(self, cli, capsys):
-        """Without an open port the cfg mode is shown with the (disconnected) annotation."""
+    def test_disconnected_read_shows_the_cfg_mode(self, cli, capsys):
+        """Without an open port the cfg mode is the answer, nothing beside it."""
         cli._disconnect()
         capsys.readouterr()
         cli.repl.dispatch_full("/port.flow_control")
-        assert "none (disconnected)" in capsys.readouterr().out
+        assert capsys.readouterr().out.strip() == "none"
 
 
 # ── /port.break ─────────────────────────────────────────────────────────────

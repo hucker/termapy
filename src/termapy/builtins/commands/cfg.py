@@ -126,16 +126,18 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
     old_val = container[leaf]
-    if new_val == old_val:
-        ctx.io.output(f"{key} is already {old_val!r}")
-        return _cfg_answer(old_val)
     # The TUI asks first and answers only after the dialog does, so a
     # script line after /cfg sees the outcome (review 2026-10-15, D7).
-    if ctx.internal.confirm_save_cfg:
+    # The answer is the value, set or already so (registry
+    # setting-reply-is-value).
+    if new_val == old_val:
+        pass
+    elif ctx.internal.confirm_save_cfg:
         if not ctx.internal.confirm_save_cfg(key, new_val):
             return CmdResult.fail(msg="Canceled.")
     else:
         ctx.internal.apply_cfg(key, new_val)
+    ctx.io.result(cfg_value_text(new_val))
     return _cfg_answer(new_val)
 
 
@@ -195,6 +197,7 @@ def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
     ctx.internal.apply_cfg(key, new_val)
+    ctx.io.result(cfg_value_text(new_val))
     return _cfg_answer(new_val)
 
 

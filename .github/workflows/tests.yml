@@ -16,6 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
+      - name: Install lrzsz
+        # The ZMODEM interop tests (tests/test_zmodem.py) run termapy against
+        # the reference sz and rz; without them those tests skip.
+        run: sudo apt-get install -y lrzsz
       - name: Run tests
         # CRC code-gen execution tests (which needed gcc/rustc/ghdl on
         # PATH) moved out to the standalone crcglot package in 2026-05;
@@ -41,6 +45,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
+      - name: Install lrzsz
+        run: sudo apt-get install -y lrzsz
       - name: Run tests with coverage
         # --all-extras so the MCP tests run and mcp/* is counted in coverage
         # (previously 0% in CI because those tests were uncollected), and so

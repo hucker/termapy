@@ -1,4 +1,4 @@
-"""Tests for YMODEM file transfer - FakeSerial responder and ymodem library integration."""
+"""Tests for YMODEM file transfer - FakeSerial responder, ymodem library integration, and the staged receive."""
 
 from __future__ import annotations
 
@@ -6,7 +6,9 @@ import time
 
 import pytest
 
+from termapy.cli import CLITerminal
 from termapy.demo import FakeSerial, _xmodem_crc16
+from termapy.folders import ensure_folder
 
 # -- Helpers ----------------------------------------------------------------
 
@@ -71,6 +73,49 @@ def _build_header_block(filename: str, filesize: int) -> bytes:
 def _build_empty_header() -> bytes:
     """Build an empty YMODEM block 0 (batch end)."""
     return _build_block(0, b"\x00" * 128)
+
+
+class _ScriptedYmodemSender:
+    """A one-file YMODEM sender driven by the receiver's control bytes, for an arbitrary (hostile) name.
+
+    The demo device sends only names it holds in its VFS and pads tiny
+    files oddly, so this hand-scripts the sender side instead: it answers
+    each ``C`` the receiver sends with the next frame -- header block 0 with
+    the given name, the data block, the EOT handshake, then the empty
+    batch-end block.
+    """
+
+    def __init__(self, name: str, data: bytes) -> None:
+        self._name = name
+        self._data = data
+        self._outbox = bytearray()
+        self._c_seen = 0
+        self._eot_sent = False
+
+    def write(self, data: bytes | bytearray, timeout: float | None = None) -> int:
+        """Receive the modem's control bytes and queue the next frame each time it asks (``C``)."""
+        for byte in bytes(data):
+            if byte == CRC_START:
+                self._c_seen += 1
+                if self._c_seen == 1:
+                    self._outbox += _build_header_block(self._name, len(self._data))
+                elif self._c_seen == 2:
+                    padded = self._data.ljust(128, b"\x1a")
+                    self._outbox += _build_block(1, padded)
+                else:
+                    self._outbox += _build_empty_header()
+            elif byte == ACK and not self._eot_sent and self._c_seen >= 2:
+                self._eot_sent = True
+                self._outbox += bytes([EOT])
+            elif byte == NAK and self._eot_sent:
+                self._outbox += bytes([EOT])
+        return len(data)
+
+    def read(self, size: int, timeout: float | None = None) -> bytes:
+        """Hand back the queued sender bytes, up to ``size``."""
+        chunk = bytes(self._outbox[:size])
+        del self._outbox[:size]
+        return chunk
 
 
 @pytest.fixture
@@ -352,3 +397,69 @@ class TestYmodemLibraryIntegration:
         content = received_file.read_bytes()
         expected = bytes(i & 0xFF for i in range(2048))
         assert content == expected, "payload matches"
+
+
+# -- /xfer.ymodem.recv through the dispatcher --------------------------------
+
+
+def _wait_for(condition, what: str, timeout_s: float = 5.0) -> None:
+    """Poll ``condition`` until it holds; fail naming ``what`` after ``timeout_s``."""
+    deadline = time.monotonic() + timeout_s
+    while not condition():
+        assert time.monotonic() < deadline, f"timed out waiting for {what}"
+        time.sleep(0.01)
+
+
+def _device_command(cli: CLITerminal, line: str) -> None:
+    """Send ``line`` to the DEMO device and wait for its OK to reach the queue, ahead of a transfer's drain."""
+    device = cli.engine.port_obj
+    assert isinstance(device, FakeSerial), "the DEMO engine opens a FakeSerial"
+    cli.repl.dispatch_full(line)
+    _wait_for(lambda: device.in_waiting == 0 and not cli.engine.rx_queue.empty(), "the OK reply")
+
+
+class TestRecvCommand:
+    """/xfer.ymodem.recv lands the sender's files in the folder only when the transfer completes, under their base names."""
+
+    @pytest.mark.rule("xfer-recv-staged")
+    def test_a_completed_receive_replaces_the_file_at_the_name(self, cli: CLITerminal) -> None:
+        """A finished transfer replaces an older file at the name and leaves no staging folder."""
+        # Arrange
+        cap = cli.ctx.fs.cap_dir
+        ensure_folder(cap)
+        target = cap / "firmware_v1.bin"
+        target.write_bytes(b"old contents")
+        _device_command(cli, "AT+YMODEM=SEND firmware_v1.bin")
+
+        # Act
+        result = cli.repl.dispatch_full("/xfer.ymodem.recv")
+
+        # Assert
+        assert result.success, result.error
+        assert target.read_bytes() == bytes(i & 0xFF for i in range(2048)), "the canned payload"
+        assert list(cap.glob(".part-*")) == [], "the staging folder is gone"
+
+    @pytest.mark.rule("xfer-recv-staged")
+    def test_a_hostile_name_is_reduced_to_its_base_name(self, tmp_path) -> None:
+        """A sender naming the file ``../evil.bin`` in its YMODEM header writes ``evil.bin`` in the folder, nothing above it.
+
+        The vendored receiver reduces the sender's name to its base name
+        before opening it.  Driven by a scripted sender so the lrzsz-style
+        hostile name, which the demo device cannot produce, reaches it.
+        """
+        from termapy.vendor.ymodem.Protocol import ProtocolType
+        from termapy.vendor.ymodem.Socket import ModemSocket
+
+        payload = bytes(range(64))
+        sender = _ScriptedYmodemSender("../evil.bin", payload)
+        modem = ModemSocket(sender.read, sender.write, protocol_type=ProtocolType.YMODEM)
+        folder = tmp_path / "landing"
+        folder.mkdir()
+
+        # Act
+        ok = modem.recv(str(folder))
+
+        # Assert
+        assert ok is True, "the transfer completed"
+        assert (folder / "evil.bin").read_bytes() == payload, "the base name, in the folder"
+        assert not (tmp_path / "evil.bin").exists(), "nothing climbed out of the folder"

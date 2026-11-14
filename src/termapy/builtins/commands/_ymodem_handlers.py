@@ -1,8 +1,8 @@
 """YMODEM file-transfer handlers (private; mounted under /xfer).
 
-Sibling of ``_xmodem_handlers``; both are mounted by ``xfer.py``
-into the ``/xfer.{xmodem,ymodem}.{send,recv}`` tree.  Hidden
-``/ymodem`` forwarders live in ``ymodem.py``.
+Sibling of ``_xmodem_handlers`` and ``_zmodem_handlers``; the three are
+mounted by ``xfer.py`` into the ``/xfer.{xmodem,ymodem,zmodem}.{send,recv}``
+tree.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from termapy.folder_ops import staged_receive
 from termapy.folders import ensure_folder, file_suggestion
 from termapy.plugins import CmdResult, UsageError
 from termapy.vendor.ymodem.Protocol import ProtocolType
@@ -85,8 +86,10 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
     """Receive file(s) from the device via YMODEM.
 
-    YMODEM batch mode: the sender provides filenames. Files are saved
-    to the cap/ directory (or to a specified directory).
+    YMODEM batch mode: the sender provides filenames.  The files arrive
+    in a staging folder and move into the cap/ directory (or the specified
+    directory) only when the transfer completes (registry
+    ``xfer-recv-staged``).
 
     Args:
         ctx: Plugin context.
@@ -124,14 +127,22 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
             ctx.io.status(f"  YMODEM: {name} {pct}% ({received}/{total} bytes)")
 
         modem = ModemSocket(read, write, protocol_type=ProtocolType.YMODEM)
-        ok = modem.recv(str(out_dir), callback=progress)
+        with staged_receive(out_dir) as staging:
+            ok = modem.recv(str(staging.folder), callback=progress)
+            if cancel and cancel.is_set():
+                return CmdResult.fail(msg="YMODEM recv canceled.")
+            if not ok:
+                return CmdResult.fail(msg="YMODEM recv failed.")
+            try:
+                landed = staging.commit()
+            except ValueError as e:
+                return CmdResult.fail(msg=str(e))
+            except OSError as e:
+                return CmdResult.fail(msg=f"Write error: {e}")
 
-        if cancel and cancel.is_set():
-            return CmdResult.fail(msg="YMODEM recv canceled.")
-        if ok:
-            ctx.io.result(f"YMODEM recv complete -> {out_dir}")
-            return CmdResult.ok(value=str(out_dir))
-        return CmdResult.fail(msg="YMODEM recv failed.")
+        names = ", ".join(path.name for path in landed) or "no files"
+        ctx.io.result(f"YMODEM recv complete: {names} -> {out_dir}")
+        return CmdResult.ok(value=str(out_dir))
 
 
 # No ``COMMAND`` -- this file is underscore-prefixed so the plugin

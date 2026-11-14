@@ -1,0 +1,43 @@
+# ZMODEM Transfer Demo
+# Pull a file from the demo device, push it back under a new name, and
+# do a batch pull. The device runs the same ZMODEM engine a real board
+# would, so every transfer is a genuine round trip.
+
+/print ─── ZMODEM Transfer Demo ───
+
+/print
+/print [1] What the device has to offer
+AT+FS.LIST
+/delay 300ms
+
+/print
+/print [2] Pull firmware_v1.bin from the device (device sends, we receive)
+AT+ZMODEM=SEND firmware_v1.bin
+/xfer.zmodem.recv
+/delay 300ms
+
+/print
+/print [3] Show what landed in cap/
+/cap.list
+/delay 300ms
+
+/print
+/print [4] Push it back to the device under a new name (we send, device receives)
+AT+ZMODEM=RECV
+/xfer.zmodem.send firmware_v1.bin
+/delay 300ms
+
+/print
+/print [5] Confirm the device now holds it
+AT+FS.LIST
+/delay 300ms
+
+/print
+/print [6] Batch pull: grab every file on the device at once
+AT+ZMODEM=SEND
+/xfer.zmodem.recv
+/delay 300ms
+/cap.list
+
+/print
+/print ─── Demo complete ───

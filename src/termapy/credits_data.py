@@ -197,6 +197,15 @@ CREDITS: tuple[Credit, ...] = (
         in_tooltip=True,
     ),
     Credit(
+        "yesterwind-xyzmodem",
+        "ZMODEM transfer",
+        "Eric Williams",
+        "https://github.com/ehwio/yesterwind-xyzmodem",
+        note="the pure-Python ZMODEM engine behind /xfer.zmodem; termapy supplies "
+        "the serial transport and the cancel.",
+        in_tooltip=True,
+    ),
+    Credit(
         "mcp",
         "MCP server",
         "Anthropic",

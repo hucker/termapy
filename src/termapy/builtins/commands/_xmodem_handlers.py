@@ -40,7 +40,12 @@ class QueueByteReader:
 
     def __init__(self, rx_queue: queue.Queue[bytes], cancel: threading.Event | None = None) -> None:
         self._queue = rx_queue
-        self._buf = bytearray()
+        # The unread bytes are ``_buf[_pos:]``: a read advances the index and
+        # the buffer is rebuilt only when a chunk is appended, so a consumer
+        # that reads one byte at a time (ZMODEM) does not copy the rest of
+        # the chunk on every byte.
+        self._buf = b""
+        self._pos = 0
         self._cancel = cancel
 
     def getc(self, size: int, timeout: float = 1) -> bytes | None:
@@ -55,18 +60,21 @@ class QueueByteReader:
             Exactly *size* bytes, or None if timeout expires or canceled.
         """
         deadline = time.monotonic() + timeout
-        while len(self._buf) < size:
+        while len(self._buf) - self._pos < size:
             if self._cancel and self._cancel.is_set():
                 return None
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return None
             try:
-                self._buf.extend(self._queue.get(timeout=min(remaining, 0.05)))
+                chunk = self._queue.get(timeout=min(remaining, 0.05))
             except queue.Empty:
                 continue
-        result = bytes(self._buf[:size])
-        self._buf = self._buf[size:]
+            self._buf = self._buf[self._pos :] + chunk
+            self._pos = 0
+        end = self._pos + size
+        result = self._buf[self._pos : end]
+        self._pos = end
         return result
 
 

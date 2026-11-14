@@ -89,6 +89,9 @@ Each one below is a direct runtime dependency declared in
   engine behind every "10m ago" and "1.5s" termapy prints: unit
   selection, compact labels and calendar-accurate months, so termapy
   owns only the wording around them.
+- [**yesterwind-xyzmodem**](https://github.com/ehwio/yesterwind-
+  xyzmodem) -- the pure-Python ZMODEM engine behind /xfer.zmodem;
+  termapy supplies the serial transport and the cancel.
 
 Optional extras (`pip install termapy[<extra>]`):
 

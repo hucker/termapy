@@ -1,10 +1,10 @@
-"""Built-in plugin: file-transfer commands (settings + XMODEM + YMODEM).
+"""Built-in plugin: file-transfer commands (settings + XMODEM + YMODEM + ZMODEM).
 
 ``/xfer`` owns everything related to moving files over the serial
-link: the root-directory setting, and the XMODEM / YMODEM
+link: the root-directory setting, and the XMODEM / YMODEM / ZMODEM
 send/recv operations.  Handlers for the binary protocols live in
-the private sibling modules ``_xmodem_handlers`` and
-``_ymodem_handlers`` (underscore-prefixed so the loader skips
+the private sibling modules ``_xmodem_handlers``, ``_ymodem_handlers``
+and ``_zmodem_handlers`` (underscore-prefixed so the loader skips
 them); this file is the public mounting point.
 """
 
@@ -20,6 +20,10 @@ from termapy.builtins.commands._xmodem_handlers import (
 from termapy.builtins.commands._ymodem_handlers import (
     _handler_recv as _handler_ymodem_recv,
     _handler_send as _handler_ymodem_send,
+)
+from termapy.builtins.commands._zmodem_handlers import (
+    _handler_recv as _handler_zmodem_recv,
+    _handler_send as _handler_zmodem_send,
 )
 from termapy.defaults import cfg_value
 from termapy.plugins import CapabilitySet, CmdResult, Command
@@ -37,8 +41,8 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     """Show or set the file transfer root directory.
 
     With no argument, shows the current root.  With a path argument,
-    sets ``file_xfer_root`` in the config.  Both XMODEM and YMODEM
-    resolve relative paths against this directory.
+    sets ``file_xfer_root`` in the config.  Every transfer protocol
+    resolves relative paths against this directory.
 
     Args:
         ctx: Plugin context.
@@ -75,9 +79,10 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
 COMMAND = Command(
     group="protocol",
     name="xfer",
-    help="File transfer: settings and XMODEM / YMODEM send and receive.",
+    help="File transfer: settings and XMODEM / YMODEM / ZMODEM send and receive.",
     intro=(
-        "Move files between the host and the device over the serial link, using XMODEM or YMODEM."
+        "Move files between the host and the device over the serial link, using XMODEM, "
+        "YMODEM or ZMODEM."
     ),
     long_help=(
         "Settings:\n"
@@ -91,6 +96,10 @@ COMMAND = Command(
         "YMODEM (batch, 1K blocks):\n"
         "  {prefix}xfer.ymodem.send <file> ... Send one or more files.\n"
         "  {prefix}xfer.ymodem.recv {dir}      Receive into a directory.\n"
+        "\n"
+        "ZMODEM (batch, streaming, CRC-32; the device runs rz / sz):\n"
+        "  {prefix}xfer.zmodem.send <file> ... Send one or more files.\n"
+        "  {prefix}xfer.zmodem.recv {dir}      Receive into a directory.\n"
     ),
     handler=None,
     sub_commands={
@@ -142,6 +151,35 @@ COMMAND = Command(
                     args="{directory}",
                     help="Receive file(s) via YMODEM from the device.",
                     handler=_handler_ymodem_recv,
+                    cfg={"file_xfer_root": "the folder received files land in"},
+                    needs=CapabilitySet.SERIAL_INTERACTIVE,
+                ),
+            },
+        ),
+        "zmodem": Command(
+            help="ZMODEM file transfer (batch, streaming, CRC-32).",
+            intro=(
+                "Send or receive files over ZMODEM: the sender names each file, the data "
+                "streams in 1K subpackets with CRC-32, and a send can take several files. "
+                "The device side is rz to receive and sz to send."
+            ),
+            handler=None,
+            needs=CapabilitySet.INTERACTIVE,
+            # The engine is a 0.1 alpha with no mid-transfer error recovery
+            # (decision 2026-11-14); graduation is a dated decisions entry.
+            maturity="preview",
+            sub_commands={
+                "send": Command(
+                    args="<file> {file2} ...",
+                    help="Send file(s) via ZMODEM to the device.",
+                    handler=_handler_zmodem_send,
+                    cfg={"file_xfer_root": "the folder files are sent from"},
+                    needs=CapabilitySet.SERIAL_INTERACTIVE,
+                ),
+                "recv": Command(
+                    args="{directory}",
+                    help="Receive file(s) via ZMODEM from the device.",
+                    handler=_handler_zmodem_recv,
                     cfg={"file_xfer_root": "the folder received files land in"},
                     needs=CapabilitySet.SERIAL_INTERACTIVE,
                 ),

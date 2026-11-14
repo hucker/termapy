@@ -27,7 +27,7 @@ Select a topic:
 - [Memory](memory.md): `/mem.dump` and `/mem.write` by address or name, the MEM wire spec a device implements
 - [Firmware](firmware.md): the device-side C termapy ships and `/firmware.copy`; [JSON integration](firmware-json.md) wires the reply envelope into an existing monitor
 - [Dev boards](boards.md): starter projects for real boards, `/board.new pico` and `termapy --board pico`
-- [File transfer](file-transfer.md): XMODEM and YMODEM send and receive over serial
+- [File transfer](file-transfer.md): XMODEM, YMODEM and ZMODEM send and receive over serial
 - [Writing plugins](writing-plugins.md): add custom commands with Python
 - [Device help](device-help.md): integrate your device's commands into termapy
 - [Authoring profiles](authoring-profiles.md): write the device profile that powers device help and MCP

@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 192: 177 registry rows (guarantees 142, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 188. Pinned by none: 4.
+Ids: 193: 178 registry rows (guarantees 143, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 189. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -983,6 +983,12 @@ Ids: 192: 177 registry rows (guarantees 142, assumptions 35), 15 spec sections i
 ### `xfer-no-port-contention` (assumption, concurrency)
 
 - `test_xmodem.py`: `TestQueueByteReader` (7 functions)
+- `test_zmodem.py`: `TestQueueTransport` (8 functions)
+
+### `xfer-recv-staged` (guarantee, contract)
+
+- `test_ymodem.py`: `TestRecvCommand.test_a_completed_receive_replaces_the_file_at_the_name` **guard**, `TestRecvCommand.test_a_hostile_name_is_reduced_to_its_base_name` **guard**
+- `test_zmodem.py`: `TestRecvCommand.test_a_canceled_receive_leaves_the_old_file` **guard**, `TestRecvCommand.test_a_completed_receive_replaces_the_file_at_the_name` **guard**
 
 ## Spec (`param-spec-implementation.md`)
 

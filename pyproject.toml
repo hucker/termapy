@@ -146,6 +146,10 @@ dependencies = [
     # startup and the flag paths never load it.  0.33 is the floor tested
     # (DWARF 2 from XC32, DWARF 5 from Clang).
     "pyelftools>=0.33",
+    # ZMODEM for /xfer.zmodem; XMODEM and YMODEM stay on the vendored
+    # libraries.  Alive, so a dependency and not vendored (decision
+    # 2026-11-14); 0.1.x is alpha, hence the cap.
+    "yesterwind-xyzmodem>=0.1.2,<0.2",
 ]
 
 [project.optional-dependencies]

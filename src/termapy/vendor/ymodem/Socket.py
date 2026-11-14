@@ -744,7 +744,9 @@ class ModemSocket(Channel):
                             self.logger.debug("[Receiver]: CAN ->")
                             return False
                         else:
-                            p = os.path.join(path, task.name)
+                            # termapy: the sender's name is reduced to its base
+                            # name, so a ``../x`` from the device stays in ``path``.
+                            p = os.path.join(path, os.path.basename(task.name))
 
                             """
                             5. YMODEM Batch File Transmission

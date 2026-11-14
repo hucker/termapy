@@ -43,6 +43,7 @@ FAMILY_PAGES = {
     "mem": "memory.md",
     "board": "boards.md",
     "firmware": "firmware.md",
+    "xfer.zmodem": "file-transfer.md",
 }
 
 
@@ -64,13 +65,24 @@ def cli(tmp_path) -> CLITerminal:
     return terminal
 
 
-def _non_stable_roots(cli: CLITerminal) -> dict[str, str]:
-    """``{root name: level}`` for every registered family root that is not stable."""
-    return {
-        name: info.maturity
-        for name, info in cli.repl._plugins.items()
-        if "." not in name and info.maturity != "stable"
-    }
+def _non_stable_families(cli: CLITerminal) -> dict[str, str]:
+    """``{family name: level}`` for every family whose level is not stable and not its parent's.
+
+    A family is a command with subcommands, at any level: a root, or a
+    sub-family that overrides its parent (``/xfer.zmodem`` under a stable
+    ``/xfer``).  A sub-family that merely inherits its parent's level is the
+    parent's row.
+    """
+    plugins = cli.repl._plugins
+    families = {name for name in plugins if any(other.startswith(f"{name}.") for other in plugins)}
+    declared: dict[str, str] = {}
+    for name in sorted(families):
+        level = plugins[name].maturity
+        parent = name.rpartition(".")[0]
+        if level == "stable" or (parent and plugins[parent].maturity == level):
+            continue
+        declared[name] = level
+    return declared
 
 
 class TestTheTable:
@@ -136,8 +148,8 @@ class TestInheritance:
 class TestTheFamilies:
     @pytest.mark.rule("maturity-declared-once")
     def test_the_built_in_families_declare_their_levels(self, cli):
-        """MCP, devices, symbols and memory are preview; boards and firmware prototype."""
-        actual = _non_stable_roots(cli)
+        """MCP, devices, symbols, memory and ZMODEM are preview; boards and firmware prototype."""
+        actual = _non_stable_families(cli)
         expected = {
             "mcp": "preview",
             "dev": "preview",
@@ -145,6 +157,7 @@ class TestTheFamilies:
             "mem": "preview",
             "board": "prototype",
             "firmware": "prototype",
+            "xfer.zmodem": "preview",
         }
         assert actual == expected, (
             "a family changed level: update README, its page and the decision log"
@@ -152,15 +165,17 @@ class TestTheFamilies:
 
     @pytest.mark.rule("maturity-declared-once")
     def test_the_readme_lists_every_family_that_is_not_stable(self, cli):
-        """README's Feature status table names exactly the families the code marks."""
+        """README's Feature status table names exactly the families the code marks, sub-families too."""
         readme = (REPO / "README.md").read_text(encoding="utf-8")
-        rows = dict(re.findall(r"^\| [^|]+ \| `/(\w+)` \| (preview|prototype) \|$", readme, re.M))
-        assert rows == _non_stable_roots(cli), "the README table and the declarations disagree"
+        rows = dict(
+            re.findall(r"^\| [^|]+ \| `/([\w.]+)` \| (preview|prototype) \|$", readme, re.M)
+        )
+        assert rows == _non_stable_families(cli), "the README table and the declarations disagree"
 
     @pytest.mark.rule("maturity-declared-once")
     def test_each_family_page_carries_its_banner(self, cli):
-        """Every non-stable family's help page opens with its status banner."""
-        for family, level in _non_stable_roots(cli).items():
+        """Every non-stable family's help page carries its status banner."""
+        for family, level in _non_stable_families(cli).items():
             assert family in FAMILY_PAGES, (
                 f"/{family} is {level}: add its help page to FAMILY_PAGES"
             )

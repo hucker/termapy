@@ -1621,14 +1621,15 @@ SYNOPSIS
   /help port.dtr --verbose shows the rest: status, where it runs, see also.
 demo> /xfer
   Move files between the host and the device over the serial link, using
-  XMODEM or YMODEM.
+  XMODEM, YMODEM or ZMODEM.
 
-  /xfer - 3 subcommands
+  /xfer - 4 subcommands
   COMMAND       DESCRIPTION
   -- --
   /xfer.root    Show or set the file transfer root directory.
   /xfer.xmodem  XMODEM file transfer.
   /xfer.ymodem  YMODEM file transfer (batch, 1K blocks).
+  /xfer.zmodem  ZMODEM file transfer (batch, streaming, CRC-32).
 demo> /print === section: help required capabilities ===
   === section: help required capabilities ===
 demo> /help profile.save
@@ -1743,7 +1744,7 @@ demo> /help.plugin
   /sym          Symbol table: name -> address, or address -> name+offset.
   /term         Terminal display / session toggles (echo, line_no, timestamps, ...).
   /var          List user variables, or show one by name.
-  /xfer         File transfer: settings and XMODEM / YMODEM send and receive.
+  /xfer         File transfer: settings and XMODEM / YMODEM / ZMODEM send and receive.
 
 -- demo Plugins --
   /crcsend      Send text with XMODEM CRC-16 appended.

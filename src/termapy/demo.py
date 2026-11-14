@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from crcglot import Crc
 
+    from termapy.demo_zmodem import DemoZmodemPeer
+
 
 class FakeSerial:
     """Simulated serial port that responds to AT commands and Modbus RTU.
@@ -102,6 +104,10 @@ class FakeSerial:
         self._ymodem_send_name: str = ""
         self._ymodem_block_num: int = 0
         self._ymodem_eot_count: int = 0
+
+        # ZMODEM runs the real engine on a background thread (see
+        # demo_zmodem), created on the first AT+ZMODEM command.
+        self._zmodem_peer: DemoZmodemPeer | None = None
 
     # -- serial.Serial properties ------------------------------------------
 
@@ -260,7 +266,8 @@ class FakeSerial:
             Number of bytes written.
         """
         with self._lock:
-            transfer = self._xmodem_state is not None or self._ymodem_state is not None
+            zmodem = self._zmodem_peer is not None and self._zmodem_peer.active
+            transfer = self._xmodem_state is not None or self._ymodem_state is not None or zmodem
             if (
                 len(data) == 1
                 and data[0] in self._TERMINAL_KEYS
@@ -307,6 +314,8 @@ class FakeSerial:
 
     def close(self) -> None:
         """Close the simulated port."""
+        if self._zmodem_peer is not None:
+            self._zmodem_peer.close()
         self._is_open = False
 
     def send_break(self, duration: float = 0.25) -> None:
@@ -368,12 +377,15 @@ class FakeSerial:
         """
         buf = self._input_buf
 
-        # XMODEM/YMODEM mode: handle protocol bytes before normal dispatch
+        # XMODEM/YMODEM/ZMODEM mode: handle protocol bytes before normal dispatch
         if self._xmodem_state is not None:
             self._process_xmodem()
             return
         if self._ymodem_state is not None:
             self._process_ymodem()
+            return
+        if self._zmodem_peer is not None and self._zmodem_peer.active:
+            self._process_zmodem()
             return
 
         # Binary Modbus: first byte outside printable ASCII range
@@ -531,6 +543,9 @@ class FakeSerial:
 
         if upper.startswith("AT+YMODEM"):
             return self._handle_ymodem_cmd(cmd, upper)
+
+        if upper.startswith("AT+ZMODEM"):
+            return self._handle_zmodem_cmd(cmd, upper)
 
         if upper.startswith("AT+RND"):
             return self._handle_rnd(upper)
@@ -770,6 +785,8 @@ class FakeSerial:
                 "AT+XMODEM=SEND": {"help": "Send file via XMODEM", "args": "{filename}"},
                 "AT+YMODEM=RECV": {"help": "Receive file via YMODEM", "args": ""},
                 "AT+YMODEM=SEND": {"help": "Send file via YMODEM", "args": "{filename}"},
+                "AT+ZMODEM=RECV": {"help": "Receive file(s) via ZMODEM", "args": ""},
+                "AT+ZMODEM=SEND": {"help": "Send file(s) via ZMODEM", "args": "{filename}..."},
                 "AT+HELP": {"help": "Command help (human-readable)", "args": ""},
                 "AT+HELP.JSON": {"help": "Device command help (JSON)", "args": ""},
             },
@@ -1660,6 +1677,76 @@ class FakeSerial:
             return b"OK\r\n"
 
         return b"ERROR: Usage: AT+YMODEM=SEND {file} or AT+YMODEM=RECV\r\n"
+
+    def _handle_zmodem_cmd(self, cmd: str, upper: str) -> bytes:
+        """Handle AT+ZMODEM=RECV/SEND: run the ZMODEM engine as the device's peer.
+
+        SEND streams the device's file(s) to the host (the host receives);
+        RECV takes the host's file(s) into the device VFS (the host sends).
+        The engine runs on a background thread bound to the serial buffers
+        (see ``demo_zmodem``); here we only validate and start it.
+
+        Args:
+            cmd: Original command string (preserves filename case).
+            upper: Uppercased command string.
+
+        Returns:
+            Response bytes - OK, or an error.
+        """
+        if "=" not in upper:
+            return b"ERROR: Usage: AT+ZMODEM=SEND {file}... or AT+ZMODEM=RECV\r\n"
+
+        after_eq = cmd.split("=", 1)[1].strip()
+        parts = after_eq.split()
+        verb = parts[0].upper() if parts else ""
+        names = parts[1:]
+
+        if self._zmodem_peer is not None and self._zmodem_peer.active:
+            return b"ERROR: ZMODEM transfer already in progress\r\n"
+
+        # Imported here, not at module top: the engine loads only when a
+        # ZMODEM transfer is actually asked for, never on a plain demo open.
+        from termapy.demo_zmodem import DemoZmodemPeer, available_names
+
+        # A fresh transfer starts from an empty input buffer: a protocol
+        # remnant from a previous transfer must not bleed into this one.
+        self._input_buf.clear()
+        if self._zmodem_peer is not None:
+            self._zmodem_peer.close()
+        self._zmodem_peer = DemoZmodemPeer(self._vfs)
+
+        if verb == "RECV":
+            self._zmodem_peer.start_recv()
+            return b"OK\r\n"
+
+        if verb == "SEND":
+            chosen = available_names(self._vfs, names)
+            if chosen is None:
+                missing = ", ".join(name for name in names if name not in self._vfs)
+                return f"ERROR: File not found: {missing}\r\n".encode()
+            if not chosen:
+                return b"ERROR: No files on device\r\n"
+            self._zmodem_peer.start_send(chosen)
+            return b"OK\r\n"
+
+        return b"ERROR: Usage: AT+ZMODEM=SEND {file}... or AT+ZMODEM=RECV\r\n"
+
+    def _process_zmodem(self) -> None:
+        """Advance the ZMODEM transfer with the buffered host bytes, inside the lock.
+
+        The engine is stepped synchronously (see ``demo_zmodem``): feed it the
+        host's bytes, enqueue whatever the device sends back, and consume the
+        input.  The device holds its opening frame until the host's first byte
+        arrives, so nothing reaches the terminal before the transfer starts.
+        """
+        peer = self._zmodem_peer
+        if peer is None:
+            return
+        host_bytes = bytes(self._input_buf)
+        del self._input_buf[: len(host_bytes)]
+        reply = peer.feed(host_bytes)
+        if reply:
+            self._output_buf.extend(reply)
 
     def _process_ymodem(self) -> None:
         """Handle YMODEM protocol bytes while in transfer mode."""

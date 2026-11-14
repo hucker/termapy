@@ -421,8 +421,8 @@ class CapabilitySet:
     SERIAL_INTERACTIVE: ClassVar[CapabilitySet]
     """Needs an open port AND a human present (file transfers).
 
-    ``serial_connected=True, interactive=True`` -- an XMODEM/YMODEM run
-    holds the port and needs someone watching the progress."""
+    ``serial_connected=True, interactive=True`` -- a file transfer holds
+    the port and needs someone watching the progress."""
 
     CONFIG_GUI_APPS: ClassVar[CapabilitySet]
     """Opens the loaded config's files in a desktop app the user SEES.

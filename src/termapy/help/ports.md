@@ -264,7 +264,8 @@ the stream as 4 KB writes; the same adapter sending 192-byte writes lost
 nothing at any of these rates (see "Large sends go out in pieces" below).
 If every byte of a fast link matters, use hardware flow control or a block
 protocol that acknowledges and retransmits, `/xfer.xmodem` or
-`/xfer.ymodem`: termapy cannot recover bytes the adapter never delivered.
+`/xfer.ymodem` (`/xfer.zmodem` detects a lost byte by CRC but does not
+retransmit): termapy cannot recover bytes the adapter never delivered.
 
 **What the layers mean for you:**
 

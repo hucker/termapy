@@ -272,22 +272,22 @@ def pytest_addoption(parser) -> None:
         ),
     )
     parser.addoption(
-        "--run-hw-pico",
+        "--run-hw-board",
         action="store_true",
         default=False,
         help=(
-            "Run the hw_pico tests (a real XMODEM transfer against an attached "
-            "MicroPython board, found by serial number, TERMAPY_PICO_SN).  Needs "
-            "the board flashed with the current termapy firmware.  Off by default; "
-            "run with -n 0."
+            "Run the hw_board tests (real XMODEM transfers and commands against an "
+            "attached MicroPython board, found by the VID:PID in its BOARDS row).  "
+            "Needs the board flashed with the current termapy firmware.  Off by "
+            "default; run with -n 0."
         ),
     )
     parser.addoption(
-        "--require-hw-pico",
+        "--require-hw-board",
         action="store_true",
         default=False,
         help=(
-            "Like --run-hw-pico, but an absent, ambiguous or stale-firmware board "
+            "Like --run-hw-board, but an absent, ambiguous or stale-firmware board "
             "FAILS the run instead of skipping it."
         ),
     )
@@ -317,15 +317,15 @@ def pytest_configure(config) -> None:
         for flag, dest in (
             ("--run-hw-loopback", "run_hw_loopback"),
             ("--require-hw-loopback", "require_hw_loopback"),
-            ("--run-hw-pico", "run_hw_pico"),
-            ("--require-hw-pico", "require_hw_pico"),
+            ("--run-hw-board", "run_hw_board"),
+            ("--require-hw-board", "require_hw_board"),
         )
         if config.getoption(dest)
     ]
     if demanded:
         raise pytest.UsageError(
             f"{' '.join(demanded)} refused: the hardware suites never run on "
-            f"GitHub Actions (registry hw-loopback-never-on-github, hw-pico-never-on-github); "
+            f"GitHub Actions (registry hw-loopback-never-on-github, hw-board-never-on-github); "
             f"run them on the bench"
         )
 
@@ -405,11 +405,11 @@ def pytest_collection_modifyitems(config, items) -> None:
         for item in items:
             if "hw_loopback" in item.keywords:
                 item.add_marker(skip)
-    if not (config.getoption("--run-hw-pico") or config.getoption("--require-hw-pico")):
-        skip_pico = pytest.mark.skip(
-            reason="hw_pico: needs --run-hw-pico and the attached board; "
-            "run: uv run pytest --run-hw-pico -m hw_pico -n 0"
+    if not (config.getoption("--run-hw-board") or config.getoption("--require-hw-board")):
+        skip_board = pytest.mark.skip(
+            reason="hw_board: needs --run-hw-board and an attached board; "
+            "run: uv run pytest --run-hw-board -m hw_board -n 0"
         )
         for item in items:
-            if "hw_pico" in item.keywords:
-                item.add_marker(skip_pico)
+            if "hw_board" in item.keywords:
+                item.add_marker(skip_board)

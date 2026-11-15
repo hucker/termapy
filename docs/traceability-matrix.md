@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 194: 179 registry rows (guarantees 144, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 190. Pinned by none: 4.
+Ids: 195: 180 registry rows (guarantees 145, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 191. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -343,6 +343,10 @@ Ids: 194: 179 registry rows (guarantees 144, assumptions 35), 15 spec sections i
 ### `firmware-ascii-only` (guarantee, repository)
 
 - `test_firmware.py`: `TestTable.test_shipped_sources_are_ascii` **guard**
+
+### `firmware-no-forced-deps` (guarantee, structure)
+
+- `test_firmware.py`: `TestTable.test_shipped_firmware_imports_only_the_runtime_or_termapy` **guard**
 
 ### `flag-paths-light` (guarantee, structure)
 

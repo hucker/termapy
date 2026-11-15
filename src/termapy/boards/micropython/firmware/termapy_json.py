@@ -160,6 +160,41 @@ def _word(element):
     return _dumps(element)
 
 
+class CommandSet:
+    """Collect a board's commands with a decorator instead of a dict literal.
+
+    The explicit ``COMMANDS = {name: (help, handler)}`` dict the starters use is
+    the simplest form and stays the recommended one -- it is one visible place
+    and easy to read on a board with no debugger.  This is an alternative for a
+    project that prefers to decorate its handlers::
+
+        commands = CommandSet()
+
+        @commands.command("led", "the onboard LED: led on|off")
+        def cmd_led(args):
+            ...
+
+        monitor = Monitor(commands.table, native=direct().commands())
+
+    ``table`` is the same ``{name: (help, handler)}`` the dict form builds, so a
+    monitor cannot tell which was used.  No dependency and no discovery magic:
+    the decorator just fills a dict, so a handler that is never decorated is
+    simply never registered, the same as a row left out of the dict.
+    """
+
+    def __init__(self):
+        self.table = {}
+
+    def command(self, name, help):
+        """Register the decorated function as command ``name`` with ``help``; returns it unchanged."""
+
+        def register(handler):
+            self.table[name] = (help, handler)
+            return handler
+
+        return register
+
+
 class Monitor:
     """One serial link's command monitor: dispatches lines, replies in the framing in force.
 

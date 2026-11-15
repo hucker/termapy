@@ -7,11 +7,11 @@ termapy: copy it, termapy_json.py and termapy_mem.py to the board, and
 MicroPython starts it at every power-up.  Ctrl-C in a terminal stops it and returns to the
 MicroPython prompt; Ctrl-D restarts it.
 
-The commands are the COMMANDS table at the bottom, each a one-line help and
-a handler.  The monitor adds two of its own: ``help`` lists every command
-with its help line, and ``json {on|off}`` switches the reply framing.  A new
-command is a handler and a row.  termapy_mem.py adds the MEM commands that
-termapy's /mem.* speaks.
+The commands are the decorated handlers below, each with a one-line help.
+The monitor adds two of its own: ``help`` lists every command with its help
+line, and ``json {on|off}`` switches the reply framing.  A new command is a
+handler with an ``@commands.command(name, help)`` line.  termapy_mem.py adds
+the MEM commands that termapy's /mem.* speaks.
 
 The board runs asyncio: the monitor is one task, ``monitor.run()``, and the
 project's own tasks start beside it in ``main()``.  A project with a super
@@ -29,7 +29,7 @@ import asyncio
 import esp32
 import machine
 import neopixel
-from termapy_json import CommandError, Monitor, int_arg, on_off_arg
+from termapy_json import CommandError, CommandSet, Monitor, int_arg, on_off_arg
 from termapy_mem import direct
 
 # The DevKitC-1's addressable RGB LED, "driven by GPIO48" (Espressif's
@@ -42,7 +42,10 @@ pixel.write()
 # led on sets the red, green and blue LEDs all to this level: a dim white.
 ON_LEVEL = 32
 
+commands = CommandSet()
 
+
+@commands.command("led", "the RGB LED on, a dim white, or off: led on|off|1|0; bare led reads")
 def cmd_led(args):
     if len(args) > 1:
         raise CommandError("usage: led {on|off|1|0}")
@@ -53,6 +56,10 @@ def cmd_led(args):
     return "on" if any(pixel[0]) else "off"
 
 
+@commands.command(
+    "led_rgb",
+    "the RGB LED's levels: led_rgb <r> <g> <b>, 0-255 each, decimal or 0x hex; bare led_rgb reads",
+)
 def cmd_led_rgb(args):
     if len(args) not in (0, 3):
         raise CommandError("usage: led_rgb {<r> <g> <b>}")
@@ -63,33 +70,22 @@ def cmd_led_rgb(args):
     return list(pixel[0])
 
 
+@commands.command("temp", "the on-chip temperature in degrees C")
 def cmd_temp(args):
     # The chip's own sensor, whole degrees C.
     return esp32.mcu_temperature()
 
 
+@commands.command("id", "the chip's unique ID in hex, its factory MAC address")
 def cmd_id(args):
     return "".join(f"{byte:02X}" for byte in machine.unique_id())
-
-
-# Command name to (one-line help, handler); help and json are the monitor's own.
-COMMANDS = {
-    "led": ("the RGB LED on, a dim white, or off: led on|off|1|0; bare led reads", cmd_led),
-    "led_rgb": (
-        "the RGB LED's levels: led_rgb <r> <g> <b>, 0-255 each, decimal or 0x hex; "
-        "bare led_rgb reads",
-        cmd_led_rgb,
-    ),
-    "temp": ("the on-chip temperature in degrees C", cmd_temp),
-    "id": ("the chip's unique ID in hex, its factory MAC address", cmd_id),
-}
 
 
 async def main():
     # The MEM commands for termapy's /mem.*: pure reads and writes of any address.
     # termapy checks addresses against the part's JSON; this board's own rules,
     # if it needs any, are a guard(addr, count, write) passed to direct().
-    monitor = Monitor(COMMANDS, native=direct().commands())
+    monitor = Monitor(commands.table, native=direct().commands())
     # The project's own tasks start here, beside the monitor's:
     # asyncio.create_task(my_task())
     await monitor.run()

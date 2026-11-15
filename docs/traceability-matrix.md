@@ -419,6 +419,11 @@ Ids: 194: 179 registry rows (guarantees 144, assumptions 35), 15 spec sections i
 - `test_serial_engine.py`: `TestReadLoop.test_hex_view_calls_on_hex_not_on_lines` **guard**
 - `test_serial_port.py`: `TestSerialReaderHexView.test_a_claim_flushes_the_pending_row_and_shows_none_of_its_own`, `TestSerialReaderHexView.test_hex_rows_are_the_wire_bytes` **guard**
 
+### `hw-board-never-on-github` (guarantee, contract)
+
+- `test_hw_board.py`: `test_a_file_round_trips_through_the_board`
+- `test_hw_loopback_gate.py`: `test_hw_board_flags_are_refused_on_github_actions` **guard**
+
 ### `hw-loopback-demanded-fails-loud` (guarantee, contract)
 
 - `test_hw_loopback_gate.py`: `test_require_hw_loopback_fails_without_the_rig` **guard**, `test_run_hw_loopback_still_skips_without_the_rig` **guard**
@@ -426,11 +431,6 @@ Ids: 194: 179 registry rows (guarantees 144, assumptions 35), 15 spec sections i
 ### `hw-loopback-never-on-github` (guarantee, contract)
 
 - `test_hw_loopback_gate.py`: `test_hw_loopback_flags_are_refused_on_github_actions` **guard**
-
-### `hw-pico-never-on-github` (guarantee, contract)
-
-- `test_hw_loopback_gate.py`: `test_hw_pico_flags_are_refused_on_github_actions` **guard**
-- `test_hw_pico.py`: `test_a_file_round_trips_through_the_board`
 
 ### `idioms-one-table` (guarantee, requirement)
 

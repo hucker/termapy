@@ -1811,3 +1811,21 @@ on the device are follow-ups. **Where:** `boards/micropython/firmware/termapy_xm
 `tests/test_hw_pico.py`, `tests/test_hw_loopback_gate.py` (the gate tests), `tests/conftest.py`
 and `pyproject.toml` (the flags and marker); registry `hw-pico-never-on-github`. Verified live
 against the attached Pico (COM5, SN E66548545710822C): the round trip passes.
+
+## 2026-11-14 — The hardware-board test lane is one lane over every MicroPython board
+
+The 2026-11-14 XMODEM-on-the-Pico entry gave the real-serial test a Pico-specific lane
+(`test_hw_pico.py`, `--run-hw-pico`, `TERMAPY_PICO_SN`). The responder is in the SHARED
+firmware, so every MicroPython board has it; the lane is now one, over every such board.
+`tests/test_hw_board.py` parametrizes its tests over the MicroPython `BOARDS` rows, finds each
+board by the VID:PID in its `usb` tuple among the enumerated ports (`_gather_all_chip_facts`,
+no env serial to maintain), reads its serial from the port list, and confirms the firmware by
+the `id` reply being a PREFIX of that serial -- the Pico's `machine.unique_id` is the whole USB
+serial, the ESP32-S3's is a 12-hex prefix of its 16-hex serial. A board not attached skips; the
+flag is `--run-hw-board` / `--require-hw-board`, marker `hw_board`, registry
+`hw-board-never-on-github`. The ESP32-S3 runs the same responder with NO firmware change: the
+`kbd_intr` raw mode and the timing carried over to its TinyUSB CDC unchanged, verified live
+(COM9, serial 58E6C5716A840000) -- the round trip and id/led/temp/MEM.INFO all pass. Reverses
+the Pico-only lane of the entry above. **Where:** `tests/test_hw_board.py` (replaces
+`test_hw_pico.py`), `tests/test_hw_loopback_gate.py`, `tests/conftest.py`, `pyproject.toml`,
+`docs/rules.md` (`hw-board-never-on-github`).

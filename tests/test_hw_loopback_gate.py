@@ -123,20 +123,31 @@ def test_run_hw_loopback_still_skips_without_the_rig():
     assert "skipped" in result.stdout.splitlines()[-1], "the summary reports the skips"
 
 
-def _run_hw_pico_suite(flag: str, *, on_github: bool = False) -> subprocess.CompletedProcess[str]:
-    """Run the hw_pico suite in a child pytest, aimed at a board that does not exist."""
-    env = {**os.environ, "TERMAPY_PICO_SN": _NO_SUCH_ADAPTER, "COLUMNS": "200"}
+def _run_hw_board_suite(
+    flag: str, *, on_github: bool = False, hide_boards: bool = False
+) -> subprocess.CompletedProcess[str]:
+    """Run the hw_board suite in a child pytest.
+
+    ``hide_boards`` substitutes the demo fleet for real hardware
+    (``TERMAPY_DEMO_FLEET``), whose VID:PIDs match no board row, so the test
+    finds no board and the require-vs-skip behavior is exercised without
+    unplugging the bench.  (``TERMAPY_ALLOWED_PORTS`` would not work here --
+    conftest pops it before any test runs.)
+    """
+    env = {**os.environ, "COLUMNS": "200"}
     if on_github:
         env["GITHUB_ACTIONS"] = "true"
+    if hide_boards:
+        env["TERMAPY_DEMO_FLEET"] = "1"
     return subprocess.run(
         [
             sys.executable,
             "-m",
             "pytest",
-            str(TESTS / "test_hw_pico.py"),
+            str(TESTS / "test_hw_board.py"),
             flag,
             "-m",
-            "hw_pico",
+            "hw_board",
             "-n",
             "0",
             "--no-cov",
@@ -154,13 +165,13 @@ def _run_hw_pico_suite(flag: str, *, on_github: bool = False) -> subprocess.Comp
     )
 
 
-@pytest.mark.rule("hw-pico-never-on-github")
+@pytest.mark.rule("hw-board-never-on-github")
 @pytest.mark.slow
-@pytest.mark.parametrize("flag", ["--run-hw-pico", "--require-hw-pico"])
-def test_hw_pico_flags_are_refused_on_github_actions(flag):
-    """On GitHub Actions either hw_pico flag stops the session before any test is collected."""
+@pytest.mark.parametrize("flag", ["--run-hw-board", "--require-hw-board"])
+def test_hw_board_flags_are_refused_on_github_actions(flag):
+    """On GitHub Actions either hw_board flag stops the session before any test is collected."""
     # Act
-    result = _run_hw_pico_suite(flag, on_github=True)
+    result = _run_hw_board_suite(flag, on_github=True)
 
     # Assert
     assert result.returncode == 4, (
@@ -172,24 +183,24 @@ def test_hw_pico_flags_are_refused_on_github_actions(flag):
 
 @_bench_only
 @pytest.mark.slow
-def test_require_hw_pico_fails_without_the_board():
-    """Under --require-hw-pico a missing board fails the run and names the serial number."""
+def test_require_hw_board_fails_without_a_board():
+    """Under --require-hw-board no attached board fails the run rather than skipping."""
     # Act
-    result = _run_hw_pico_suite("--require-hw-pico")
+    result = _run_hw_board_suite("--require-hw-board", hide_boards=True)
 
     # Assert
     assert result.returncode == 1, (
-        f"a run that demanded the board must not read green without it:\n{result.stdout[-2000:]}"
+        f"a run that demanded a board must not read green without one:\n{result.stdout[-2000:]}"
     )
-    assert _NO_SUCH_ADAPTER in result.stdout, "the failure names the serial number it looked for"
+    assert "board attached" in result.stdout, "the failure says a board was looked for"
 
 
 @_bench_only
 @pytest.mark.slow
-def test_run_hw_pico_still_skips_without_the_board():
-    """Plain --run-hw-pico on a machine with no board skips, so developer runs elsewhere stay green."""
+def test_run_hw_board_still_skips_without_a_board():
+    """Plain --run-hw-board with no attached board skips, so developer runs elsewhere stay green."""
     # Act
-    result = _run_hw_pico_suite("--run-hw-pico")
+    result = _run_hw_board_suite("--run-hw-board", hide_boards=True)
 
     # Assert
     assert result.returncode == 0, (

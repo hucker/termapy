@@ -1779,3 +1779,35 @@ round-trip against it as the X/Y tests do. **Where:** `zmodem_transport.py`,
 `vendor/ymodem/Socket.py`; `tests/test_zmodem.py` (the DEMO peer, the engine behind a
 `socket://` port, and lrzsz over pipes where installed),
 `tests/test_ymodem.py::TestRecvCommand`, `tests/test_maturity.py`.
+
+## 2026-11-14 — XMODEM responder in the shared MicroPython firmware, with a real-serial test
+
+An attached MicroPython board now answers XMODEM, so termapy's transfer protocol is tested
+against an independent implementation on real hardware over real USB-CDC -- coverage
+`FakeSerial`, the `socket://` rig and lrzsz pipes cannot give (none has an OS driver or a
+USB-CDC link). The device code is `termapy_xmodem.py` in `MICROPYTHON.files` (every
+MicroPython board gets it, one copy) and an `xmodem` builtin in the monitor (`termapy_json.py`);
+the command grammar is the firmware's own bare `xmodem recv|send`, NOT the demo FakeSerial's
+`AT+XMODEM=`. **Why a builtin, not a board command:** the responder ships shared, so the
+command lives in the shared monitor's builtins and every board has it without touching its
+`main.py`. **The raw seam:** a builtin handler runs synchronously inside `Monitor.handle`
+after the line is dispatched, so it takes over the raw link (`sys.stdin.buffer` /
+`sys.stdout.buffer`) for the transfer and returns a status line; `poll`/`feed`/`handle` are
+untouched, so the line contract holds for every other command. **kbd_intr:** a transfer
+disables the REPL's Ctrl-C capture (`micropython.kbd_intr(-1)`) for its duration, because a
+0x03 data byte in an XMODEM block would otherwise drop the board to the REPL mid-transfer
+(found on the bench). **Blocking:** the transfer blocks the monitor's asyncio task; fine for
+the Pico starter (the monitor is its only task), bounded by per-read timeouts so a wedged host
+cannot hang the board; documented in the module. Checksum mode is the floor (device sends NAK
+to start), CRC detected by block size. The received file is held in a RAM buffer so
+`xmodem send` streams it back, which the round-trip test checks. **The hardware test is its
+own lane:** `tests/test_hw_pico.py`, marker `hw_pico`, flags `--run-hw-pico` /
+`--require-hw-pico`, found by `TERMAPY_PICO_SN` via `resolve_port`, identity by the firmware's
+`id` command and VID:PID (NOT the hw_loopback echo gate -- a board answers the protocol, it
+does not echo), never on GitHub (registry `hw-pico-never-on-github`), one xdist worker. It
+assumes a flashed board and skips loudly if the `xmodem` command is absent. YMODEM and ZMODEM
+on the device are follow-ups. **Where:** `boards/micropython/firmware/termapy_xmodem.py`,
+`termapy_json.py` (the `xmodem` builtin), `boards/__init__.py` (`MICROPYTHON.files`),
+`tests/test_hw_pico.py`, `tests/test_hw_loopback_gate.py` (the gate tests), `tests/conftest.py`
+and `pyproject.toml` (the flags and marker); registry `hw-pico-never-on-github`. Verified live
+against the attached Pico (COM5, SN E66548545710822C): the round trip passes.

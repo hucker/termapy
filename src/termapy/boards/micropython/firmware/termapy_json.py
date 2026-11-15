@@ -184,6 +184,7 @@ class Monitor:
         self.builtins = {
             "help": ("list the commands; help <command> for one", self._help),
             "json": ("the reply framing: on for JSON-RPC, off for text", self._framing),
+            "xmodem": ("transfer a file over XMODEM: xmodem recv|send", self._xmodem),
         }
         native = native or {}
         for table in (commands, native):
@@ -350,6 +351,26 @@ class Monitor:
         # Text is for a person: the help lines aligned in one column.
         width = max(len(name) for name in table) + 2
         return [name + " " * (width - len(name)) + line for name, line in table.items()]
+
+    def _xmodem(self, args):
+        """``xmodem recv|send``: transfer a file over XMODEM; bare, the buffered byte count.
+
+        The handler takes over the raw link for the transfer (the monitor does
+        no I/O until it returns), then answers with the byte count.  ``recv``
+        receives a file into the board buffer; ``send`` streams that buffer
+        back to the host.  The host side is termapy's ``/xfer.xmodem.*``.
+        """
+        import termapy_xmodem
+
+        verb = args[0] if args else "info"
+        if verb == "info":
+            return termapy_xmodem.buffered()
+        if verb not in ("recv", "send"):
+            raise CommandError("usage: xmodem {recv|send}")
+        link = termapy_xmodem.RawLink()
+        if verb == "recv":
+            return termapy_xmodem.receive(link)
+        return termapy_xmodem.send(link, termapy_xmodem.to_send())
 
     def _extract(self, text):
         """A JSON request as the ``cmd args`` line it asks for; the id and tag are kept first."""

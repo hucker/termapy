@@ -8,10 +8,14 @@ device profile. The board answers at an interactive prompt, its commands
 show in `/help`, and an MCP agent gets them as typed tools. This is real
 hardware; the simulator is `/demo`.
 
-| Board     | Runs        | Device code                                     | Board commands                                            |
-| --------- | ----------- | ----------------------------------------------- | --------------------------------------------------------- |
-| `pico`    | MicroPython | `main.py`, `termapy_json.py`, `termapy_mem.py`  | `help`, `led`, `temp`, `id`, `json`, `MEM.*`              |
-| `esp32s3` | MicroPython | `main.py`, `termapy_json.py`, `termapy_mem.py`  | `help`, `led`, `led_rgb`, `temp`, `id`, `json`, `MEM.*`   |
+| Board     | Runs        | Device code                                                        | Board commands                                                       |
+| --------- | ----------- | ------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| `pico`    | MicroPython | `main.py`, `termapy_json.py`, `termapy_mem.py`, `termapy_xmodem.py` | `help`, `led`, `temp`, `id`, `json`, `xmodem`, `MEM.*`              |
+| `esp32s3` | MicroPython | `main.py`, `termapy_json.py`, `termapy_mem.py`, `termapy_xmodem.py` | `help`, `led`, `led_rgb`, `temp`, `id`, `json`, `xmodem`, `MEM.*`   |
+
+The `xmodem recv` / `xmodem send` commands make a MicroPython board an XMODEM
+peer: pair them with the host's [`/xfer.xmodem.*`](file-transfer.md) to move a
+file to or from the board over the serial link.
 
 ```text
 /board                    the boards, and which is plugged in now
@@ -48,10 +52,10 @@ no compiler:
    micropython.org and drag it onto the drive. The board restarts as a USB
    serial port.
 2. **Copy the device code.** `/board.firmware pico` writes `main.py`,
-   `termapy_json.py` and `termapy_mem.py` to the active config's
-   `firmware/` folder and prints the one command that puts them on the
-   board, with the board's port and the files' full paths:
-   `uvx mpremote connect COM5 cp ...\main.py ...\termapy_json.py ...\termapy_mem.py : + reset`.
+   `termapy_json.py`, `termapy_mem.py` and `termapy_xmodem.py` to the active
+   config's `firmware/` folder and prints the one command that puts them on
+   the board, with the board's port and the files' full paths:
+   `uvx mpremote connect COM5 cp ...\main.py ...\termapy_json.py ...\termapy_mem.py ...\termapy_xmodem.py : + reset`.
    MicroPython then runs `main.py` at every power-up.
 3. **Create the config.** `/board.new pico`, then `/cfg.load pico`, or
    start termapy with `termapy --board pico`.

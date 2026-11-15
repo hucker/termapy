@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 193: 178 registry rows (guarantees 143, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 189. Pinned by none: 4.
+Ids: 194: 179 registry rows (guarantees 144, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 190. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -426,6 +426,11 @@ Ids: 193: 178 registry rows (guarantees 143, assumptions 35), 15 spec sections i
 ### `hw-loopback-never-on-github` (guarantee, contract)
 
 - `test_hw_loopback_gate.py`: `test_hw_loopback_flags_are_refused_on_github_actions` **guard**
+
+### `hw-pico-never-on-github` (guarantee, contract)
+
+- `test_hw_loopback_gate.py`: `test_hw_pico_flags_are_refused_on_github_actions` **guard**
+- `test_hw_pico.py`: `test_a_file_round_trips_through_the_board`
 
 ### `idioms-one-table` (guarantee, requirement)
 

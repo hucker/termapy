@@ -84,7 +84,7 @@ def test_hw_loopback_flags_are_refused_on_github_actions(flag):
     assert result.returncode == 4, (
         f"pytest's usage-error exit, before collection:\n{result.stdout[-1500:]}\n{result.stderr[-1500:]}"
     )
-    assert "never runs on GitHub Actions" in result.stderr, "the refusal says why"
+    assert "never run on GitHub Actions" in result.stderr, "the refusal says why"
     assert "collected" not in result.stdout, (
         "nothing was collected, so no fixture and no port enumeration ran"
     )
@@ -119,5 +119,80 @@ def test_run_hw_loopback_still_skips_without_the_rig():
     # Assert
     assert result.returncode == 0, (
         f"an absent rig is a skip, not a failure:\n{result.stdout[-2000:]}"
+    )
+    assert "skipped" in result.stdout.splitlines()[-1], "the summary reports the skips"
+
+
+def _run_hw_pico_suite(flag: str, *, on_github: bool = False) -> subprocess.CompletedProcess[str]:
+    """Run the hw_pico suite in a child pytest, aimed at a board that does not exist."""
+    env = {**os.environ, "TERMAPY_PICO_SN": _NO_SUCH_ADAPTER, "COLUMNS": "200"}
+    if on_github:
+        env["GITHUB_ACTIONS"] = "true"
+    return subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            str(TESTS / "test_hw_pico.py"),
+            flag,
+            "-m",
+            "hw_pico",
+            "-n",
+            "0",
+            "--no-cov",
+            "-p",
+            "no:cacheprovider",
+            "-q",
+            "-ra",
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=TESTS.parent,
+        timeout=180,
+        check=False,
+    )
+
+
+@pytest.mark.rule("hw-pico-never-on-github")
+@pytest.mark.slow
+@pytest.mark.parametrize("flag", ["--run-hw-pico", "--require-hw-pico"])
+def test_hw_pico_flags_are_refused_on_github_actions(flag):
+    """On GitHub Actions either hw_pico flag stops the session before any test is collected."""
+    # Act
+    result = _run_hw_pico_suite(flag, on_github=True)
+
+    # Assert
+    assert result.returncode == 4, (
+        f"pytest's usage-error exit, before collection:\n{result.stdout[-1500:]}\n{result.stderr[-1500:]}"
+    )
+    assert "never run on GitHub Actions" in result.stderr, "the refusal says why"
+    assert "collected" not in result.stdout, "nothing was collected, so no board was looked for"
+
+
+@_bench_only
+@pytest.mark.slow
+def test_require_hw_pico_fails_without_the_board():
+    """Under --require-hw-pico a missing board fails the run and names the serial number."""
+    # Act
+    result = _run_hw_pico_suite("--require-hw-pico")
+
+    # Assert
+    assert result.returncode == 1, (
+        f"a run that demanded the board must not read green without it:\n{result.stdout[-2000:]}"
+    )
+    assert _NO_SUCH_ADAPTER in result.stdout, "the failure names the serial number it looked for"
+
+
+@_bench_only
+@pytest.mark.slow
+def test_run_hw_pico_still_skips_without_the_board():
+    """Plain --run-hw-pico on a machine with no board skips, so developer runs elsewhere stay green."""
+    # Act
+    result = _run_hw_pico_suite("--run-hw-pico")
+
+    # Assert
+    assert result.returncode == 0, (
+        f"an absent board is a skip, not a failure:\n{result.stdout[-2000:]}"
     )
     assert "skipped" in result.stdout.splitlines()[-1], "the summary reports the skips"

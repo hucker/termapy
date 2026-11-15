@@ -88,6 +88,9 @@ BOARD_FORMS = {
         "led 1": "led",
         "temp": "temp",
         "id": "id",
+        "xmodem": "xmodem",
+        "xmodem recv": "xmodem",
+        "xmodem send": "xmodem",
         "MEM.R 0x20000000 16": "MEM.R",
         "MEM.W 0x20000000 DEADBEEF": "MEM.W",
         "MEM.M 0x20000000 FFFFFF00 00000001": "MEM.M",
@@ -105,6 +108,9 @@ BOARD_FORMS = {
         "led_rgb 255 0 0x20": "led_rgb",
         "temp": "temp",
         "id": "id",
+        "xmodem": "xmodem",
+        "xmodem recv": "xmodem",
+        "xmodem send": "xmodem",
         "MEM.R 0x1000 16": "MEM.R",
         "MEM.R 1000 64": "MEM.R",
         "MEM.W 0x1000 DEADBEEF": "MEM.W",
@@ -257,7 +263,12 @@ class TestEsp32s3:
         assert data["serial"]["port"] == "58E6C5716A840000", "by serial number, not COM9"
         assert data["title"] == "ESP32-S3 DevKitC-1"
         actual = [path.name for path in created.firmware]
-        assert actual == ["main.py", "termapy_json.py", "termapy_mem.py"], "the MEM module too"
+        assert actual == [
+            "main.py",
+            "termapy_json.py",
+            "termapy_mem.py",
+            "termapy_xmodem.py",
+        ], "the MEM and XMODEM modules too"
 
 
 class TestCreateConfig:
@@ -642,6 +653,7 @@ class TestMicroPythonJson:
         expected = {name: line for name, (line, _) in link.commands.items()}
         expected["help"] = link.monitor.builtins["help"][0]
         expected["json"] = link.monitor.builtins["json"][0]
+        expected["xmodem"] = link.monitor.builtins["xmodem"][0]
 
         # Act
         reply = link.ask('{"jsonrpc":"2.0","method":"help","id":3}')
@@ -676,10 +688,15 @@ class TestMicroPythonJson:
         names = [line.split()[0] for line in lines]
         assert names == sorted(names), "the table is built in name order"
         assert "json" in names and "help" in names, "the monitor's own commands are listed"
-        columns = {line.index("the ") for line in lines if line.split()[0] not in ("help", "json")}
+        # help, json and xmodem are the real builtins; their help does not follow
+        # the synthetic "the <name> command" shape this checks alignment with.
+        builtins = ("help", "json", "xmodem")
+        columns = {line.index("the ") for line in lines if line.split()[0] not in builtins}
         assert len(columns) == 1, "the help lines are aligned"
-        assert lines[0] == "arr" + " " * 4 + "the arr command\r\n", (
-            "two spaces past words, the longest"
+        # The column is two past the longest name; xmodem (6) is now the longest,
+        # so arr (3) is padded to 6 - 3 + 2 = 5 spaces.
+        assert lines[0] == "arr" + " " * 5 + "the arr command\r\n", (
+            "two spaces past xmodem, the longest"
         )
 
     def test_help_for_one_command(self):

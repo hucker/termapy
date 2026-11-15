@@ -49,6 +49,10 @@ canceled or failed receive leaves a file already at that name as it was.
 - 128-byte blocks
 - Progress reported during transfer
 
+A MicroPython [dev board](boards.md) running termapy's firmware is an XMODEM
+peer: `xmodem recv` / `xmodem send` on the board pairs with `/xfer.xmodem.*`
+here, the same way the demo device does, but over a real serial link.
+
 ## YMODEM
 
 YMODEM extends XMODEM with batch file transfer, 1024-byte blocks,

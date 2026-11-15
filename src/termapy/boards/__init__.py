@@ -65,8 +65,13 @@ class Runtime:
     files: tuple[str, ...] = ()
 
 
-# The command monitor and the MEM commands, on every MicroPython board.
-MICROPYTHON = Runtime("MicroPython", "micropython", ("termapy_json.py", "termapy_mem.py"))
+# The command monitor, the MEM commands and the XMODEM responder, on every
+# MicroPython board.
+MICROPYTHON = Runtime(
+    "MicroPython",
+    "micropython",
+    ("termapy_json.py", "termapy_mem.py", "termapy_xmodem.py"),
+)
 
 
 @dataclass(frozen=True)
@@ -110,8 +115,8 @@ BOARDS: tuple[Board, ...] = (
         without_runtime_usb=("2E8A:0003",),
         firmware=("main.py",),
         flash=(
-            "Flash MicroPython (RPI_PICO), then copy main.py, termapy_json.py and "
-            "termapy_mem.py to the board."
+            "Flash MicroPython (RPI_PICO), then copy main.py, termapy_json.py, "
+            "termapy_mem.py and termapy_xmodem.py to the board."
         ),
         install="uvx mpremote connect {port} cp {files} : + reset",
     ),
@@ -130,7 +135,7 @@ BOARDS: tuple[Board, ...] = (
         flash=(
             "Flash MicroPython (ESP32_GENERIC_S3, the SPIRAM_OCT build on an octal-PSRAM "
             "module such as N8R8 or N16R8) with esptool, then copy main.py, "
-            "termapy_json.py and termapy_mem.py to the board."
+            "termapy_json.py, termapy_mem.py and termapy_xmodem.py to the board."
         ),
         install="uvx mpremote connect {port} cp {files} : + reset",
     ),

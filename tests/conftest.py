@@ -271,6 +271,26 @@ def pytest_addoption(parser) -> None:
             "bench unplugged."
         ),
     )
+    parser.addoption(
+        "--run-hw-pico",
+        action="store_true",
+        default=False,
+        help=(
+            "Run the hw_pico tests (a real XMODEM transfer against an attached "
+            "MicroPython board, found by serial number, TERMAPY_PICO_SN).  Needs "
+            "the board flashed with the current termapy firmware.  Off by default; "
+            "run with -n 0."
+        ),
+    )
+    parser.addoption(
+        "--require-hw-pico",
+        action="store_true",
+        default=False,
+        help=(
+            "Like --run-hw-pico, but an absent, ambiguous or stale-firmware board "
+            "FAILS the run instead of skipping it."
+        ),
+    )
 
 
 def pytest_configure(config) -> None:
@@ -297,13 +317,16 @@ def pytest_configure(config) -> None:
         for flag, dest in (
             ("--run-hw-loopback", "run_hw_loopback"),
             ("--require-hw-loopback", "require_hw_loopback"),
+            ("--run-hw-pico", "run_hw_pico"),
+            ("--require-hw-pico", "require_hw_pico"),
         )
         if config.getoption(dest)
     ]
     if demanded:
         raise pytest.UsageError(
-            f"{' '.join(demanded)} refused: the hw_loopback suite never runs on "
-            f"GitHub Actions (registry hw-loopback-never-on-github); run it on the bench"
+            f"{' '.join(demanded)} refused: the hardware suites never run on "
+            f"GitHub Actions (registry hw-loopback-never-on-github, hw-pico-never-on-github); "
+            f"run them on the bench"
         )
 
 
@@ -374,12 +397,19 @@ def pytest_collection_modifyitems(config, items) -> None:
 
     _check_rule_markers(items)
     _select_rule(config, items)
-    if config.getoption("--run-hw-loopback") or config.getoption("--require-hw-loopback"):
-        return
-    skip = pytest.mark.skip(
-        reason="hw_loopback: needs --run-hw-loopback and the jumpered adapter; "
-        "run: uv run pytest --run-hw-loopback -m hw_loopback -n 0"
-    )
-    for item in items:
-        if "hw_loopback" in item.keywords:
-            item.add_marker(skip)
+    if not (config.getoption("--run-hw-loopback") or config.getoption("--require-hw-loopback")):
+        skip = pytest.mark.skip(
+            reason="hw_loopback: needs --run-hw-loopback and the jumpered adapter; "
+            "run: uv run pytest --run-hw-loopback -m hw_loopback -n 0"
+        )
+        for item in items:
+            if "hw_loopback" in item.keywords:
+                item.add_marker(skip)
+    if not (config.getoption("--run-hw-pico") or config.getoption("--require-hw-pico")):
+        skip_pico = pytest.mark.skip(
+            reason="hw_pico: needs --run-hw-pico and the attached board; "
+            "run: uv run pytest --run-hw-pico -m hw_pico -n 0"
+        )
+        for item in items:
+            if "hw_pico" in item.keywords:
+                item.add_marker(skip_pico)

@@ -1,121 +1,279 @@
 {
-    "profile_version": 2,
-    "profile_revision": "2.1.1",
-    "profile_date": "2026-11-06",
-    "device": {
-        "name": "ESP32-S3 DevKitC-1 (termapy starter, MicroPython)",
-        "vendor": "Espressif",
-        "model": "ESP32-S3-DevKitC-1"
+  "profile_version": 2,
+  "profile_revision": "2.1.2",
+  "profile_date": "2026-11-14",
+  "device": {
+    "name": "ESP32-S3 DevKitC-1 (termapy starter, MicroPython)",
+    "vendor": "Espressif",
+    "model": "ESP32-S3-DevKitC-1"
+  },
+  "types": {
+    "level": {
+      "kind": "int_range",
+      "min": 0,
+      "max": 255,
+      "help": "One LED's brightness: 0 (off) to 255."
     },
-    "types": {
-        "level": {"kind": "int_range", "min": 0, "max": 255, "help": "One LED's brightness: 0 (off) to 255."},
-        "on_off": {"kind": "enum", "values": ["on", "off", "1", "0"], "help": "On or off: on or 1, off or 0."},
-        "framing": {"kind": "enum", "values": ["on", "off"], "help": "The reply framing: on for JSON-RPC, off for text."},
-        "address": {"kind": "pattern", "regex": "(0[xX])?[0-9A-Fa-f]{1,8}", "help": "A memory address in hex, 0x optional, at most eight digits."},
-        "block": {"kind": "int_range", "min": 1, "max": 64, "help": "A block length in bytes, 1 to 64."},
-        "hex_bytes": {"kind": "pattern", "regex": "[0-9A-Fa-f]{2}(\\s*[0-9A-Fa-f]{2})*", "help": "Bytes as hex pairs, spaces allowed between pairs."},
-        "mask": {"kind": "pattern", "regex": "[0-9A-Fa-f]{1,8}", "help": "A mask in hex, no prefix; its digit count is the width: 2, 4 or 8."}
+    "on_off": {
+      "kind": "enum",
+      "values": [
+        "on",
+        "off",
+        "1",
+        "0"
+      ],
+      "help": "On or off: on or 1, off or 0."
     },
-    "error_detection": {
-        "pattern": "(?:\"error\"\\s*:\\s*\\{[^}]*\"message\"\\s*:\\s*\"|^ERR )(?P<message>[^\"]*)",
-        "async": false,
-        "types": {"message": "str"}
+    "framing": {
+      "kind": "enum",
+      "values": [
+        "on",
+        "off"
+      ],
+      "help": "The reply framing: on for JSON-RPC, off for text."
     },
-    "commands": {
-        "help": {
-            "help": "The board's commands, each name mapped to its one-line help; help <command> answers that command's line.",
-            "args": "{command}",
-            "send_template": "help {command}",
-            "typed_args": [
-                {"name": "command", "type": "str", "required": false, "help": "One command to describe."}
-            ],
-            "safety": "readonly",
-            "response": {"format": "json", "timeout_ms": 500}
-        },
-        "json": {
-            "help": "Set the reply framing, on for JSON-RPC or off for text; bare json reads it.",
-            "args": "{on|off}",
-            "long_help": "json off switches the board to text replies: every reply after it is text, not JSON, until json on, or any request line starting with {, switches back.  The config sends json on at every connect.",
-            "send_template": "json {framing}",
-            "typed_args": [
-                {"name": "framing", "type": "framing", "required": false, "help": "on or off."}
-            ],
-            "safety": "mutable",
-            "response": {"format": "json", "timeout_ms": 500}
-        },
-        "led": {
-            "help": "Turn the RGB LED on, a dim white, or off; bare led reads it.  The reply is the state, on or off.",
-            "args": "{on|off|1|0}",
-            "send_template": "led {state}",
-            "typed_args": [
-                {"name": "state", "type": "on_off", "required": false, "help": "LED state."}
-            ],
-            "safety": "mutable",
-            "response": {"format": "json", "timeout_ms": 500}
-        },
-        "led_rgb": {
-            "help": "Set the RGB LED's red, green and blue levels, each 0 to 255; bare led_rgb reads them.  The reply is the levels, [red, green, blue].",
-            "args": "{<red> <green> <blue>}",
-            "send_template": "led_rgb {red} {green} {blue}",
-            "typed_args": [
-                {"name": "red", "type": "level", "required": false, "help": "Red level, 0 to 255; give all three levels or none."},
-                {"name": "green", "type": "level", "required": false, "help": "Green level, 0 to 255."},
-                {"name": "blue", "type": "level", "required": false, "help": "Blue level, 0 to 255."}
-            ],
-            "safety": "mutable",
-            "response": {"format": "json", "timeout_ms": 500}
-        },
-        "temp": {
-            "help": "Read the chip's temperature sensor, in whole degrees Celsius, as a number.",
-            "safety": "readonly",
-            "response": {"format": "json", "timeout_ms": 500}
-        },
-        "id": {
-            "help": "The chip's unique ID in hex, its factory MAC address.",
-            "safety": "readonly",
-            "response": {"format": "json", "timeout_ms": 500}
-        },
-        "MEM.R": {
-            "help": "Read memory at an address: rows of hex bytes, then OK.  Prefer /mem.read, which checks the address first.",
-            "args": "<addr> <len>",
-            "long_help": "The board reads whatever address it is given.  One the chip cannot reach resets it, and reading a peripheral register can change it (a FIFO pops).  /mem.read names registers from the device file and refuses sweeps of peripheral space.",
-            "send_template": "MEM.R {addr} {len}",
-            "typed_args": [
-                {"name": "addr", "type": "address", "required": true, "help": "The first byte's address."},
-                {"name": "len", "type": "block", "required": true, "help": "Bytes to read."}
-            ],
-            "safety": "destructive",
-            "response": {"format": "lines", "terminator": "^(OK|ERR .*)$", "timeout_ms": 500}
-        },
-        "MEM.W": {
-            "help": "Write bytes to memory at an address, then OK.  Prefer /mem.write, which checks the address first.",
-            "args": "<addr> <hex>",
-            "long_help": "The board writes whatever address it is given; one the chip cannot reach resets it.",
-            "send_template": "MEM.W {addr} {data}",
-            "typed_args": [
-                {"name": "addr", "type": "address", "required": true, "help": "The first byte's address."},
-                {"name": "data", "type": "hex_bytes", "required": true, "help": "The bytes, at most 64."}
-            ],
-            "safety": "destructive",
-            "response": {"format": "lines", "terminator": "^(OK|ERR .*)$", "timeout_ms": 500}
-        },
-        "MEM.M": {
-            "help": "Masked write with interrupts off, word = (word & and) | or; the reply is the word before, then OK.",
-            "args": "<addr> <and> <or>",
-            "long_help": "The masks have the same digit count, which sets the width (2, 4 or 8 for a byte, a half or a word), and the address is aligned to it.  /mem.write X.bit and /mem.or use it.",
-            "send_template": "MEM.M {addr} {and_mask} {or_mask}",
-            "typed_args": [
-                {"name": "addr", "type": "address", "required": true, "help": "The word's address."},
-                {"name": "and_mask", "type": "mask", "required": true, "help": "The bits to keep."},
-                {"name": "or_mask", "type": "mask", "required": true, "help": "The bits to set."}
-            ],
-            "safety": "destructive",
-            "response": {"format": "lines", "terminator": "^(OK|ERR .*)$", "timeout_ms": 500}
-        },
-        "MEM.INFO": {
-            "help": "The memory interface: block limit, address width, byte order, and whether MEM.M is there.",
-            "safety": "readonly",
-            "response": {"format": "lines", "terminator": "^(OK|ERR .*)$", "timeout_ms": 500}
-        }
+    "address": {
+      "kind": "pattern",
+      "regex": "(0[xX])?[0-9A-Fa-f]{1,8}",
+      "help": "A memory address in hex, 0x optional, at most eight digits."
+    },
+    "block": {
+      "kind": "int_range",
+      "min": 1,
+      "max": 64,
+      "help": "A block length in bytes, 1 to 64."
+    },
+    "hex_bytes": {
+      "kind": "pattern",
+      "regex": "[0-9A-Fa-f]{2}(\\s*[0-9A-Fa-f]{2})*",
+      "help": "Bytes as hex pairs, spaces allowed between pairs."
+    },
+    "mask": {
+      "kind": "pattern",
+      "regex": "[0-9A-Fa-f]{1,8}",
+      "help": "A mask in hex, no prefix; its digit count is the width: 2, 4 or 8."
     }
+  },
+  "error_detection": {
+    "pattern": "(?:\"error\"\\s*:\\s*\\{[^}]*\"message\"\\s*:\\s*\"|^ERR )(?P<message>[^\"]*)",
+    "async": false,
+    "types": {
+      "message": "str"
+    }
+  },
+  "commands": {
+    "help": {
+      "help": "The board's commands, each name mapped to its one-line help; help <command> answers that command's line.",
+      "args": "{command}",
+      "send_template": "help {command}",
+      "typed_args": [
+        {
+          "name": "command",
+          "type": "str",
+          "required": false,
+          "help": "One command to describe."
+        }
+      ],
+      "safety": "readonly",
+      "response": {
+        "format": "json",
+        "timeout_ms": 500
+      }
+    },
+    "json": {
+      "help": "Set the reply framing, on for JSON-RPC or off for text; bare json reads it.",
+      "args": "{on|off}",
+      "long_help": "json off switches the board to text replies: every reply after it is text, not JSON, until json on, or any request line starting with {, switches back.  The config sends json on at every connect.",
+      "send_template": "json {framing}",
+      "typed_args": [
+        {
+          "name": "framing",
+          "type": "framing",
+          "required": false,
+          "help": "on or off."
+        }
+      ],
+      "safety": "mutable",
+      "response": {
+        "format": "json",
+        "timeout_ms": 500
+      }
+    },
+    "xmodem": {
+      "help": "Transfer a file over XMODEM: xmodem recv receives into the board buffer, xmodem send streams it back; bare xmodem reads the buffered byte count.",
+      "args": "{recv|send}",
+      "long_help": "The transfer itself is driven from the host by /xfer.xmodem.send and /xfer.xmodem.recv; this command only puts the board into receive or send mode. The reply after a transfer is the byte count. XMODEM pads the last block, so a received count is a multiple of 128.",
+      "send_template": "xmodem {mode}",
+      "typed_args": [
+        {
+          "name": "mode",
+          "type": "str",
+          "required": false,
+          "help": "recv, send, or empty to read the buffered byte count."
+        }
+      ],
+      "safety": "mutable",
+      "response": {
+        "format": "json",
+        "timeout_ms": 30000
+      }
+    },
+    "led": {
+      "help": "Turn the RGB LED on, a dim white, or off; bare led reads it.  The reply is the state, on or off.",
+      "args": "{on|off|1|0}",
+      "send_template": "led {state}",
+      "typed_args": [
+        {
+          "name": "state",
+          "type": "on_off",
+          "required": false,
+          "help": "LED state."
+        }
+      ],
+      "safety": "mutable",
+      "response": {
+        "format": "json",
+        "timeout_ms": 500
+      }
+    },
+    "led_rgb": {
+      "help": "Set the RGB LED's red, green and blue levels, each 0 to 255; bare led_rgb reads them.  The reply is the levels, [red, green, blue].",
+      "args": "{<red> <green> <blue>}",
+      "send_template": "led_rgb {red} {green} {blue}",
+      "typed_args": [
+        {
+          "name": "red",
+          "type": "level",
+          "required": false,
+          "help": "Red level, 0 to 255; give all three levels or none."
+        },
+        {
+          "name": "green",
+          "type": "level",
+          "required": false,
+          "help": "Green level, 0 to 255."
+        },
+        {
+          "name": "blue",
+          "type": "level",
+          "required": false,
+          "help": "Blue level, 0 to 255."
+        }
+      ],
+      "safety": "mutable",
+      "response": {
+        "format": "json",
+        "timeout_ms": 500
+      }
+    },
+    "temp": {
+      "help": "Read the chip's temperature sensor, in whole degrees Celsius, as a number.",
+      "safety": "readonly",
+      "response": {
+        "format": "json",
+        "timeout_ms": 500
+      }
+    },
+    "id": {
+      "help": "The chip's unique ID in hex, its factory MAC address.",
+      "safety": "readonly",
+      "response": {
+        "format": "json",
+        "timeout_ms": 500
+      }
+    },
+    "MEM.R": {
+      "help": "Read memory at an address: rows of hex bytes, then OK.  Prefer /mem.read, which checks the address first.",
+      "args": "<addr> <len>",
+      "long_help": "The board reads whatever address it is given.  One the chip cannot reach resets it, and reading a peripheral register can change it (a FIFO pops).  /mem.read names registers from the device file and refuses sweeps of peripheral space.",
+      "send_template": "MEM.R {addr} {len}",
+      "typed_args": [
+        {
+          "name": "addr",
+          "type": "address",
+          "required": true,
+          "help": "The first byte's address."
+        },
+        {
+          "name": "len",
+          "type": "block",
+          "required": true,
+          "help": "Bytes to read."
+        }
+      ],
+      "safety": "destructive",
+      "response": {
+        "format": "lines",
+        "terminator": "^(OK|ERR .*)$",
+        "timeout_ms": 500
+      }
+    },
+    "MEM.W": {
+      "help": "Write bytes to memory at an address, then OK.  Prefer /mem.write, which checks the address first.",
+      "args": "<addr> <hex>",
+      "long_help": "The board writes whatever address it is given; one the chip cannot reach resets it.",
+      "send_template": "MEM.W {addr} {data}",
+      "typed_args": [
+        {
+          "name": "addr",
+          "type": "address",
+          "required": true,
+          "help": "The first byte's address."
+        },
+        {
+          "name": "data",
+          "type": "hex_bytes",
+          "required": true,
+          "help": "The bytes, at most 64."
+        }
+      ],
+      "safety": "destructive",
+      "response": {
+        "format": "lines",
+        "terminator": "^(OK|ERR .*)$",
+        "timeout_ms": 500
+      }
+    },
+    "MEM.M": {
+      "help": "Masked write with interrupts off, word = (word & and) | or; the reply is the word before, then OK.",
+      "args": "<addr> <and> <or>",
+      "long_help": "The masks have the same digit count, which sets the width (2, 4 or 8 for a byte, a half or a word), and the address is aligned to it.  /mem.write X.bit and /mem.or use it.",
+      "send_template": "MEM.M {addr} {and_mask} {or_mask}",
+      "typed_args": [
+        {
+          "name": "addr",
+          "type": "address",
+          "required": true,
+          "help": "The word's address."
+        },
+        {
+          "name": "and_mask",
+          "type": "mask",
+          "required": true,
+          "help": "The bits to keep."
+        },
+        {
+          "name": "or_mask",
+          "type": "mask",
+          "required": true,
+          "help": "The bits to set."
+        }
+      ],
+      "safety": "destructive",
+      "response": {
+        "format": "lines",
+        "terminator": "^(OK|ERR .*)$",
+        "timeout_ms": 500
+      }
+    },
+    "MEM.INFO": {
+      "help": "The memory interface: block limit, address width, byte order, and whether MEM.M is there.",
+      "safety": "readonly",
+      "response": {
+        "format": "lines",
+        "terminator": "^(OK|ERR .*)$",
+        "timeout_ms": 500
+      }
+    }
+  }
 }

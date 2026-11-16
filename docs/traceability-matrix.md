@@ -633,7 +633,7 @@ Ids: 199: 184 registry rows (guarantees 149, assumptions 35), 15 spec sections i
 
 ### `port-display` (assumption, requirement)
 
-- `test_app_pilot_targets.py`: `TestConfigPicked.test_tooltips_show_the_device_as_port_and_the_number_as_serial`
+- `test_app_pilot_targets.py`: `TestConfigPicked.test_the_label_shows_the_device_while_disconnected`, `TestConfigPicked.test_tooltips_show_the_device_as_port_and_the_number_as_serial`
 - `test_builtins.py`: `TestCfgHandlerValues.test_cfg_list_shows_the_device_a_serial_number_names`
 - `test_dialogs.py`: `TestConfigPickerDetails.test_the_port_cell_is_the_device_not_the_serial_number`
 - `test_port_control.py`: `TestPortPresent.test_a_listing_resolves_every_row_against_one_snapshot`, `TestPortPresent.test_a_listing_shows_the_open_device_on_the_active_config`, `TestPortPresent.test_display_shows_the_device_and_its_serial_number`

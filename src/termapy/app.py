@@ -1976,22 +1976,26 @@ class SerialTerminal(TerminalHost, App):
 
         on_config_result(self, result)
 
-    def _port_info_str(self) -> str:
-        """Format port info like 'COM4 115200 8N1' for title bar.
+    def _port_info_str(self, device: str | None = None) -> str:
+        """Format port info like 'COM4 115200 8N1' for the title bar and the startup line.
 
-        Brackets were previously wrapped around the string but interacted
-        badly with Rich markup parsing -- the closing ``]`` was consumed
-        as a malformed markup tag terminator.  The bare label is cleaner
-        and fits the title-bar button without escaping concerns.
+        The port is the device the config's port is (registry
+        ``port-display``): the one open now, else the one its spec resolves
+        to among the ports attached, so ``"port": "A1B2C3D4|COM3"`` shows
+        ``COM4 115200 8N1`` connected or not.  A spec naming nothing
+        attached shows as written: an unplugged board has no device.
 
-        When connected, shows the actual device name rather than the
-        config spec, so a user running with ``"port": "A1B2C3D4|COM3"``
-        sees ``COM4 115200 8N1`` in the title, not the raw spec.
+        Args:
+            device: The device the caller already resolved
+                (``title_bar.update_title``), so one refresh enumerates once.
         """
         from termapy.config import connection_string
 
-        actual = self.engine.open_device if self.engine.is_connected else ""
-        return connection_string(self.cfg, "short", actual_port=actual)
+        if device is None:
+            from termapy.title_bar import displayed_port
+
+            device, _ = displayed_port(self)
+        return connection_string(self.cfg, "short", actual_port=device)
 
     def _update_title(self) -> None:
         """Refresh title-bar widgets.  Implementation in ``title_bar``."""

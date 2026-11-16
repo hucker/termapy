@@ -37,11 +37,11 @@ row and a folder, never a branch in a handler.
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from termapy.config import (
     config_files,
@@ -418,8 +418,18 @@ def stale_files(board: Board, config_path: Path) -> list[Stale]:
     return [
         Stale(source, destination)
         for source, destination in pairs
-        if not destination.is_file() or destination.read_bytes() != source.read_bytes()
+        if not destination.is_file() or _text(destination) != _text(source)
     ]
+
+
+def _text(path: Path) -> bytes:
+    """A shipped text file's bytes with CRLF read as LF.
+
+    A git checkout on Windows can write the shipped files with CRLF, so a
+    copy made from another checkout differs in line endings alone; that is
+    not a change.
+    """
+    return path.read_bytes().replace(b"\r\n", b"\n")
 
 
 def replace_stale(stale: Sequence[Stale]) -> None:
@@ -456,30 +466,47 @@ def _config_as_written(config_path: Path) -> dict:
     return cfg
 
 
-def config_profile_path(config_path: Path) -> str:
-    """The ``profile_path`` the config file names, as written; ``""`` when it names none.
+# The settings in a board's config.json that its device code depends on, so
+# /board.update brings them to a config made before they were added; the rest
+# (title, buttons, on-connect commands) are the user's to change.
+BOARD_KEYS = ("protocol",)
+
+
+def missing_settings(board: Board, config_path: Path) -> dict[str, Any]:
+    """The settings the config file needs from its starter: what ``apply_settings`` would write.
+
+    An empty ``profile_path`` gets the profile beside it, and each of
+    ``BOARD_KEYS`` that differs from the board's ``config.json`` gets the
+    board's value.  Read from the file as written, which is what the next
+    load reads.
 
     Raises:
         OSError: The config could not be read.
         ValueError: It is not a JSON object.
     """
-    return str(cfg_value(_config_as_written(config_path), "profile_path") or "")
+    cfg = _config_as_written(config_path)
+    settings: dict[str, Any] = {}
+    if not cfg_value(cfg, "profile_path"):
+        settings["profile_path"] = profile_name(config_path.stem)
+    starter = json.loads((_package(board) / "config.json").read_text(encoding="utf-8"))
+    for key in BOARD_KEYS:
+        if cfg_value(cfg, key) != starter[key]:
+            settings[key] = starter[key]
+    return settings
 
 
-def name_profile(config_path: Path) -> str:
-    """Set the config file's ``profile_path`` to the profile beside it, ``<name>.profile.json``; that name.
+def apply_settings(config_path: Path, settings: Mapping[str, Any]) -> None:
+    """Write ``settings`` into the config file, read as written and written back by ``write_config_file``.
 
-    The file is read as written and written back by ``write_config_file``,
-    so nothing the session changed reaches it.
+    Nothing the session changed reaches the file.
 
     Raises:
         OSError: The config could not be read or written.
         ValueError: It is not a JSON object.
     """
     cfg = _config_as_written(config_path)
-    cfg["profile_path"] = profile_name(config_path.stem)
+    cfg.update(settings)
     write_config_file(config_path, cfg)
-    return cfg["profile_path"]
 
 
 def install_command(board: Board, files: Sequence[Path], port: str) -> str:

@@ -1948,3 +1948,34 @@ MCP's auto-load records one (registry `load-report-one-table`). **Where:**
 (`_handler_update`), `config.on_connect_commands`, `mcp/server.py`
 (`_on_connect_auto_load_profile`), `defaults.py` (`profile_path`), `help/boards.md`,
 `help/config.md`.
+
+## 2026-11-15 — JSON mode sends ids to a device that takes JSON lines
+
+Chuck: "setup json mode to automatically do id. The device side doesn't need to know anything,
+termapy will just send ids by default", and "ONLY in json mode. When acting as a repl there is no
+such thing as id" (registry `json-mode-ids`). In JSON mode (`/term.request on`, a `--json` device
+line, MCP's profile executor) each device command goes out as `{"cmd":"<name>","args":"<rest>",
+"id":<n>}`, `n` one more than the session's last, and the answer is the one line that carries the
+id back. Collection goes on past a stray line until that line arrives; the other lines are not the
+answer (request mode's `output_lines`, MCP's `not_the_reply` async events), and none within the wait
+is `No reply with id <n>`. What it buys with one request in flight: a late reply to a timed-out
+command is never taken for the next answer, and a print from the device's own code is told apart
+from a reply. It is not pipelining.
+
+**Only a device that takes JSON lines.** JSON mode is also used with text devices (the gold script
+runs `AT` against the demo in request mode), which cannot parse a JSON request. So the switch is
+the device's config, `protocol: "ndjson"`, which was defined and documented but read by nothing
+until now; its `ndjson_field_routing.response_id` names the id field. No session flag: whether
+ids work is the device's wire, not a choice made per session. Board configs set it, and
+`/board.update` brings it to an older board config with the settings its code depends on
+(`boards.BOARD_KEYS`). Both device monitors already echo an integer id, and a `{` request switches
+a board to JSON framing by itself, so no firmware changed.
+
+**Not done.** A reply's value is still the raw line; reading `{"result":X}` into a typed value is
+the parked device JSON-RPC reader. A bare MCP line with no profile entry is written and not read,
+so it carries no id. `ndjson_field_routing.error_field` and `.event_field` are still read by
+nothing. **Where:** `request_response.py` (`id_field`, `json_request`, `pick_reply`,
+`request_response(reply_id=)`), `repl._exec_request_mode`, `ReplEngine.next_request_id`,
+`mcp/server.py` (`_dispatch_via_profile`), the board `config.json` files, `boards.missing_settings`,
+`defaults.py` (`protocol`, `ndjson_field_routing`), `help/boards.md`, `help/config.md`,
+`docs/profile-spec.md`.

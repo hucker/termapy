@@ -209,8 +209,8 @@ reported as a type warning.
 | `output_level`                | `normal`                      | How loud commands are: `silent`, `quiet`, `normal` or `verbose` |
 | `max_lines`                   | `10000`                       | Scrollback buffer size |
 | `max_grep_lines`              | `100`                         | Maximum lines shown by `/grep` |
-| `protocol`                    | `text`                        | Wire format the device speaks: `"text"` (line-oriented) or `"ndjson"` (one JSON per line) |
-| `ndjson_field_routing`        | `{...}`                       | NDJSON: which JSON fields the MCP bridge routes on (response_id/error_field/event_field) |
+| `protocol`                    | `text`                        | Wire format the device speaks: `"text"` (lines as typed) or `"ndjson"` (one JSON per line). With `"ndjson"`, each device command in JSON mode (`/term.request on`, `--json`, MCP) is sent as `{"cmd":...,"args":...,"id":N}` and answered by the line carrying that id |
+| `ndjson_field_routing`        | `{...}`                       | NDJSON field names. `response_id` (default `id`) is the field a JSON-mode request's id goes in and its reply echoes; `error_field` and `event_field` are not read yet |
 | `request_mode`                | `false`                       | Turn bare device commands into synchronous request/response (see `/term.request`) |
 | `request_err_pattern`         | `(?i)^(ERROR\|ERR\|FAULT)\\b` | Regex detecting device-side errors in `request_mode` responses. Empty disables. Override per-session via `/term.request on err=<regex>` |
 | `strip_device_echo`           | `false`                       | Drop a half-duplex device's echoed command from `request_mode` responses (opt in per device) |

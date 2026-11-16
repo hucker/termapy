@@ -59,13 +59,15 @@ Updated esp32s3:
   firmware/main.py
   firmware/termapy_xmodem.py  (new)
   esp32s3.cfg  profile_path = esp32s3.profile.json
+  esp32s3.cfg  protocol = ndjson
 Loaded esp32s3.profile.json: 13 commands (rev 2.2.0).
 Put the device code on the board: uvx mpremote connect COM9 cp ... : + reset
 ```
 
 It replaces only the copies that differ from what termapy ships, after
-listing them and asking, and a config that names no profile gets
-`profile_path` set. A file you edited is replaced too, so read the list
+listing them and asking. The config gets the settings the board's code
+depends on: `profile_path` when it names no profile, and `protocol`, so
+JSON mode sends ids. A file you edited is replaced too, so read the list
 before you answer. Then it loads the profile, and when device code changed
 it prints the `mpremote` line that puts it on the board; run that to
 finish. The board is the one the config is named for, or name it:
@@ -223,6 +225,15 @@ with an error as `{"error":{"code":...,"message":...}}`. `json on` switches
 to it, and a request line such as `{"method":"temp","id":1}` switches by
 itself and gets its `id` back. Each board's config sends `json on` at
 every connect, so the TUI, the CLI and an MCP agent all see the same JSON.
+
+In JSON mode (`/term.request on`, a device line with `--json`, and always
+under MCP) termapy sends each command as a request with an id, because the
+board's config says `protocol: "ndjson"`: `temp` goes out as
+`{"cmd":"temp","id":7}` and `machine.Pin.value 2 1` as
+`{"cmd":"machine.Pin.value","args":"2 1","id":8}`. The answer is the one
+line that carries the id back, so a late reply to an earlier command or a
+line your own code printed is never taken for it. Typed at the prompt, a
+command goes out as you typed it: a REPL has no ids.
 On screen termapy shows each JSON line the board sends indented and
 highlighted (`/term.json_fmt`), while the session log and captures keep it as
 it arrived. `/term.json_fmt.indent 0` with `/term.json_fmt.highlight off` shows

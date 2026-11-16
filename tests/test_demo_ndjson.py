@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from pathlib import Path
 
 import pytest
 
@@ -246,6 +247,60 @@ class TestMcpHostAgainstDemoJson:
         assert '"id":42' in result["value"] or '"id": 42' in result["value"], (
             "matched line contains the request id"
         )
+
+
+@pytest.mark.rule("json-mode-ids")
+class TestJsonModeIdsAgainstDemoJson:
+    """A config saying the device takes JSON lines gets an id on every JSON-mode request."""
+
+    @pytest.fixture
+    def host(self, tmp_path):
+        from termapy.defaults import default_cfg
+        from termapy.mcp.server import MCPHost
+
+        cfg = default_cfg()
+        cfg["serial"]["port"] = "DEMO_JSON"
+        cfg["eol"] = "\n"
+        cfg["protocol"] = "ndjson"
+        config_path = tmp_path / "cfg" / "test.cfg"
+        config_path.parent.mkdir()
+        config_path.write_text(json.dumps(cfg))
+        h = MCPHost(cfg, str(config_path), verbose=False)
+        h._connect()
+        time.sleep(0.05)
+        try:
+            yield h
+        finally:
+            if h.engine.is_connected:
+                h._disconnect()
+
+    def test_request_mode_sends_ids_and_takes_the_reply_carrying_one(self, host):
+        """Twice in request mode, each reply carries the id its request was sent with, one more each time."""
+        # Arrange
+        host.cfg["request_mode"] = True
+
+        # Act
+        replies = [asyncio.run(host.run_command_async("get_temp", "normal", 5.0)) for _ in "12"]
+
+        # Assert
+        actual = [reply["data"]["id"] for reply in replies]
+        assert actual[1] == actual[0] + 1, "one more each time, so a late reply is told apart"
+        assert replies[0]["data"]["result"] == {"celsius": 23.5}, "the device read the request"
+
+    def test_a_profile_command_sends_an_id(self, host):
+        """Through the profile executor too, the request carries an id and the reply echoes it."""
+        # Arrange
+        profile = Path(__file__).parents[1] / "src/termapy/builtins/demo/demo_ndjson.profile.json"
+        (Path(host.config_path).parent / "test.profile.json").write_bytes(profile.read_bytes())
+        assert host.repl.dispatch("profile.load test.profile.json").success
+
+        # Act
+        reply = asyncio.run(host.run_command_async("get_temp", "normal", 5.0))
+
+        # Assert
+        assert reply["success"], reply["error"]
+        assert isinstance(reply["data"]["id"], int), "the reply carries the request's id"
+        assert reply["data"]["result"] == {"celsius": 23.5}
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────

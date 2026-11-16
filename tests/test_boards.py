@@ -20,6 +20,7 @@ import json
 import os
 import subprocess
 import sys
+import types
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -88,6 +89,9 @@ BOARD_FORMS = {
         "led 1": "led",
         "temp": "temp",
         "id": "id",
+        "machine": "machine",
+        "machine.freq": "machine.",
+        "machine.Pin.init 25 machine.Pin.OUT value=1": "machine.",
         "xmodem": "xmodem",
         "xmodem recv": "xmodem",
         "xmodem send": "xmodem",
@@ -108,6 +112,9 @@ BOARD_FORMS = {
         "led_rgb 255 0 0x20": "led_rgb",
         "temp": "temp",
         "id": "id",
+        "machine": "machine",
+        "machine.Pin": "machine.",
+        "machine.ADC.read_u16 1": "machine.",
         "xmodem": "xmodem",
         "xmodem recv": "xmodem",
         "xmodem send": "xmodem",
@@ -149,7 +156,7 @@ class TestTable:
 
     @pytest.mark.rule("board-profile-complete")
     def test_profile_describes_the_firmware_commands(self):
-        """The profile names every command the board answers, its table's and the monitor's."""
+        """The profile names every command the board answers: its table's, the monitor's, and each object's two forms."""
         monitor_commands = set(BOARD_JSON.Monitor({}, print).builtins)
         mem_commands = set(BOARD_MEM.Memory(None, None).commands())
         for board in BOARDS:
@@ -157,6 +164,9 @@ class TestTable:
             firmware = _firmware_command_names(main)
             assert firmware, f"{board.name}: no commands found in {main.name}"
             expected = firmware | monitor_commands
+            for name in _firmware_object_names(main):
+                # An object is two entries: the name alone, and the name with an expression.
+                expected |= {name, name + "."}
             if "termapy_mem.py" in board.runtime.files:
                 expected |= mem_commands
             actual = set(load_profile(BOARDS_DIR / board.name / "profile.json")["commands"])
@@ -496,6 +506,19 @@ def _firmware_command_names(main_path) -> set[str]:
     return names
 
 
+def _firmware_object_names(main_path) -> set[str]:
+    """The names a board's main.py puts on the link as objects: the keys of ``objects={...}``."""
+    tree = ast.parse(main_path.read_text(encoding="utf-8"))
+    return {
+        key.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.keyword) and node.arg == "objects"
+        if isinstance(node.value, ast.Dict)
+        for key in node.value.keys
+        if isinstance(key, ast.Constant) and isinstance(key.value, str)
+    }
+
+
 def _load_board_module(board: Board, name: str):
     """One of MicroPython's shared files, imported from the package as a board imports it."""
     path = next(path for path in firmware_paths(board) if path.name == name)
@@ -524,7 +547,7 @@ class Waiting:
 class Link:
     """A Monitor over a fake command table and any native commands, with the reply bytes it wrote."""
 
-    def __init__(self, native=None, read: Waiting | None = None):
+    def __init__(self, native=None, read: Waiting | None = None, objects=None):
         def fail(args):
             raise BOARD_JSON.CommandError("usage: fail")
 
@@ -547,7 +570,7 @@ class Link:
             name: ("the " + name + " command", handler) for name, handler in handlers.items()
         }
         self.out: list[str] = []
-        self.monitor = BOARD_JSON.Monitor(self.commands, self.out.append, native, read)
+        self.monitor = BOARD_JSON.Monitor(self.commands, self.out.append, native, read, objects)
 
     def ask(self, line: str) -> list[str]:
         """Send one line; return the reply lines it produced."""
@@ -771,6 +794,225 @@ class TestMicroPythonJson:
         monitor.handle("led")
         monitor.handle("ping")
         assert [line.strip() for line in out] == ["on", "pong"], "the monitor dispatches them"
+
+
+class FakePin:
+    """A pin for a monitor's object tests: its level is kept per pin number, as a real pin's is."""
+
+    OUT = 1
+    levels: dict[int, int] = {}
+
+    def __init__(self, number: int, mode: int = 0) -> None:
+        self.number = number
+
+    def value(self, level: int | None = None) -> int | None:
+        if level is None:
+            return FakePin.levels.get(self.number, 0)
+        FakePin.levels[self.number] = level
+        return None
+
+    def __repr__(self) -> str:
+        return f"Pin({self.number})"
+
+
+def fake_machine() -> types.SimpleNamespace:
+    """What stands in for MicroPython's machine: a class, four functions and a private name."""
+    FakePin.levels = {}
+    return types.SimpleNamespace(
+        Pin=FakePin,
+        freq=lambda: 125_000_000,
+        unique_id=lambda: b"\xe6\x61\x0a",
+        same=lambda value: value,
+        pair=lambda first, second=0: (first, second),
+        _hidden=1,
+    )
+
+
+def object_link() -> Link:
+    """A monitor with the fake machine on the link as ``machine``, in JSON framing."""
+    link = Link(objects={"machine": fake_machine()})
+    link.ask("json on")
+    return link
+
+
+def object_error(link: Link, line: str) -> tuple[int, str]:
+    """The code and message of the failure ``line`` gets in JSON framing."""
+    error = json.loads(link.ask(line)[0])["error"]
+    return error["code"], error["message"]
+
+
+@pytest.mark.rule("board-object-by-name")
+class TestMonitorObjects:
+    """An object on the link is found by name: a dotted path and values, never Python."""
+
+    def test_a_module_lists_its_public_names(self):
+        """A module answers its public names, sorted: how a caller finds what is there."""
+        link = Link(objects={"library": json})
+        names = link.ask("library")
+        assert "dumps\r\n" in names and "loads\r\n" in names, "the module's functions"
+        assert names == sorted(names), "sorted"
+        assert not [name for name in names if name.startswith("_")], "nothing private"
+
+    def test_any_object_lists_its_names_by_its_bare_name(self):
+        """An object that is neither a module nor a class still lists its names when asked by name."""
+        link = object_link()
+        assert link.ask("machine") == ['{"result":["Pin","freq","pair","same","unique_id"]}\n'], (
+            "sorted, and _hidden is not listed"
+        )
+
+    def test_a_class_lists_its_names(self):
+        """A class answers its public names as a module does, so a caller walks down by name."""
+        link = object_link()
+        assert link.ask("machine.Pin") == ['{"result":["OUT","levels","value"]}\n']
+
+    def test_a_function_is_called_and_answers_its_value_typed(self):
+        """A path that ends at a function calls it: a number, bytes as uppercase hex, a tuple as an array."""
+        link = object_link()
+        assert link.ask("machine.freq") == ['{"result":125000000}\n']
+        assert link.ask("machine.unique_id") == ['{"result":"E6610A"}\n'], "uppercase hex"
+        assert link.ask("machine.pair 1") == ['{"result":[1,0]}\n']
+
+    def test_a_path_that_ends_at_a_value_answers_it(self):
+        """A constant is read by its path, with nothing to call."""
+        link = object_link()
+        assert link.ask("machine.Pin.OUT") == ['{"result":1}\n']
+
+    def test_each_kind_of_value_word(self):
+        """A value is decimal, 0x hex, negative, a float, a quoted string or a path under the object."""
+        link = object_link()
+        for word, expected in (
+            ("16", "16"),
+            ("0x10", "16"),
+            ("-3", "-3"),
+            ("2.5", "2.5"),
+            ('"LED"', '"LED"'),
+            ("'LED'", '"LED"'),
+            ("machine.Pin.OUT", "1"),
+        ):
+            assert link.ask("machine.same " + word) == ['{"result":' + expected + "}\n"], word
+
+    def test_a_named_value(self):
+        """name=value reaches the function as a keyword, read like any other value."""
+        link = object_link()
+        assert link.ask("machine.pair 1 second=0x02") == ['{"result":[1,2]}\n']
+
+    def test_a_method_through_its_class_takes_the_id_first(self):
+        """machine.Pin.value 2 1 is Pin(2).value(1): the first value makes the object."""
+        link = object_link()
+        assert link.ask("machine.Pin.value 2 1") == ['{"result":null}\n']
+        assert link.ask("machine.Pin.value 2") == ['{"result":1}\n']
+        actual = object_error(link, "machine.Pin.value")
+        expected = (BOARD_JSON.BAD_ARGS, "machine.Pin.value: the first value is the Pin's id")
+        assert actual == expected, "no id, no object"
+
+    def test_a_class_given_values_makes_the_object(self):
+        """A class with values is constructed, and the instance answers as Python prints it."""
+        link = object_link()
+        assert link.ask("machine.Pin 7") == ['{"result":"Pin(7)"}\n']
+
+    def test_a_write_then_two_reads(self):
+        """A level set by one line is read by the next, twice in a row, and another pin is untouched."""
+        # Arrange
+        link = object_link()
+
+        # Act
+        link.ask("machine.Pin.value 2 1")
+        actual = [link.ask("machine.Pin.value 2") for _ in range(2)]
+
+        # Assert
+        assert actual == [['{"result":1}\n']] * 2, "each line makes its object afresh"
+        assert link.ask("machine.Pin.value 3") == ['{"result":0}\n']
+
+    def test_nothing_is_evaluated(self):
+        """Python syntax is only an unknown name or an invalid value, and a private name is not there."""
+        link = object_link()
+        unknown = BOARD_JSON.UNKNOWN_COMMAND
+        assert object_error(link, "machine.freq()") == (unknown, "unknown name: machine.freq()")
+        assert object_error(link, "machine._hidden") == (unknown, "unknown name: machine._hidden")
+        assert object_error(link, "machine.Pin.__init__")[0] == unknown, "no dunder walk"
+        assert object_error(link, "machine.same machine._hidden")[0] == unknown, "nor as a value"
+        actual = object_error(link, "machine.same __import__('os')")
+        assert actual == (BOARD_JSON.BAD_ARGS, "invalid value: __import__('os')")
+
+    def test_a_value_that_is_not_one_is_refused(self):
+        """A bare word is never a string, and a listing or a constant takes no values."""
+        link = object_link()
+        bad = BOARD_JSON.BAD_ARGS
+        assert object_error(link, "machine.same on") == (bad, "invalid value: on")
+        assert object_error(link, "machine freq") == (bad, "invalid value: freq")
+        assert object_error(link, "machine 1") == (bad, "machine takes no values")
+        assert object_error(link, "machine.Pin.OUT 1") == (bad, "machine.Pin.OUT takes no values")
+
+    def test_a_failure_names_its_cause_and_the_link_recovers(self):
+        """A missing name is -32601, a raising call -32603 naming its type, and the next line works."""
+        link = object_link()
+        actual = object_error(link, "machine.nosuch")
+        assert actual == (BOARD_JSON.UNKNOWN_COMMAND, "unknown name: machine.nosuch")
+        code, message = object_error(link, "machine.freq 1")
+        assert code == BOARD_JSON.INTERNAL_ERROR, "the call raised"
+        assert message.startswith("TypeError: "), message
+        assert link.ask("machine.freq") == ['{"result":125000000}\n'], "the link answers after"
+        link.ask("json off")
+        assert link.ask("machine.nosuch") == ["ERR unknown name: machine.nosuch\r\n"]
+
+    def test_a_json_request_carries_the_values_as_params(self):
+        """A request's method is the path and its params the values; its id is echoed."""
+        link = Link(objects={"machine": fake_machine()})
+        assert link.ask('{"method":"machine.Pin.value","params":[2,1],"id":5}') == [
+            '{"result":null,"id":5}\n'
+        ]
+        assert link.ask('{"cmd":"machine.Pin.value","args":"2","id":6}') == [
+            '{"result":1,"id":6}\n'
+        ]
+
+    def test_only_the_name_or_the_name_and_a_dot_is_an_object_line(self):
+        """A word that merely starts with the name is an unknown command, and a command's words are its own."""
+        link = object_link()
+        assert link.ask("machinery") == [
+            '{"error":{"code":-32601,"message":"unknown command: machinery"}}\n'
+        ]
+        assert link.ask("echo machine.freq") == ['{"result":"machine.freq"}\n'], (
+            "a command's arguments are not looked up"
+        )
+
+    def test_help_lists_an_object(self):
+        """help names each object with how to use it, beside the commands."""
+        link = Link(objects={"machine": fake_machine()})
+        expected = (
+            "a Python object: machine lists its names, machine.<name> {values} reads or calls one"
+        )
+        assert link.ask("help machine") == [expected + "\r\n"]
+        assert "machine" in {line.split()[0] for line in link.ask("help")}
+
+    def test_an_object_cannot_take_a_command_name(self):
+        """An object named like a command, the table's or the monitor's own, is refused at construction."""
+        for name in ("help", "echo"):
+            with pytest.raises(ValueError, match="object name taken by a command: " + name):
+                Link(objects={name: fake_machine()})
+
+    def test_without_objects_a_path_is_an_unknown_command(self):
+        """A monitor given no objects looks nothing up."""
+        assert Link().ask("machine.freq") == ["ERR unknown command: machine.freq\r\n"]
+
+    def test_the_board_code_evaluates_nothing(self):
+        """No shared board file calls eval or exec: an object line is names and values."""
+        for path in sorted((BOARDS_DIR / "micropython" / "firmware").glob("*.py")):
+            calls = {
+                node.func.id
+                for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            }
+            assert not calls & {"eval", "exec", "compile", "__import__"}, path.name
+
+    def test_each_board_marks_a_call_destructive(self):
+        """Every board profile's path entry is destructive, so an MCP agent runs it only after a yes; the listing is readonly."""
+        for board in BOARDS:
+            commands = load_profile(BOARDS_DIR / board.name / "profile.json")["commands"]
+            names = _firmware_object_names(firmware_paths(board)[0])
+            assert names, f"{board.name}: main.py puts an object on the link"
+            for name in names:
+                assert commands[name + "."]["safety"] == "destructive", f"{board.name}: {name}."
+                assert commands[name]["safety"] == "readonly", f"{board.name}: {name}"
 
 
 class TestMonitorLines:

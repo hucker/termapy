@@ -36,6 +36,21 @@ board running this exactly as to one running the C:
   wire spec): a plain line gets its text reply whatever the framing, and a
   JSON request gets the reply lines as the result, or an ``ERR <reason>``
   line as the error.
+- An object (``objects={"machine": machine}``) puts a Python object on the
+  link under a name, with no command written for it.  A line that is the
+  name lists the object's public names; ``name.<path> {values}`` finds the
+  dotted path by attribute and answers it, called with the values when it
+  is a function: ``machine.freq``, ``machine.Pin.value 25 1``.  A method
+  reached through its class takes the object's id as its first value, so
+  that line is ``Pin(25).value(1)``.  A value is a number (decimal or ``0x``
+  hex), a quoted string, a path such as ``machine.Pin.OUT``, or
+  ``name=value``.  Nothing is evaluated: a line is names and values, never
+  Python.  A module or a class answers its public names, so ``machine`` and
+  then ``machine.Pin`` find what is there.  Bytes answer as uppercase hex, a
+  tuple as an array, and anything else JSON has no form for as its ``repr``.
+  A name that is not there is -32601, an exception from the call a -32603
+  failure naming its type.  This is MicroPython's own; the C module has no
+  such thing.
 
 Error codes are the contract's: -32700 malformed request, -32601 unknown
 command, -32602 bad arguments (a handler's ``CommandError``), -32603 a
@@ -72,6 +87,10 @@ ID_MAX_DIGITS = 10
 # (termapy_mem.c's TERMAPY_MEM_LINE_SIZE, 212) wrapped in a JSON request fits
 # with room to spare.
 LINE_MAX = 512
+
+# The largest whole number an object line takes as a value, either sign: any
+# 64-bit quantity.
+VALUE_MAX = 1 << 64
 
 # How long run() sleeps, in seconds, when no command was waiting: the most a
 # command waits to be read, and the time the other tasks get.
@@ -151,6 +170,38 @@ def _request_id(value):
     return value
 
 
+def _plain(value):
+    """An object line's ``value`` in a form the reply envelope can carry.
+
+    A module or a class answers its public names, sorted, which is how a
+    caller finds what an object has; bytes answer as uppercase hex, a tuple
+    as a list, and anything else JSON has no form for as its ``repr``.
+    """
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, (bytes, bytearray)):
+        return "".join(f"{byte:02X}" for byte in value)
+    if isinstance(value, (list, tuple)):
+        return [_plain(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _plain(item) for key, item in value.items()}
+    if isinstance(value, type) or type(value).__name__ == "module":
+        return _names(value)
+    return repr(value)
+
+
+def _names(value):
+    """The public names ``value`` has, sorted: MicroPython's ``dir`` keeps no order."""
+    return sorted(name for name in dir(value) if not name.startswith("_"))
+
+
+def _is_name(text):
+    """Whether ``text`` is a keyword's name: letters, digits and underscores, not opening with a digit."""
+    if not text or text[0].isdigit():
+        return False
+    return all(char.isalpha() or char.isdigit() or char == "_" for char in text)
+
+
 def _word(element):
     """One ``params`` array element as a command word; a nested value is malformed."""
     if isinstance(element, str):
@@ -208,13 +259,19 @@ class Monitor:
             its reply's text lines (termapy_mem.py's ``commands()``).
         read: Returns one received character, or ``""`` when none is
             waiting, and never waits; the board's serial link when omitted.
+        objects: Name to Python object (``{"machine": machine}``).  A line
+            that is the name lists the object's public names, and
+            ``name.<path> {values}`` answers the attribute the dotted path
+            names, called with the values when it is a function.  Nothing
+            is evaluated, but every public name under the object is in
+            reach, so an object is as much access as it gives.
 
     Raises:
-        ValueError: A command reuses the name of one the monitor answers
-            itself, or of another table's.
+        ValueError: A command or an object reuses the name of one the
+            monitor answers itself, or of another table's.
     """
 
-    def __init__(self, commands, write=None, native=None, read=None):
+    def __init__(self, commands, write=None, native=None, read=None, objects=None):
         # The monitor's own commands, in the table's shape.
         self.builtins = {
             "help": ("list the commands; help <command> for one", self._help),
@@ -229,15 +286,31 @@ class Monitor:
         for name in commands:
             if name in native:
                 raise ValueError("command name in both tables: " + name)
+        objects = objects or {}
+        for name in objects:
+            if name in self.builtins or name in commands or name in native:
+                raise ValueError("object name taken by a command: " + name)
         self.commands = commands
         self.native = native
+        self.objects = objects
+        listed = {
+            name: (
+                "a Python object: "
+                + name
+                + " lists its names, "
+                + name
+                + ".<name> {values} reads or calls one",
+                None,
+            )
+            for name in objects
+        }
         # help's answer, built once in name order for both framings.  An
         # OrderedDict, because MicroPython's dicts keep no order: a plain one
         # reaches the wire in hash order.
         self.help_table = OrderedDict(
             sorted(
                 (name, line)
-                for table in (commands, native, self.builtins)
+                for table in (commands, native, self.builtins, listed)
                 for name, (line, _) in table.items()
             )
         )
@@ -331,6 +404,9 @@ class Monitor:
                 return
         words = text.split()
         name, args = words[0], words[1:]
+        if name.split(".")[0] in self.objects:
+            self._object(name, args)
+            return
         if name in self.native:
             self._native(self.native[name][1], args, requested_json)
             return
@@ -347,6 +423,74 @@ class Monitor:
             self._error(CommandError(str(e), INTERNAL_ERROR))
             return
         self._result(value)
+
+    def _object(self, path, words):
+        """Answer an object line: the dotted ``path`` found by attribute, called with ``words`` as its values."""
+        try:
+            value = self._call(path, words)
+        except CommandError as e:
+            self._error(e)
+            return
+        except Exception as e:
+            self._error(CommandError(type(e).__name__ + ": " + str(e), INTERNAL_ERROR))
+            return
+        self._result(value)
+
+    def _call(self, path, words):
+        """What ``path`` answers with ``words``: a listing, a value, or a call's result."""
+        args = []
+        named = {}
+        for word in words:
+            key, equals, text = word.partition("=")
+            if equals and _is_name(key):
+                named[key] = self._value(text)
+            else:
+                args.append(self._value(word))
+        names = path.split(".")
+        value = self.objects[names[0]]
+        for index, name in enumerate(names[1:]):
+            member = self._member(value, name, path)
+            if isinstance(value, type) and callable(member) and not isinstance(member, type):
+                # A method reached through its class: the first value makes the object.
+                if not args:
+                    raise CommandError(path + ": the first value is the " + names[index] + "'s id")
+                member = getattr(value(args.pop(0)), name)
+            value = member
+        if len(names) == 1 or (isinstance(value, type) and not args and not named):
+            if args or named:
+                raise CommandError(path + " takes no values")
+            return _names(value)
+        if callable(value):
+            return _plain(value(*args, **named))
+        if args or named:
+            raise CommandError(path + " takes no values")
+        return _plain(value)
+
+    def _member(self, value, name, path):
+        """The public attribute ``name`` of ``value``; a missing or private one is an unknown name."""
+        if not name or name[0] == "_" or not hasattr(value, name):
+            raise CommandError("unknown name: " + path, UNKNOWN_COMMAND)
+        return getattr(value, name)
+
+    def _value(self, word):
+        """One value word: a quoted string, a path under an object, or a number."""
+        if len(word) > 1 and word[0] in "\"'" and word[-1] == word[0]:
+            return word[1:-1]
+        names = word.split(".")
+        if names[0] in self.objects:
+            value = self.objects[names[0]]
+            for name in names[1:]:
+                value = self._member(value, name, word)
+            return value
+        try:
+            # int_arg is the board's one reader of a number word.
+            return int_arg(word, "value", -VALUE_MAX, VALUE_MAX)
+        except CommandError:
+            pass
+        try:
+            return float(word)
+        except ValueError:
+            raise CommandError("invalid value: " + word) from None
 
     def _native(self, handler, args, requested_json):
         """Answer a native command: its text lines, or for a JSON request an envelope around them."""

@@ -1,7 +1,7 @@
 {
   "profile_version": 2,
-  "profile_revision": "2.1.2",
-  "profile_date": "2026-11-14",
+  "profile_revision": "2.2.0",
+  "profile_date": "2026-11-15",
   "device": {
     "name": "ESP32-S3 DevKitC-1 (termapy starter, MicroPython)",
     "vendor": "Espressif",
@@ -180,6 +180,34 @@
       "response": {
         "format": "json",
         "timeout_ms": 500
+      }
+    },
+    "machine": {
+      "help": "List the names in MicroPython's machine module: its classes, functions and constants.",
+      "long_help": "The board answers by looking, so the list is what this build of MicroPython has.  machine.<name> on a class lists that class's names the same way: machine.Pin answers the pin constants and methods.  A JSON request carries the same: method machine.Pin.value, params [2, 1].",
+      "safety": "readonly",
+      "response": {
+        "format": "json",
+        "timeout_ms": 500
+      }
+    },
+    "machine.": {
+      "help": "Read or call a name under machine on the board: machine.freq, machine.Pin.value 2 1.",
+      "args": "<call>",
+      "long_help": "The board finds the dotted name by attribute and answers it, calling it with the values when it is a function; the line is names and values, never Python.  A method reached through its class takes the object's id as its first value: machine.Pin.value 2 1 is Pin(2).value(1).  A value is a number (decimal or 0x hex), a quoted string, a path such as machine.Pin.OUT, or name=value.  A number, string or list answers as itself, bytes as uppercase hex, a class as its names, anything else as Python prints it.  Every name machine has is in reach with nothing checked first: machine.reset restarts the board and machine.bootloader leaves MicroPython, so this entry is destructive and an MCP agent is asked to confirm each call with you.",
+      "send_template": "machine.{call}",
+      "typed_args": [
+        {
+          "name": "call",
+          "type": "str",
+          "required": true,
+          "help": "What follows machine.: a dotted name, then its values separated by spaces."
+        }
+      ],
+      "safety": "destructive",
+      "response": {
+        "format": "json",
+        "timeout_ms": 2000
       }
     },
     "MEM.R": {

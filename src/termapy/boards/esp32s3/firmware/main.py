@@ -8,10 +8,17 @@ MicroPython starts it at every power-up.  Ctrl-C in a terminal stops it and retu
 MicroPython prompt; Ctrl-D restarts it.
 
 The commands are the decorated handlers below, each with a one-line help.
-The monitor adds two of its own: ``help`` lists every command with its help
-line, and ``json {on|off}`` switches the reply framing.  A new command is a
+The monitor adds its own: ``help`` lists every command with its help line,
+and ``json {on|off}`` switches the reply framing.  A new command is a
 handler with an ``@commands.command(name, help)`` line.  termapy_mem.py adds
 the MEM commands that termapy's /mem.* speaks.
+
+``objects={"machine": machine}`` puts MicroPython's machine module on the
+link with no handler written: ``machine`` lists its names, and
+``machine.<name> {values}`` reads or calls one, found by attribute on the
+board: ``machine.freq``, or ``machine.Pin.value 2`` for ``Pin(2).value()``.
+Nothing is evaluated as Python.  A project adds its own objects to the same
+dict.
 
 The board runs asyncio: the monitor is one task, ``monitor.run()``, and the
 project's own tasks start beside it in ``main()``.  A project with a super
@@ -85,7 +92,8 @@ async def main():
     # The MEM commands for termapy's /mem.*: pure reads and writes of any address.
     # termapy checks addresses against the part's JSON; this board's own rules,
     # if it needs any, are a guard(addr, count, write) passed to direct().
-    monitor = Monitor(commands.table, native=direct().commands())
+    # objects: machine is answered by name, machine.<name> {values} found by attribute.
+    monitor = Monitor(commands.table, native=direct().commands(), objects={"machine": machine})
     # The project's own tasks start here, beside the monitor's:
     # asyncio.create_task(my_task())
     await monitor.run()

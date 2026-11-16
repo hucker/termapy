@@ -1864,3 +1864,54 @@ intended board feature -- a way to test termapy's XMODEM against independent har
 move out of the standard firmware/builtins/profiles into an OPT-IN test kit a `/board`
 subcommand installs (the kit registers through the decorator above). A follow-up branch
 `feat/board-test-kit`; until then XMODEM stays a shipped board command.
+
+## 2026-11-15 — A board's `machine` module is on the link by name: a path and values, never evaluated
+
+Chuck asked for MicroPython's `machine` interface on the monitor, reachable by discovery, with
+as little code on the board as possible. `Monitor(..., objects={"machine": machine})` puts a
+Python object on the link under a name (registry `board-object-by-name`). The name alone
+answers the object's public names, and a class answers its own, so a caller walks from
+`machine` to `machine.Pin` without a table anywhere. `machine.<path> {values}` is found by
+attribute on the board and answered in the existing envelope: a function is called with the
+values, a constant answers its value. `machine.freq`, `machine.Pin.value 2 1`,
+`machine.I2C.scan 0`.
+
+**The notation is a command's, not Python's** (Chuck: "so it keeps with the repl style
+interface"): a name, then values separated by spaces, as every other board command is written,
+and as a JSON-RPC request already carries it (`method` and `params`). A value is a number
+(decimal or `0x` hex), a quoted string, a path under an object (`machine.Pin.OUT`) or
+`name=value`; a bare word is refused, so `on` never arrives as a truthy string.
+
+**Why not `eval`.** The first build evaluated the line as a Python expression. It was the
+least code, and it ran anything: the line had to open with `machine.`, but an argument could
+be `__import__("os").remove("main.py")`. The MCP confirmation is a courtesy the agent sets
+itself, so nothing stood behind it. The walk has no such reach: it follows public attributes
+of the objects `main.py` chose, and a test fails if a shared board file calls `eval` or
+`exec`. It is not a fence around the hardware: `machine.reset`, `machine.bootloader` and
+every pin are still names under `machine`, which is what the object was put there for.
+
+**A method needs its object.** Direct hardware access is any pin by number,
+`Pin(15).value()`, a call in the middle of the path. The rule that keeps the notation flat: a
+method reached through its class takes the object's id as its first value, so
+`machine.Pin.value 15` is `Pin(15).value()`. Every `machine` class is made from one id (a pin,
+a bus or a timer number), and one that needs more is an object the project names in `objects`
+(`"bus": machine.I2C(0, scl=..., sda=...)`, then `bus.scan`).
+
+**Why not typed commands on the board, and not the built-in REPL.** A handler per pin, ADC or
+bus operation is device code for every board and still covers only what was wrapped. Entering
+the REPL stops `main.py`, so the project being looked at stops running, and its replies are
+text with no envelope, id or error code.
+
+**What it costs.** About seventy lines in the one shared file, nothing per board. Each board's
+profile carries two entries: `machine`, the listing, `readonly`; and `machine.`, the path,
+`destructive`. A call that never returns stops the monitor and every other task until a reset.
+
+**Not done here.** Bytes as a value (`I2C.writeto`). Typed profile entries per name, generated
+on the host from the published MicroPython stubs (`micropython-rp2-stubs`,
+`micropython-esp32-stubs`: argument names, types and docstrings for most of `machine`) and
+filtered by what the board lists, with pin ranges and safety tiers from a per-board table. A
+profile for the runtime merged with each board's at `/board.new`, which would end the copy of
+the shared commands in every board's profile. **Where:**
+`boards/micropython/firmware/termapy_json.py` (`Monitor._call`, `_value`, `_plain`), both
+boards' `main.py` and `profile.json`, `tests/test_boards.py` (`TestMonitorObjects`),
+`help/boards.md`.

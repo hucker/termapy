@@ -242,3 +242,67 @@ class TestBoardCommands:
         assert facts["endian"] == "le", "little-endian"
         assert facts["max_block"] >= 1, "a positive maximum block size"
         assert isinstance(facts["modify"], bool), "modify is a flag"
+
+
+@pytest.fixture
+def board_machine(board_json, pytestconfig: pytest.Config):
+    """The board in JSON framing, confirmed to have ``machine`` on the link."""
+    port, _id = board_json
+    if "error" in json.loads(_json_ask(port, "help machine")):
+        _rig_unusable(
+            pytestconfig,
+            "the board has no 'machine' object -- copy the current firmware first: "
+            "uvx mpremote connect <port> cp main.py termapy_json.py : + reset",
+        )
+    return port
+
+
+@pytest.mark.rule("board-object-by-name")
+class TestBoardMachine:
+    """MicroPython's real machine module answers by name over the real link.
+
+    The unit tests run on CPython against a stand-in; these are the same
+    lines against MicroPython's own ``dir``, ``getattr``, ``callable`` and
+    native types, which a host cannot stand in for.  Nothing here drives a pin.
+    """
+
+    def test_machine_lists_the_module_names(self, board_machine) -> None:
+        """machine alone answers the module's public names, sorted, Pin and freq among them."""
+        names = json.loads(_json_ask(board_machine, "machine"))["result"]
+        assert {"Pin", "ADC", "freq", "unique_id"} <= set(names), "what every port has"
+        assert names == sorted(names), "sorted on the board, whose dir() keeps no order"
+        assert not [name for name in names if name.startswith("_")], "nothing private"
+
+    def test_a_class_lists_its_names(self, board_machine) -> None:
+        """machine.Pin answers the class's names: its constants and its methods."""
+        names = json.loads(_json_ask(board_machine, "machine.Pin"))["result"]
+        assert {"IN", "OUT", "value"} <= set(names), "the pin modes and the level method"
+
+    def test_a_function_answers_a_number_twice(self, board_machine) -> None:
+        """machine.freq calls it and answers the CPU clock as a JSON number, the same on a second ask."""
+        actual = [json.loads(_json_ask(board_machine, "machine.freq"))["result"] for _ in "12"]
+        assert isinstance(actual[0], int) and actual[0] >= 1_000_000, f"a clock in Hz: {actual}"
+        assert actual[0] == actual[1], "each line calls afresh"
+
+    def test_a_constant_and_a_method_through_its_class(self, board_machine) -> None:
+        """machine.Pin.OUT is read as a number, and machine.Pin.value 0 is Pin(0).value(), a level."""
+        mode = json.loads(_json_ask(board_machine, "machine.Pin.OUT"))["result"]
+        assert isinstance(mode, int), "a native class's constant is a value, not a call"
+        level = json.loads(_json_ask(board_machine, "machine.Pin.value 0"))["result"]
+        assert level in (0, 1), "the first value made the Pin; reading it sets no mode"
+
+    def test_bytes_answer_as_the_id_command_does(self, board_machine) -> None:
+        """machine.unique_id is bytes, answered as the uppercase hex the id command prints."""
+        by_name = json.loads(_json_ask(board_machine, "machine.unique_id"))["result"]
+        by_command = json.loads(_json_ask(board_machine, "id"))["result"]
+        assert by_name == by_command, "one hex spelling for the same bytes"
+
+    def test_a_missing_name_and_python_syntax_are_refused_and_the_board_recovers(
+        self, board_machine
+    ) -> None:
+        """A name machine lacks is -32601, a call written as Python is too, and the next line answers."""
+        for line in ("machine.nosuch", "machine.freq()"):
+            error = json.loads(_json_ask(board_machine, line))["error"]
+            assert error["code"] == -32601, line
+            assert error["message"] == "unknown name: " + line, "nothing was evaluated"
+        assert "result" in json.loads(_json_ask(board_machine, "machine.freq")), "still answering"

@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 195: 180 registry rows (guarantees 145, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 191. Pinned by none: 4.
+Ids: 196: 181 registry rows (guarantees 146, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 192. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -71,6 +71,11 @@ Ids: 195: 180 registry rows (guarantees 145, assumptions 35), 15 spec sections i
 ### `board-mem-pure` (guarantee, contract)
 
 - `test_boards.py`: `TestMicroPythonMem.test_a_modify_the_guard_refuses_never_takes_the_lock` **guard**, `TestMicroPythonMem.test_no_guard_reads_any_address` **guard**, `TestMicroPythonMem.test_the_guard_sees_every_access_before_it_runs` **guard**
+
+### `board-object-by-name` (guarantee, contract)
+
+- `test_boards.py`: `TestMonitorObjects` (20 functions)
+- `test_hw_board.py`: `TestBoardMachine` (6 functions)
 
 ### `board-profile-complete` (guarantee, repository)
 

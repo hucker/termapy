@@ -8,10 +8,10 @@ device profile. The board answers at an interactive prompt, its commands
 show in `/help`, and an MCP agent gets them as typed tools. This is real
 hardware; the simulator is `/demo`.
 
-| Board     | Runs        | Device code                                                        | Board commands                                                       |
-| --------- | ----------- | ------------------------------------------------------------------ | ------------------------------------------------------------------- |
-| `pico`    | MicroPython | `main.py`, `termapy_json.py`, `termapy_mem.py`, `termapy_xmodem.py` | `help`, `led`, `temp`, `id`, `json`, `xmodem`, `MEM.*`              |
-| `esp32s3` | MicroPython | `main.py`, `termapy_json.py`, `termapy_mem.py`, `termapy_xmodem.py` | `help`, `led`, `led_rgb`, `temp`, `id`, `json`, `xmodem`, `MEM.*`   |
+| Board     | Runs        | Device code                                                        | Board commands                                                                  |
+| --------- | ----------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `pico`    | MicroPython | `main.py`, `termapy_json.py`, `termapy_mem.py`, `termapy_xmodem.py` | `help`, `led`, `temp`, `id`, `machine`, `json`, `xmodem`, `MEM.*`              |
+| `esp32s3` | MicroPython | `main.py`, `termapy_json.py`, `termapy_mem.py`, `termapy_xmodem.py` | `help`, `led`, `led_rgb`, `temp`, `id`, `machine`, `json`, `xmodem`, `MEM.*`   |
 
 The `xmodem recv` / `xmodem send` commands make a MicroPython board an XMODEM
 peer: pair them with the host's [`/xfer.xmodem.*`](file-transfer.md) to move a
@@ -115,6 +115,58 @@ reads with `/mem.read`, `/mem.dump` and `/mem.info` freely. Every write
 `MEM.R`, `MEM.W` or `MEM.M` is destructive: it runs only after you confirm
 it.
 
+## Hardware by name
+
+Both boards put MicroPython's `machine` module on the link, so every pin,
+converter, bus and timer the board has is reachable with no command written
+for it:
+
+```text
+machine                                 the module's names: ADC, I2C, Pin, PWM, freq, ...
+machine.Pin                             a class's names: IN, OUT, value, ...
+machine.Pin.OUT                         a constant's value
+machine.freq                            the CPU clock, a number
+machine.Pin.init 2 machine.Pin.OUT      make GPIO2 an output
+machine.Pin.value 2 1                   drive it high
+machine.Pin.value 2                     read it back
+machine.ADC.read_u16 26                 one conversion on GPIO26
+machine.I2C.scan 0                      the addresses that answer on bus 0
+```
+
+`machine` alone lists what the module has, and a class lists its own names
+the same way, so you find what is there by asking the board. A line is a
+dotted name and then its values, separated by spaces, like any other
+command. The board finds the name by attribute: a function is called with
+the values, and a constant answers its value. The line is never run as
+Python, so `machine.freq()` is an unknown name.
+
+A method needs its object, so a method reached through its class takes the
+object's id as its first value: `machine.Pin.value 2 1` is
+`Pin(2).value(1)`, and `machine.I2C.scan 0` is `I2C(0).scan()`. A value is
+a number in decimal or `0x` hex, a quoted string with no spaces
+(`machine.Pin.value "LED" 1`), a path such as `machine.Pin.OUT`, or
+`name=value` for a keyword (`machine.Pin.init 2 mode=machine.Pin.OUT`). A
+bare word is refused, never taken as text. Bytes cannot be given as a
+value yet, so `I2C.writeto` is out of reach.
+
+A number, a string or a list answers as itself, bytes as uppercase hex, and
+anything else as Python prints it. A name that is not there is
+`ERR unknown name: machine.nosuch`, and an exception from the call is the
+error, named by its type: `ERR TypeError: ...`.
+
+Every name `machine` has is in reach. `machine.reset` restarts the board
+and `machine.bootloader` leaves MicroPython, and nothing checks a pin
+number before it is used. So an MCP agent lists with `machine` freely, and
+a `machine.` call is destructive: the agent is asked to confirm it with
+you, as it is a memory write. A call that never returns stops the board
+answering until you reset it.
+
+This comes from one line of `main.py`, `objects={"machine": machine}`. A
+project puts its own objects on the link by adding them to that dict, each
+answered by its name the same way: with `"led": machine.Pin(25,
+machine.Pin.OUT)` there, `led.value 1` drives it. Leave the argument out
+and the board looks nothing up.
+
 ## The board's commands
 
 Each board answers one command per line:
@@ -129,6 +181,8 @@ Each board answers one command per line:
 | `led_rgb <r> <g> <b>` | ESP32-S3: the new levels       | `{"result":[0,0,32]}`              |
 | `temp`           | degrees C, such as `21.4`           | `{"result":21.4}`, a number        |
 | `id`             | the board's unique ID in hex        | `{"result":"E66548545710822C"}`    |
+| `machine`        | the module's names, one per line    | `{"result":["ADC","I2C","Pin",...]}` |
+| `machine.<name> {values}` | the name's value, or its call's | `{"result":125000000}`          |
 | `json {on\|off}` | the framing, `on` or `off`          | `{"result":"on"}`                  |
 | `MEM.R`, `MEM.W`, `MEM.M`, `MEM.INFO` | the [memory wire spec](memory.md)'s rows, `OK` or `ERR` | the same text: MEM keeps its own |
 

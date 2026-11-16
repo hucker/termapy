@@ -1,6 +1,7 @@
 {
     "title": "ESP32-S3 DevKitC-1",
     "on_connect_cmd": "json on",
+    "protocol": "ndjson",
     "tui_on_connect_cmd": "help",
     "custom_buttons": [
         {"enabled": true, "name": "LED On", "command": "led on", "tooltip": "Turn the RGB LED on"},

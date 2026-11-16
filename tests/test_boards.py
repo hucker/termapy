@@ -293,6 +293,7 @@ class TestCreateConfig:
         profile = created.path.parent / f"pico{PROFILE_SUFFIX}"
         assert profile.read_bytes() == (BOARDS_DIR / "pico" / "profile.json").read_bytes()
         assert data["profile_path"] == f"pico{PROFILE_SUFFIX}", "it loads at every connect"
+        assert data["protocol"] == "ndjson", "JSON mode sends the board ids"
 
     def test_a_named_config_gets_its_own_profile_name(self, tmp_path):
         """With a name, the config and its profile both carry it, so the profile loads with it."""
@@ -307,6 +308,21 @@ class TestCreateConfig:
         """What /board.new writes is what /board.update would: a fresh config has nothing stale."""
         created = create_board_config(PICO, tmp_path, source=ports(PICO_PORT))
         assert stale_files(PICO, created.path) == []
+
+    @pytest.mark.rule("board-update")
+    def test_line_endings_alone_are_not_a_change(self, tmp_path):
+        """A copy that differs only in CRLF against LF, as two git checkouts on Windows write it, is up to date."""
+        # Arrange -- every copy rewritten with the other line ending
+        created = create_board_config(PICO, tmp_path, source=ports(PICO_PORT))
+        copies = [created.path.parent / f"pico{PROFILE_SUFFIX}", *created.firmware]
+        for path in copies:
+            path.write_bytes(path.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+
+        # Act
+        actual = stale_files(PICO, created.path)
+
+        # Assert
+        assert actual == [], "line endings are not a change"
 
     def test_the_config_folder_holds_the_board_code(self, tmp_path):
         """Everything for the board lives in its config's folder: the device code lands in firmware/."""
@@ -541,6 +557,8 @@ class TestBoardUpdate:
         assert stale_files(PICO, folder / "test.cfg") == [], "everything now matches"
         saved = json.loads((folder / "test.cfg").read_text(encoding="utf-8"))
         assert saved["profile_path"] == f"test{PROFILE_SUFFIX}", "it loads at the next connect"
+        assert saved["protocol"] == "ndjson", "the board's setting its code depends on"
+        assert env.engine.cfg["protocol"] == "ndjson", "the session follows the file"
         assert "led" in env.engine.ctx.ns("active_profile")["commands"], "and is loaded now"
         assert f"  test{PROFILE_SUFFIX}  1.1.0 -> {_shipped_revision(PICO)}" in env.output
         assert "  firmware/termapy_mem.py  (new)" in env.output, "a missing copy is named new"
@@ -567,6 +585,22 @@ class TestBoardUpdate:
             PICO, [folder / "firmware" / path.name for path in firmware_paths(PICO)], "<port>"
         )
         assert result.data["install"] == expected, "pastes into a shell in any folder"
+
+    def test_the_same_revision_with_other_contents_says_so(self, env: Env, tmp_path):
+        """A profile at the shipped revision whose contents differ is named as that, not 2.2.0 -> 2.2.0."""
+        # Arrange -- the shipped profile, edited by hand
+        folder = _old_board_config(tmp_path)
+        shipped = json.loads(profile_source(PICO).read_text(encoding="utf-8"))
+        shipped["commands"].pop("temp")
+        (folder / f"test{PROFILE_SUFFIX}").write_text(json.dumps(shipped), encoding="utf-8")
+        _interactive(env)
+
+        # Act
+        env.engine.dispatch("board.update pico")
+
+        # Assert
+        expected = f"  test{PROFILE_SUFFIX}  {_shipped_revision(PICO)}, contents differ"
+        assert expected in env.output
 
     def test_a_second_update_changes_nothing(self, env: Env, tmp_path):
         """Run twice, the second finds the config up to date, writes nothing and still loads the profile."""
@@ -607,6 +641,7 @@ class TestBoardUpdate:
         assert questions[0].startswith("Update test from termapy's Raspberry Pi Pico starter?")
         assert "  firmware/main.py" in questions[0].splitlines(), "each file it would replace"
         assert f"  test.cfg  profile_path = test{PROFILE_SUFFIX}" in questions[0].splitlines()
+        assert "  test.cfg  protocol = ndjson" in questions[0].splitlines()
 
     def test_the_board_defaults_to_the_config_name(self, env: Env):
         """Bare, the board is the one the config is named for; a config named otherwise is refused."""

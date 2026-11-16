@@ -21,14 +21,14 @@ from termapy.boards import (
     AlreadyConfigured,
     Board,
     Stale,
+    apply_settings,
     attached,
-    config_profile_path,
     copy_firmware,
     create_board_config,
     find_board,
     firmware_paths,
     install_command,
-    name_profile,
+    missing_settings,
     profile_name,
     profile_revision,
     replace_stale,
@@ -119,7 +119,9 @@ def _stale_line(item: Stale, folder: Path) -> str:
     name = item.destination.relative_to(folder).as_posix()
     if item.destination.parent == folder:
         was = profile_revision(item.destination) or "none"
-        return f"{name}  {was} -> {profile_revision(item.source)}"
+        now = profile_revision(item.source)
+        # The same revision with other contents: an edited copy, or a profile changed without a bump.
+        return f"{name}  {now}, contents differ" if was == now else f"{name}  {was} -> {now}"
     return name if item.destination.is_file() else f"{name}  (new)"
 
 
@@ -198,8 +200,10 @@ def _handler_update(ctx: PluginContext, args: str) -> CmdResult:
     """``/board.update {board}``: replace the config's profile and device code with the shipped ones, after a yes.
 
     The board defaults to the one the active config is named for.  Only
-    copies that differ are replaced, and a config naming no profile gets
-    ``profile_path`` set so the profile loads at every connect.  The
+    copies that differ are replaced.  The config file gets the settings the
+    board's code depends on (``boards.missing_settings``): ``profile_path``
+    when it names no profile, so the profile loads at every connect, and
+    ``protocol``, so JSON mode sends ids.  The
     profile is loaded at the end either way, and when device code changed
     the reply ends with the line that puts it on the board: termapy never
     writes to the board itself.
@@ -213,16 +217,17 @@ def _handler_update(ctx: PluginContext, args: str) -> CmdResult:
     folder = config_path.parent
     stale = stale_files(board, config_path)
     try:
-        written = config_profile_path(config_path)
+        # The file decides, as it is what the next load reads; the session follows it.
+        settings = missing_settings(board, config_path)
     except (OSError, ValueError) as e:
         return CmdResult.fail(msg=f"Read error: {e}")
-    # The file decides, as it is what the next load reads; the session follows it.
-    names_profile = not written
-    session = cfg_value(ctx.cfg, "profile_path")
-    profile = session or written or profile_name(config_path.stem)
+    profile = (
+        cfg_value(ctx.cfg, "profile_path")
+        or settings.get("profile_path")
+        or profile_name(config_path.stem)
+    )
     lines = [_stale_line(item, folder) for item in stale]
-    if names_profile:
-        lines.append(f"{config_path.name}  profile_path = {profile}")
+    lines += [f"{config_path.name}  {key} = {value}" for key, value in settings.items()]
     if lines:
         question = f"Update {config_path.stem} from termapy's {board.title} starter?\n" + "\n".join(
             f"  {line}" for line in lines
@@ -231,11 +236,13 @@ def _handler_update(ctx: PluginContext, args: str) -> CmdResult:
             return CmdResult.fail(msg=f"Config not updated: {config_path.stem}")
         try:
             replace_stale(stale)
-            named = name_profile(config_path) if names_profile else ""
+            if settings:
+                apply_settings(config_path, settings)
         except (OSError, ValueError) as e:
             return CmdResult.fail(msg=f"Write error: {e}")
-        if named and not session:
-            ctx.internal.apply_cfg("profile_path", named)
+        for key, value in settings.items():
+            if cfg_value(ctx.cfg, key) != value:
+                ctx.internal.apply_cfg(key, value)
         ctx.io.result(f"Updated {config_path.stem}:")
         for line in lines:
             ctx.io.output(f"  {line}")
@@ -308,15 +315,19 @@ COMMAND = Command(
                 "device code it was made with.  This replaces the copies that differ "
                 "from what termapy ships now, the profile in the config's folder and the "
                 "code in its firmware/, after listing them and asking.  A file you edited "
-                "is replaced too, so the list is the one place to see it.  Then it loads "
-                "the profile, and when device code changed it prints the command that "
-                "puts it on the board; termapy never writes to the board itself.  The "
-                "board defaults to the one the config is named for."
+                "is replaced too, so the list is the one place to see it.  The config "
+                "gets the settings the board's code depends on, listed the same way.  "
+                "Then it loads the profile, and when device code changed it prints the "
+                "command that puts it on the board; termapy never writes to the board "
+                "itself.  The board defaults to the one the config is named for."
             ),
             handler=_handler_update,
             needs=CapabilitySet.MANAGE_FILES,
             safety="destructive",
-            cfg={"profile_path": "set to the config's profile when empty, so it loads at connect"},
+            cfg={
+                "profile_path": "set to the config's profile when empty, so it loads at connect",
+                "protocol": "set to the board's, ndjson, so JSON mode sends ids",
+            },
             params=[
                 ParamSpec(
                     "board",

@@ -356,8 +356,9 @@ class MCPHost(TerminalHost):
         ``source`` distinguishes lines that arrived between MCP calls
         (``"between_calls"``) from lines that were sitting in the
         recent-lines buffer when a profile-mapped command was sent
-        (``"pre_send_drain"``).  The ring is capped to keep the
-        device_state resource bounded.
+        (``"pre_send_drain"``) and lines that arrived during a request
+        without its id (``"not_the_reply"``, registry ``json-mode-ids``).
+        The ring is capped to keep the device_state resource bounded.
         """
         from datetime import datetime
 
@@ -1290,28 +1291,47 @@ def _dispatch_via_profile(
         terminator = ""
         idle_gap_s = 0.05
 
+    # A device that takes JSON lines gets an id on every request, and only
+    # the line carrying it is the answer (registry json-mode-ids).  A
+    # "none" reply is checked for silence, so it carries no id to wait for.
+    from termapy.request_response import id_field, json_request, pick_reply
+
+    field = id_field(host.cfg) if fmt != "none" else ""
+    request_id = host.repl.next_request_id() if field else 0
     rr = request_response(
         send=host.ctx.serial.send,
         drain_recent_lines=host.repl.drain_recent_lines,
         wait_for_lines=host.repl.wait_for_lines,
-        command=command_text,
+        command=json_request(command_text, request_id, field) if field else command_text,
         timeout_s=timeout_s,
         terminator=terminator,
         idle_gap_s=idle_gap_s,
         on_drained_line=lambda line: host._record_async_event(line, source="pre_send_drain"),
         wait=wait,
+        reply_id=request_id if field else None,
+        field=field,
     )
     if rr["error"]:
         result = CmdResult.fail(msg=rr["error"])
         result.elapsed_s = rr["elapsed_s"]
         return result
-    text = rr["text"]
-    collected = rr["lines"]
+    text: str = rr["text"]
+    collected: list[str] = rr["lines"]
     elapsed = rr["elapsed_s"]
+    if field:
+        reply, others = pick_reply(collected, request_id, field)
+        # Not the answer: a late reply, an event, a print from the device's code.
+        for line in others:
+            host._record_async_event(line, source="not_the_reply")
+        if not reply:
+            result = CmdResult.fail(msg=f"No reply with id {request_id}")
+            result.elapsed_s = elapsed
+            return result
+        text, collected = reply, [reply]
 
     # Error detection wins over response parsing.
     err_block = profile.get("error_detection") or {}
-    err_pat = err_block.get("pattern", "") if isinstance(err_block, dict) else ""
+    err_pat: str = err_block.get("pattern", "") if isinstance(err_block, dict) else ""
     if err_pat and text:
         import re as _re
 

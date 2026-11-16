@@ -13,7 +13,7 @@ from collections.abc import Callable
 import pytest
 
 from termapy.plugins.handles.serial import SerialHandle
-from termapy.request_response import request_response
+from termapy.request_response import id_field, json_request, pick_reply, request_response
 
 # ── Fakes ────────────────────────────────────────────────────────────────────
 
@@ -284,3 +284,89 @@ def test_line_ending_appended(eol):
     actual = writer.writes[0]
     expected = ("cmd" + eol).encode("ascii")
     assert actual == expected, f"line ending {eol!r} appended"
+
+
+# ── JSON-mode ids (registry json-mode-ids) ──────────────────────────────────
+
+
+def _windows(*windows: list[str]) -> Callable[..., list[str]]:
+    """A wait_for_lines that answers each call with the next window, then nothing."""
+    pending = list(windows)
+
+    def wait(*, timeout: float, terminator: str = "", idle_gap: float = 0.05) -> list[str]:
+        return pending.pop(0) if pending else []
+
+    return wait
+
+
+@pytest.mark.rule("json-mode-ids")
+class TestJsonModeIds:
+    """A device that takes JSON lines gets an id, and only the line carrying it answers."""
+
+    def test_only_a_json_line_config_gets_ids(self):
+        """protocol ndjson names the id field; a text device, the default, gets none."""
+        assert id_field({"protocol": "ndjson"}) == "id", "the default field"
+        assert (
+            id_field({"protocol": "ndjson", "ndjson_field_routing": {"response_id": "tag"}})
+            == "tag"
+        )
+        assert id_field({}) == "", "a text device is sent the line as typed"
+        assert id_field({"protocol": "text"}) == ""
+
+    def test_the_request_splits_the_command_from_its_args(self):
+        """The first word is the command, the rest its args with inner spacing kept, then the id."""
+        assert json_request("machine.Pin.value 2 1", 7, "id") == (
+            '{"cmd":"machine.Pin.value","args":"2 1","id":7}'
+        )
+        assert json_request("temp", 8, "id") == '{"cmd":"temp","id":8}', "no args, no args key"
+        assert json_request("echo 'a  b'", 9, "tag") == '{"cmd":"echo","args":"\'a  b\'","tag":9}'
+
+    def test_the_reply_is_the_line_carrying_the_id(self):
+        """A late reply, an event and a text line are the others; only id 7 answers, and only once."""
+        lines = [
+            '{"result":1,"id":6}',
+            "tick",
+            '{"event":"ready"}',
+            '{"result":2,"id":7}',
+            '{"result":3,"id":7}',
+        ]
+        reply, others = pick_reply(lines, 7, "id")
+        assert reply == '{"result":2,"id":7}'
+        assert others == [lines[0], lines[1], lines[2], lines[4]], "every other line, in order"
+        assert pick_reply(['{"result":true,"id":true}'], 1, "id")[0] == "", "true is not the id 1"
+        assert pick_reply(["not json {"], 1, "id") == ("", ["not json {"])
+
+    def test_collection_goes_on_past_a_stray_line_until_the_reply(self):
+        """A stray line ends the first idle window; the wait goes on and finds the reply in the next."""
+        # Arrange
+        writer = _FakeWriter()
+        wait = _windows(['{"result":1,"id":6}'], ["print from the board"], ['{"result":2,"id":7}'])
+
+        # Act
+        rr = request_response(
+            send=_sender(writer, "utf-8", "\n"),
+            drain_recent_lines=_fake_drain_factory([]),
+            wait_for_lines=wait,
+            command=json_request("temp", 7, "id"),
+            timeout_s=1.0,
+            reply_id=7,
+            field="id",
+        )
+
+        # Assert
+        assert writer.writes == [b'{"cmd":"temp","id":7}\n'], "the request carries its id"
+        assert pick_reply(rr["lines"], 7, "id")[0] == '{"result":2,"id":7}', (
+            "the reply was waited for"
+        )
+        assert len(rr["lines"]) == 3, "every line that came is kept for the caller to sort"
+
+    def test_without_an_id_one_window_is_the_answer(self):
+        """With no id, the first idle window ends collection, as before."""
+        rr = request_response(
+            send=_sender(_FakeWriter(), "utf-8", "\r"),
+            drain_recent_lines=_fake_drain_factory([]),
+            wait_for_lines=_windows(["first"], ["second"]),
+            command="temp",
+            timeout_s=1.0,
+        )
+        assert rr["lines"] == ["first"]

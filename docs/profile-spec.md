@@ -156,7 +156,7 @@ All fields are optional.
 | `row_bytes` | integer >= 1 | `template` only: most bytes per row (default 16). |
 | `write` | string | `template` only: template with `{addr}` and `{byte}` or `{hex}`; absent = read-only. |
 | `ack` | regex | `template` only: a successful write reply must contain it; absent = no acknowledgement expected. |
-| `error` | regex | `template` only: flags a failed command (default `(?i)^\s*(err|error|fault)\b`). |
+| `error` | regex | `template` only: flags a failed command (default `(?i)^\s*(err\|error\|fault)\b`). |
 | `terminator` | regex | `template` only: ends a reply early (a prompt); absent = idle-gap framing. |
 | `settle_ms` | integer >= 1 | `template` only: the idle gap that ends a reply (default 100). |
 | `max_block` | integer >= 1 | Largest byte count per read or write exchange. |
@@ -277,6 +277,13 @@ means the command has no contract (literal write, no shaped value).
   and archived as `pre_send_drain` async events — late output from a
   previous command is preserved, attributed, and kept out of this
   command's parse.
+- When the config says the device takes JSON lines (`protocol: "ndjson"`),
+  each command goes out as `{"cmd":"<name>","args":"<rest>","id":<n>}`
+  and the reply is the one line carrying that id; collection goes on past
+  the idle gap until it arrives. Other lines are archived as
+  `not_the_reply` async events, and no such line within the wait window is
+  a failure (`No reply with id <n>`). The id field is the cfg's
+  `ndjson_field_routing.response_id`.
 
 ### 7.2 Coercion (normative)
 

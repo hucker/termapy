@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 198: 183 registry rows (guarantees 148, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 194. Pinned by none: 4.
+Ids: 199: 184 registry rows (guarantees 149, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 195. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -83,7 +83,7 @@ Ids: 198: 183 registry rows (guarantees 148, assumptions 35), 15 spec sections i
 
 ### `board-update` (guarantee, contract)
 
-- `test_boards.py`: `TestBoardUpdate` (6 functions), `TestCreateConfig.test_a_new_config_is_up_to_date` **guard**
+- `test_boards.py`: `TestBoardUpdate` (7 functions), `TestCreateConfig.test_a_new_config_is_up_to_date` **guard**, `TestCreateConfig.test_line_endings_alone_are_not_a_change`
 
 ### `bool-one-vocabulary` (guarantee, data)
 
@@ -456,6 +456,11 @@ Ids: 198: 183 registry rows (guarantees 148, assumptions 35), 15 spec sections i
 ### `io-semantic-channels` (guarantee, structure)
 
 - `test_architecture.py`: `test_plugins_do_not_use_engine_io_primitives` **guard**
+
+### `json-mode-ids` (guarantee, contract)
+
+- `test_demo_ndjson.py`: `TestJsonModeIdsAgainstDemoJson` (2 functions)
+- `test_request_response.py`: `TestJsonModeIds` (5 functions)
 
 ### `kill-asks-first` (guarantee, contract)
 

@@ -341,6 +341,9 @@ class ReplEngine:
         # OUTERMOST command only, so nested dispatches suppress theirs.
         self._handler_depth: int = 0
         self._script_stack: list[str] = []  # stack of script names
+        # The last id a JSON-mode request carried (registry json-mode-ids).
+        self._request_id = 0
+        self._request_id_lock = threading.Lock()
         self._script_stop = Event()
         self._max_script_depth: int = 5
         # Thread id of the run in progress, or None when idle.  A script is
@@ -514,6 +517,12 @@ class ReplEngine:
                     return taken, True
                 taken.append(line)
         return taken, False
+
+    def next_request_id(self) -> int:
+        """A new id for a JSON-mode request, one more than the session's last (registry ``json-mode-ids``)."""
+        with self._request_id_lock:
+            self._request_id += 1
+            return self._request_id
 
     def drain_recent_lines(self) -> list[str]:
         """Snapshot and clear the recent-lines ring buffer.
@@ -798,13 +807,24 @@ class ReplEngine:
                         self._emit_json_envelope(cmd_text, result, [])
                     return result
 
+        from termapy.request_response import id_field, json_request, pick_reply
+
+        # A device that takes JSON lines gets an id on every request, and
+        # only the line carrying it is the answer (registry json-mode-ids);
+        # a text device is sent the line as typed.
+        field = id_field(self.cfg)
+        request_id = self.next_request_id() if field else 0
+        wire = json_request(command, request_id, field) if field else command
+
         # Symmetric request-side echo: render the canonical post-unwrap
         # form so TUI/CLI scrollback shows what was sent.  Routed
         # through output_markup so it gates at normal+ (silent and
         # quiet suppress it), and MCP's session default of "quiet"
         # naturally keeps output_lines clean -- no FRONT_END gate
         # needed for this one.
-        self._write_json({"cmd": command}, result=False, indent=False)
+        self._write_json(
+            _json.loads(wire) if field else {"cmd": command}, result=False, indent=False
+        )
 
         encoding = cfg_value(self.cfg, "encoding")
         timeout_ms = int(cfg_value(self.cfg, "default_response_timeout_ms"))
@@ -815,8 +835,19 @@ class ReplEngine:
         try:
             with self.ctx.serial.io():
                 self.ctx.serial.drain()
-                self.ctx.serial.send(command)
+                self.ctx.serial.send(wire)
+                deadline = _time.monotonic() + timeout_ms / 1000
                 response = self.ctx.serial.read_raw(timeout_ms=timeout_ms)
+                # A stray line can end the first frame before the reply: read on for it.
+                while field and response:
+                    lines = response.decode(encoding, errors="replace").splitlines()
+                    remaining_ms = int((deadline - _time.monotonic()) * 1000)
+                    if pick_reply(lines, request_id, field)[0] or remaining_ms <= 0:
+                        break
+                    more = self.ctx.serial.read_raw(timeout_ms=remaining_ms)
+                    if not more:
+                        break
+                    response += more
             text = response.decode(encoding, errors="replace").strip()
             # request_mode output is a structured data value, not terminal
             # display.  When color is off (the MCP default) strip device
@@ -829,7 +860,7 @@ class ReplEngine:
             # the response is just the answer (deterministic here -- the
             # whole reply is in hand, no reader/thread coupling).
             if cfg_value(self.cfg, "strip_device_echo") and text:
-                text = strip_leading_echo(text, command)
+                text = strip_leading_echo(text, wire)
         # A failed exchange is the answer: a lost port (pyserial's
         # SerialException is an OSError) or a character outside the encoding
         # (a ValueError) is expected; anything else is a bug, traceback kept.
@@ -839,6 +870,15 @@ class ReplEngine:
             diag_log.exception("request %r raised", command)
             error = f"Send error: {type(exc).__name__}: {exc}{diag_log.traceback_note()}"
         elapsed = _time.perf_counter() - t0
+
+        # With an id, the answer is the one line carrying it; the rest (a
+        # late reply, an event, a print) go to the envelope's output_lines.
+        others: list[str] = []
+        if field and not error:
+            reply, others = pick_reply(text.splitlines(), request_id, field)
+            text = reply.strip()
+            if not reply:
+                error = f"No reply with id {request_id}"
 
         # Detect device-side errors via the configured regex.  ``error``
         # is already populated for send failures (caught above); only
@@ -900,7 +940,7 @@ class ReplEngine:
         # here too would duplicate it into ``output_lines``, which is
         # why _is_mcp (computed at the top of this function) gates it.
         if not _is_mcp:
-            self._emit_json_envelope(command, result, [])
+            self._emit_json_envelope(command, result, others)
         return result
 
     def feed_lines(self, lines: list[str]) -> None:

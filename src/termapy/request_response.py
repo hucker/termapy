@@ -11,15 +11,80 @@ This module is **pure plumbing** -- no parsing, no host coupling.  Callers
 inject the functions they need (send, drain, wait, optional async event
 recorder) so the helper works in any environment that exposes those
 operations.
+
+In JSON mode a device that takes JSON lines (``protocol: "ndjson"``) gets
+an id on every request (registry ``json-mode-ids``): ``id_field`` says
+whether, ``json_request`` builds the line, and ``pick_reply`` finds the one
+line that answers it.  In REPL mode nothing carries an id.
 """
 
 from __future__ import annotations
 
+import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from termapy import diag_log
+from termapy.defaults import cfg_value
+
+
+def id_field(cfg: Mapping[str, Any]) -> str:
+    """The field a JSON-mode request's id goes in, or ``""`` when the device takes plain lines.
+
+    Only a device whose config says it takes JSON lines
+    (``protocol: "ndjson"``) gets ids: a text device is sent the line as
+    typed, in JSON mode too.  The name is ``ndjson_field_routing.response_id``.
+    """
+    if cfg_value(cfg, "protocol") != "ndjson":
+        return ""
+    return str(cfg_value(cfg, "ndjson_field_routing.response_id"))
+
+
+def json_request(command: str, request_id: int, field: str) -> str:
+    """``command`` as one JSON request line carrying ``request_id``: ``{"cmd":"led","args":"on","id":7}``.
+
+    The first word is the command and the rest, spacing kept, its ``args``,
+    the shape termapy's device monitors and the NDJSON demo read.
+    """
+    name, _, args = command.strip().partition(" ")
+    request: dict[str, Any] = {"cmd": name}
+    if args.strip():
+        request["args"] = args.strip()
+    request[field] = request_id
+    return json.dumps(request, separators=(",", ":"))
+
+
+def pick_reply(lines: Sequence[str], request_id: int, field: str) -> tuple[str, list[str]]:
+    """The line answering ``request_id``, ``""`` when none does, and every other line, in order.
+
+    A line answers when it is a JSON object whose ``field`` is the id; a
+    late reply to an earlier request, an event or a print from the
+    device's own code is one of the others.
+    """
+    reply = ""
+    others: list[str] = []
+    for line in lines:
+        if not reply and _carries_id(line, request_id, field):
+            reply = line
+        else:
+            others.append(line)
+    return reply, others
+
+
+def _carries_id(line: str, request_id: int, field: str) -> bool:
+    """Whether ``line`` is a JSON object whose ``field`` is ``request_id``."""
+    text = line.strip()
+    if not text.startswith("{"):
+        return False
+    try:
+        message = json.loads(text)
+    except ValueError:
+        return False
+    if not isinstance(message, dict):
+        return False
+    value = message.get(field)
+    return isinstance(value, int) and not isinstance(value, bool) and value == request_id
 
 
 def request_response(
@@ -33,6 +98,8 @@ def request_response(
     idle_gap_s: float = 0.05,
     on_drained_line: Callable[[str], None] | None = None,
     wait: bool = True,
+    reply_id: int | None = None,
+    field: str = "",
 ) -> dict[str, Any]:
     """Drain stale lines, send the command as a line, wait for response.
 
@@ -62,6 +129,10 @@ def request_response(
         wait: When False, skips ``wait_for_lines`` after the send -- the
             fire-and-forget shape used by profile commands declared with
             ``response.format == "none"``.  Drain + send still happen.
+        reply_id: The id ``command`` carries, with ``field`` its field
+            (``json_request``): collection goes on past an idle gap until
+            the line carrying it arrives or ``timeout_s`` runs out, so a
+            stray line before the reply never ends the wait.
 
     Returns:
         Dict with these keys:
@@ -121,6 +192,18 @@ def request_response(
         terminator=terminator,
         idle_gap=idle_gap_s,
     )
+    if reply_id is not None and field:
+        # A stray line ends an idle-gap window early; keep waiting for the
+        # one line that answers, as long as the timeout allows.
+        deadline = t0 + timeout_s
+        while not pick_reply(lines, reply_id, field)[0]:
+            remaining = deadline - time.perf_counter()
+            if remaining <= 0:
+                break
+            more = wait_for_lines(timeout=remaining, terminator=terminator, idle_gap=idle_gap_s)
+            if not more:
+                break
+            lines = lines + more
     elapsed = time.perf_counter() - t0
     return {
         "elapsed_s": elapsed,

@@ -449,6 +449,32 @@ class TestConfigPicked:
 
         _run(scenario)
 
+    @pytest.mark.rule("port-display")
+    def test_the_label_shows_the_device_while_disconnected(self, app_factory):
+        """A serial-number config not yet connected names the device in the title label and the startup line."""
+
+        async def scenario():
+            # Arrange: DEMO answers to its own serial number, so no hardware is needed
+            serial = DEFAULT_CFG["serial"]
+            assert isinstance(serial, dict), "DEFAULT_CFG['serial'] is a dict"
+            number = reserved_serial("DEMO")
+            app, _, _ = app_factory(serial={**serial, "port": number}, auto_connect=False)
+
+            # Act
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Assert
+                assert not app.is_connected, "nothing connected it"
+                label = str(app.query_one("#title-left", Button).label)
+                assert label.startswith("DEMO "), f"the label names the device: {label}"
+                assert number not in label, "the number belongs in the tooltip, not the label"
+                screen = app._get_screen_text()
+                assert "press Connect to start" in screen, "the startup line is shown"
+                assert number not in screen, "the startup line names the device, not the number"
+
+        _run(scenario)
+
     def test_load_of_a_port_not_here_asks_for_one(self, app_factory, tmp_path):
         """A config whose port matches nothing attached opens the port picker before switching."""
         from serial.tools.list_ports import comports

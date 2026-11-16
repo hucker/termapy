@@ -72,6 +72,41 @@ def _non_ascii(path: Path) -> list[str]:
     )
 
 
+# Modules a MicroPython board provides itself: stdlib and board builtins.  Not
+# a general allowlist -- it names only what the shipped firmware imports, so a
+# new one is added with the intent that the runtime really provides it
+# (registry firmware-no-forced-deps).
+RUNTIME_PROVIDED = frozenset(
+    {
+        # stdlib on the runtime
+        "asyncio",
+        "collections",
+        "json",
+        "select",
+        "sys",
+        "time",
+        # board / hardware builtins
+        "machine",
+        "micropython",
+        "esp32",
+        "neopixel",
+    }
+)
+
+
+def _top_level_imports(path: Path) -> set[str]:
+    """The top-level module name of every import in ``path`` (``from a.b import c`` -> ``a``)."""
+    import ast
+
+    names = set()
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Import):
+            names.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            names.add(node.module.split(".")[0])
+    return names
+
+
 class TestTable:
     def test_a_module_s_files_follow_its_language(self):
         """A C module is termapy_<name>.c and .h from LANGUAGES; a row with its own file list keeps it."""
@@ -118,6 +153,42 @@ class TestTable:
         assert _non_ascii(probe) == ["U+00E9", "U+2500"], "each code point once, sorted"
         probe.write_text("/* -- rule -- */ cafe\n", encoding="utf-8")
         assert _non_ascii(probe) == [], "a hyphen rule is ASCII"
+
+    @pytest.mark.rule("firmware-no-forced-deps")
+    def test_shipped_firmware_imports_only_the_runtime_or_termapy(self):
+        """Every Python firmware file imports only runtime-provided modules or termapy's own.
+
+        A board the user flashes must need nothing pip-installed: the device
+        side depends only on the runtime's stdlib and built-in modules
+        (``machine``, ``esp32``, ``neopixel``, ...) plus the ``termapy_*``
+        files termapy copies beside it.  A new builtin a board legitimately
+        uses is a one-line add to ``RUNTIME_PROVIDED`` with intent; a stray
+        ``import some_pip_lib`` fails here.
+        """
+        offenders = {}
+        for board in BOARDS:
+            for path in firmware_paths(board):
+                if path.suffix != ".py":
+                    continue
+                for name in _top_level_imports(path):
+                    if name in RUNTIME_PROVIDED or name.startswith("termapy_"):
+                        continue
+                    offenders.setdefault(path.name, []).append(name)
+        assert offenders == {}, (
+            "firmware imports a module the device would have to install: "
+            f"{offenders}; add it to RUNTIME_PROVIDED only if the runtime provides it"
+        )
+
+    def test_forced_deps_guard_fires_on_a_probe(self, tmp_path):
+        """The import scan names a pip-style import and passes a runtime one and a termapy one."""
+        probe = tmp_path / "probe.py"
+        probe.write_text("import machine\nimport termapy_mem\nimport requests\n", encoding="utf-8")
+        names = _top_level_imports(probe)
+        assert "requests" in names and "machine" in names, "both imports are seen"
+        not_allowed = [
+            n for n in names if n not in RUNTIME_PROVIDED and not n.startswith("termapy_")
+        ]
+        assert not_allowed == ["requests"], "only the pip-style import is flagged"
 
     def test_select_targets_without_a_name_is_the_whole_language(self):
         """No name and one shipped language: every module, in table order; a name narrows to one."""

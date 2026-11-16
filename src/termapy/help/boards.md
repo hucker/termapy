@@ -145,11 +145,30 @@ highlighted (`/term.json_fmt`), while the session log and captures keep it as
 it arrived. `/term.json_fmt.indent 0` with `/term.json_fmt.highlight off` shows
 the lines as they arrive.
 
-Each command in `main.py` is a row of its `COMMANDS` table: the name, a
-one-line help and the handler, which takes the argument words and returns
-the reply value. `help` reads its answer from that table, so a new command
-is a handler and a row, and `help` lists it at once. `termapy_json.py` is
-the monitor itself, one file every MicroPython board shares.
+Each command in `main.py` is a decorated handler: a name, a one-line help,
+and a function that takes the argument words and returns the reply value.
+`help` reads its answer from the same registration, so a new command is a
+handler with one `@commands.command(...)` line, and `help` lists it at once.
+`termapy_json.py` is the monitor itself, one file every MicroPython board
+shares.
+
+```python
+from termapy_json import CommandSet, Monitor
+
+commands = CommandSet()
+
+
+@commands.command("led", "the onboard LED: led on|off")
+def cmd_led(args): ...
+
+
+monitor = Monitor(commands.table, native=direct().commands())
+```
+
+If you prefer to see every command in one place, a plain dict is
+equivalent: `commands.table` is just `{name: (help, handler)}`, so you can
+build that dict yourself and pass it to `Monitor`. The decorator and the
+dict are the same mechanism.
 
 `main.py` runs asyncio. The monitor is one task, `monitor.run()`, and your
 project's own tasks start beside it in `main()`. The monitor answers a

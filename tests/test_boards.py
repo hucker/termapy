@@ -154,15 +154,8 @@ class TestTable:
         mem_commands = set(BOARD_MEM.Memory(None, None).commands())
         for board in BOARDS:
             main = firmware_paths(board)[0]
-            tree = ast.parse(main.read_text(encoding="utf-8"))
-            table = next(
-                node.value
-                for node in ast.walk(tree)
-                if isinstance(node, ast.Assign)
-                and any(isinstance(t, ast.Name) and t.id == "COMMANDS" for t in node.targets)
-            )
-            assert isinstance(table, ast.Dict), "COMMANDS is a dict literal"
-            firmware = {key.value for key in table.keys if isinstance(key, ast.Constant)}
+            firmware = _firmware_command_names(main)
+            assert firmware, f"{board.name}: no commands found in {main.name}"
             expected = firmware | monitor_commands
             if "termapy_mem.py" in board.runtime.files:
                 expected |= mem_commands
@@ -468,6 +461,41 @@ class TestCommands:
         assert (tmp_path / "cfg" / "fw" / "main.py").is_file()
 
 
+def _firmware_command_names(main_path) -> set[str]:
+    """The command names a board's main.py registers, from either form it may use.
+
+    A starter registers commands as ``@commands.command("name", ...)`` decorators
+    or as a ``COMMANDS = {"name": ...}`` dict literal; this reads the names from
+    whichever is present, so the profile-completeness guard follows the firmware
+    without being welded to one form.
+    """
+    tree = ast.parse(main_path.read_text(encoding="utf-8"))
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        # @<anything>.command("name", ...) -- the decorator form.
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "command"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+        ):
+            names.add(node.args[0].value)
+        # COMMANDS = {"name": ...} -- the dict form.
+        elif (
+            isinstance(node, ast.Assign)
+            and any(isinstance(t, ast.Name) and t.id == "COMMANDS" for t in node.targets)
+            and isinstance(node.value, ast.Dict)
+        ):
+            names.update(
+                key.value
+                for key in node.value.keys
+                if isinstance(key, ast.Constant) and isinstance(key.value, str)
+            )
+    return names
+
+
 def _load_board_module(board: Board, name: str):
     """One of MicroPython's shared files, imported from the package as a board imports it."""
     path = next(path for path in firmware_paths(board) if path.name == name)
@@ -715,6 +743,34 @@ class TestMicroPythonJson:
         """A table row named help or json is refused at construction instead of silently shadowed."""
         with pytest.raises(ValueError, match="command name taken by the monitor: help"):
             BOARD_JSON.Monitor({"help": ("mine", lambda args: "")}, print)
+
+    def test_a_command_set_builds_the_same_table_as_a_dict(self):
+        """The @command decorator fills the same {name: (help, handler)} a dict literal does.
+
+        A monitor cannot tell which form built its commands: the decorator is
+        sugar for a project that prefers it, the explicit dict stays the starter
+        form (and is what the AST profile guard reads).
+        """
+        # Arrange -- the same two commands, once by decorator, once by dict
+        commands = BOARD_JSON.CommandSet()
+
+        @commands.command("led", "the LED")
+        def _led(args):
+            return "on"
+
+        @commands.command("ping", "replies pong")
+        def _ping(args):
+            return "pong"
+
+        as_dict = {"led": ("the LED", _led), "ping": ("replies pong", _ping)}
+
+        # Assert -- the decorator's table is the dict, and a monitor dispatches it
+        assert commands.table == as_dict, "the decorator builds the dict-literal shape"
+        out = []
+        monitor = BOARD_JSON.Monitor(commands.table, write=out.append, read=lambda: "")
+        monitor.handle("led")
+        monitor.handle("ping")
+        assert [line.strip() for line in out] == ["on", "pong"], "the monitor dispatches them"
 
 
 class TestMonitorLines:

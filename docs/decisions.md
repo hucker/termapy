@@ -1829,3 +1829,38 @@ flag is `--run-hw-board` / `--require-hw-board`, marker `hw_board`, registry
 the Pico-only lane of the entry above. **Where:** `tests/test_hw_board.py` (replaces
 `test_hw_pico.py`), `tests/test_hw_loopback_gate.py`, `tests/conftest.py`, `pyproject.toml`,
 `docs/rules.md` (`hw-board-never-on-github`).
+
+## 2026-11-14 — Board commands: a @command decorator option, and no forced device dependencies
+
+Two choices about the device side, from Chuck's concern that adding monitor functions be VERY
+simple and that a board a user flashes force no dependencies on them.
+
+**A `@command` decorator, now the starter form.** `termapy_json.CommandSet` lets a project
+register its handlers with `@commands.command(name, help)` and pass `commands.table` to
+`Monitor`. The shipped starters (`pico`/`esp32s3` `main.py`) USE the decorator -- so it is the
+first-class pattern a device author copies, not an unused option -- and a plain
+`COMMANDS = {name: (help, handler)}` dict is the equivalent alternative for anyone who prefers
+every command in one place (`commands.table` IS that dict). No discovery magic: the decorator
+just fills a dict, so an undecorated handler is simply unregistered, the same as a row left
+out. Verified LIVE on the Pico and ESP32-S3: id/led/temp/MEM.INFO and the round trip all pass
+with the decorator-form firmware. The profile-completeness guard (`test_boards.py`) reads the
+command names from EITHER form by AST (`_firmware_command_names`). **Why not auto-discovery
+like the host plugins:** the host earns it with a test suite, a dev machine and `/help.dev`
+reflection to catch a missing registration; a board has none of that, so the name is written
+explicitly in the decorator rather than inferred from the function.
+
+**No forced device dependencies (registry `firmware-no-forced-deps`).** Every Python firmware
+file termapy ships imports only modules the runtime provides itself -- stdlib and board builtins
+(`machine`, `esp32`, `neopixel`, ...) -- or termapy's own copied `termapy_*` files. A board the
+user flashes needs nothing pip-installed; there is no pip layer on the device. Enforced by
+`test_firmware.py` against a `RUNTIME_PROVIDED` set that names only what the shipped firmware
+imports, so a new runtime-provided module is a one-line add with intent and a stray
+`import some_pip_lib` fails. **Where:** `boards/micropython/firmware/termapy_json.py`
+(`CommandSet`), `tests/test_boards.py`, `tests/test_firmware.py`, `docs/rules.md`
+(`firmware-no-forced-deps`).
+
+**Noted, not done here (Chuck 2026-11-14):** XMODEM on the board was TEST SCAFFOLDING, not an
+intended board feature -- a way to test termapy's XMODEM against independent hardware. It should
+move out of the standard firmware/builtins/profiles into an OPT-IN test kit a `/board`
+subcommand installs (the kit registers through the decorator above). A follow-up branch
+`feat/board-test-kit`; until then XMODEM stays a shipped board command.

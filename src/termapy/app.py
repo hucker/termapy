@@ -1359,7 +1359,8 @@ class SerialTerminal(TerminalHost, App):
         inp.focus()
         self._sync_hw_buttons()
         connect_cmds = [
-            command for _, command in on_connect_commands(self.cfg, "tui_on_connect_cmd")
+            command
+            for _, command in on_connect_commands(self.cfg, "tui_on_connect_cmd", profile=True)
         ]
         if connect_cmds:
             with self._on_connect_lock:

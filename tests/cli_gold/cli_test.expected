@@ -1708,7 +1708,7 @@ demo> /help.plugin
 
 -- Application Plugins --
   /app          App-wide state, config and running sessions.
-  /board        Starter projects for real dev boards: list, new, firmware.
+  /board        Starter projects for real dev boards: list, new, firmware, update.
   /cap          Data capture tools.
   /cfg          Show or set config values.
   /cls          Clear the terminal screen.
@@ -1771,7 +1771,7 @@ demo> /help.group devices
   devices - 6 commands
   COMMAND    LEVEL      DESCRIPTION
   -- -- --
-  /board     prototype  Starter projects for real dev boards: list, new, firmware.
+  /board     prototype  Starter projects for real dev boards: list, new, firmware, update.
   /dev       preview    Device files: a part's registers as data (see /help devices).
   /firmware  prototype  Device-side sources termapy ships: list, copy, show, dump.
   /mem       preview    Device memory: dump, typed reads, writes and bit ops via /sym names.
@@ -1781,7 +1781,7 @@ demo> /help.group dev*
   devices - 6 commands
   COMMAND    LEVEL      DESCRIPTION
   -- -- --
-  /board     prototype  Starter projects for real dev boards: list, new, firmware.
+  /board     prototype  Starter projects for real dev boards: list, new, firmware, update.
   /dev       preview    Device files: a part's registers as data (see /help devices).
   /firmware  prototype  Device-side sources termapy ships: list, copy, show, dump.
   /mem       preview    Device memory: dump, typed reads, writes and bit ops via /sym names.
@@ -2211,6 +2211,8 @@ demo> /board.new nosuch
   Note: /board is a prototype; it may change or be removed.
   Error: Unknown board: nosuch (use esp32s3, pico)
 demo> /board.firmware nosuch
+  Error: Unknown board: nosuch (use esp32s3, pico)
+demo> /board.update nosuch
   Error: Unknown board: nosuch (use esp32s3, pico)
 demo> /print === section: coverage: files, timing, recording ===
   === section: coverage: files, timing, recording ===

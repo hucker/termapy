@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 196: 181 registry rows (guarantees 146, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 192. Pinned by none: 4.
+Ids: 198: 183 registry rows (guarantees 148, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 194. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -80,6 +80,10 @@ Ids: 196: 181 registry rows (guarantees 146, assumptions 35), 15 spec sections i
 ### `board-profile-complete` (guarantee, repository)
 
 - `test_boards.py`: `TestTable.test_profile_describes_the_firmware_commands` **guard**, `TestTable.test_profile_governs_every_form` **guard**
+
+### `board-update` (guarantee, contract)
+
+- `test_boards.py`: `TestBoardUpdate` (6 functions), `TestCreateConfig.test_a_new_config_is_up_to_date` **guard**
 
 ### `bool-one-vocabulary` (guarantee, data)
 
@@ -680,6 +684,12 @@ Ids: 196: 181 registry rows (guarantees 146, assumptions 35), 15 spec sections i
 - `test_plugin_resolve.py`: `TestLoadReport.test_folder_prestart_hook_is_skipped_with_a_warning`
 - `test_terminal_host.py`: `TestFireAppStart` (2 functions)
 
+### `profile-path-loads-everywhere` (guarantee, contract)
+
+- `test_app_config.py`: `TestOnConnectCommands.test_profile_path_comes_first_when_asked` **guard**
+- `test_app_pilot.py`: `TestMultilinePaste.test_a_named_profile_loads_at_connect` **guard**
+- `test_mcp_lifecycle.py`: `TestAutoLoadProfileOnConnect.test_a_bare_profile_path_is_beside_the_config` **guard**
+
 ### `proto-results-in-folder` (guarantee, contract)
 
 - `test_mcp_boundary.py`: `TestProtoRunResults.test_a_script_cannot_choose_the_folder` **guard**, `TestProtoRunResults.test_a_script_cannot_write_by_absolute_path`, `TestProtoRunResults.test_results_may_go_in_a_subfolder`
@@ -986,7 +996,7 @@ Ids: 196: 181 registry rows (guarantees 146, assumptions 35), 15 spec sections i
 
 ### `writes-in-cfg-folder` (assumption, contract)
 
-- `test_boards.py`: `TestCommands.test_board_firmware_copies_into_the_config_folder`
+- `test_boards.py`: `TestBoardUpdate.test_a_relative_config_path_gets_full_paths`, `TestCommands.test_board_firmware_copies_into_the_config_folder`
 - `test_cap_poll.py`: `TestFiles.test_csv_file_gets_a_header_and_the_rows`
 - `test_demo_traffic.py`: `test_hexdump_lands_in_cap`
 - `test_firmware.py`: `TestCommands.test_firmware_copy_defaults_to_the_config_folder`, `TestCommands.test_firmware_copy_relative_folder_is_under_the_config`

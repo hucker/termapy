@@ -512,6 +512,7 @@ MEM.R 0x1000 2 --json
 /print === section: board: starter projects for dev boards ===
 /board.new nosuch
 /board.firmware nosuch
+/board.update nosuch
 /print === section: coverage: files, timing, recording ===
 /run.rename status_check status_probe
 /run.rename status_probe status_check

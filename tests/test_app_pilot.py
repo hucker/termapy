@@ -1542,6 +1542,34 @@ class TestMultilinePaste:
 
         _run(scenario)
 
+    @pytest.mark.rule("profile-path-loads-everywhere")
+    def test_a_named_profile_loads_at_connect(self, app_factory):
+        """A config naming a profile has its commands loaded when the TUI connects, with nothing typed."""
+
+        async def scenario():
+            # Arrange
+            app, _, path = app_factory(profile_path="bench.profile.json")
+            profile = {
+                "profile_version": 2,
+                "profile_revision": "1.0.0",
+                "profile_date": "2026-11-15",
+                "device": {"name": "Bench"},
+                "commands": {"PING": {"help": "ping the device", "safety": "readonly"}},
+            }
+            (Path(path).parent / "bench.profile.json").write_text(json.dumps(profile))
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+
+                # Act
+                _paste(app, "/port.connect\n")
+                await until(
+                    pilot, lambda: "PING" in app.repl.ctx.ns("active_profile").get("commands", {})
+                )
+                await until(pilot, lambda: not app._busy)
+                app._disconnect()
+
+        _run(scenario)
+
     @pytest.mark.rule("paste-waits-for-on-connect")
     def test_plain_on_connect_commands_come_first_too(self, app_factory):
         """A command that is not a script is waited for as well, across the settling pause."""

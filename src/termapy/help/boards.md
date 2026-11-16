@@ -23,6 +23,7 @@ file to or from the board over the serial link.
 /board.new pico           create the config and profile for the attached board
 /cfg.load pico            switch to it
 termapy --board pico      the same from the command line: create once, then start it
+/board.update             after upgrading termapy: bring the config's profile and device code up to date
 ```
 
 The config connects by the board's USB serial number, so a COM number
@@ -35,12 +36,40 @@ not running MicroPython yet.
 Everything for the board lands in its config's folder: the config, its
 profile, and the device code in `firmware/`, so a new board is one folder
 under `termapy_cfg/` and nothing in the folder you started termapy from.
+The config's `profile_path` names the profile, so it loads at every
+connect, in the TUI, the CLI and MCP alike, and `/help.target` lists the
+board's commands with nothing typed first.
 
 Board setup never replaces anything. A config by the same name stops it,
 and so does any config that already connects to the attached board:
 `/board.new` names that config instead of making a second one, and
 `termapy --board` starts it. termapy does not write to the board itself;
 flashing it and copying the device code onto it are your steps.
+
+## Updating a board config
+
+A board config keeps the profile and the device code it was made with, so
+after termapy is upgraded they can be older than what termapy ships.
+`/board.update` brings the active config up to date:
+
+```text
+esp32s3> /board.update
+Updated esp32s3:
+  esp32s3.profile.json  1.1.0 -> 2.2.0
+  firmware/main.py
+  firmware/termapy_xmodem.py  (new)
+  esp32s3.cfg  profile_path = esp32s3.profile.json
+Loaded esp32s3.profile.json: 13 commands (rev 2.2.0).
+Put the device code on the board: uvx mpremote connect COM9 cp ... : + reset
+```
+
+It replaces only the copies that differ from what termapy ships, after
+listing them and asking, and a config that names no profile gets
+`profile_path` set. A file you edited is replaced too, so read the list
+before you answer. Then it loads the profile, and when device code changed
+it prints the `mpremote` line that puts it on the board; run that to
+finish. The board is the one the config is named for, or name it:
+`/board.update pico`. An MCP agent cannot run it.
 
 ## Raspberry Pi Pico
 

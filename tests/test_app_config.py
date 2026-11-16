@@ -1724,6 +1724,28 @@ class TestOnConnectCommands:
             ("on_connect_cmd", "/run setup")
         ], "an empty mode field adds nothing"
 
+    @pytest.mark.rule("profile-path-loads-everywhere")
+    def test_profile_path_comes_first_when_asked(self):
+        """With profile=True a set profile_path is the first command, a /profile.load in the config's prefix."""
+        # Arrange
+        cfg = {"profile_path": "bench.profile.json", "on_connect_cmd": "json on", "cmd_prefix": "!"}
+
+        # Act
+        actual = on_connect_commands(cfg, "tui_on_connect_cmd", profile=True)
+
+        # Assert
+        expected = [
+            ("profile_path", "!profile.load bench.profile.json"),
+            ("on_connect_cmd", "json on"),
+        ]
+        assert actual == expected, "the profile loads before anything is sent"
+        assert on_connect_commands(cfg, "mcp_on_connect_cmd") == [("on_connect_cmd", "json on")], (
+            "MCP loads its profile itself"
+        )
+        assert on_connect_commands({}, "tui_on_connect_cmd", profile=True) == [], (
+            "an empty profile_path loads nothing: no convention outside MCP"
+        )
+
     def test_a_field_is_never_split(self):
         """An escaped \\r\\n in a payload stays one command: nothing splits on \\n any more."""
         # Arrange -- what the retired splitter cut into two broken commands

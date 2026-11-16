@@ -1426,11 +1426,17 @@ def _same_choice(value: object, choice: object) -> bool:
 CONFIG_LOAD_ERRORS: tuple[type[BaseException], ...] = (OSError, ValueError)
 
 
-def on_connect_commands(cfg: Mapping[str, Any], mode_key: str) -> list[tuple[str, str]]:
+def on_connect_commands(
+    cfg: Mapping[str, Any], mode_key: str, *, profile: bool = False
+) -> list[tuple[str, str]]:
     """The ``(key, command)`` pairs to run on connect, in order.
 
-    ``on_connect_cmd`` (every frontend), then ``mode_key`` (the frontend's
-    own, e.g. ``cli_on_connect_cmd``).  A field is one command, dispatched
+    With ``profile``, a set ``profile_path`` comes first, as the
+    ``/profile.load`` that loads it: how the TUI and the CLI load a
+    config's profile.  MCP passes no ``profile``; it finds the profile
+    itself (``MCPHost._on_connect_auto_load_profile``), by convention too.
+    Then ``on_connect_cmd`` (every frontend), then ``mode_key`` (the
+    frontend's own, e.g. ``cli_on_connect_cmd``).  A field is one command, dispatched
     as written and never split; several commands belong in a .run file the
     field runs.  A field holding a line break is skipped, never sent:
     ``validate_config`` names it, and a line break must not reach a device
@@ -1441,6 +1447,10 @@ def on_connect_commands(cfg: Mapping[str, Any], mode_key: str) -> list[tuple[str
     from: a script it starts reads as the config's, not the user's.
     """
     commands: list[tuple[str, str]] = []
+    path = str(cfg_value(cfg, "profile_path") or "").strip()
+    if profile and path and len(path.splitlines()) == 1:
+        commands.append(("profile_path", f"{cmd_prefix(cfg)}profile.load {path}"))
+        diag_log.info("on connect: profile_path loads %s", path)
     for key in ("on_connect_cmd", mode_key):
         command = str(cfg.get(key) or "").strip()
         if command and len(command.splitlines()) == 1:

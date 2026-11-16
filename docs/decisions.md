@@ -1915,3 +1915,36 @@ the shared commands in every board's profile. **Where:**
 `boards/micropython/firmware/termapy_json.py` (`Monitor._call`, `_value`, `_plain`), both
 boards' `main.py` and `profile.json`, `tests/test_boards.py` (`TestMonitorObjects`),
 `help/boards.md`.
+
+## 2026-11-15 — `/board.update` refreshes a board config, and `profile_path` loads in every frontend
+
+A board config made by `/board.new` keeps the profile and device code of the termapy that made
+it, and nothing brought them forward: `/board.new` refuses an existing config,
+`/board.firmware` refuses an existing file. Chuck's bench showed it, an ESP32-S3 profile at
+revision 1.1.0 with four commands while termapy shipped 2.2.0, and asked for the fix to be one
+command in the REPL ("the whole point of this is that it is easy").
+
+**`/board.update`** (registry `board-update`) compares the config's `<name>.profile.json` and
+`firmware/` copies with the shipped files byte for byte, lists the ones that differ, asks, and
+writes them. It replaces an edited file too, which is why the list is shown before the yes and
+why it needs `MANAGE_FILES`: the profile holds the safety tiers, so an MCP agent never
+replaces it. It ends by loading the profile and, when device code changed, printing the
+`mpremote` line: termapy still never writes to the board. The board defaults to the one the
+config is named for, the name `/board.new` gives it.
+
+**`profile_path` loads in every frontend** (registry `profile-path-loads-everywhere`). Until
+now only MCP loaded a profile at connect, by `profile_path` or by the `<name>.profile.json`
+convention; the TUI and CLI loaded nothing unless asked, on purpose, so a config with a
+profile beside it stayed text to text. A board starter's promise is that its commands are in
+`/help` on day one, which that broke in the TUI. The convention stays MCP's alone, so no
+existing config changes; a `profile_path` the config sets is now an explicit choice every
+frontend honors, as the first of its on-connect commands. `/board.new` sets it, and
+`/board.update` sets it on a config that has none. MCP now reads a bare `profile_path` beside
+the config, as `/profile.load` does, where before it was taken from the working folder.
+
+**Not done.** A profile loaded by the TUI or CLI at connect is not a `/cfg.loaded` row; only
+MCP's auto-load records one (registry `load-report-one-table`). **Where:**
+`boards/__init__.py` (`stale_files`, `replace_stale`, `name_profile`), `builtins/commands/board.py`
+(`_handler_update`), `config.on_connect_commands`, `mcp/server.py`
+(`_on_connect_auto_load_profile`), `defaults.py` (`profile_path`), `help/boards.md`,
+`help/config.md`.

@@ -638,8 +638,8 @@ CFG_KEYS: tuple[CfgKey, ...] = (
         "profile_path",
         "",
         "path",
-        help="Device profile MCP loads on connect; empty = found by convention.",
-        hint='File path, e.g. "termapy_cfg/myrig/myrig.profile.json", or empty.',
+        help="Device profile loaded at every connect; empty = MCP's convention.",
+        hint='Beside the config ("myrig.profile.json"), a full path, or empty.',
     ),
     CfgKey(
         "validate_typed_args",

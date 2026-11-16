@@ -767,7 +767,7 @@ class CLITerminal(TerminalHost):
         # the CLI-only cli_on_connect_cmd for any extras specific to
         # the plain-text frontend.
         if not self.is_oneshot:
-            for _, cmd in on_connect_commands(self.cfg, "cli_on_connect_cmd"):
+            for _, cmd in on_connect_commands(self.cfg, "cli_on_connect_cmd", profile=True):
                 self._dispatch(cmd)
                 if self.engine.is_connected and self.engine.serial_port:
                     self.engine.serial_port.wait_for_idle()

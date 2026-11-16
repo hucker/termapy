@@ -39,6 +39,8 @@ from termapy.boards import (
     find_board,
     firmware_paths,
     install_command,
+    profile_source,
+    stale_files,
 )
 from termapy.config import ConfigExistsError
 from termapy.defaults import DEFAULT_CFG, default_cfg
@@ -290,12 +292,21 @@ class TestCreateConfig:
         assert data["config_version"] == DEFAULT_CFG["config_version"], "a current config"
         profile = created.path.parent / f"pico{PROFILE_SUFFIX}"
         assert profile.read_bytes() == (BOARDS_DIR / "pico" / "profile.json").read_bytes()
+        assert data["profile_path"] == f"pico{PROFILE_SUFFIX}", "it loads at every connect"
 
     def test_a_named_config_gets_its_own_profile_name(self, tmp_path):
         """With a name, the config and its profile both carry it, so the profile loads with it."""
         created = create_board_config(PICO, tmp_path, "bench", source=ports(PICO_PORT))
         assert created.path == tmp_path / "bench" / "bench.cfg"
         assert (tmp_path / "bench" / f"bench{PROFILE_SUFFIX}").is_file()
+        data = json.loads(created.path.read_text(encoding="utf-8"))
+        assert data["profile_path"] == f"bench{PROFILE_SUFFIX}", "the profile_path follows the name"
+
+    @pytest.mark.rule("board-update")
+    def test_a_new_config_is_up_to_date(self, tmp_path):
+        """What /board.new writes is what /board.update would: a fresh config has nothing stale."""
+        created = create_board_config(PICO, tmp_path, source=ports(PICO_PORT))
+        assert stale_files(PICO, created.path) == []
 
     def test_the_config_folder_holds_the_board_code(self, tmp_path):
         """Everything for the board lives in its config's folder: the device code lands in firmware/."""
@@ -469,6 +480,151 @@ class TestCommands:
         result = env.engine.dispatch("board.firmware pico folder=fw")
         assert result.success, result.error
         assert (tmp_path / "cfg" / "fw" / "main.py").is_file()
+
+
+def _interactive(env: Env, *, confirm=None) -> None:
+    """Give the engine a host's wiring and a person at the keyboard who answers each question with ``confirm``.
+
+    A nested command is dispatched as every host wires it
+    (``TerminalHost._build_internal_handle``); a bare engine leaves it a no-op.
+    """
+    engine = env.engine
+    env.engine.ctx.internal.dispatch = lambda line: engine.dispatch(line, report=False)
+    env.engine.ctx.internal.apply_cfg = engine._apply_cfg
+    env.engine.ctx.capabilities = CapabilitySet(
+        filesystem_unconfined=True, interactive=True, confirm_dialog=confirm is not None
+    )
+    env.engine.ctx.sync_capabilities()
+    if confirm is not None:
+        env.engine.ctx.ui._confirm_impl = confirm
+
+
+def _old_board_config(tmp_path) -> Path:
+    """The env's config as an older termapy left it: an old profile, one old file, one current, two missing."""
+    folder = (tmp_path / "cfg").resolve()
+    (folder / f"test{PROFILE_SUFFIX}").write_text(
+        json.dumps({"profile_version": 2, "profile_revision": "1.1.0", "commands": {}}),
+        encoding="utf-8",
+    )
+    (folder / "firmware").mkdir()
+    (folder / "firmware" / "main.py").write_text("print('old')\n", encoding="utf-8")
+    shared = firmware_paths(PICO)[1]
+    (folder / "firmware" / shared.name).write_bytes(shared.read_bytes())
+    return folder
+
+
+@pytest.mark.rule("board-update")
+class TestBoardUpdate:
+    """/board.update brings an existing board config's copies up to what termapy ships."""
+
+    def test_it_replaces_what_differs_names_the_profile_and_loads_it(self, env: Env, tmp_path):
+        """The old and missing copies are written, the current one is left, and the profile loads."""
+        # Arrange
+        folder = _old_board_config(tmp_path)
+        _interactive(env)
+        current = folder / "firmware" / firmware_paths(PICO)[1].name
+        before = current.stat().st_mtime_ns
+
+        # Act
+        result = env.engine.dispatch("board.update pico")
+
+        # Assert
+        assert result.success, result.error
+        expected = [folder / f"test{PROFILE_SUFFIX}"] + [
+            folder / "firmware" / path.name
+            for path in firmware_paths(PICO)
+            if path.name != current.name
+        ]
+        assert result.data["replaced"] == [str(path) for path in expected], "profile first"
+        assert result.value == len(expected), "the value is the count"
+        assert current.stat().st_mtime_ns == before, "an identical copy is not rewritten"
+        assert stale_files(PICO, folder / "test.cfg") == [], "everything now matches"
+        saved = json.loads((folder / "test.cfg").read_text(encoding="utf-8"))
+        assert saved["profile_path"] == f"test{PROFILE_SUFFIX}", "it loads at the next connect"
+        assert "led" in env.engine.ctx.ns("active_profile")["commands"], "and is loaded now"
+        assert f"  test{PROFILE_SUFFIX}  1.1.0 -> {_shipped_revision(PICO)}" in env.output
+        assert "  firmware/termapy_mem.py  (new)" in env.output, "a missing copy is named new"
+        assert result.data["install"] == install_command(
+            PICO, [folder / "firmware" / path.name for path in firmware_paths(PICO)], "<port>"
+        ), "the whole set, for the board; no Pico is attached"
+
+    @pytest.mark.rule("writes-in-cfg-folder")
+    def test_a_relative_config_path_gets_full_paths(self, env: Env, tmp_path, monkeypatch):
+        """With the config path relative, as a TUI started in the project folder has it, the reply names full paths."""
+        # Arrange -- the working folder is the project, the config path relative to it
+        folder = _old_board_config(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        env.engine.ctx.config_path = str(Path("cfg") / "test.cfg")
+        _interactive(env)
+
+        # Act
+        result = env.engine.dispatch("board.update pico")
+
+        # Assert
+        assert result.success, result.error
+        assert all(Path(path).is_absolute() for path in result.data["replaced"]), "full paths"
+        expected = install_command(
+            PICO, [folder / "firmware" / path.name for path in firmware_paths(PICO)], "<port>"
+        )
+        assert result.data["install"] == expected, "pastes into a shell in any folder"
+
+    def test_a_second_update_changes_nothing(self, env: Env, tmp_path):
+        """Run twice, the second finds the config up to date, writes nothing and still loads the profile."""
+        # Arrange
+        _old_board_config(tmp_path)
+        _interactive(env)
+        env.engine.dispatch("board.update pico")
+        env.engine.dispatch("profile.unload")
+        env.output.clear()
+
+        # Act
+        result = env.engine.dispatch("board.update pico")
+
+        # Assert
+        assert result.success, result.error
+        assert (result.value, result.data["replaced"]) == (0, [])
+        assert "test is up to date." in env.output
+        assert result.data["install"] == "", (
+            "no device code changed, so nothing to put on the board"
+        )
+        assert env.engine.ctx.ns("active_profile"), "the profile is loaded again"
+
+    def test_a_no_changes_nothing(self, env: Env, tmp_path):
+        """Answered no, it fails and every file is as it was; the question lists each file."""
+        # Arrange
+        folder = _old_board_config(tmp_path)
+        questions: list[str] = []
+        _interactive(env, confirm=lambda message: questions.append(message) or False)
+        before = {path: path.read_bytes() for path in folder.rglob("*") if path.is_file()}
+
+        # Act
+        result = env.engine.dispatch("board.update pico")
+
+        # Assert
+        assert result.error == "Config not updated: test"
+        after = {path: path.read_bytes() for path in folder.rglob("*") if path.is_file()}
+        assert after == before, "nothing written"
+        assert questions[0].startswith("Update test from termapy's Raspberry Pi Pico starter?")
+        assert "  firmware/main.py" in questions[0].splitlines(), "each file it would replace"
+        assert f"  test.cfg  profile_path = test{PROFILE_SUFFIX}" in questions[0].splitlines()
+
+    def test_the_board_defaults_to_the_config_name(self, env: Env):
+        """Bare, the board is the one the config is named for; a config named otherwise is refused."""
+        _interactive(env)
+        result = env.engine.dispatch("board.update")
+        assert result.error == "Unknown board: test (use esp32s3, pico)"
+
+    def test_without_a_person_it_never_runs(self, env: Env, tmp_path):
+        """Without an interactive session (MCP), the gate refuses and nothing is written."""
+        folder = _old_board_config(tmp_path)
+        result = env.engine.dispatch("board.update pico")
+        assert not result.success, "MANAGE_FILES: an agent never replaces a profile"
+        assert (folder / "firmware" / "main.py").read_text(encoding="utf-8") == "print('old')\n"
+
+
+def _shipped_revision(board: Board) -> str:
+    """The profile_revision of the board's shipped profile."""
+    return json.loads(profile_source(board).read_text(encoding="utf-8"))["profile_revision"]
 
 
 def _firmware_command_names(main_path) -> set[str]:

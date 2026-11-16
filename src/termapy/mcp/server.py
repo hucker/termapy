@@ -41,6 +41,7 @@ from termapy import diag_log, load_report
 from termapy.capture import CaptureEngine, format_capture_result
 from termapy.config import (
     cfg_dir,
+    cfg_relative_path,
     config_files,
     config_names,
     mcp_log_path,
@@ -541,10 +542,12 @@ class MCPHost(TerminalHost):
     def _on_connect_auto_load_profile(self, ctx: PluginContext) -> None:
         """Load a v2 profile on connect: explicit cfg.profile_path, then convention.
 
-        MCP-only.  TUI/CLI users stay in text-to-text land unless they
-        explicitly run ``/profile.load``.  Lookup order:
+        The convention is MCP's alone: the TUI and CLI load only a profile
+        the config names, through their on-connect commands
+        (``config.on_connect_commands(..., profile=True)``).  Lookup order:
 
-        1. ``cfg.profile_path`` -- explicit, wins.
+        1. ``cfg.profile_path`` -- explicit, wins; a relative one is
+           beside the config first, as ``/profile.load`` reads it.
         2. ``<cfg_dir>/<cfg_name>.profile.json`` -- convention,
            "one profile per device folder, named after the cfg".
         3. Nothing found -> no profile loaded.  ``_dispatch_via_profile``
@@ -560,7 +563,7 @@ class MCPHost(TerminalHost):
         explicit = cfg_value(ctx.cfg, "profile_path")
         candidate: Path | None = None
         if explicit and isinstance(explicit, str):
-            candidate = Path(explicit)
+            candidate = cfg_relative_path(self.config_path or "", explicit, PROFILE_SUFFIX)
         elif self.config_path:
             cfg_path = Path(self.config_path)
             convention = cfg_path.parent / f"{cfg_path.stem}{PROFILE_SUFFIX}"

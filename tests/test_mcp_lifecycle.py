@@ -310,6 +310,28 @@ class TestAutoLoadProfileOnConnect:
             if h.engine.is_connected:
                 h._disconnect()
 
+    @pytest.mark.rule("profile-path-loads-everywhere")
+    def test_a_bare_profile_path_is_beside_the_config(self, cfg_dir):
+        """A profile_path that is a bare name loads the file beside the config, whatever the working folder."""
+        # Arrange -- the name a board config writes, not the convention's
+        self._write_profile(cfg_dir / "bench.profile.json")
+        cfg = default_cfg()
+        cfg["serial"]["port"] = "DEMO"
+        cfg["profile_path"] = "bench.profile.json"
+        config_path = cfg_dir / "test.cfg"
+        config_path.write_text(json.dumps(cfg))
+        h = MCPHost(cfg, str(config_path), verbose=False)
+        try:
+            # Act
+            h._connect()
+
+            # Assert
+            actual = set(h.ctx.ns("active_profile").get("commands", {}))
+            assert actual == {"PING"}, "found beside the config, not in the working folder"
+        finally:
+            if h.engine.is_connected:
+                h._disconnect()
+
     def test_convention_profile_loads_when_no_explicit_path(self, cfg_dir):
         """With profile_path empty, <cfg_name>.profile.json beside the cfg loads."""
         # Arrange -- profile at <cfg_dir>/<cfg_name>.profile.json
@@ -357,15 +379,16 @@ class TestAutoLoadProfileOnConnect:
                 h._disconnect()
 
     def test_auto_load_method_lives_on_mcphost_only(self):
-        """Profile auto-load is on MCPHost only; the TUI/CLI base class never gets it."""
-        # Arrange / Act / Assert -- the auto-load hook is MCP-only by
-        # construction; TUI/CLI inherit from TerminalHost and never get
-        # it.  Pinning the invariant so a future "let's hoist this to
-        # the base class" refactor has to consciously break this test.
+        """Finding a profile by convention is MCPHost's only; the TUI/CLI base class never gets it."""
+        # Arrange / Act / Assert -- the convention lookup is MCP-only by
+        # construction; TUI/CLI inherit from TerminalHost and load only a
+        # profile_path the config names, through their on-connect commands.
+        # Pinning the invariant so a future "let's hoist this to the base
+        # class" refactor has to consciously break this test.
         from termapy.terminal_host import TerminalHost
 
         assert not hasattr(TerminalHost, "_on_connect_auto_load_profile"), (
-            "TerminalHost must NOT have profile auto-load -- TUI/CLI stay text-to-text by design"
+            "TerminalHost must NOT find a profile by convention -- TUI/CLI load only a named one"
         )
         assert hasattr(MCPHost, "_on_connect_auto_load_profile"), (
             "MCPHost auto-loads profiles on connect"

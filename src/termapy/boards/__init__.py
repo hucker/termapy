@@ -15,7 +15,12 @@ file, ``<name>/``:
   ``config.new_config``, so a starter config is made the one way every
   config is (registry ``config-created-once``).
 - ``profile.json`` -- the device profile, installed as the config's
-  ``<name>.profile.json`` so it loads with the config.
+  ``<name>.profile.json``, which the config's ``profile_path`` names so it
+  loads at every connect.
+
+A config made from a starter keeps copies of the profile and the device
+code; ``/board.update`` replaces the copies that differ from what the
+installed termapy ships (``stale_files``, ``replace_stale``).
 
 Device code every board on a runtime shares belongs to the runtime, a row
 of its own (``MICROPYTHON``) with a folder of the same shape
@@ -38,7 +43,14 @@ from importlib.resources import files
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from termapy.config import config_files, config_summary, create_config, new_config
+from termapy.config import (
+    config_files,
+    config_summary,
+    create_config,
+    new_config,
+    write_config_file,
+)
+from termapy.defaults import cfg_value
 from termapy.firmware import copy_files
 from termapy.folders import FIRMWARE, PROFILE_SUFFIX, ensure_folder
 from termapy.port_control import PortSource, list_port_records
@@ -281,10 +293,25 @@ def configs_for_serial(cfg_root: Path, serial: str) -> list[Path]:
 
 
 def board_config(board: Board, name: str, port: str) -> dict:
-    """The board's config: a fresh ``new_config`` with the board's settings over it."""
+    """The board's config: a fresh ``new_config`` with the board's settings over it.
+
+    Its ``profile_path`` names the profile beside it, so every frontend
+    loads the board's commands at connect.
+    """
     cfg = new_config(name, port=port, auto_connect=True)
     cfg.update(json.loads((_package(board) / "config.json").read_text(encoding="utf-8")))
+    cfg["profile_path"] = profile_name(name)
     return cfg
+
+
+def profile_name(config_name: str) -> str:
+    """The file name of a config's profile, beside it: ``pico.profile.json``."""
+    return f"{config_name}{PROFILE_SUFFIX}"
+
+
+def profile_source(board: Board) -> Path:
+    """Where the board's profile sits in the installed package."""
+    return Path(str(_package(board) / "profile.json"))
 
 
 def create_board_config(
@@ -330,8 +357,7 @@ def create_board_config(
         raise AlreadyConfigured(existing[0], serial)
     name = name or board.name
     path = create_config(cfg_root / name / f"{name}.cfg", board_config(board, name, serial))
-    profile = (_package(board) / "profile.json").read_bytes()
-    (path.parent / f"{name}{PROFILE_SUFFIX}").write_bytes(profile)
+    (path.parent / profile_name(name)).write_bytes(profile_source(board).read_bytes())
     # Everything for the board lives in its config's folder, its code too.
     firmware = copy_firmware(board, ensure_folder(path.parent / FIRMWARE))
     return Created(path, serial, device, len(found.running) - 1, tuple(firmware))
@@ -354,6 +380,106 @@ def copy_firmware(board: Board, folder: Path) -> list[Path]:
         OSError: The folder could not be created or a file not written.
     """
     return copy_files([(path, path.name) for path in firmware_paths(board)], folder)
+
+
+@dataclass(frozen=True)
+class Stale:
+    """A config's copy of a file the board's starter ships, which differs from the shipped one.
+
+    Attributes:
+        source: The file the installed termapy ships.
+        destination: The config's copy, which ``replace_stale`` writes
+            over; it may be missing.
+    """
+
+    source: Path
+    destination: Path
+
+
+def stale_files(board: Board, config_path: Path) -> list[Stale]:
+    """The config's copies of the board's profile and device code that differ from what termapy ships.
+
+    The profile is the config's ``<name>.profile.json``, the device code the
+    copies in its ``firmware/``.  A missing copy counts; one identical byte
+    for byte does not, so a config that is up to date has none.  It reads
+    and writes nothing else (registry ``reads-never-write``).
+
+    Args:
+        board: The board the config is for.
+        config_path: The config's ``.cfg``.
+
+    Returns:
+        The profile first if it differs, then the device code in
+        ``firmware_paths`` order.
+    """
+    folder = config_path.parent
+    pairs = [(profile_source(board), folder / profile_name(config_path.stem))]
+    pairs += [(path, folder / FIRMWARE / path.name) for path in firmware_paths(board)]
+    return [
+        Stale(source, destination)
+        for source, destination in pairs
+        if not destination.is_file() or destination.read_bytes() != source.read_bytes()
+    ]
+
+
+def replace_stale(stale: Sequence[Stale]) -> None:
+    """Write each shipped file over the config's copy, byte for byte.
+
+    Raises:
+        OSError: A file could not be written.
+    """
+    for item in stale:
+        if item.destination.parent.name == FIRMWARE:
+            ensure_folder(item.destination.parent)
+        item.destination.write_bytes(item.source.read_bytes())
+
+
+def profile_revision(path: Path) -> str:
+    """A profile file's ``profile_revision``, or ``""`` when it has none or cannot be read."""
+    try:
+        revision = json.loads(path.read_text(encoding="utf-8")).get("profile_revision", "")
+    except (OSError, ValueError, AttributeError):
+        return ""
+    return revision if isinstance(revision, str) else ""
+
+
+def _config_as_written(config_path: Path) -> dict:
+    """The config file's JSON as it is on disk, with no defaults or migration laid over it.
+
+    Raises:
+        OSError: The config could not be read.
+        ValueError: It is not a JSON object.
+    """
+    cfg = json.loads(config_path.read_text(encoding="utf-8"))
+    if not isinstance(cfg, dict):
+        raise ValueError(f"not a JSON object: {config_path}")
+    return cfg
+
+
+def config_profile_path(config_path: Path) -> str:
+    """The ``profile_path`` the config file names, as written; ``""`` when it names none.
+
+    Raises:
+        OSError: The config could not be read.
+        ValueError: It is not a JSON object.
+    """
+    return str(cfg_value(_config_as_written(config_path), "profile_path") or "")
+
+
+def name_profile(config_path: Path) -> str:
+    """Set the config file's ``profile_path`` to the profile beside it, ``<name>.profile.json``; that name.
+
+    The file is read as written and written back by ``write_config_file``,
+    so nothing the session changed reaches it.
+
+    Raises:
+        OSError: The config could not be read or written.
+        ValueError: It is not a JSON object.
+    """
+    cfg = _config_as_written(config_path)
+    cfg["profile_path"] = profile_name(config_path.stem)
+    write_config_file(config_path, cfg)
+    return cfg["profile_path"]
 
 
 def install_command(board: Board, files: Sequence[Path], port: str) -> str:

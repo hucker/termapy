@@ -18,6 +18,8 @@ import contextlib
 import importlib.util
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import types
@@ -28,7 +30,9 @@ import pytest
 from mem_wire_cases import WIRE_ERRORS, masked, row
 
 from termapy.boards import (
+    ARDUINO,
     BOARDS,
+    MICROPYTHON,
     AlreadyConfigured,
     Board,
     attached,
@@ -44,6 +48,7 @@ from termapy.boards import (
 )
 from termapy.config import ConfigExistsError
 from termapy.defaults import DEFAULT_CFG, default_cfg
+from termapy.firmware import find_target, source_path
 from termapy.folders import PROFILE_SUFFIX
 from termapy.plugins import CapabilitySet
 from termapy.port_control import ChipFacts
@@ -65,6 +70,15 @@ ESP32S3 = find_board("esp32s3")
 ESP32S3_PORT = ChipFacts(device="COM9", serial="58E6C5716A840000", vid_pid="303A:4001")
 # Its USB-to-UART bridge, a CH340K, which has no serial number.
 CH340K_PORT = ChipFacts(device="COM6", vid_pid="1A86:7522")
+
+
+PICO_ARDUINO = find_board("pico-arduino")
+ESP32S3_ARDUINO = find_board("esp32s3-arduino")
+# The same Pico running the Arduino starter: the core gives USB the same serial number.
+PICO_ARDUINO_PORT = ChipFacts(device="COM5", serial="E66548545710822C", vid_pid="2E8A:000A")
+
+_MICROPYTHON_BOARDS = [board for board in BOARDS if board.runtime is MICROPYTHON]
+_ARDUINO_BOARDS = [board for board in BOARDS if board.runtime is ARDUINO]
 
 
 def ports(*facts: ChipFacts):
@@ -128,6 +142,39 @@ BOARD_FORMS = {
         "MEM.M 0x1001 F0 0F": "MEM.M",
         "MEM.INFO": "MEM.INFO",
     },
+    "pico-arduino": {
+        "help": "help",
+        "help led": "help",
+        "json": "json",
+        "json on": "json",
+        "led": "led",
+        "led off": "led",
+        "led 1": "led",
+        "temp": "temp",
+        "id": "id",
+        "MEM.R 0x20000000 16": "MEM.R",
+        "MEM.R 0 64": "MEM.R",
+        "MEM.W 0x20000000 DEADBEEF": "MEM.W",
+        "MEM.M 0x20000000 FFFFFF00 00000001": "MEM.M",
+        "MEM.INFO": "MEM.INFO",
+    },
+    "esp32s3-arduino": {
+        "help": "help",
+        "help led_rgb": "help",
+        "json": "json",
+        "json off": "json",
+        "led": "led",
+        "led on": "led",
+        "led 0": "led",
+        "led_rgb": "led_rgb",
+        "led_rgb 255 0 0x20": "led_rgb",
+        "temp": "temp",
+        "id": "id",
+        "MEM.R 0x3FC88000 16": "MEM.R",
+        "MEM.W 0x3FC88000 de ad": "MEM.W",
+        "MEM.M 0x3FC88000 FFFFFF00 00000001": "MEM.M",
+        "MEM.INFO": "MEM.INFO",
+    },
 }
 
 
@@ -163,14 +210,19 @@ class TestTable:
         mem_commands = set(BOARD_MEM.Memory(None, None).commands())
         for board in BOARDS:
             main = firmware_paths(board)[0]
-            firmware = _firmware_command_names(main)
-            assert firmware, f"{board.name}: no commands found in {main.name}"
-            expected = firmware | monitor_commands
-            for name in _firmware_object_names(main):
-                # An object is two entries: the name alone, and the name with an expression.
-                expected |= {name, name + "."}
-            if "termapy_mem.py" in board.runtime.files:
-                expected |= mem_commands
+            if board.runtime is ARDUINO:
+                firmware = _sketch_command_names(main)
+                assert firmware, f"{board.name}: no commands found in {main.name}"
+                expected = firmware | _c_monitor_commands()
+            else:
+                firmware = _firmware_command_names(main)
+                assert firmware, f"{board.name}: no commands found in {main.name}"
+                expected = firmware | monitor_commands
+                for name in _firmware_object_names(main):
+                    # An object is two entries: the name alone, and the name with an expression.
+                    expected |= {name, name + "."}
+                if "termapy_mem.py" in board.runtime.files:
+                    expected |= mem_commands
             actual = set(load_profile(BOARDS_DIR / board.name / "profile.json")["commands"])
             assert actual == expected, f"{board.name}: profile and firmware disagree"
 
@@ -212,7 +264,10 @@ class TestTable:
 
     def test_find_board_rejects_an_unknown_name(self):
         """An unknown board is a lookup failure that lists the boards."""
-        with pytest.raises(ValueError, match=r"Unknown board: nosuch \(use esp32s3, pico\)"):
+        with pytest.raises(
+            ValueError,
+            match=r"Unknown board: nosuch \(use esp32s3, esp32s3-arduino, pico, pico-arduino\)",
+        ):
             find_board("nosuch")
 
 
@@ -233,6 +288,102 @@ class TestAttached:
         """Neither on the port list nor on the USB tree: not attached."""
         found = attached(PICO, source=ports(FTDI_PORT), usb_source=usb("0403:6001"))
         assert (found.running, found.without_runtime) == ((), False)
+
+
+class TestArduino:
+    """The Arduino starters: the same boards in C, the shared code the /firmware kit's own."""
+
+    def test_each_runtime_sees_the_pico_running_the_other(self, tmp_path):
+        """A Pico running Arduino is pico-arduino's board, and to the MicroPython row it is attached without MicroPython."""
+        # Act
+        arduino = attached(PICO_ARDUINO, source=ports(FTDI_PORT, PICO_ARDUINO_PORT))
+        micropython = attached(PICO, source=ports(FTDI_PORT), usb_source=usb("2E8A:000A"))
+        reverse = attached(PICO_ARDUINO, source=ports(PICO_PORT), usb_source=usb("2E8A:0005"))
+
+        # Assert
+        assert arduino.running == (("COM5", "E66548545710822C"),), "found by 2E8A:000A"
+        assert micropython.without_runtime is True, "flash MicroPython, says the pico row"
+        assert reverse.without_runtime is True, "and the other way round"
+
+    def test_new_config_holds_a_folder_arduino_builds(self, tmp_path):
+        """/board.new lays out firmware/ as a sketch: firmware.ino and the kit's C beside it, byte for byte."""
+        # Act
+        created = create_board_config(PICO_ARDUINO, tmp_path, source=ports(PICO_ARDUINO_PORT))
+
+        # Assert
+        folder = created.path.parent / "firmware"
+        actual = [path.name for path in created.firmware]
+        assert actual[0] == "firmware.ino", "Arduino builds the folder its .ino is named for"
+        assert set(actual[1:]) == {
+            f"termapy_{module}.{ext}" for module in ("monitor", "json", "mem") for ext in "ch"
+        }
+        for name in actual[1:]:
+            module = name.removeprefix("termapy_").split(".")[0]
+            shipped = source_path(find_target(module), name)
+            assert (folder / name).read_bytes() == shipped.read_bytes(), f"{name}: the kit's own"
+        data = json.loads(created.path.read_text(encoding="utf-8"))
+        assert data["serial"]["port"] == "E66548545710822C", "by serial number"
+        assert data["title"] == "Raspberry Pi Pico (Arduino)"
+
+    def test_a_sketch_is_copied_under_its_folder_s_name(self, tmp_path):
+        """Arduino builds a folder whose .ino is named for it: fw/ gets fw.ino, the C keeps its names."""
+        written = copy_firmware(PICO_ARDUINO, tmp_path / "fw")
+
+        actual = [path.name for path in written]
+
+        assert actual[0] == "fw.ino", "the sketch takes the folder's name"
+        assert written[0].read_bytes() == firmware_paths(PICO_ARDUINO)[0].read_bytes()
+        assert "termapy_monitor.c" in actual, "every other file keeps its own"
+
+    def test_the_install_line_builds_the_folder(self, tmp_path):
+        """The Arduino rows' line names the firmware folder, quoted when it holds a space."""
+        folder = tmp_path / "my board" / "firmware"
+        files = [folder / path.name for path in firmware_paths(PICO_ARDUINO)]
+
+        actual = install_command(PICO_ARDUINO, files, "COM5")
+
+        assert actual == (
+            f'arduino-cli compile --upload --fqbn rp2040:rp2040:rpipico --port COM5 "{folder}"'
+        )
+
+    @pytest.mark.slow
+    @pytest.mark.xdist_group("arduino")
+    @pytest.mark.parametrize("board", _ARDUINO_BOARDS, ids=lambda board: board.name)
+    def test_the_sketch_builds_with_arduino_cli(self, board, tmp_path):
+        """Each Arduino starter's folder compiles with its core, warnings on and none printed."""
+        cli = shutil.which("arduino-cli")
+        if cli is None:
+            pytest.skip("arduino-cli is not on PATH")
+        fqbn = re.search(r"--fqbn (\S+)", board.install)
+        assert fqbn is not None, f"{board.name}: the install line names the board"
+        core = ":".join(fqbn.group(1).split(":")[:2])
+        installed = subprocess.run(
+            [cli, "core", "list"], capture_output=True, text=True, check=False, timeout=60
+        )
+        if core not in installed.stdout:
+            pytest.skip(f"the {core} core is not installed")
+        # A folder not named firmware, so the build proves the sketch is named for its folder.
+        folder = tmp_path / "bench_sketch"
+        copy_firmware(board, folder)
+
+        # Act
+        result = subprocess.run(
+            [cli, "compile", "--fqbn", fqbn.group(1), "--warnings", "all", str(folder)],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=900,
+        )
+
+        # Assert
+        assert result.returncode == 0, result.stdout + result.stderr
+        # Only ours: the core's own sources are the core's business.
+        warnings = [
+            line
+            for line in (result.stdout + result.stderr).splitlines()
+            if "warning:" in line and ("termapy_" in line or "firmware.ino" in line)
+        ]
+        assert warnings == [], "the shipped C and the sketch build clean"
 
 
 class TestEsp32s3:
@@ -464,7 +615,10 @@ class TestCommands:
     def test_board_new_unknown_board_fails(self, env: Env):
         """/board.new with an unknown board lists the boards."""
         result = env.engine.dispatch("board.new nosuch")
-        assert result.error == "Unknown board: nosuch (use esp32s3, pico)"
+        assert (
+            result.error
+            == "Unknown board: nosuch (use esp32s3, esp32s3-arduino, pico, pico-arduino)"
+        )
 
     def test_board_new_without_a_board_attached_fails(self, env: Env, tmp_path):
         """/board.new with no Pico attached fails, naming the board, and creates no config."""
@@ -485,10 +639,13 @@ class TestCommands:
         for path in firmware_paths(PICO):
             assert (folder / path.name).read_bytes() == path.read_bytes(), path.name
         expected = install_command(
-            PICO, [folder / path.name for path in firmware_paths(PICO)], "<port>"
+            PICO, [folder / path.name for path in firmware_paths(PICO)], "PORT"
         )
         assert result.data["install"] == expected, "no Pico attached, so the port is a placeholder"
-        assert f"Put them on the running board: {expected}" in env.output
+        assert (
+            f"Put them on the board: {expected}  (replace PORT with the board's port: /port.list)"
+            in env.output
+        ), "a word every shell takes as it stands, and what to put there"
         assert not Path("main.py").exists(), "the working directory is never written"
 
     def test_board_firmware_relative_folder_is_under_the_config(self, env: Env, tmp_path):
@@ -563,7 +720,7 @@ class TestBoardUpdate:
         assert f"  test{PROFILE_SUFFIX}  1.1.0 -> {_shipped_revision(PICO)}" in env.output
         assert "  firmware/termapy_mem.py  (new)" in env.output, "a missing copy is named new"
         assert result.data["install"] == install_command(
-            PICO, [folder / "firmware" / path.name for path in firmware_paths(PICO)], "<port>"
+            PICO, [folder / "firmware" / path.name for path in firmware_paths(PICO)], "PORT"
         ), "the whole set, for the board; no Pico is attached"
 
     @pytest.mark.rule("writes-in-cfg-folder")
@@ -582,7 +739,7 @@ class TestBoardUpdate:
         assert result.success, result.error
         assert all(Path(path).is_absolute() for path in result.data["replaced"]), "full paths"
         expected = install_command(
-            PICO, [folder / "firmware" / path.name for path in firmware_paths(PICO)], "<port>"
+            PICO, [folder / "firmware" / path.name for path in firmware_paths(PICO)], "PORT"
         )
         assert result.data["install"] == expected, "pastes into a shell in any folder"
 
@@ -647,7 +804,9 @@ class TestBoardUpdate:
         """Bare, the board is the one the config is named for; a config named otherwise is refused."""
         _interactive(env)
         result = env.engine.dispatch("board.update")
-        assert result.error == "Unknown board: test (use esp32s3, pico)"
+        assert (
+            result.error == "Unknown board: test (use esp32s3, esp32s3-arduino, pico, pico-arduino)"
+        )
 
     def test_without_a_person_it_never_runs(self, env: Env, tmp_path):
         """Without an interactive session (MCP), the gate refuses and nothing is written."""
@@ -708,6 +867,22 @@ def _firmware_object_names(main_path) -> set[str]:
         for key in node.value.keys
         if isinstance(key, ast.Constant) and isinstance(key.value, str)
     }
+
+
+def _sketch_command_names(sketch_path) -> set[str]:
+    """The command names an Arduino starter's sketch registers: the first string of each ``kCommands`` row."""
+    text = sketch_path.read_text(encoding="utf-8")
+    table = re.search(r"kCommands\[\]\s*=\s*\{(.*?)\n\};", text, flags=re.DOTALL)
+    assert table is not None, f"{sketch_path.name}: no kCommands table"
+    return set(re.findall(r'^\s*\{\s*"([^"]+)",', table.group(1), flags=re.MULTILINE))
+
+
+def _c_monitor_commands() -> set[str]:
+    """The commands the C monitor answers itself, read from its ``sBuiltinNames``."""
+    source = next(path for path in firmware_paths(PICO_ARDUINO) if path.name == "termapy_monitor.c")
+    names = re.search(r"sBuiltinNames\[[^\]]*\]\s*=\s*\{([^}]*)\}", source.read_text("utf-8"))
+    assert names is not None, "termapy_monitor.c names its own commands in sBuiltinNames"
+    return set(re.findall(r'"([^"]+)"', names.group(1)))
 
 
 def _load_board_module(board: Board, name: str):
@@ -1196,8 +1371,8 @@ class TestMonitorObjects:
             assert not calls & {"eval", "exec", "compile", "__import__"}, path.name
 
     def test_each_board_marks_a_call_destructive(self):
-        """Every board profile's path entry is destructive, so an MCP agent runs it only after a yes; the listing is readonly."""
-        for board in BOARDS:
+        """Every MicroPython board profile's path entry is destructive, so an MCP agent runs it only after a yes; the listing is readonly."""
+        for board in _MICROPYTHON_BOARDS:
             commands = load_profile(BOARDS_DIR / board.name / "profile.json")["commands"]
             names = _firmware_object_names(firmware_paths(board)[0])
             assert names, f"{board.name}: main.py puts an object on the link"
@@ -1695,7 +1870,10 @@ class TestBoardFlag:
         """An unknown board exits 2 and lists the boards."""
         result = self._run(tmp_path, "--board", "nosuch")
         assert result.returncode == 2
-        assert "Unknown board: nosuch (use esp32s3, pico)" in result.stderr
+        assert (
+            "Unknown board: nosuch (use esp32s3, esp32s3-arduino, pico, pico-arduino)"
+            in result.stderr
+        )
 
     def test_board_with_a_config_is_a_usage_error(self, tmp_path):
         """--board names its own config, so a second one on the line exits 2."""

@@ -32,6 +32,7 @@ from pathlib import Path
 NAMES: dict[str, str] = {
     "mem": "the MEM wire spec: read, write and dump memory and registers by address",
     "json": "the JSON-RPC reply envelope: one typed answer per command, beside the text mode",
+    "monitor": "a whole command monitor on top of json: a command table, help, framing, requests",
 }
 
 
@@ -88,6 +89,7 @@ class Target:
 TARGETS: tuple[Target, ...] = (
     Target("mem", "c"),
     Target("json", "c", guide="firmware-json"),
+    Target("monitor", "c"),
 )
 
 

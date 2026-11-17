@@ -1979,3 +1979,45 @@ nothing. **Where:** `request_response.py` (`id_field`, `json_request`, `pick_rep
 `mcp/server.py` (`_dispatch_via_profile`), the board `config.json` files, `boards.missing_settings`,
 `defaults.py` (`protocol`, `ndjson_field_routing`), `help/boards.md`, `help/config.md`,
 `docs/profile-spec.md`.
+
+## 2026-11-16 — Arduino starters, on a C monitor that is the MicroPython one's twin
+
+Chuck, making demos for termapy: "the point of this is to have sample C code under the termapy
+project that can program arduino". Arduino, not the vendors' SDKs, because the demos are for
+termapy's audience, which mostly builds with Arduino (he asked which was more popular). Two rows,
+`pico-arduino` and `esp32s3-arduino`: the same boards, the same commands and buttons as the
+MicroPython starters, so `/mem.*`, the profile and an MCP agent are unchanged; `machine` and
+`xmodem` stay MicroPython's.
+
+**A C monitor in the `/firmware` kit, not in the boards.** A sketch needed what `termapy_json.py`'s
+`Monitor` gives a MicroPython board (a command table with one-line help, `help`, `json on|off`,
+`{...}` requests with their ids, `ERR` refusals, a bounded line), and nothing in C gave it:
+`termapy_json.c` encodes replies and leaves dispatch to the device. `termapy_monitor.c` is that
+monitor in portable C99, so any C device can start from it with `/firmware.copy monitor`, and the
+`ARDUINO` runtime's shared code is the kit's own files rather than a copy (`Runtime.folder` became a
+path from the package root for that). Its tests run every line both monitors take through both and
+require the same bytes back (registry `monitor-c-wire`). It buffers nothing, so a JSON request for
+a native command (MEM) gets the text as the result string, where the MicroPython monitor gives lines
+and an `ERR` line as an error.
+
+**MEM keeps a memory map on C boards.** `termapy_mem.c` gates every access by a region table, unlike
+MicroPython's `termapy_mem.py`, which reads any address. The sketches map what is safe to name from
+the SDK headers in each core: the Pico's boot ROM read-only and its SRAM (`ROM_BASE`, `SRAM_BASE` to
+`SRAM_END`), the ESP32-S3's data RAM (`SOC_DRAM_LOW` to `SOC_DRAM_HIGH`). No peripheral windows.
+
+**A sketch takes its folder's name.** `arduino-cli` builds a folder whose `.ino` is named for it, so
+the shipped `firmware.ino` is copied under the name of the folder it lands in (`boards.copy_name`):
+`firmware.ino` in a config's `firmware/`, `fw.ino` for `/board.firmware ... folder=fw`, and
+`/board.update` compares by the same rule. `/board.firmware` prints `arduino-cli compile --upload
+... <folder>` (the install line's new `{folder}`). termapy still never writes to the board.
+
+**Ids.** The arduino-pico core gives a Pico `2E8A:000A` and the same flash serial number MicroPython
+gives it, so a Pico's MicroPython config still connects to it after the change and `/board.new
+pico-arduino` names that config; delete it first. Arduino-ESP32's default USB mode answers on the
+chip's built-in USB Serial/JTAG (`303A:1001`), the port the chip has whatever it runs, so that row
+finds any ESP32-S3 on its own USB. Each MicroPython row now also counts the other runtime as
+"attached, not running MicroPython". Toolchain: `arduino-cli` 1.6.0, arduino-pico 6.3.2,
+Arduino-ESP32 3.3.12; the build test skips where they are absent. **Where:** `firmware/c/
+termapy_monitor.{c,h}`, `firmware/__init__.py`, `boards/__init__.py`, `boards/pico-arduino/`,
+`boards/esp32s3-arduino/`, `help/boards.md`, `help/firmware.md`, `tests/test_firmware_monitor.py`,
+`tests/fixtures/firmware/monitor_host.c`, `tests/test_boards.py`.

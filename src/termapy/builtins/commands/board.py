@@ -24,6 +24,7 @@ from termapy.boards import (
     apply_settings,
     attached,
     copy_firmware,
+    copy_name,
     create_board_config,
     find_board,
     firmware_paths,
@@ -125,6 +126,26 @@ def _stale_line(item: Stale, folder: Path) -> str:
     return name if item.destination.is_file() else f"{name}  (new)"
 
 
+# The port an install line carries when no board running the starter is
+# attached: a word to replace, which every shell takes as it stands (PowerShell
+# reads <port> as a redirection).
+_NO_PORT = "PORT"
+
+
+def _install_line(ctx: PluginContext, board: Board, files: list[Path]) -> tuple[str, str]:
+    """The line that puts ``files`` on the board, and the note beside it when the port is not known.
+
+    The port is the attached board's when one runs the starter; otherwise
+    the line carries ``PORT`` and the note says what to put there.
+    """
+    found = attached(board)
+    port = found.running[0][0] if found.running else _NO_PORT
+    command = install_command(board, files, port)
+    if found.running or not command:
+        return command, ""
+    return command, f"  (replace {_NO_PORT} with the board's port: {ctx.prefix}port.list)"
+
+
 def _board_or_fail(ctx: PluginContext) -> Board | CmdResult:
     """The board the bound ``board`` names, or the failure that answers it."""
     try:
@@ -187,11 +208,9 @@ def _handler_firmware(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Write error: {e}")
     names = ", ".join(path.name for path in written)
     ctx.io.result(f"Copied {names} to {folder}")
-    found = attached(board)
-    port = found.running[0][0] if found.running else "<port>"
-    command = install_command(board, written, port)
+    command, note = _install_line(ctx, board, written)
     if command:
-        ctx.io.output(f"Put them on the running board: {command}")
+        ctx.io.output(f"Put them on the board: {command}{note}")
     paths = [str(path) for path in written]
     return CmdResult.ok(value="\n".join(paths), data={"files": paths, "install": command})
 
@@ -253,12 +272,11 @@ def _handler_update(ctx: PluginContext, args: str) -> CmdResult:
         return loaded
     command = ""
     if any(item.destination.parent.name == FIRMWARE for item in stale):
-        found = attached(board)
-        port = found.running[0][0] if found.running else "<port>"
-        code = [folder / FIRMWARE / path.name for path in firmware_paths(board)]
-        command = install_command(board, code, port)
+        target = folder / FIRMWARE
+        code = [target / copy_name(path, target) for path in firmware_paths(board)]
+        command, note = _install_line(ctx, board, code)
         if command:
-            ctx.io.output(f"Put the device code on the board: {command}")
+            ctx.io.output(f"Put the device code on the board: {command}{note}")
     replaced = [str(item.destination) for item in stale]
     data = {"replaced": replaced, "profile_path": profile, "install": command}
     return CmdResult.ok(value=len(replaced), data=data)

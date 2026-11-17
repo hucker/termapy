@@ -207,7 +207,9 @@ class TestTable:
 
     def test_select_targets_rejects_an_unknown_name_and_language(self):
         """The two lookup failures list what exists, in the standard phrasing."""
-        with pytest.raises(ValueError, match=re.escape("Unknown target: nosuch (use json, mem)")):
+        with pytest.raises(
+            ValueError, match=re.escape("Unknown target: nosuch (use json, mem, monitor)")
+        ):
             select_targets("nosuch")
         with pytest.raises(ValueError, match=re.escape("Unknown language: zz (use c)")):
             select_targets("mem", "zz")
@@ -216,7 +218,7 @@ class TestTable:
 
     def test_copy_is_byte_for_byte_and_refuses_before_writing(self, tmp_path):
         """A copy reproduces the shipped bytes exactly; one existing file stops the whole kit, untouched."""
-        mem, json_target = TARGETS
+        mem, json_target = find_target("mem"), find_target("json")
         folder = tmp_path / "fw"
 
         # Act -- one module first, then the whole kit over it
@@ -264,11 +266,18 @@ class TestCommands:
         result = env.engine.dispatch(f"firmware.copy folder={folder}")
 
         assert result.success, result.error
-        expected = ["termapy_mem.c", "termapy_mem.h", "termapy_json.c", "termapy_json.h"]
+        expected = [
+            "termapy_mem.c",
+            "termapy_mem.h",
+            "termapy_json.c",
+            "termapy_json.h",
+            "termapy_monitor.c",
+            "termapy_monitor.h",
+        ]
         assert [Path(path).name for path in result.data["files"]] == expected
-        assert all((folder / name).is_file() for name in expected), "all four files landed"
+        assert all((folder / name).is_file() for name in expected), "every file landed"
         named = env.engine.dispatch(f"firmware.copy lang=c folder={tmp_path / 'kit2'}")
-        assert named.success and len(named.data["files"]) == 4, "lang=c is the same kit"
+        assert named.success and len(named.data["files"]) == len(expected), "lang=c is the same kit"
 
     def test_firmware_copy_writes_one_module_and_refuses_twice(self, env: Env, tmp_path):
         """/firmware.copy <name> writes that module's files, reports them, and a second copy fails on the first file."""
@@ -294,7 +303,7 @@ class TestCommands:
         """An unknown name or language fails before anything is written, listing the choices."""
         bad_name = env.engine.dispatch(f"firmware.copy nosuch folder={tmp_path / 'out'}")
         bad_lang = env.engine.dispatch(f"firmware.copy lang=rust folder={tmp_path / 'out'}")
-        assert bad_name.error == "Unknown target: nosuch (use json, mem)"
+        assert bad_name.error == "Unknown target: nosuch (use json, mem, monitor)"
         assert bad_lang.error == "Unknown language: rust (use c)"
         assert not (tmp_path / "out").exists(), "nothing is created for a bad request"
 

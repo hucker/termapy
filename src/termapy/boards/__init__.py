@@ -23,8 +23,10 @@ code; ``/board.update`` replaces the copies that differ from what the
 installed termapy ships (``stale_files``, ``replace_stale``).
 
 Device code every board on a runtime shares belongs to the runtime, a row
-of its own (``MICROPYTHON``) with a folder of the same shape
-(``micropython/firmware/``): one copy, never one per board.
+of its own with one folder of it: ``MICROPYTHON``'s is
+``micropython/firmware/`` here, and ``ARDUINO``'s is the ``/firmware`` kit's
+C (``termapy/firmware/c/``), the monitor and the modules under it.  One copy,
+never one per board.
 
 A config connects to the board by its USB serial number, found when
 ``/board.new`` creates the config: the row's ``usb`` VID:PIDs pick out
@@ -67,13 +69,13 @@ class Runtime:
 
     Attributes:
         name: Its name for people (``MicroPython``).
-        folder: Its package folder beside the boards' (``micropython``);
-            the shared files are in its ``firmware/``.
+        folder: Where the shared files are, as folder names under the
+            ``termapy`` package (``("boards", "micropython", "firmware")``).
         files: The shared device code, one copy for every board on it.
     """
 
     name: str
-    folder: str
+    folder: tuple[str, ...]
     files: tuple[str, ...] = ()
 
 
@@ -81,8 +83,24 @@ class Runtime:
 # MicroPython board.
 MICROPYTHON = Runtime(
     "MicroPython",
-    "micropython",
+    ("boards", "micropython", "firmware"),
     ("termapy_json.py", "termapy_mem.py", "termapy_xmodem.py"),
+)
+
+# The C command monitor and the modules under it, on every Arduino board: the
+# /firmware kit's own files, so a fix there reaches the boards.  Arduino
+# compiles every .c in the sketch's folder, beside the board's firmware.ino.
+ARDUINO = Runtime(
+    "Arduino",
+    ("firmware", "c"),
+    (
+        "termapy_monitor.c",
+        "termapy_monitor.h",
+        "termapy_json.c",
+        "termapy_json.h",
+        "termapy_mem.c",
+        "termapy_mem.h",
+    ),
 )
 
 
@@ -103,7 +121,8 @@ class Board:
             one to start from first; the runtime's shared files follow it.
         flash: One line on getting the firmware onto the board.
         install: The shell command that puts copied firmware on a running
-            board, with ``{port}`` and ``{files}`` to fill in.
+            board, with ``{port}``, and ``{files}`` or ``{folder}`` (the
+            folder they were copied to), to fill in.
     """
 
     name: str
@@ -118,13 +137,14 @@ class Board:
 
 BOARDS: tuple[Board, ...] = (
     # VID:PIDs from Raspberry Pi's own list, github.com/raspberrypi/usb-pid:
-    # 0005 is the MicroPython firmware, 0003 the RP2040 boot loader.
+    # 0005 is the MicroPython firmware, 0003 the RP2040 boot loader; 000A is
+    # the board running Arduino, the pico-arduino row's.
     Board(
         "pico",
         "Raspberry Pi Pico",
         MICROPYTHON,
         usb=("2E8A:0005",),
-        without_runtime_usb=("2E8A:0003",),
+        without_runtime_usb=("2E8A:0003", "2E8A:000A"),
         firmware=("main.py",),
         flash=(
             "Flash MicroPython (RPI_PICO), then copy main.py, termapy_json.py, "
@@ -150,6 +170,45 @@ BOARDS: tuple[Board, ...] = (
             "termapy_json.py, termapy_mem.py and termapy_xmodem.py to the board."
         ),
         install="uvx mpremote connect {port} cp {files} : + reset",
+    ),
+    # The arduino-pico core (github.com/earlephilhower/arduino-pico) gives the
+    # Pico 2E8A:000A, its boards.txt's rpipico.pid.0; 0005 is the board
+    # running MicroPython instead, 0003 its boot loader.
+    Board(
+        "pico-arduino",
+        "Raspberry Pi Pico",
+        ARDUINO,
+        usb=("2E8A:000A",),
+        without_runtime_usb=("2E8A:0003", "2E8A:0005"),
+        firmware=("firmware.ino",),
+        flash=(
+            "Install arduino-cli and the arduino-pico core (rp2040:rp2040), then build and "
+            "upload the firmware folder; the first time, hold BOOTSEL while plugging the "
+            "board in."
+        ),
+        install="arduino-cli compile --upload --fqbn rp2040:rp2040:rpipico --port {port} {folder}",
+    ),
+    # Arduino-ESP32 (github.com/espressif/arduino-esp32) in its default USB
+    # mode, Hardware CDC and JTAG (boards.txt: esp32s3.build.usb_mode=1), with
+    # USB CDC On Boot answers on the chip's built-in USB Serial/JTAG, 1001: the
+    # port the chip has whatever it runs, so a bare S3 is found by it too.
+    # 4001 is the board running MicroPython instead.
+    Board(
+        "esp32s3-arduino",
+        "ESP32-S3 DevKitC-1",
+        ARDUINO,
+        usb=("303A:1001",),
+        without_runtime_usb=("303A:4001",),
+        firmware=("firmware.ino",),
+        flash=(
+            "Install arduino-cli and the Arduino-ESP32 core (esp32:esp32), then build and "
+            "upload the firmware folder to the chip's own USB port; if the upload cannot "
+            "connect, hold BOOT and press RESET first."
+        ),
+        install=(
+            "arduino-cli compile --upload --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc "
+            "--port {port} {folder}"
+        ),
     ),
 )
 
@@ -366,10 +425,20 @@ def create_board_config(
 def firmware_paths(board: Board) -> list[Path]:
     """Where the board's device code sits in the installed package: its own, then its runtime's."""
     own = _package(board) / "firmware"
-    shared = files(__name__) / board.runtime.folder / "firmware"
+    shared = files("termapy").joinpath(*board.runtime.folder)
     return [Path(str(own / name)) for name in board.firmware] + [
         Path(str(shared / name)) for name in board.runtime.files
     ]
+
+
+# Arduino builds a folder whose main file is named for it, so a sketch is
+# copied under the folder's name: firmware.ino in a config's firmware/.
+SKETCH_SUFFIX = ".ino"
+
+
+def copy_name(path: Path, folder: Path) -> str:
+    """The name a shipped device file gets in ``folder``: its own, or the folder's for a sketch."""
+    return f"{folder.name}{SKETCH_SUFFIX}" if path.suffix == SKETCH_SUFFIX else path.name
 
 
 def copy_firmware(board: Board, folder: Path) -> list[Path]:
@@ -379,7 +448,7 @@ def copy_firmware(board: Board, folder: Path) -> list[Path]:
         FileExistsError: Its message is the path that already exists.
         OSError: The folder could not be created or a file not written.
     """
-    return copy_files([(path, path.name) for path in firmware_paths(board)], folder)
+    return copy_files([(path, copy_name(path, folder)) for path in firmware_paths(board)], folder)
 
 
 @dataclass(frozen=True)
@@ -414,7 +483,8 @@ def stale_files(board: Board, config_path: Path) -> list[Stale]:
     """
     folder = config_path.parent
     pairs = [(profile_source(board), folder / profile_name(config_path.stem))]
-    pairs += [(path, folder / FIRMWARE / path.name) for path in firmware_paths(board)]
+    code = folder / FIRMWARE
+    pairs += [(path, code / copy_name(path, code)) for path in firmware_paths(board)]
     return [
         Stale(source, destination)
         for source, destination in pairs
@@ -513,9 +583,16 @@ def install_command(board: Board, files: Sequence[Path], port: str) -> str:
     """The shell command that puts ``files`` on the board at ``port``, or ``""`` when it has none.
 
     Paths are written in full, quoted when they hold a space, so the line
-    can be pasted into any shell from any folder.
+    can be pasted into any shell from any folder.  ``{folder}`` is the folder
+    the first file is in, for a toolchain that builds a folder (arduino-cli).
     """
     if not board.install:
         return ""
-    quoted = " ".join(f'"{path}"' if " " in str(path) else str(path) for path in files)
-    return board.install.format(port=port, files=quoted)
+
+    def quoted(path: Path) -> str:
+        return f'"{path}"' if " " in str(path) else str(path)
+
+    folder = quoted(files[0].parent) if files else ""
+    return board.install.format(
+        port=port, files=" ".join(quoted(path) for path in files), folder=folder
+    )

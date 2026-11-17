@@ -8,10 +8,12 @@ device profile. The board answers at an interactive prompt, its commands
 show in `/help`, and an MCP agent gets them as typed tools. This is real
 hardware; the simulator is `/demo`.
 
-| Board     | Runs        | Device code                                                        | Board commands                                                                  |
-| --------- | ----------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| `pico`    | MicroPython | `main.py`, `termapy_json.py`, `termapy_mem.py`, `termapy_xmodem.py` | `help`, `led`, `temp`, `id`, `machine`, `json`, `xmodem`, `MEM.*`              |
-| `esp32s3` | MicroPython | `main.py`, `termapy_json.py`, `termapy_mem.py`, `termapy_xmodem.py` | `help`, `led`, `led_rgb`, `temp`, `id`, `machine`, `json`, `xmodem`, `MEM.*`   |
+| Board             | Runs        | Device code                                                         | Board commands                                                                 |
+| ----------------- | ----------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `pico`            | MicroPython | `main.py`, `termapy_json.py`, `termapy_mem.py`, `termapy_xmodem.py` | `help`, `led`, `temp`, `id`, `machine`, `json`, `xmodem`, `MEM.*`              |
+| `esp32s3`         | MicroPython | `main.py`, `termapy_json.py`, `termapy_mem.py`, `termapy_xmodem.py` | `help`, `led`, `led_rgb`, `temp`, `id`, `machine`, `json`, `xmodem`, `MEM.*`   |
+| `pico-arduino`    | Arduino     | `firmware.ino`, `termapy_monitor.c`, `termapy_json.c`, `termapy_mem.c` and their `.h` | `help`, `led`, `temp`, `id`, `json`, `MEM.*`                 |
+| `esp32s3-arduino` | Arduino     | `firmware.ino`, `termapy_monitor.c`, `termapy_json.c`, `termapy_mem.c` and their `.h` | `help`, `led`, `led_rgb`, `temp`, `id`, `json`, `MEM.*`      |
 
 The `xmodem recv` / `xmodem send` commands make a MicroPython board an XMODEM
 peer: pair them with the host's [`/xfer.xmodem.*`](file-transfer.md) to move a
@@ -126,6 +128,60 @@ levels: `[255,0,0]` in JSON, one level per line in text. A board with its
 LED on another pin changes one line of `main.py`. `id` is the chip's
 factory MAC address. MicroPython answers on the UART port too, but the
 config uses the chip's own USB, by its serial number.
+
+## Arduino starters
+
+`pico-arduino` and `esp32s3-arduino` are the same two boards in C, built
+with the Arduino toolchain. They answer the same commands on the same
+wire as the MicroPython starters, so the same buttons, `/mem.*` and an MCP
+agent work unchanged; `machine` and `xmodem` are MicroPython's alone.
+
+The device code is a sketch, `firmware.ino`, and termapy's C command
+monitor with the modules under it (`termapy_monitor.c`, `termapy_json.c`,
+`termapy_mem.c`, the [`/firmware`](firmware.md) kit's own files). A
+command is a handler and a row of the sketch's `kCommands` table:
+
+```c
+static void CmdTemp(const char *argsP)
+{
+    (void)argsP;
+    TermapyJson_ReplyFloat(analogReadTemp(), 1);
+}
+
+static const TermapyMonitor_Command kCommands[] = {
+    { "temp", "the on-chip temperature in degrees C", CmdTemp, false },
+    ...
+};
+```
+
+The monitor answers `help` from the table and `json on|off` itself, and
+`MEM.*` reads and writes only inside the sketch's memory map (`kRegions`,
+which `MEM.INFO` lists): the Pico's boot ROM and SRAM, the ESP32-S3's data
+RAM. Elsewhere it answers `ERR range`.
+
+1. **Install the toolchain.** [arduino-cli](https://arduino.github.io/arduino-cli/)
+   and the board's core: `rp2040:rp2040` (arduino-pico) for the Pico,
+   `esp32:esp32` (Arduino-ESP32) for the ESP32-S3.
+2. **Build and upload.** `/board.firmware pico-arduino` writes the sketch
+   and the C files to the config's `firmware/` folder and prints the line
+   that builds and uploads it. Arduino builds a folder whose `.ino` is
+   named for it, so the sketch is copied under the folder's name:
+   `firmware.ino` there, `fw.ino` for `folder=fw`. The line is
+   `arduino-cli compile --upload --fqbn rp2040:rp2040:rpipico --port COM5 ...\firmware`.
+   The first upload to a Pico running MicroPython may need BOOTSEL held
+   while plugging it in; on the ESP32-S3, use the chip's own USB port, and
+   hold BOOT and press RESET if the upload cannot connect.
+3. **Create the config.** `/board.new pico-arduino`, then
+   `/cfg.load pico-arduino`.
+
+The Pico keeps its USB serial number whichever runtime it runs, so its
+MicroPython config still connects to it and `/board.new pico-arduino`
+names that config instead of making a second one: delete it first
+(`/cfg.delete pico`). The ESP32-S3 running Arduino answers on the chip's
+built-in USB Serial/JTAG port (`303A:1001`), which has a serial number of
+its own, so the two configs do not meet. That port is on the chip whatever
+it runs, so `/board.new esp32s3-arduino` finds an ESP32-S3 by it whether
+or not the sketch is on it yet.
 
 ## Memory
 

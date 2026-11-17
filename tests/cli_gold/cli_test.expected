@@ -2184,19 +2184,21 @@ demo> /print === section: firmware: the shipped device-side sources ===
   === section: firmware: the shipped device-side sources ===
 demo> /firmware
   Note: /firmware is a prototype; it may change or be removed.
-  firmware - 2 targets
-  NAME  LANGUAGE  FILES                           SIZE
+  firmware - 3 targets
+  NAME     LANGUAGE  FILES                                 SIZE
   -- -- -- --
-  json  c         termapy_json.c, termapy_json.h  <SIZE>
-  mem   c         termapy_mem.c, termapy_mem.h  <SIZE>
+  json     c         termapy_json.c, termapy_json.h  <SIZE>
+  mem      c         termapy_mem.c, termapy_mem.h  <SIZE>
+  monitor  c         termapy_monitor.c, termapy_monitor.h  <SIZE>
 demo> /firmware.list
-  firmware - 2 targets
-  NAME  LANGUAGE  FILES                           SIZE
+  firmware - 3 targets
+  NAME     LANGUAGE  FILES                                 SIZE
   -- -- -- --
-  json  c         termapy_json.c, termapy_json.h  <SIZE>
-  mem   c         termapy_mem.c, termapy_mem.h  <SIZE>
+  json     c         termapy_json.c, termapy_json.h  <SIZE>
+  mem      c         termapy_mem.c, termapy_mem.h  <SIZE>
+  monitor  c         termapy_monitor.c, termapy_monitor.h  <SIZE>
 demo> /firmware.copy nosuch
-  Error: Unknown target: nosuch (use json, mem)
+  Error: Unknown target: nosuch (use json, mem, monitor)
 demo> /firmware.copy mem lang=rust
   Error: Unknown language: rust (use c)
 demo> /firmware.copy lang=rust
@@ -2209,11 +2211,11 @@ demo> /print === section: board: starter projects for dev boards ===
   === section: board: starter projects for dev boards ===
 demo> /board.new nosuch
   Note: /board is a prototype; it may change or be removed.
-  Error: Unknown board: nosuch (use esp32s3, pico)
+  Error: Unknown board: nosuch (use esp32s3, esp32s3-arduino, pico, pico-arduino)
 demo> /board.firmware nosuch
-  Error: Unknown board: nosuch (use esp32s3, pico)
+  Error: Unknown board: nosuch (use esp32s3, esp32s3-arduino, pico, pico-arduino)
 demo> /board.update nosuch
-  Error: Unknown board: nosuch (use esp32s3, pico)
+  Error: Unknown board: nosuch (use esp32s3, esp32s3-arduino, pico, pico-arduino)
 demo> /print === section: coverage: files, timing, recording ===
   === section: coverage: files, timing, recording ===
 demo> /run.rename status_check status_probe

@@ -6,10 +6,18 @@ termapy ships the device-side sources a monitor compiles in to speak its
 protocols, so getting them is one command, not a trip to the repository.
 `/firmware` lists what ships; `.copy` writes it into your tree.
 
-| Target | Language | Files                              | Guide                                   |
-| ------ | -------- | ---------------------------------- | --------------------------------------- |
-| `mem`  | C        | `termapy_mem.c`, `termapy_mem.h`   | [Memory](memory.md#the-wire-spec)       |
-| `json` | C        | `termapy_json.c`, `termapy_json.h` | [JSON integration](firmware-json.md)    |
+| Target    | Language | Files                                    | Guide                                   |
+| --------- | -------- | ---------------------------------------- | --------------------------------------- |
+| `mem`     | C        | `termapy_mem.c`, `termapy_mem.h`         | [Memory](memory.md#the-wire-spec)       |
+| `json`    | C        | `termapy_json.c`, `termapy_json.h`       | [JSON integration](firmware-json.md)    |
+| `monitor` | C        | `termapy_monitor.c`, `termapy_monitor.h` | [Boards](boards.md#arduino-starters)    |
+
+`mem` and `json` drop into a monitor you already have. `monitor` is a
+whole one for a device that has none: a table of commands with one-line
+help, `help`, `json on|off` and JSON requests, on top of `json` (and
+`mem` for the MEM commands). It is the C twin of the monitor the
+MicroPython board starters run, on the same wire, and the Arduino board
+starters are built on it.
 
 ```text
 /firmware                          what ships: target, language, files, size
@@ -35,5 +43,7 @@ in several; today everything ships in C, so it is never needed. Over MCP,
 command's value.
 
 Each module is strict C99 with no dependency beyond the standard headers.
-The suite compiles both against a host harness (`tests/test_firmware_mem.py`,
-`tests/test_firmware_json.py`), so the shipped source is the tested source.
+The suite compiles each against a host harness (`tests/test_firmware_mem.py`,
+`tests/test_firmware_json.py`, `tests/test_firmware_monitor.py`), so the
+shipped source is the tested source; the monitor's tests also run every
+line through the MicroPython monitor and require the same bytes back.

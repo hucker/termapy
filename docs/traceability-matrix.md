@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 199: 184 registry rows (guarantees 149, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 195. Pinned by none: 4.
+Ids: 200: 185 registry rows (guarantees 150, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 196. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -553,6 +553,10 @@ Ids: 199: 184 registry rows (guarantees 149, assumptions 35), 15 spec sections i
 
 - `test_boards.py`: `TestMicroPythonMem.test_the_wire_refusals` **guard**
 - `test_firmware_mem.py`: `TestWire.test_errors` **guard**
+
+### `monitor-c-wire` (guarantee, contract)
+
+- `test_firmware_monitor.py`: `TestHelp.test_help_lists_every_command_sorted_and_aligned` **guard**, `TestWire.test_a_request_s_id_is_echoed_once` **guard**, `TestWire.test_the_c_and_micropython_monitors_answer_alike` **guard**
 
 ### `name-one-matcher` (guarantee, data)
 

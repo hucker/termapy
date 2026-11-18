@@ -19,7 +19,7 @@ from importlib import resources
 from pathlib import Path
 
 import pytest
-from pilot_wait import until
+from pilot_wait import steady, until
 from textual.widgets import Button
 
 import termapy.builtins
@@ -229,11 +229,25 @@ def _run_scenario(frontend: str, scenario: str, root: Path) -> dict[str, dict[st
     cfg["_config_path"] = str(start)
     app = SerialTerminal(cfg, str(start))
 
+    def buttons_settled() -> bool:
+        """No custom-button mount or setting-button read is running, and every label read is painted."""
+        groups = ("custom-buttons", "setting-buttons")
+        if any(worker.group in groups and not worker.is_finished for worker in app.workers):
+            return False
+        return all(
+            str(app.query_one(f"#{btn_id}", Button).label) == text
+            for btn_id, text in app._setting_labels.items()
+        )
+
     async def body() -> dict[str, dict[str, str] | None]:
         async with app.run_test(size=(120, 40)) as pilot:
             await pilot.pause()
             outcome = _drive(app, scenario, paths)
-            await pilot.pause()
+            # The buttons are mounted and their values read on workers after a
+            # start or a load, and the column holding them sizes the output pane:
+            # both sides wait for that, or the pane's width is a race.
+            await until(pilot, buttons_settled)
+            await steady(pilot, lambda: app._output_width, polls=10)
             outcome["after"] = _facts(app)
             return outcome
 

@@ -875,6 +875,13 @@ class TestParseBoolSetting:
             "the message names the text as typed, the vocabulary and toggle"
         )
 
+    def test_what_names_the_argument_in_the_refusal(self):
+        """A caller can say what the argument is, as parse_bool takes it, so the refusal names the line."""
+        expected = "Invalid DTR value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)"
+        with pytest.raises(ValueError) as exc:
+            parse_bool_setting("maybe", what="DTR value")
+        assert str(exc.value) == expected
+
 
 class TestNextInCycle:
     def test_advances_and_wraps(self):

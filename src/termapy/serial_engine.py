@@ -20,7 +20,6 @@ from termapy import diag_log
 from termapy.capture import CaptureEngine
 from termapy.defaults import DEFAULT_CMD_PREFIX, cfg_value, cmd_prefix
 from termapy.plugins import BoundaryException
-from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.serial_port import SerialPort, SerialReader
 
 if TYPE_CHECKING:
@@ -735,73 +734,39 @@ class SerialEngine:
                     )
                 if failure:
                     diag_log.warning("reader stopped: %s", failure)
+                    # Let go of the port before reporting the loss: a frontend
+                    # that hears it reads the port's state at once (the TUI's
+                    # DTR/RTS labels), and must find no port, not a level
+                    # cached on one still closing.
+                    self._release_reader_port(port)
                     if on_error:
                         on_error(failure)
                     if on_disconnect:
                         on_disconnect()
                     break
         finally:
-            # Close only the handle THIS loop read from -- ``port`` is the
-            # local captured at entry, never the shared field.  A reader can
-            # outlive its own teardown (``stop_reader``'s join has a timeout,
-            # as a safety net), and by the time it lands here ``_port_obj`` may
-            # already belong to a newer connection.  Closing the shared field
-            # would kill that new port; closing our own local is always right,
-            # and double-close is a no-op.
-            try:
-                port.close()
-            except (OSError, _serial.SerialException):
-                pass
-            # Disown the shared fields only while they still point at OUR
-            # port.  Once a later connect() has replaced them they belong to
-            # that connection.
-            if self._port_obj is port:
-                self._port_obj = None
-                self._serial_port = None
+            self._release_reader_port(port)
 
-    # -- Hardware signal control ------------------------------------------------
+    def _release_reader_port(self, port: Any) -> None:
+        """Close the reader's own port and disown the shared fields while they still point at it.
 
-    def toggle_dtr(self) -> bool:
-        """Toggle DTR and return new state.
-
-        Raises:
-            OSError: If the port operation fails.
+        Close only the handle the loop read from -- ``port`` is the local
+        captured at entry, never the shared field.  A reader can outlive its
+        own teardown (``stop_reader``'s join has a timeout, as a safety net),
+        and by then ``_port_obj`` may belong to a newer connection, which
+        closing the shared field would kill.  Once a later ``connect()`` has
+        replaced the fields they are that connection's.  Twice is harmless:
+        a second close is a no-op.
         """
-        if not self._port_obj:
-            raise OSError(STATE_MESSAGES["serial_connected"])
-        self._port_obj.dtr = not self._port_obj.dtr
-        return self._port_obj.dtr
+        import serial as _serial
 
-    def toggle_rts(self) -> bool:
-        """Toggle RTS and return new state.
-
-        Raises:
-            OSError: If the port operation fails.
-        """
-        if not self._port_obj:
-            raise OSError(STATE_MESSAGES["serial_connected"])
-        self._port_obj.rts = not self._port_obj.rts
-        return self._port_obj.rts
-
-    def send_break(self, duration: float = 0.25) -> None:
-        """Send a break signal.
-
-        Raises:
-            OSError: If the port operation fails.
-        """
-        if not self._port_obj:
-            raise OSError(STATE_MESSAGES["serial_connected"])
-        self._port_obj.send_break(duration=duration)
-
-    def get_hw_state(self) -> tuple[bool, bool]:
-        """Return current (DTR, RTS) states.
-
-        Raises:
-            OSError: If the port operation fails.
-        """
-        if not self._port_obj:
-            raise OSError(STATE_MESSAGES["serial_connected"])
-        return self._port_obj.dtr, self._port_obj.rts
+        try:
+            port.close()
+        except (OSError, _serial.SerialException):
+            pass
+        if self._port_obj is port:
+            self._port_obj = None
+            self._serial_port = None
 
     # -- Reconnection ----------------------------------------------------------
 

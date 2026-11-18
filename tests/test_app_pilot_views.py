@@ -94,8 +94,10 @@ class TestCaptureOverlay:
             async with app.run_test(size=_SIZE) as pilot:
                 await pilot.pause()
                 assert app._connect() is True, "DEMO port should connect"
-                bar = app.query_one("#bottom-bar")
+                bar = app.query_one("#overlay-bar")
+                bottom = app.query_one("#bottom-bar")
                 inp = app.query_one("#cmd", Input)
+                shown_before = [child.display for child in bottom.children]
 
                 # Act
                 await _submit(pilot, "/cap.text t.txt timeout=1s")
@@ -112,6 +114,9 @@ class TestCaptureOverlay:
                 # Assert
                 assert (prompt_disabled_during, labelled, gone) == (True, True, True)
                 assert inp.disabled is False, "prompt back after the capture"
+                assert [child.display for child in bottom.children] == shown_before, (
+                    "each button is back as its rule left it, the hidden DTR/RTS/Break included"
+                )
                 log = _log_text(app)
                 assert "capture start:" in log and "mode=text" in log, log
                 assert "capture end:" in log, log
@@ -126,7 +131,7 @@ class TestCaptureOverlay:
             async with app.run_test(size=_SIZE) as pilot:
                 await pilot.pause()
                 assert app._connect() is True, "DEMO port should connect"
-                bar = app.query_one("#bottom-bar")
+                bar = app.query_one("#overlay-bar")
 
                 # Act
                 await _submit(pilot, "/cap.bin t.bin bytes=100000")
@@ -197,7 +202,7 @@ class TestCaptureOverlay:
             async with app.run_test(size=_SIZE) as pilot:
                 await pilot.pause()
                 assert app._connect() is True, "DEMO port should connect"
-                bar = app.query_one("#bottom-bar")
+                bar = app.query_one("#overlay-bar")
                 cap_overlay_seen = False
 
                 # Act
@@ -238,7 +243,7 @@ class TestDelayBar:
             (folder / "slow.run").write_text("/delay 3s\n", encoding="utf-8")
             async with app.run_test(size=_SIZE) as pilot:
                 await pilot.pause()
-                bar = app.query_one("#bottom-bar")
+                bar = app.query_one("#overlay-bar")
 
                 # Act
                 await _submit(pilot, "/run slow")

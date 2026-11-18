@@ -41,8 +41,6 @@ from termapy.session_log import (
 from termapy.typed_lines import TypedLine
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from termapy.capture import CaptureEngine
     from termapy.repl import ReplEngine
     from termapy.serial_engine import SerialEngine
@@ -841,15 +839,6 @@ class TerminalHost:
         """Wait until no serial data arrives for timeout_ms (delegates to SerialPort)."""
         if self.engine.serial_port:
             self.engine.serial_port.wait_for_idle(timeout_ms, max_wait_s)
-
-    def _serial_op(self, label: str, fn: Callable[[], object]) -> None:
-        """Run a serial operation, catching OSError/SerialException."""
-        from serial import SerialException
-
-        try:
-            fn()
-        except (OSError, SerialException) as e:
-            self.status(f"{label} error: {e}", "red")
 
     def _serial_write(self, data: bytes) -> None:
         """Write bytes to the port; the one TX path in every frontend.

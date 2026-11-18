@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 200: 185 registry rows (guarantees 150, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 196. Pinned by none: 4.
+Ids: 201: 186 registry rows (guarantees 151, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 197. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -720,7 +720,7 @@ Ids: 200: 185 registry rows (guarantees 150, assumptions 35), 15 spec sections i
 
 ### `reader-failure-reported` (guarantee, contract)
 
-- `test_serial_engine.py`: `TestReadLoop.test_a_raising_callback_is_reported_as_a_disconnect` **guard**, `TestReadLoop.test_read_loop_calls_on_error` **guard**
+- `test_serial_engine.py`: `TestReadLoop.test_a_raising_callback_is_reported_as_a_disconnect` **guard**, `TestReadLoop.test_read_loop_calls_on_error` **guard**, `TestReadLoop.test_the_port_is_gone_when_the_loss_is_reported` **guard**
 
 ### `reader-owned-by-engine` (guarantee, concurrency)
 
@@ -810,6 +810,11 @@ Ids: 200: 185 registry rows (guarantees 150, assumptions 35), 15 spec sections i
 - `test_find.py`: `TestMaxCount.test_max_count_bare_shows_current`
 - `test_repl_cfg.py`: `TestCfgShowKey.test_show_existing_key`
 - `test_term_request.py`: `TestJsonLayout.test_bare_term_json_reports_both`, `TestJsonLayout.test_term_json_highlight_is_a_boolean_setting`, `TestJsonLayout.test_term_json_indent_refuses_another_number`, `TestJsonLayout.test_term_json_indent_sets_queries_and_cycles`, `TestTermRequestCommand.test_unknown_token_fails`
+
+### `setting-button-reads-its-command` (guarantee, requirement)
+
+- `test_app_pilot.py`: `TestCustomButtons.test_a_config_load_shows_the_configs_value`, `TestCustomButtons.test_a_longer_value_widens_the_button`, `TestCustomButtons.test_value_follows_clicks_and_a_typed_command`, `TestCustomButtons.test_value_on_a_command_that_is_no_setting_warns_and_shows_a_dash`, `TestHardwareButtons.test_a_typed_command_moves_the_label`, `TestHardwareButtons.test_two_clicks_flip_the_line_and_back` **guard**
+- `test_setting_buttons.py`: the module (5 functions)
 
 ### `setting-reply-is-value` (guarantee, contract)
 

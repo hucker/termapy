@@ -238,7 +238,7 @@ class TestGetSetHwLine:
         assert any(t.strip() == "1" for t, _ in msgs), "DTR=True should display as '1'"
 
     def test_set_dtr(self):
-        """Setting DTR to 0 drops the line and asks the UI to resync line indicators."""
+        """Setting DTR to 0 drops the line and asks for no UI effect: a button reads the level when the command ends."""
         # Arrange
         ser = _mock_ser()
 
@@ -247,7 +247,7 @@ class TestGetSetHwLine:
 
         # Assert
         assert ser.dtr is False, "DTR should be set to False"
-        assert effects.get("sync_hw") is True, "should request hw sync after DTR change"
+        assert effects == {}, "the label follows from the command's end, not from an effect"
 
     def test_invalid_value(self):
         """A token that is not a line level errors with the shared vocabulary instead of being read as low."""
@@ -258,9 +258,39 @@ class TestGetSetHwLine:
         msgs, _ = get_set_hw_line(ser, "dtr", "maybe")
 
         # Assert
-        expected = ("Invalid DTR value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)", "red")
-        assert msgs == [expected], "one red line naming the line, the text and the vocabulary"
+        expected = (
+            "Invalid DTR value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)",
+            "red",
+        )
+        assert msgs == [expected], (
+            "one red line naming the line, the text, the vocabulary and toggle"
+        )
         assert ser.dtr is True, "a refused token leaves the line alone"
+
+    def test_toggle_flips_and_flips_back(self):
+        """toggle twice in a row: each flips the line from where the last left it and answers the new level."""
+        # Arrange
+        ser = _mock_ser(dtr=True)
+
+        # Act
+        first_msgs, first_effects = get_set_hw_line(ser, "dtr", "toggle")
+        first_level = ser.dtr
+        second_msgs, _ = get_set_hw_line(ser, "dtr", "toggle")
+
+        # Assert
+        actual = (first_level, first_msgs, ser.dtr, second_msgs)
+        expected = (False, [("0", None)], True, [("1", None)])
+        assert actual == expected, (
+            "the second toggle starts from the first's level, not the original"
+        )
+        assert first_effects == {}, "a toggle, like a set, leaves the label to the command's end"
+
+    def test_toggle_disconnected(self):
+        """toggle without an open port changes nothing and says Not connected."""
+        msgs, _ = get_set_hw_line(None, "rts", "toggle")
+        assert any(STATE_MESSAGES["serial_connected"] in t for t, _ in msgs), (
+            "a toggle needs the port like any set"
+        )
 
     def test_the_old_hardware_words_are_gone(self):
         """high and low were a second vocabulary for the same question; they are refused like any other word."""

@@ -146,7 +146,7 @@ DESCRIPTION
   A value sets the setting outright, and with no argument it only shows it.
 
 TAKEN BY
-  /term.eol, /term.eol.rx, /term.json_fmt.indent, /term.output
+  /port.baud_rate, /port.byte_size, /port.flow_control, /port.parity, /port.stop_bits, /term.eol, /term.eol.rx, /term.json_fmt.indent, /term.output
 
 SEE ALSO
   /help.idioms
@@ -544,9 +544,17 @@ demo> /port.dtr 1
   1
 demo> /port.dtr
   1
+demo> /port.dtr toggle
+  0
+demo> /port.dtr toggle
+  1
 demo> /port.rts 0
   0
 demo> /port.rts
+  0
+demo> /port.rts toggle
+  1
+demo> /port.rts toggle
   0
 demo> /print === section: port disconnect/connect ===
   === section: port disconnect/connect ===
@@ -1588,7 +1596,7 @@ CURRENT STATE
   115200
 
 SYNOPSIS
-  /port.baud_rate {value} {custom=<bool>}
+  /port.baud_rate {value|cycle} {custom=<bool>}
 
 DESCRIPTION
   Sets the open port's baud rate for the session.  It must be
@@ -1603,6 +1611,8 @@ DESCRIPTION
     /port.baud_rate 9600
     /port.baud_rate 9460 custom=true
 
+  cycle moves to the next standard rate, wrapping at the end.
+
 CONFIG
   serial.baud_rate = 115200   set for the session; bare shows it
   serial.custom_baud = false  set true for the session by custom=true; bare carries it in data
@@ -1616,7 +1626,7 @@ CURRENT STATE
   1
 
 SYNOPSIS
-  /port.dtr {on|off}
+  /port.dtr {on|off|toggle}
 
   /help port.dtr --verbose shows the rest: status, where it runs, see also.
 demo> /xfer
@@ -1869,10 +1879,26 @@ demo> /port.baud_rate 115200
   115200
 demo> /cfg custom_baud false
   off
+demo> /port.parity cycle
+  E
+demo> /port.parity cycle
+  O
+demo> /port.parity N
+  N
+demo> /port.flow_control cycle
+  rtscts
+demo> /port.flow_control none
+  none
+demo> /port.baud_rate 921600
+  921600
+demo> /port.baud_rate cycle
+  110
+demo> /port.baud_rate 115200
+  115200
 demo> /port.parity X
-  Error: Invalid parity: X (use E, M, N, O, S)
+  Error: Invalid parity: X (use N, E, O, M, S, cycle)
 demo> /port.dtr maybe
-  Error: Invalid DTR value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)
+  Error: Invalid DTR value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)
 demo> /port.break -5
   Error: Invalid duration (use milliseconds, e.g. 250)
 demo> /print === section: capability gates (tui_mode + screen_capture) ===

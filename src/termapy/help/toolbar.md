@@ -52,14 +52,17 @@ The bottom bar has buttons. Some appear based on context:
 | ----------- | ---------------------------- | ----------------------------------------------- |
 | **/**       | Always                       | Show REPL command picker (filters as you type)  |
 | **\<Rec\>** | `record_enabled` (default)   | Record typed commands to a .run script          |
-| **DTR:0/1** | `flow_control` is `"manual"` | Toggle the DTR hardware line                    |
-| **RTS:0/1** | `flow_control` is `"manual"` | Toggle the RTS hardware line                    |
-| **Break**   | `flow_control` is `"manual"` | Send a 250ms serial break signal                |
+| **DTR 0/1** | `flow_control` is `"manual"` | Toggle the DTR line: runs `/port.dtr toggle`    |
+| **RTS 0/1** | `flow_control` is `"manual"` | Toggle the RTS line: runs `/port.rts toggle`    |
+| **Break**   | `flow_control` is `"manual"` | Send a 250ms break: runs `/port.break`          |
 | **Custom**  | `custom_buttons` enabled     | User-defined command buttons                    |
 | **Log**     | Always                       | Open the session log in your editor             |
 | **SS**      | Always                       | Open the screenshot folder                      |
 | **Cap**     | Always                       | Open the cap/ folder                            |
 | **^ v x**   | While `/find` is active      | Previous / next match, close the find bar       |
+
+DTR and RTS show the line's level as bare `/port.dtr` and `/port.rts` answer it,
+after every command and at a connect or disconnect; `-` means no port is open.
 
 Bare `/log`, `/ss` and `/cap` do what the Log, SS and Cap buttons do.
 `/help <cmd>` states a command's bare form in its SYNOPSIS.

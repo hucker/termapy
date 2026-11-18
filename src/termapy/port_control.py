@@ -9,7 +9,7 @@ message and no side effects; ``problem`` reads that refusal back out, so the
 
 Side effects dict keys:
     update_title: bool - refresh the title bar
-    sync_hw: bool - update hardware button visibility/state
+    sync_hw: bool - show or hide the hardware buttons (flow control changed)
     cfg_update: dict - keys to update in the in-memory config
 """
 
@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 from termapy import env_flags
 from termapy.defaults import (
+    STANDARD_BAUD_RATES,
     VALID_BYTE_SIZES,
     VALID_FLOW_CONTROLS,
     VALID_PARITIES,
@@ -46,7 +47,14 @@ from termapy.port_allow import (
     url_scheme,
     wrapped_port,
 )
-from termapy.scripting import format_duration, parse_bool
+from termapy.scripting import (
+    SETTING_CYCLE,
+    SETTING_QUERY,
+    format_duration,
+    next_in_cycle,
+    parse_bool,
+    parse_bool_setting,
+)
 from termapy.usb import chip as _usb_chip, vendor_for as _usb_vendor_for
 
 # Type alias for message lists: (text, color_or_None)
@@ -2531,8 +2539,11 @@ def port_info(
 
 
 def get_set_prop(ser: Any | None, cfg: Mapping[str, Any], key: str, args: str) -> Result:
-    """Get or set a serial port property.
+    """Get, set or cycle a serial port property.
 
+    ``cycle`` moves the open port's value to the next of the property's
+    values, in their declared order (``STANDARD_BAUD_RATES`` for the baud
+    rate), wrapping at the end; a value off the list goes to the first.
     The baud rate also takes ``custom=<bool>``: a rate off the standard
     list needs ``custom=true`` (``baud_error``), which also sets
     ``custom_baud``.
@@ -2541,7 +2552,7 @@ def get_set_prop(ser: Any | None, cfg: Mapping[str, Any], key: str, args: str) -
         ser: Serial-like object, or None if disconnected.
         cfg: Config dict.
         key: Config key (e.g. "baud_rate").
-        args: User-provided value string, or empty to read.
+        args: User-provided value string, ``cycle``, or empty to read.
     """
     attr, coerce, desc, valid = PORT_PROPS[key]
     val = args.strip()
@@ -2567,11 +2578,12 @@ def get_set_prop(ser: Any | None, cfg: Mapping[str, Any], key: str, args: str) -
     if not connected:
         return _not_connected()
     try:
-        if key == "parity":
-            val = val.upper()
-        typed = coerce(val)
+        if val.lower() == SETTING_CYCLE:
+            typed = next_in_cycle(getattr(ser, attr), valid or STANDARD_BAUD_RATES)
+        else:
+            typed = coerce(val.upper() if key == "parity" else val)
         if valid and typed not in valid:
-            opts = ", ".join(sorted(str(v) for v in valid))
+            opts = ", ".join([*(str(v) for v in valid), SETTING_CYCLE])
             return _result([_msg(f"Invalid {desc.lower()}: {val} (use {opts})", "red")])
         is_rate = key == "baud_rate" and isinstance(typed, int)
         refusal = baud_error(typed, custom) if is_rate else None
@@ -2593,27 +2605,25 @@ def get_set_prop(ser: Any | None, cfg: Mapping[str, Any], key: str, args: str) -
 
 
 def get_set_flow(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
-    """Get or set flow control mode.
+    """Get, set or cycle flow control mode.
 
     Args:
         ser: Serial-like object, or None if disconnected.
         cfg: Config dict.
-        args: Flow mode string, or empty to read.
+        args: Flow mode string, ``cycle`` for the next of
+            ``VALID_FLOW_CONTROLS``, or empty to read.
     """
     val = args.strip().lower()
+    current = cfg["serial"]["flow_control"]
     if not val:
-        return _result([_msg(cfg["serial"]["flow_control"])])
+        return _result([_msg(current)])
     if ser is None:
         return _not_connected()
+    if val == SETTING_CYCLE:
+        val = next_in_cycle(current, VALID_FLOW_CONTROLS)
     if val not in VALID_FLOW_CONTROLS:
-        return _result(
-            [
-                _msg(
-                    f"Invalid flow control: {val} (use none/rtscts/xonxoff/manual)",
-                    "red",
-                )
-            ]
-        )
+        modes = "/".join([*VALID_FLOW_CONTROLS, SETTING_CYCLE])
+        return _result([_msg(f"Invalid flow control: {val} (use {modes})", "red")])
     try:
         ser.rtscts = val == "rtscts"
         ser.xonxoff = val == "xonxoff"
@@ -2628,35 +2638,29 @@ def get_set_flow(ser: Any | None, cfg: Mapping[str, Any], args: str) -> Result:
 
 
 def get_set_hw_line(ser: Any | None, line: str, args: str) -> Result:
-    """Get or set a hardware line (DTR or RTS).
+    """Read, set or toggle a hardware line (DTR or RTS), answering its level as 0 or 1.
 
     Args:
         ser: Serial-like object, or None if disconnected.
         line: Line name ("dtr" or "rts").
-        args: Value string, or empty to read.
+        args: Empty to read, ``toggle`` to flip, or a boolean token to set.
     """
     label = line.upper()
-    val = args.strip().lower()
-    connected = ser is not None
-    if not val:
-        if not connected:
-            return _not_connected()
+    if ser is None:
+        return _not_connected()
+    try:
+        action = parse_bool_setting(args, what=f"{label} value")
+    except ValueError as e:
+        return _result([_msg(str(e), "red")])
+    if action == SETTING_QUERY:
         try:
             return _result([_msg(f"{int(getattr(ser, line))}")])
         except OSError as e:
             return _result([_msg(f"{label} read error: {e}", "red")])
-    if not connected:
-        return _not_connected()
     try:
-        state = parse_bool(args, what=f"{label} value")
-    except ValueError as e:
-        return _result([_msg(str(e), "red")])
-    try:
+        state = action if isinstance(action, bool) else not getattr(ser, line)
         setattr(ser, line, state)
-        return _result(
-            [_msg(f"{int(state)}")],
-            sync_hw=True,
-        )
+        return _result([_msg(f"{int(state)}")])
     except OSError as e:
         return _result([_msg(f"{label} error: {e}", "red")])
 

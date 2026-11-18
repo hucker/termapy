@@ -325,10 +325,10 @@ def _custom_buttons() -> list[dict]:
 
 class TestDefaultCfg:
     def test_has_custom_buttons(self):
-        """The defaults ship at least four custom button slots."""
+        """The defaults ship custom buttons: Info and the setting buttons after it."""
         assert "custom_buttons" in DEFAULT_CFG, "key exists"
         buttons = _custom_buttons()
-        assert len(buttons) >= 4, "at least 4 button placeholders"
+        assert len(buttons) >= 2, "Info and at least one setting button"
 
     def test_custom_buttons_info_enabled(self):
         """First default button is the Info button (enabled)."""
@@ -337,10 +337,11 @@ class TestDefaultCfg:
         assert info_btn["name"] == "Info", "named Info"
         assert info_btn["command"] == "{prefix}cfg.info", "runs cfg.info under the config's prefix"
 
-    def test_custom_buttons_placeholders_disabled(self):
-        """Remaining default buttons are disabled placeholders."""
+    def test_custom_buttons_after_info_show_a_setting(self):
+        """Every default button after Info shows its setting's {value} and ships off."""
         for btn in _custom_buttons()[1:]:
-            assert btn["enabled"] is False, "placeholder disabled"
+            assert btn["enabled"] is False, f"{btn['name']} ships off"
+            assert "{value}" in btn["name"], f"{btn['name']} shows its value"
 
     def test_custom_buttons_have_required_fields(self):
         """Every default button carries enabled, name, command and tooltip."""

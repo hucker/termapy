@@ -56,7 +56,9 @@ project gains nothing. The settings you type are saved there, so the next
 `termapy COM3` opens with them, and a port you have opened before still
 opens while it is unplugged, as any config whose port is missing does. Each
 port has its own config, so two termapys on two ports share nothing. A
-serial number follows the board whatever COM number it gets.
+serial number follows the board whatever COM number it gets. The config puts
+EOL, Echo and Color buttons beside the output, each showing its setting; a click
+steps it ([Custom buttons](custom-buttons.md#showing-a-setting)).
 
 A config wins the name: with a config called `COM3`, `termapy COM3` loads
 it. Settings follow a port only, and flags may go anywhere on the line

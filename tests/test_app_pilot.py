@@ -26,6 +26,7 @@ from pathlib import Path
 import pytest
 import serial
 from pilot_wait import until
+from textual.widgets import Button
 
 from termapy.defaults import DEFAULT_CFG
 from termapy.folders import SYMBOLS_SUFFIX
@@ -232,8 +233,136 @@ _TWO_BUTTONS = [
 ]
 
 
+_STAMP_BUTTON = {
+    "enabled": True,
+    "name": "Stamp {value}",
+    "command": "{prefix}term.timestamps toggle",
+}
+
+
+async def _press(app, pilot, button) -> None:
+    """Press ``button`` as a click does and wait for the command it runs to finish."""
+    button.press()
+    await pilot.pause()
+    await app.workers.wait_for_complete()
+    await pilot.pause()
+
+
 class TestCustomButtons:
-    """Which configured custom buttons mount, and where custom_buttons_side puts them."""
+    """Which configured custom buttons mount, where custom_buttons_side puts them, and what {value} shows."""
+
+    @pytest.mark.rule("setting-button-reads-its-command")
+    def test_value_follows_clicks_and_a_typed_command(self, app_factory):
+        """Stamp {value} reads off, flips on and back with two clicks, and follows a typed /term.timestamps on."""
+        app, _, _ = app_factory(custom_buttons=[_STAMP_BUTTON])
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                # Arrange
+                button = app.query_one(".custom-btn", Button)
+                await until(pilot, lambda: str(button.label) == "Stamp off")
+                shown = [str(button.label)]
+
+                # Act
+                for _ in range(2):
+                    await _press(app, pilot, button)
+                    shown.append(str(button.label))
+                app._dispatch_on_thread_interactive(app._repl_line("term.timestamps on"))
+                await app.workers.wait_for_complete()
+                await pilot.pause()
+                shown.append(str(button.label))
+
+                # Assert
+                assert shown == ["Stamp off", "Stamp on", "Stamp off", "Stamp on"], (
+                    "the label is what bare /term.timestamps answers after each command"
+                )
+
+        _run(scenario)
+
+    @pytest.mark.rule("setting-button-reads-its-command")
+    def test_a_config_load_shows_the_configs_value(self, app_factory):
+        """A load resets timestamps to the config's off, and the remounted button shows it, not the session's on."""
+        app, _, path = app_factory(custom_buttons=[_STAMP_BUTTON])
+
+        async def scenario():
+            from termapy.config import load_config
+
+            async with app.run_test() as pilot:
+                # Arrange
+                button = app.query_one(".custom-btn", Button)
+                await until(pilot, lambda: str(button.label) == "Stamp off")
+                await _press(app, pilot, button)
+                assert str(button.label) == "Stamp on", "the session turned timestamps on"
+
+                # Act
+                app._switch_config(load_config(path), path)
+
+                # Assert
+                def label() -> str:
+                    return str(app.query_one(".custom-btn", Button).label)
+
+                await until(pilot, lambda: label() == "Stamp off")
+                assert label() == "Stamp off", "a load ends where a fresh start would"
+
+        _run(scenario)
+
+    @pytest.mark.rule("setting-button-reads-its-command")
+    def test_a_longer_value_widens_the_button(self, app_factory):
+        """Rate 9600 becoming Rate 115200 lays the button out again, so the column does not clip it."""
+        buttons = [
+            {"enabled": True, "name": "Rate {value}", "command": "{prefix}port.baud_rate cycle"}
+        ]
+        serial = DEFAULT_CFG["serial"]
+        assert isinstance(serial, dict), "DEFAULT_CFG['serial'] is a dict"
+        serial_cfg = {**serial, "port": "DEMO", "baud_rate": 9600}
+        app, _, _ = app_factory(
+            custom_buttons=buttons, custom_buttons_side="right", serial=serial_cfg
+        )
+
+        async def scenario():
+            async with app.run_test(size=(120, 30)) as pilot:
+                # Arrange
+                assert app._connect() is True, "DEMO port should connect"
+                button = app.query_one(".custom-btn", Button)
+                await until(pilot, lambda: str(button.label) == "Rate 9600")
+
+                # Act
+                app._dispatch_on_thread_interactive(app._repl_line("port.baud_rate 115200"))
+                await until(pilot, lambda: button.size.width >= len("Rate 115200") + 2)
+
+                # Assert
+                assert str(button.label) == "Rate 115200", "the label follows the rate"
+                assert button.size.width >= len("Rate 115200") + 2, (
+                    "the button grew with its label; Textual's label alone only repaints"
+                )
+
+        _run(scenario)
+
+    @pytest.mark.rule("setting-button-reads-its-command")
+    def test_value_on_a_command_that_is_no_setting_warns_and_shows_a_dash(self, app_factory):
+        """{value} on a command that toggles no setting is a config warning, and the button shows -."""
+        buttons = [{"enabled": True, "name": "Info {value}", "command": "{prefix}cfg.info"}]
+        app, _, _ = app_factory(custom_buttons=buttons)
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                # Arrange / Act
+                expected = "".join(
+                    "Config warning: custom button Info {value}: {value} needs a command"
+                    " that toggles or cycles a setting, not /cfg.info".split()
+                )
+
+                def screen() -> str:
+                    return "".join(app._get_screen_text().split())
+
+                await until(pilot, lambda: expected in screen())
+
+                # Assert
+                assert expected in screen(), "the load names the button and its command"
+                label = str(app.query_one(".custom-btn", Button).label)
+                assert label == "Info -", "a value nothing can read shows -"
+
+        _run(scenario)
 
     def test_only_enabled_buttons_mount(self, app_factory):
         """Disabled buttons and ones with no enabled key stay off the bar, order kept."""
@@ -1218,33 +1347,39 @@ class TestSerialRxHandoff:
 
     @pytest.mark.rule("port-lost-tears-down")
     def test_a_lost_port_stops_the_capture_and_resets_the_ui(self, app_factory, tmp_path):
-        """A disconnect from the reader stops a running capture, frees its claim and resets DTR/RTS."""
+        """A disconnect from the reader stops a running capture, frees its claim and shows DTR/RTS with no level."""
+
+        def labels(app) -> tuple[str, ...]:
+            return tuple(
+                str(app.query_one(f"#btn-{line}", Button).label) for line in ("dtr", "rts")
+            )
 
         async def scenario():
             app, _, _ = app_factory()
             async with app.run_test() as pilot:
                 await pilot.pause()
                 # Arrange -- a binary capture holding the claim, DTR/RTS asserted
+                assert app._connect() is True, "DEMO port should connect"
                 started = app._cap_start(
                     path=tmp_path / "lost.bin", file_mode="wb", mode="bin", target_bytes=1000
                 )
                 assert started is True, "the binary capture starts"
                 assert app._engine.serial_claimed is True, "a binary capture claims the port"
-                app._btn_dtr.label = "DTR:1"
-                app._btn_rts.label = "RTS:1"
+                await until(pilot, lambda: labels(app) == ("DTR 1", "RTS 1"))
+                assert labels(app) == ("DTR 1", "RTS 1"), "the open port's lines are up"
 
-                # Act -- what the reader enqueues when port.read raises
+                # Act -- what the reader leaves when port.read raises: its
+                # port closed and disowned, then the loss reported
+                app._engine.disconnect()
                 app._rx_enqueue(("disconnect",))
-                await pilot.pause()
+                await until(pilot, lambda: labels(app) == ("DTR -", "RTS -"))
 
                 # Assert
                 assert app._capture.active is False, "the capture stops with the port"
                 assert app._engine.serial_claimed is False, (
                     "a claim left behind keeps the display suppressed after an auto-reconnect"
                 )
-                actual_labels = (str(app._btn_dtr.label), str(app._btn_rts.label))
-                expected_labels = ("DTR:0", "RTS:0")
-                assert actual_labels == expected_labels, "the DTR/RTS labels reset"
+                assert labels(app) == ("DTR -", "RTS -"), "no port, no level on DTR/RTS"
 
         _run(scenario)
 
@@ -1505,12 +1640,16 @@ class TestMultilinePaste:
                 await pilot.pause()
                 output = app.query_one("#output")
 
-                # Act
+                def row_width() -> int:
+                    return output.content_size.width - output.styles.scrollbar_size_vertical
+
+                # Act -- the button column settles after its values are read,
+                # resizing the pane once more
+                await until(pilot, lambda: app.repl.ctx.io.width() == row_width())
                 actual = app.repl.ctx.io.width()
 
                 # Assert
-                expected = output.content_size.width - output.styles.scrollbar_size_vertical
-                assert actual == expected and actual > 0, "the pane told the app its width"
+                assert actual == row_width() and actual > 0, "the pane told the app its width"
 
         _run(scenario)
 
@@ -3833,5 +3972,125 @@ class TestHistoryFileSync:
                 assert lines == ["/theirs", "/print mine"], (
                     "the other session's command survived this one's save"
                 )
+
+        _run(scenario)
+
+
+def _manual_flow_serial() -> dict:
+    """The DEMO port's serial settings with manual flow control, which shows the DTR/RTS/Break buttons."""
+    serial_cfg = DEFAULT_CFG["serial"]
+    assert isinstance(serial_cfg, dict), "DEFAULT_CFG['serial'] is a dict"
+    return {**serial_cfg, "port": "DEMO", "flow_control": "manual"}
+
+
+class TestHardwareButtons:
+    """The DTR, RTS and Break buttons run their /port commands, and DTR/RTS show the level the bare command answers."""
+
+    @pytest.mark.rule("setting-button-reads-its-command")
+    @pytest.mark.parametrize("line", ["dtr", "rts"])
+    def test_two_clicks_flip_the_line_and_back(self, app_factory, line):
+        """Two clicks run /port.<line> toggle twice: the line flips and flips back, and the label shows each level."""
+        app, _, _ = app_factory(serial=_manual_flow_serial())
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                assert app._connect() is True, "DEMO port should connect"
+                port = app._engine.port_obj
+                setattr(port, line, True)
+                button = app.query_one(f"#btn-{line}", Button)
+                seen: list[str] = []
+                app.repl.add_post_dispatch_observer(lambda text, _result: seen.append(text))
+
+                # Act
+                after_each: list[tuple[bool, str]] = []
+                for _ in range(2):
+                    await _press(app, pilot, button)
+                    after_each.append((bool(getattr(port, line)), str(button.label)))
+
+                # Assert
+                name = line.upper()
+                assert after_each == [(False, f"{name} 0"), (True, f"{name} 1")], (
+                    "the second click starts from the first's level, and the label follows the line"
+                )
+                assert len(seen) == 2, "each click is one dispatched command"
+                assert all(text.endswith(f"port.{line} toggle") for text in seen), (
+                    f"a click is /port.{line} toggle, so a recording keeps it; got {seen!r}"
+                )
+
+        _run(scenario)
+
+    @pytest.mark.rule("setting-button-reads-its-command")
+    def test_a_typed_command_moves_the_label(self, app_factory):
+        """A /port.dtr typed at the prompt, not clicked, repaints the button: every command's end reads it."""
+        app, _, _ = app_factory(serial=_manual_flow_serial())
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                assert app._connect() is True, "DEMO port should connect"
+                button = app.query_one("#btn-dtr", Button)
+                await until(pilot, lambda: str(button.label) == "DTR 1")
+
+                # Act
+                app._dispatch_on_thread_interactive(app._repl_line("port.dtr 0"))
+                await app.workers.wait_for_complete()
+                await pilot.pause()
+
+                # Assert
+                assert str(button.label) == "DTR 0", "the typed set shows on the button"
+
+        _run(scenario)
+
+    def test_a_click_with_the_port_closed_is_answered_by_the_gate(self, app_factory):
+        """A DTR click while disconnected runs the command, the gate's Not connected answers it, and the label shows no level."""
+        app, _, _ = app_factory(serial=_manual_flow_serial())
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                button = app.query_one("#btn-dtr", Button)
+                results: list[CmdResult] = []
+                app.repl.add_post_dispatch_observer(lambda _text, result: results.append(result))
+
+                # Act
+                await _press(app, pilot, button)
+
+                # Assert
+                actual = [(result.success, result.error) for result in results]
+                assert actual == [(False, STATE_MESSAGES["serial_connected"])], (
+                    "the click was refused by the gate, not skipped in silence"
+                )
+                assert str(button.label) == "DTR -", "no port, no level"
+
+        _run(scenario)
+
+    def test_break_runs_port_break(self, app_factory):
+        """The Break button runs /port.break, which succeeds on the open port, and its label stays Break."""
+        app, _, _ = app_factory(serial=_manual_flow_serial())
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                assert app._connect() is True, "DEMO port should connect"
+                button = app.query_one("#btn-break", Button)
+                seen: list[tuple[str, bool]] = []
+                app.repl.add_post_dispatch_observer(
+                    lambda text, result: seen.append((text, result.success))
+                )
+
+                # Act
+                await _press(app, pilot, button)
+
+                # Assert
+                assert len(seen) == 1 and seen[0][0].endswith("port.break"), (
+                    f"the click is /port.break; got {seen!r}"
+                )
+                assert seen[0][1] is True, "the break was sent"
+                assert str(button.label) == "Break", "an action shows no value"
 
         _run(scenario)

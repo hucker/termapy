@@ -137,6 +137,103 @@ class TestSubmit:
         _run(scenario)
 
 
+def _focused_id(app: App) -> str | None:
+    """The id of the widget holding focus on the top screen."""
+    widget = app.screen.focused
+    return widget.id if widget is not None else None
+
+
+class TestNameFocus:
+    """The cursor goes to the name box whenever the name is what the dialog still needs."""
+
+    @pytest.mark.parametrize("button", ["#qs-connect", "#qs-advanced"])
+    def test_a_missing_name_puts_the_cursor_in_the_name(self, button):
+        """A click asking for the name warns and leaves focus in the name box, not on the list or button."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                # Arrange
+                screen, results = await _open(app, pilot)
+                screen.query_one("#qs-port-list", OptionList).focus()
+                await pilot.pause()
+
+                # Act
+                await pilot.click(button)
+                await pilot.pause()
+
+                # Assert
+                notes = [str(note.message) for note in app._notifications]
+                assert (results, notes) == ([], ["Enter a config name"]), "warned, not dismissed"
+                assert _focused_id(app) == "qs-name", "typing goes into the name now"
+
+        _run(scenario)
+
+    @pytest.mark.parametrize(
+        ("list_id", "offset"), [("#qs-port-list", (5, 3)), ("#qs-baud-list", (5, 1))]
+    )
+    def test_a_pick_with_no_name_moves_the_cursor_to_the_name(self, list_id, offset):
+        """Clicking a row with the name empty keeps the row and puts the cursor in the name box."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                # Arrange
+                screen, _ = await _open(app, pilot)
+                option_list = screen.query_one(list_id, OptionList)
+
+                # Act
+                await pilot.click(list_id, offset=offset)
+                await pilot.pause()
+
+                # Assert
+                assert _focused_id(app) == "qs-name", "the name is what is owed"
+                assert option_list.highlighted is not None, "the picked row stays picked"
+
+        _run(scenario)
+
+    def test_a_pick_after_naming_stays_in_the_list(self):
+        """With a name typed, clicking a port leaves focus in the list: nothing is owed."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                # Arrange
+                screen, _ = await _open(app, pilot)
+                screen.query_one("#qs-name", Input).value = "bench"
+
+                # Act
+                await pilot.click("#qs-port-list", offset=(5, 3))
+                await pilot.pause()
+
+                # Assert
+                assert _focused_id(app) == "qs-port-list", (
+                    "the list keeps the focus it was clicked into"
+                )
+
+        _run(scenario)
+
+    def test_arrow_keys_stay_in_the_list(self):
+        """Down in the port list only highlights, so a keyboard user can still move through it."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                # Arrange
+                screen, _ = await _open(app, pilot)
+                screen.query_one("#qs-port-list", OptionList).focus()
+                await pilot.pause()
+
+                # Act
+                await pilot.press("down")
+                await pilot.pause()
+
+                # Assert
+                assert _focused_id(app) == "qs-port-list", "a highlight is not a pick"
+
+        _run(scenario)
+
+
 class TestCustomBaud:
     def test_the_toggle_swaps_list_for_input_and_back(self, tmp_path):
         """The baud button flips between the standard list and a custom entry field, relabeling itself."""

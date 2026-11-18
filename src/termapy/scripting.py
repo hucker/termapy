@@ -158,11 +158,17 @@ def parse_bool(
 # on a bare invocation; see the rule in CLAUDE.md / writing-plugins.md.
 SETTING_QUERY = "query"  # empty args: show the current value, no change
 SETTING_TOGGLE = "toggle"  # the literal ``toggle`` verb: flip a boolean
+SETTING_CYCLE = "cycle"  # the literal ``cycle`` verb: advance an enum, wrapping
 SETTING_TOKENS_HELP: str = f"{BOOL_TOKENS_HELP} or toggle"
 
 
-def parse_bool_setting(args: str) -> str | bool:
+def parse_bool_setting(args: str, *, what: str = "value") -> str | bool:
     """Classify a boolean setting-command argument.
+
+    Args:
+        args: The command's argument text.
+        what: What the argument is, for the refusal (``DTR value``), as
+            ``parse_bool`` takes it.
 
     Returns:
         ``SETTING_QUERY``  -- empty args: caller shows state, mutates nothing.
@@ -192,7 +198,7 @@ def parse_bool_setting(args: str) -> str | bool:
     try:
         return parse_bool(arg)
     except ValueError:
-        raise ValueError(f"Invalid value: {args.strip()} (use {SETTING_TOKENS_HELP})") from None
+        raise ValueError(f"Invalid {what}: {args.strip()} (use {SETTING_TOKENS_HELP})") from None
 
 
 def value_text(value: object) -> str:

@@ -225,13 +225,13 @@ The most common ones:
 | `/port.mode {baud} {mode} {custom=<bool>}` | Show or set serial mode (e.g. /port.mode 9600 N81); a non-standard rate needs `custom=true` |
 | `/port.disconnect`                   | Disconnect from the serial port                                               |
 | `/port.info`                         | Show port status, serial parameters, and hardware lines                       |
-| `/port.baud_rate {value} {custom=<bool>}` | Show or set baud rate (hardware only): a standard one, or any from 300 with `custom=true` |
-| `/port.byte_size {value}`            | Show or set data bits (hardware only)                                         |
-| `/port.parity {value}`               | Show or set parity (hardware only)                                            |
-| `/port.stop_bits {value}`            | Show or set stop bits (hardware only)                                         |
-| `/port.flow_control {m}`             | Show or set flow control: none, rtscts, xonxoff, manual                       |
-| `/port.dtr {on\|off}`                | Show or set DTR line                                                          |
-| `/port.rts {on\|off}`                | Show or set RTS line                                                          |
+| `/port.baud_rate {value\|cycle} {custom=<bool>}` | Show or set baud rate (hardware only): a standard one, or any from 300 with `custom=true`; `cycle` steps to the next standard rate |
+| `/port.byte_size {5\|6\|7\|8\|cycle}`   | Show or set data bits (hardware only)                                         |
+| `/port.parity {N\|E\|O\|M\|S\|cycle}`  | Show or set parity (hardware only)                                            |
+| `/port.stop_bits {1\|1.5\|2\|cycle}`   | Show or set stop bits (hardware only)                                         |
+| `/port.flow_control {none\|rtscts\|xonxoff\|manual\|cycle}` | Show or set flow control                     |
+| `/port.dtr {on\|off\|toggle}`         | Show or set DTR line                                                          |
+| `/port.rts {on\|off\|toggle}`         | Show or set RTS line                                                          |
 | `/port.cts`                          | Show CTS state (read-only)                                                    |
 | `/port.dsr`                          | Show DSR state (read-only)                                                    |
 | `/port.ri`                           | Show RI state (read-only)                                                     |

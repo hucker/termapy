@@ -486,12 +486,21 @@ def quick_config_path(port: str) -> Path:
     return quick_cfg_root() / name / f"{name}.cfg"
 
 
+# The setting buttons a quick open turns on, by command as the defaults spell
+# them, and where they go: the line ending, echo and color a newcomer reaches
+# for first, beside the output, as VS Code's Serial Monitor offers them
+# (Chuck 2026-11-18).  A new config ships them off.
+QUICK_BUTTONS = ("{prefix}term.eol cycle", "{prefix}term.echo toggle", "{prefix}term.color toggle")
+QUICK_BUTTONS_SIDE = "right"
+
+
 def quick_config(port: str, settings: str) -> tuple[Path, str]:
     """The config ``termapy PORT [SETTING ...]`` opens, and what became of it: ``Created``, ``Updated`` or ``Using``.
 
     One config per port (``quick_config_path``), so sessions on two ports
     share nothing.  The first open creates it through ``new_config`` and
-    ``create_config``, connecting when it loads.  A later open with
+    ``create_config``, connecting when it loads, with the ``QUICK_BUTTONS``
+    turned on in the ``QUICK_BUTTONS_SIDE`` column.  A later open with
     settings lays them over it and saves it, so they are what the port
     opens with next time; one without settings leaves it as it is.  The
     settings are ``/port.connect``'s, read by its reader.
@@ -530,6 +539,10 @@ def quick_config(port: str, settings: str) -> tuple[Path, str]:
             echo=echo,
             auto_connect=True,
         )
+        for button in cfg["custom_buttons"]:
+            if button["command"] in QUICK_BUTTONS:
+                button["enabled"] = True
+        cfg["custom_buttons_side"] = QUICK_BUTTONS_SIDE
         return create_config(path, cfg), "Created"
     if not settings.split():
         return path, "Using"

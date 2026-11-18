@@ -235,7 +235,7 @@ reported as a type warning.
 | `record_enabled`              | `true`                        | Show the Record button next to the REPL prompt (toggles `/run.record`) |
 | `config_read_only`            | `false`                       | Disable Edit button in pickers (`/cfg` still changes in-memory values) |
 | `custom_buttons_side`         | `bottom`                      | Where custom buttons sit: `bottom` in the bottom bar, or `left` / `right` for a column on that edge of the output, which holds many more (see [Custom Buttons](custom-buttons.md)) |
-| `custom_buttons`              | `[4 entries]`                 | Custom button objects (see [Custom Buttons](custom-buttons.md)) |
+| `custom_buttons`              | `[5 entries]`                 | Custom button objects (see [Custom Buttons](custom-buttons.md)) |
 <!-- config-reference:end -->
 
 ## Connection behavior

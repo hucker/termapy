@@ -485,6 +485,7 @@
     "urlhandler",
     "USART",
     "USBMI",
+    "usbmodem",
     "USBROOT",
     "usbser",
     "usbserial",

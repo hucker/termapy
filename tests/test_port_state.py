@@ -11,6 +11,8 @@ deciders their breadcrumbs, so no port or process is involved.
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from termapy.breadcrumbs import Crumb
@@ -34,6 +36,7 @@ class TestWhichSession:
         actual = session_holding("COM7", [_crumb(OWN_PID, "COM7")], OWN_PID)
         assert actual == THIS_SESSION
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows port names ignore case")
     def test_another_termapy_is_named_by_frontend_and_pid(self):
         """A port another termapy holds names that session; the port spelling matches as the OS opens it."""
         actual = session_holding("COM7", [_crumb(17140, "com7")], OWN_PID, hides_host=False)

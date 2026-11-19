@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING
 
 from termapy.matching import matches
 from termapy.plugins.views import Column
-from termapy.port_control import CHIP_FIELD_LABELS, port_state_style
+from termapy.port_control import CHIP_FIELD_LABELS, port_short_name, port_state_style
 from termapy.usb import USB_SERIAL_CHIPS, ChipInfo, mfg as _mfg_alias
 from termapy.usb_tree import ascii_fold
 
@@ -165,7 +165,7 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
     The port_id is the device name (used as an OptionList id in the
     picker, ignored in CLI output).  The row dict has one entry per
     ``PORT_COLUMNS`` key, all values stringified and non-empty (``?``
-    for missing data).
+    for missing data); its port is the short name (``port_short_name``).
     """
     port = facts.device or _EMPTY
     description = display_description(facts.description, facts.device)
@@ -195,7 +195,7 @@ def row_from_facts(facts: ChipFacts) -> tuple[str, dict]:
     interface_number = facts.interface_number or ""
 
     return port, {
-        "port": port,
+        "port": port_short_name(port),
         "manufacturer": manufacturer,
         "vendor": vendor,
         "description": description,
@@ -373,7 +373,7 @@ def _unknown(value: object) -> str:
 # ``row_from_facts`` does; an OPTIONAL_COLUMNS column shows ``""`` so the
 # table can hide it when every port leaves it blank (``Column.hide_empty``).
 _RECORD_CELLS: dict[str, Callable[[dict], str]] = {
-    "port": lambda record: _unknown(record["device"]),
+    "port": lambda record: _unknown(record["device"] and port_short_name(record["device"])),
     "manufacturer": lambda record: _unknown(record["manufacturer"]),
     "vendor": lambda record: _mfg_alias(record["vendor"]) or "",
     "description": lambda record: display_description(record["description"], record["device"]),
@@ -395,7 +395,11 @@ def _port_column(name: str) -> Column:
         _RECORD_CELLS[name],
         # A click puts the connect in the input line rather than running it:
         # opening a port toggles DTR, which resets an auto-reset board.
-        prefill=(lambda record: f"port.connect {record['device']}") if name == "port" else None,
+        prefill=(
+            (lambda record: f"port.connect {port_short_name(record['device'])}")
+            if name == "port"
+            else None
+        ),
         # The port's name is colored by who holds it (port_state_style).
         style=(lambda record: port_state_style(record["session"])) if name == "port" else None,
         drop=(len(DROP_ORDER) - DROP_ORDER.index(name)) if name in DROP_ORDER else 0,

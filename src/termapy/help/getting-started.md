@@ -28,7 +28,8 @@ It creates `termapy_cfg/my_device/my_device.cfg` in the current folder (or
 your `--cfg-dir`), titled `my_device`. The settings are
 [`/port.connect`](commands.md)'s: the port, which is required, then baud,
 frame (`8N1` or `N81`), `cr|lf|crlf` and `echo|noecho`; anything left off
-is 115200 8N1. The baud rate must be a standard one, so a mistyped rate is
+is 115200 8N1. A port that is plugged in is stored as the system names it,
+so `com4` is saved as `COM4` and `ttyUSB0` as `/dev/ttyUSB0`. The baud rate must be a standard one, so a mistyped rate is
 refused; add `custom=true` for one off the list, as the dialog's custom box
 does (`termapy --new my_device COM4 250000 custom=true`). Naming a config that already exists, here or in the dialog,
 asks before its `.cfg` is replaced; the scripts and data in its folder are
@@ -45,6 +46,7 @@ Name a port instead of a config and termapy opens it, the way `screen` and
 termapy COM3 9600 8N1            # a port, then /port.connect's settings
 termapy COM3                     # the same port, with the settings it had last
 termapy 58E6C5716A840000 115200  # a board by its USB serial number
+termapy ttyUSB0                  # Linux and macOS: /dev/ttyUSB0 by its short name
 termapy --vt100 COM5 115200      # a U-Boot or Linux console
 ```
 

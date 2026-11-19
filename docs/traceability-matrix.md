@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 205: 190 registry rows (guarantees 155, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 201. Pinned by none: 4.
+Ids: 206: 191 registry rows (guarantees 156, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 202. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -684,6 +684,12 @@ Ids: 205: 190 registry rows (guarantees 155, assumptions 35), 15 spec sections i
 - `test_app_pilot_targets.py`: `TestConfigPicked.test_load_by_serial_number_connects_without_asking_for_a_port`
 - `test_dialogs_config_editor.py`: `TestValueValidation.test_a_serial_number_port_that_resolves_is_green`
 - `test_port_control.py`: `TestPortPresent` (10 functions)
+
+### `port-short-name` (guarantee, requirement)
+
+- `test_cli_improvements.py`: `TestShortPortNames` (3 functions)
+- `test_config_create.py`: `TestNewConfig.test_new_from_args_stores_the_port_as_the_system_lists_it` **guard**
+- `test_port_control.py`: `TestShortNames` (11 functions)
 
 ### `ports-enumerated-once` (guarantee, structure)
 

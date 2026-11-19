@@ -14,7 +14,7 @@ import threading
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import serial
 
@@ -62,6 +62,9 @@ from termapy.migration import (
 )
 from termapy.port_allow import PortPolicy
 from termapy.scripting import parse_bool, value_text
+
+if TYPE_CHECKING:
+    from termapy.port_control import PortSource
 
 CFG_DIR: str | None = None  # set by --cfg-dir; None = use resolution chain
 
@@ -417,7 +420,7 @@ def apply_open_settings(
         cfg["echo"] = echo
 
 
-def new_config_from_args(name: str, settings: str) -> dict:
+def new_config_from_args(name: str, settings: str, *, source: "PortSource | None" = None) -> dict:
     """``NAME PORT [SETTING ...]`` as a new config: what ``--new`` and ``/cfg.new`` read.
 
     One reading for the flag and the command.  The settings are
@@ -426,11 +429,14 @@ def new_config_from_args(name: str, settings: str) -> dict:
     baud, frame, line ending, echo and ``custom=true`` in any order.  A rate
     off the standard list needs ``custom=true``, which also makes the
     config's ``custom_baud`` true.  The config connects when it loads -- a
-    port was named, so connecting is the point.
+    port was named, so connecting is the point.  A port plugged in now is
+    stored as the system spells it (``port_control.listed_name``: ``com3``
+    is ``COM3``, ``ttyUSB0`` is ``/dev/ttyUSB0``), as a quick open stores it.
 
     Args:
         name: The config name.
         settings: The settings text after the name.
+        source: A substitute port list, as ``resolve_port`` takes it.
 
     Returns:
         The new cfg, from ``new_config``.
@@ -439,7 +445,7 @@ def new_config_from_args(name: str, settings: str) -> dict:
         ValueError: The name fails ``validate_file_stem``, a setting is not
             ``/port.connect``'s, or there is no port.
     """
-    from termapy.port_control import parse_open_args
+    from termapy.port_control import listed_name, parse_open_args, present_ports
 
     reason = validate_file_stem(name)
     if reason:
@@ -451,7 +457,7 @@ def new_config_from_args(name: str, settings: str) -> dict:
         raise ValueError("A port is required")
     return new_config(
         name,
-        port=port,
+        port=listed_name(port, present_ports(source=source)),
         baud=baud,
         custom_baud=custom,
         mode=mode,
@@ -911,7 +917,9 @@ def connection_string(cfg: Mapping, level: str = "medium", actual_port: str = ""
         Formatted connection string.
     """
     serial = cfg["serial"]
-    port = actual_port or serial["port"] or "?"
+    from termapy.port_control import port_short_name
+
+    port = port_short_name(actual_port or serial["port"] or "?")
     if level == "short":
         return f"{port} {_baud_and_frame(serial)}"
     base = f"{port} {port_settings(cfg)}"

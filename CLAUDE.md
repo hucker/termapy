@@ -219,6 +219,12 @@ All other paths relative to `src/termapy/`.
     memory (decision 2026-10-30). **Enforced by
     `tests/test_architecture.py` (registry `did-you-mean-one`)**: no other
     module imports `difflib`, defines an edit distance or spells the phrase.
+  - **Port names.** Lenient in, strict out (registry `port-short-name`):
+    read by `port_control.same_port` / `port_path` in any case on Windows,
+    with or without `\\.\`, a short `/dev` name or a link elsewhere;
+    written for a person by `port_short_name` (`COM3`, `ttyUSB0`,
+    `usbserial-A50285BI`), into a new config and JSON as the system lists
+    it (`listed_name`: `COM3`, `/dev/ttyUSB0`).
   - No ast guard for numbers, durations or strings: unlike bool tokens
     and hex, an `int()` on user text is indistinguishable from internal
     arithmetic, so enforcement there is this rule plus review.

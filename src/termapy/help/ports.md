@@ -466,6 +466,28 @@ sudo usermod -aG dialout $USER
 `/port.chip.permissions` reports `ok` or `denied` for each port so you
 can tell ahead of time whether you'll be able to open it.
 
+## How termapy writes a port's name
+
+Type a port's name any way the system opens it; termapy writes it one way.
+On Windows that is `COM3`: `com3`, `Com3` and `\\.\COM3` all open it,
+and every list, the title bar and a new config say `COM3`.
+
+On Linux and macOS termapy shows a port by its short name: a device
+directly in `/dev` without the folder, and on macOS without `cu.`, so
+`/dev/ttyUSB0` is `ttyUSB0` and `/dev/cu.usbserial-A50285BI` is
+`usbserial-A50285BI`. The lists (`--ports`, `--watch`, `/port.list`, the
+pickers) and the title bar show it; `/port.info`, a port's tooltip and
+`--json` keep the full path, and a new config (`termapy PORT`, `--new`,
+`/cfg.new`) stores a port that is plugged in as the system lists it.
+
+Type either. A name with no `/` is a device in `/dev` (on macOS its `cu.`
+node), so `termapy ttyUSB0`, `/port.connect usbserial-A50285BI` and a
+config's `"port": "ttyACM0"` work as their paths do. A name with a `/` is
+used as typed: a `/dev/serial/by-id/...` link and a `/dev/pts/3` terminal
+work, and show in full, as does any port whose short name would read back
+as another. On macOS the short name means the `cu.` node, the one a
+terminal opens; for the dial-in node type `tty.usbserial-...` or its path.
+
 ## When your COM number keeps changing
 
 Windows usually remembers each USB-serial cable by its serial number

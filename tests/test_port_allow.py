@@ -476,7 +476,9 @@ class TestNetworkPorts:
     def test_allowing_every_device_allows_no_host(self):
         """.* opens any device and still no network port."""
         policy = _listed(".*")
-        assert check_open("COM9", [], policy=policy) == "COM9", "every device"
+        # Linux and macOS open the path they checked; a Windows name opens as written.
+        expected = "COM9" if os.name == "nt" else port_identity("COM9")
+        assert check_open("COM9", [], policy=policy) == expected, "every device"
         with pytest.raises(PortNotAllowedError, match="must be named exactly"):
             check_open("socket://anywhere.example:443", [], policy=policy)
 

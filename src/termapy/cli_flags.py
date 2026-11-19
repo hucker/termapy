@@ -152,11 +152,11 @@ def port_rows_styled(lines: list[str], facts_list: list[ChipFacts]) -> list[list
     name takes ``port_control.port_state_style``.  The text is unchanged.
     """
     from termapy.plugins.views import Piece
-    from termapy.port_control import port_state_style
+    from termapy.port_control import port_short_name, port_state_style
 
     styled: list[list[Piece]] = [[Piece(line)] for line in lines[:2]]
     for line, fact in zip(lines[2:], facts_list, strict=True):
-        name = fact.device or ""
+        name = port_short_name(fact.device or "")
         color = port_state_style(fact.session)
         if color and name and line.startswith(name):
             styled.append([Piece(name, style=color), Piece(line[len(name) :])])
@@ -271,9 +271,9 @@ _WATCH_WIDTHS = {
 def _watch_port_width(devices: Iterable[str], floor: int | None = None) -> int:
     """Port-column width for one watch session.
 
-    A platform floor -- 6 on Windows (``COMxxx``) and 32 on POSIX
-    (``/dev/cu.Bluetooth-Incoming-Port`` is 31) -- grown to the longest
-    device name in the fleet.  ``run_watch`` re-evaluates this every
+    A platform floor -- 6 on Windows (``COMxxx``) and 24 on POSIX (the
+    short name of ``/dev/cu.Bluetooth-Incoming-Port`` is 23) -- grown to the
+    longest name shown in the fleet.  ``run_watch`` re-evaluates this every
     poll and keeps the running max (grow-only), so a longer late
     arrival bumps the column once and every FUTURE row aligns; rows
     printed before the bump keep their old offsets -- watch is an
@@ -288,7 +288,7 @@ def _watch_port_width(devices: Iterable[str], floor: int | None = None) -> int:
         Column width in characters.
     """
     if floor is None:
-        floor = 6 if sys.platform == "win32" else 32
+        floor = 6 if sys.platform == "win32" else 24
     return max([floor] + [len(device) for device in devices])
 
 
@@ -315,8 +315,10 @@ def _watch_widths(
     """
     fleet = list(fleet)
     widths = dict(start) if start else dict(_WATCH_WIDTHS)
+    from termapy.port_control import port_short_name
+
     widths["port"] = _watch_port_width(
-        [facts.device or "-" for facts in fleet], floor=widths.get("port")
+        [port_short_name(facts.device or "-") for facts in fleet], floor=widths.get("port")
     )
     cells = [_watch_cells(facts) for facts in fleet]
     for column in _WATCH_GROWN:
@@ -473,6 +475,7 @@ def _watch_cells(facts: ChipFacts) -> dict[str, str]:
     The one place a cell's text is decided, so ``_watch_widths`` measures
     exactly what ``_format_state_line`` prints.
     """
+    from termapy.port_control import port_short_name
     from termapy.usb import mfg as _mfg_alias
 
     description = (facts.description or "-").strip() or "-"
@@ -481,7 +484,7 @@ def _watch_cells(facts: ChipFacts) -> dict[str, str]:
     if description.endswith(f"({device})"):
         description = description[: -(len(device) + 3)].rstrip() or "-"
     return {
-        "port": device,
+        "port": port_short_name(device),
         "state": _state_of(facts),
         "mfg": _mfg_alias(facts.manufacturer) or "-",
         "description": description,
@@ -517,7 +520,9 @@ def _format_marker_line(marker: str, device: str, widths: dict[str, int]) -> str
     sequence.  Only the timestamp, marker, and port name are known.
     """
     ts = datetime.now().strftime("%H:%M:%S")
-    return f"[{ts}] {marker:<{widths['marker']}}  {device:<{widths['port']}}"
+    from termapy.port_control import port_short_name
+
+    return f"[{ts}] {marker:<{widths['marker']}}  {port_short_name(device):<{widths['port']}}"
 
 
 def _state_of(facts: ChipFacts) -> str:
@@ -915,7 +920,7 @@ def run_quick(
     from termapy.matching import closest, did_you_mean
 
     present = port_control.present_ports(source=source)
-    port = next((name for name in present if port_control.same_port(name, target)), target)
+    port = port_control.listed_name(target, present)
     if not port_control.port_present(port, source=source) and not quick_config_path(port).is_file():
         suggestions = closest(target, config_names() + present)
         print(

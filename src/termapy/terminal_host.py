@@ -54,8 +54,8 @@ if TYPE_CHECKING:
 def _format_resolved_line(spec: str, actual: str) -> str:
     """Build the 'Resolved X -> Y' status line shown on connect.
 
-    Called only when ``spec != actual`` -- i.e. the config's port spec
-    translated to a different device name.  Consults
+    Called only when the config's port spec opened another port than it
+    names (``same_port``: ``ttyUSB0`` is ``/dev/ttyUSB0``, not a resolve).  Consults
     ``resolve_port_trace`` to say which candidate in a fallback chain
     won, so "Resolved A1B2C3D4|COM3 -> COM4" tells the user exactly
     which lookup path got them here.
@@ -416,7 +416,9 @@ class TerminalHost:
         # A1B2C3D4" never becomes a support question.
         spec = self.cfg["serial"]["port"]
         actual = self.engine.open_device or spec
-        resolved = _format_resolved_line(spec, actual) if spec != actual else ""
+        from termapy.port_control import same_port
+
+        resolved = "" if same_port(spec, actual) else _format_resolved_line(spec, actual)
 
         conn = connection_string(self.cfg, actual_port=actual)
         hw = hardware_signals(self.engine.port_obj)

@@ -1006,10 +1006,14 @@ from termapy.port_control import (  # noqa: E402
     chip_field,
     chip_info,
     gather_chip_facts,
+    listed_name,
     listing_devices,
     parse_location_paths,
     port_display,
+    port_identity,
+    port_path,
     port_present,
+    port_short_name,
     reserved_serial,
     resolve_port,
     resolve_port_trace,
@@ -1225,6 +1229,151 @@ class TestResolvePortNameForms:
         """The port this session holds by its by-id link is in use by it, so nothing is probed."""
         device, link = _linked_device(tmp_path)
         assert _check_in_use(device, link) == "yes (this session)"
+
+
+# A Mac adapter's name as pyserial lists it, from an FTDI FT232R.
+_MAC_FTDI = "/dev/cu.usbserial-A50285BI"
+
+
+@pytest.mark.rule("port-short-name")
+class TestShortNames:
+    """A port shows by its short name, and the short name reads back as the same device."""
+
+    @pytest.mark.parametrize(
+        ("system", "device", "expected"),
+        [
+            ("linux", "/dev/ttyUSB0", "ttyUSB0"),
+            ("linux", "/dev/ttyACM0", "ttyACM0"),
+            ("darwin", _MAC_FTDI, "usbserial-A50285BI"),
+            ("darwin", "/dev/cu.usbmodem1101", "usbmodem1101"),
+            ("darwin", "/dev/tty.usbserial-A50285BI", "tty.usbserial-A50285BI"),
+        ],
+    )
+    def test_a_device_in_dev_shows_without_its_folder(self, system, device, expected):
+        """/dev goes, and on a Mac cu. too; the dial-in tty. node keeps its prefix."""
+        assert port_short_name(device, system=system) == expected
+
+    @pytest.mark.parametrize(
+        ("typed", "expected"),
+        [("COM3", "COM3"), ("com3", "COM3"), ("Com7", "COM7"), (r"\\.\com12", "COM12")],
+    )
+    def test_a_windows_com_port_is_written_com_n(self, typed, expected):
+        """However a COM port is typed, in any case or with the device prefix, it is written COM<n>."""
+        assert port_short_name(typed, system="win32") == expected
+
+    @pytest.mark.parametrize(
+        "name", ["CNCA0", "COM3x", "A50285BI", "DEMO", "socket://localhost:7000"]
+    )
+    def test_a_windows_name_that_is_no_com_port_is_as_it_is(self, name):
+        """A virtual pair's name, a serial number, a reserved name or a URL is not rewritten."""
+        assert port_short_name(name, system="win32") == name
+
+    @pytest.mark.parametrize(
+        ("system", "device"),
+        [
+            ("linux", "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A50285BI-if00-port0"),
+            ("linux", "/dev/pts/3"),
+            ("linux", "socket://localhost:7000"),
+            ("linux", "/dev/DEMO"),
+            ("darwin", "/dev/ttyUSB0"),
+        ],
+    )
+    def test_a_name_that_would_not_read_back_keeps_its_path(self, system, device):
+        """A link, a terminal in a subfolder, a URL, a reserved name and a Mac node without cu. show in full."""
+        assert port_short_name(device, system=system) == device, (
+            "shortened, it would name another port"
+        )
+
+    @pytest.mark.parametrize(
+        ("system", "devices"),
+        [
+            ("linux", ["/dev/ttyUSB0", "/dev/ttyACM0", "/dev/pts/3", "/dev/DEMO"]),
+            ("darwin", [_MAC_FTDI, "/dev/tty.usbserial-A50285BI", "/dev/ttyUSB0", "/dev/cu.cu.x"]),
+            ("win32", ["COM3", "COM12"]),
+        ],
+    )
+    def test_every_short_name_reads_back_as_its_device(self, system, devices):
+        """port_path of a short name is the device it was made from, on every platform, odd names included."""
+        # Act
+        actual = [
+            port_path(port_short_name(device, system=system), system=system) for device in devices
+        ]
+
+        # Assert
+        assert actual == devices, "a short name names exactly one port"
+
+    @pytest.mark.parametrize(
+        ("system", "typed", "expected"),
+        [
+            ("linux", "ttyUSB0", "/dev/ttyUSB0"),
+            ("darwin", "usbserial-A50285BI", _MAC_FTDI),
+            ("darwin", "cu.usbserial-A50285BI", _MAC_FTDI),
+            ("darwin", "tty.usbserial-A50285BI", "/dev/tty.usbserial-A50285BI"),
+            ("linux", "/dev/ttyUSB0", "/dev/ttyUSB0"),
+            ("linux", "DEMO", "DEMO"),
+            ("linux", "socket://localhost:7000", "socket://localhost:7000"),
+            ("win32", "COM3", "COM3"),
+        ],
+    )
+    def test_a_typed_name_opens_its_path(self, system, typed, expected):
+        """A bare name is a /dev device (a Mac's cu. node), and a path, a reserved name or a URL is as typed."""
+        assert port_path(typed, system=system) == expected
+
+    def test_a_new_config_stores_the_systems_spelling(self):
+        """Typed com3 (or ttyUSB0) is stored as the system lists it, COM3 (or /dev/ttyUSB0)."""
+        # Arrange
+        typed, listed = ("com3", "COM3") if _WINDOWS else ("ttyUSB0", port_path("ttyUSB0"))
+
+        # Act
+        actual = listed_name(typed, ["OTHER", listed])
+
+        # Assert
+        assert actual == listed, "the name the system lists"
+
+    @pytest.mark.parametrize("typed", ["A50285BI", "COM3|COM4", "socket://localhost:7000", "COM9"])
+    def test_a_name_for_no_listed_port_is_stored_as_typed(self, typed):
+        """A serial number, a fallback chain, a URL and a port not plugged in are what was meant."""
+        assert listed_name(typed, ["COM3", port_path("ttyUSB0")]) == typed
+
+    @posix_only
+    def test_the_short_name_is_the_same_port_as_the_path(self):
+        """Typed short, a listed device matches, so it resolves to the listed path and counts as present."""
+        # Arrange
+        device = port_path("ttyUSB0")
+
+        def fleet():
+            return [ChipFacts(device=device, description="USB Serial Port")]
+
+        # Act / Assert
+        assert same_port("ttyUSB0", device) is True, "the short name opens the device"
+        assert resolve_port("ttyUSB0", source=fleet) == device, "the listed path, to open"
+        assert port_present("ttyUSB0", source=fleet) is True, (
+            "a short-named config is not unplugged"
+        )
+
+    @posix_only
+    def test_a_short_names_policy_identity_is_its_device(self):
+        """The port policy reads a short name as its /dev device, never a file of that name in the working folder."""
+        # Act
+        actual = port_identity("ttyUSB0")
+
+        # Assert
+        assert actual == os.path.realpath(port_path("ttyUSB0")), "the device the name opens"
+        assert actual.startswith("/dev/"), "under /dev, wherever the process runs"
+
+    @posix_only
+    def test_an_unlisted_device_opens_by_its_path(self):
+        """A short name for a device the system has but does not list (here null) resolves to the device's path."""
+        # Arrange
+        expected = port_path("null")
+
+        # Act
+        actual = resolve_port("null", source=list)
+
+        # Assert
+        assert actual == (expected if os.path.exists(expected) else "null"), (
+            "an existing device by its path, a name with none as typed"
+        )
 
 
 class TestChipInfoResolvesSnSpec:

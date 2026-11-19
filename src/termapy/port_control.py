@@ -19,7 +19,7 @@ import functools
 import os
 import re
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -1805,6 +1805,89 @@ MATCH_AMBIGUOUS = "ambiguous"
 
 _WIN32_DEVICE_PREFIX = "\\\\.\\"
 
+# The device folder a short port name stands for, and the macOS node prefixes:
+# pyserial lists a Mac port by its cu. (call-out) node, the one a terminal
+# opens; its tty. twin waits for carrier.
+_DEV = "/dev/"
+_MAC_CALLOUT = "cu."
+_MAC_NODES = (_MAC_CALLOUT, "tty.")
+
+# A Windows serial port in any spelling Windows opens: any case, with or
+# without the device prefix pyserial uses above COM9.  Written COM<n>.
+_WINDOWS_COM = re.compile(r"(?:\\\\\.\\)?com(\d+)", re.IGNORECASE)
+
+
+def port_path(name: str, *, system: str | None = None) -> str:
+    """The path a typed port name opens: a bare name is a device in ``/dev``.
+
+    On Linux and macOS a name with no ``/`` is a device directly in
+    ``/dev`` (``ttyUSB0`` is ``/dev/ttyUSB0``), and on macOS one that is not
+    already a ``cu.`` or ``tty.`` node is the ``cu.`` node pyserial lists
+    (``usbserial-A50285BI`` is ``/dev/cu.usbserial-A50285BI``): the short
+    names ``port_short_name`` shows, read back.  A path, a URL, a reserved name
+    and every Windows name are as typed.
+
+    Args:
+        name: The port name as typed or configured.
+        system: A ``sys.platform`` value; the running one when ``None``.
+    """
+    system = system or sys.platform
+    if system == "win32" or not name or "/" in name or name.upper() in _RESERVED_PORTS:
+        return name
+    if system == "darwin" and not name.startswith(_MAC_NODES):
+        return f"{_DEV}{_MAC_CALLOUT}{name}"
+    return f"{_DEV}{name}"
+
+
+def port_short_name(device: str, *, system: str | None = None) -> str:
+    """The name a person reads for a port: ``COM3``, ``ttyUSB0``, ``usbserial-A50285BI``.
+
+    The one spelling termapy writes a port in for a person (registry
+    ``port-short-name``), however it was typed.  On Windows a serial port is
+    ``COM<n>``, upper case and without the device prefix.  On Linux and
+    macOS a device directly in ``/dev`` loses the folder, and on macOS its
+    ``cu.`` prefix too, wherever ``port_path`` reads the short name back as
+    the same device, so a short name always names exactly one port: never
+    for a reserved name (``/dev/DEMO`` is not DEMO), and on macOS only for a
+    ``cu.`` or ``tty.`` node.  Anything else (a ``/dev/serial/by-id`` link,
+    a ``/dev/pts`` terminal, a URL, a serial number) shows as it is.  Lists
+    and the title bar show this; a port's own page, its tooltip, a config
+    file and JSON keep the system's name (``listed_name``).
+
+    Args:
+        device: The port as the system names it, or as configured.
+        system: A ``sys.platform`` value; the running one when ``None``.
+    """
+    system = system or sys.platform
+    if system == "win32":
+        com = _WINDOWS_COM.fullmatch(device)
+        return f"COM{com.group(1)}" if com else device
+    name = device[len(_DEV) :] if device.startswith(_DEV) else ""
+    if not name or "/" in name or name.upper() in _RESERVED_PORTS:
+        return device
+    if system != "darwin":
+        return name
+    if name.startswith(_MAC_CALLOUT):
+        rest = name[len(_MAC_CALLOUT) :]
+        return device if not rest or rest.startswith(_MAC_NODES) else rest
+    return name if name.startswith(_MAC_NODES) else device
+
+
+def listed_name(name: str, listed: Iterable[str]) -> str:
+    """``name`` as the system lists the port it names, or as typed when it names none listed.
+
+    What a new config stores (quick open, ``--new``, ``/cfg.new``): typed
+    leniently (``com3``, ``ttyUSB0``), written as the system spells it
+    (``COM3``, ``/dev/ttyUSB0``).  A serial number, a fallback chain, a URL,
+    a template and a port not plugged in stay as typed: they are what was
+    meant.
+
+    Args:
+        name: The port as typed.
+        listed: The ports here now, as the system spells them (``present_ports``).
+    """
+    return next((device for device in listed if same_port(device, name)), name)
+
 
 def _port_key(name: str) -> str:
     """The identity of a port name as the OS opens it.
@@ -1812,15 +1895,17 @@ def _port_key(name: str) -> str:
     Windows device names ignore case (``com3`` opens ``COM3``) and may carry
     the Win32 device prefix pyserial itself uses above COM9
     (``\\\\.\\COM3``); ``os.path.normcase`` applies the case rule.  On Linux
-    and macOS names are case-sensitive, and a symlink such as
-    ``/dev/serial/by-id/usb-FTDI_...`` names the device it points to, so an
-    absolute name is resolved with ``os.path.realpath``.
+    and macOS names are case-sensitive, a short name is its ``/dev`` device
+    (``port_path``), and a symlink such as ``/dev/serial/by-id/usb-FTDI_...``
+    names the device it points to, so an absolute name is resolved with
+    ``os.path.realpath``.
     """
     if os.name == "nt":
         if name.startswith(_WIN32_DEVICE_PREFIX):
             name = name[len(_WIN32_DEVICE_PREFIX) :]
         return os.path.normcase(name)
-    return os.path.realpath(name) if os.path.isabs(name) else name
+    path = port_path(name)
+    return os.path.realpath(path) if os.path.isabs(path) else path
 
 
 def same_port(a: str, b: str) -> bool:
@@ -1934,8 +2019,12 @@ def _resolve_against(spec: str, facts: list[ChipFacts]) -> str:
         if result is not None:
             return result[0]
     # No candidate resolved.  Return the last one so open_serial's error
-    # message names what the user most explicitly asked for.
-    return candidates[-1]
+    # message names what the user most explicitly asked for: as typed, unless
+    # it is the short name of a device the system has but did not list (a
+    # virtual null-modem pair's node), which opens by its path.
+    last = candidates[-1]
+    path = port_path(last)
+    return path if path != last and os.path.exists(path) else last
 
 
 def resolve_port_for_open(
@@ -1996,7 +2085,8 @@ def port_identity(name: str) -> str | None:
     ``\\.\`` prefix is dropped) has an identity; any other spelling has
     none and is refused.  On Linux and macOS the identity is the real path,
     with symlinks and ``..`` resolved, so a link named to fit a pattern is
-    read as the device it opens.
+    read as the device it opens, and a short name is its ``/dev`` device
+    (``port_path``), never a file in the working folder.
     """
     if not name:
         return None
@@ -2004,7 +2094,7 @@ def port_identity(name: str) -> str | None:
         if name.startswith(_WIN32_DEVICE_PREFIX):
             name = name[len(_WIN32_DEVICE_PREFIX) :]
         return name if _PLAIN_WINDOWS_NAME.fullmatch(name) else None
-    return os.path.realpath(name)
+    return os.path.realpath(port_path(name))
 
 
 def check_open(resolved: str, facts: list[ChipFacts], *, policy: PortPolicy) -> str:

@@ -32,6 +32,10 @@ COM4  FTDI  FTDI       USB Serial Port    FT230X Basic UART  FTDI FT230X / FT231
 COM7  FTDI  FTDI       USB Serial Port    FT232R USB UART    FTDI FT232R / FT245R             Full-Speed  0403:6001  BG03U7VTA           FTSER2K  1-8.3
 ```
 
+On Linux and macOS the PORT column shows the short name (`ttyUSB0`,
+`usbserial-A50285BI`; see [Port names](ports.md#how-termapy-writes-a-ports-name)),
+and `--json` keeps the path.
+
 Three columns name the device, each from a different source:
 DESCRIPTION is the name the driver gives the port (often just "USB Serial
 Device"), PRODUCT is what the device calls itself (its USB product

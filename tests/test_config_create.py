@@ -10,6 +10,7 @@ stay.  ``cli_flags.run_new`` is ``termapy --new`` on top of the two.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import NoReturn
 
@@ -111,6 +112,25 @@ class TestNewConfig:
         assert (cfg["serial"]["baud_rate"], cfg["serial"]["custom_baud"]) == (250000, True)
         with pytest.raises(ValueError, match="add custom=true to allow it"):
             new_config_from_args("rig", "COM3 11520")
+
+    @pytest.mark.rule("port-short-name")
+    def test_new_from_args_stores_the_port_as_the_system_lists_it(self):
+        """--new rig com3 stores COM3 (ttyUSB0 stores /dev/ttyUSB0) while it is plugged in, and as typed when not."""
+        from termapy.port_control import ChipFacts, port_path
+
+        # Arrange
+        typed, listed = ("com3", "COM3") if os.name == "nt" else ("ttyUSB0", port_path("ttyUSB0"))
+
+        def fleet():
+            return [ChipFacts(device=listed, description="USB Serial Port")]
+
+        # Act
+        plugged = new_config_from_args("rig", typed, source=fleet)["serial"]["port"]
+        unplugged = new_config_from_args("rig", typed, source=list)["serial"]["port"]
+
+        # Assert
+        assert plugged == listed, "the spelling quick open stores"
+        assert unplugged == typed, "a port not plugged in is what was typed"
 
 
 class TestCreateConfig:

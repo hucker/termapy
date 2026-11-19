@@ -867,3 +867,54 @@ class TestInterfaceColumn:
         # read.  A single-function device simply has none.
         actual = row["interface_number"]
         assert actual == "", f"absent is blank, not the unknown marker; got {actual!r}"
+
+
+@pytest.mark.rule("port-short-name")
+@pytest.mark.skipif(sys.platform == "win32", reason="Linux and macOS port names")
+class TestShortPortNames:
+    """Lists and the title bar show a port's short name; the record and the picker's id keep its path."""
+
+    def test_the_port_table_shows_the_short_name_and_keeps_the_path(self):
+        """The picker row and the /port.list cell read ttyUSB0, the id and the JSON record /dev/ttyUSB0."""
+        from termapy.port_format import _RECORD_CELLS, facts_to_json_record, row_from_facts
+
+        # Arrange
+        device = port_control.port_path("ttyUSB0")
+        facts = _make_facts(device=device)
+
+        # Act
+        port_id, row = row_from_facts(facts)
+        record = facts_to_json_record(facts)
+
+        # Assert
+        assert (port_id, row["port"]) == (device, "ttyUSB0"), "the id opens it, the row shows it"
+        assert _RECORD_CELLS["port"](record) == "ttyUSB0", "/port.list shows the short name"
+        assert record["device"] == device, "the JSON keeps the path a program can open"
+
+    def test_watch_shows_the_short_name(self):
+        """A --watch state row and its + line name the port as ttyUSB0."""
+        # Arrange
+        device = port_control.port_path("ttyUSB0")
+        facts = _make_facts(device=device)
+        widths = cli_flags._watch_widths([facts])
+
+        # Act
+        cells = cli_flags._watch_cells(facts)
+        marker = cli_flags._format_marker_line("+", device, widths)
+
+        # Assert
+        assert cells["port"] == "ttyUSB0", "the state row's port"
+        assert marker.split()[2] == "ttyUSB0", "the + line's port"
+
+    def test_the_connection_string_shows_the_short_name(self):
+        """The title bar's port button and the connect line read ttyUSB0 115200 8N1."""
+        from termapy.config import connection_string
+        from termapy.defaults import DEFAULT_CFG
+
+        # Act
+        actual = connection_string(
+            DEFAULT_CFG, "short", actual_port=port_control.port_path("ttyUSB0")
+        )
+
+        # Assert
+        assert actual.startswith("ttyUSB0 "), actual

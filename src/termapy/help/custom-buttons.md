@@ -2,16 +2,20 @@
 
 Add custom buttons to the toolbar by configuring `custom_buttons`
 in your JSON config. Each button can send serial commands, run REPL commands,
-or execute scripts. The default config includes one enabled button (**Info**, which runs
-`/cfg.info`) plus three disabled placeholders.  Enable them and fill in
-the fields, or add more entries.
+or execute scripts. A new config has five: **Info**, which runs `/cfg.info`, turned
+on, and one for each setting you change most, turned off until you enable it, each
+showing its value: **Baud** (`/port.baud_rate cycle`), **EOL** (`/term.eol cycle`),
+**Echo** (`/term.echo toggle`) and **Color** (`/term.color toggle`). A port opened by
+name (`termapy COM3`, see [Quick open](getting-started.md#quick-open-just-a-port))
+gets a config with EOL, Echo and Color turned on, in a column on the right of the
+output. Edit them, enable them, or add more entries.
 
 Each button object has these fields:
 
 | Field     | Description                                   |
 | --------- | --------------------------------------------- |
 | `enabled` | `true` to show the button, `false` to hide it |
-| `name`    | Label displayed on the button                 |
+| `name`    | Label displayed on the button; see `{value}`  |
 | `command` | Command to execute when clicked               |
 | `tooltip` | Hover text for the button                     |
 
@@ -50,6 +54,27 @@ Each button object has these fields:
 - Mixed serial and REPL commands work: `"ATZ\n/delay 500ms\nAT+INFO"`
 - A setting's `toggle` or `cycle` makes a one-click switch: `"/term.hex toggle"` flips
   hex display, and `"/term.output cycle"` steps through the output levels
+
+## Showing a setting
+
+`{value}` in a button's name shows the setting its command toggles or cycles:
+
+```json
+{
+    "enabled": true,
+    "name": "Timestamps {value}",
+    "command": "{prefix}term.timestamps toggle",
+    "tooltip": "Timestamps on received lines"
+}
+```
+
+The button reads `Timestamps off`, and a click turns it into `Timestamps on*`. The value is what
+the bare command answers (`/term.timestamps` answers `off`), read again after every
+command, so a change typed or made by a script shows too. The `*` means the session
+changed the setting and the config file still has its old value; opening the config
+editor offers to save it ([Configuration](config.md)). `{value}` needs a command
+that toggles or cycles a setting; on any other, the config load warns and the button
+shows `-`, which is also what it shows when the setting has nothing to give.
 
 ## Placement
 

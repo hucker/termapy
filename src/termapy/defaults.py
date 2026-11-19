@@ -35,10 +35,12 @@ STANDARD_BAUD_RATES = (
     460800,
     921600,
 )
-VALID_BYTE_SIZES = {5, 6, 7, 8}
-VALID_PARITIES = {"N", "E", "O", "M", "S"}
-VALID_STOP_BITS = {1, 1.5, 2}
-VALID_FLOW_CONTROLS = {"none", "rtscts", "xonxoff", "manual"}
+# A serial setting's values.  The order is its /port.* command's cycle order
+# (STANDARD_BAUD_RATES is /port.baud_rate's).
+VALID_BYTE_SIZES = (5, 6, 7, 8)
+VALID_PARITIES = ("N", "E", "O", "M", "S")
+VALID_STOP_BITS = (1, 1.5, 2)
+VALID_FLOW_CONTROLS = ("none", "rtscts", "xonxoff", "manual")
 # The spaces per level JSON is indented by on screen; 0 is one line.  The
 # order is /term.json_fmt.indent's cycle order.
 JSON_INDENTS = (0, 2, 4)
@@ -785,9 +787,33 @@ CFG_KEYS: tuple[CfgKey, ...] = (
                 "command": "{prefix}cfg.info",
                 "tooltip": "Project info",
             },
-            {"enabled": False, "name": "Btn2", "command": "", "tooltip": "Custom button 2"},
-            {"enabled": False, "name": "Btn3", "command": "", "tooltip": "Custom button 3"},
-            {"enabled": False, "name": "Btn4", "command": "", "tooltip": "Custom button 4"},
+            # The settings a newcomer changes most, each showing its value
+            # (help: custom-buttons, "Showing a setting").  Off here; a quick
+            # open turns some on (config.QUICK_BUTTONS).
+            {
+                "enabled": False,
+                "name": "Baud {value}",
+                "command": "{prefix}port.baud_rate cycle",
+                "tooltip": "Step to the next standard baud rate.",
+            },
+            {
+                "enabled": False,
+                "name": "EOL {value}",
+                "command": "{prefix}term.eol cycle",
+                "tooltip": "Step to the next line ending sent with each line.",
+            },
+            {
+                "enabled": False,
+                "name": "Echo {value}",
+                "command": "{prefix}term.echo toggle",
+                "tooltip": "Turn local echo of sent lines on or off.",
+            },
+            {
+                "enabled": False,
+                "name": "Color {value}",
+                "command": "{prefix}term.color toggle",
+                "tooltip": "Turn color in the output on or off.",
+            },
         ],
         "list",
         help="Toolbar buttons of your own, each running a command.",
@@ -799,7 +825,13 @@ CFG_KEYS: tuple[CfgKey, ...] = (
 # and so have no path.
 CUSTOM_BUTTON_FIELDS: tuple[CfgKey, ...] = (
     CfgKey("enabled", False, "bool", help="Show this button on the toolbar.", hint="true, false"),
-    CfgKey("name", "", "str", help="Label shown on the button.", hint="Short text."),
+    CfgKey(
+        "name",
+        "",
+        "str",
+        help="Button label; {value} shows the setting its command changes.",
+        hint="Short text.",
+    ),
     CfgKey(
         "command",
         "",

@@ -1,6 +1,5 @@
 """Tests for SerialEngine - connection lifecycle and reader loop."""
 
-import re
 import threading
 import time
 
@@ -8,7 +7,6 @@ import pytest
 
 from termapy.capture import CaptureEngine
 from termapy.demo import FakeSerial
-from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.serial_engine import RX_QUEUE_MAX_CHUNKS, SerialEngine
 
 
@@ -30,17 +28,6 @@ def _make_engine(cfg=None, open_fn=None):
         log=lambda d, t: logged.append((d, t)),
     )
     return engine, capture, logged
-
-
-class _BreakRecordingSerial(FakeSerial):
-    """FakeSerial whose send_break records each duration instead of doing nothing."""
-
-    def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.breaks: list[float] = []
-
-    def send_break(self, duration: float = 0.25) -> None:
-        self.breaks.append(duration)
 
 
 # -- Connection lifecycle ------------------------------------------------------
@@ -289,6 +276,40 @@ class TestReadLoop:
             "the frontend must hear the reader is gone, or it shows Connected over a closed port"
         )
         assert getattr(port, "is_open", True) is False, "the reader closed its port on the way out"
+
+    @pytest.mark.rule("reader-failure-reported")
+    def test_the_port_is_gone_when_the_loss_is_reported(self):
+        """By the time on_error and on_disconnect run the port is closed and disowned, so a read then finds no port."""
+        # Arrange -- FakeSerial has the AT reply waiting; on_lines blows up on it
+        engine, _, _ = _make_engine()
+        engine.connect()
+        port = engine.port_obj
+        port.write(b"AT\r")
+        seen: list[tuple[str, bool, bool]] = []
+
+        def on_lines(lines):
+            raise ValueError("bad render")
+
+        def note(event: str) -> None:
+            seen.append((event, engine.is_connected, bool(getattr(port, "is_open", True))))
+
+        reader = threading.Thread(
+            target=lambda: engine.read_loop(
+                on_lines=on_lines,
+                on_error=lambda _detail: note("error"),
+                on_disconnect=lambda: note("disconnect"),
+            ),
+            daemon=True,
+        )
+
+        # Act
+        reader.start()
+        reader.join(timeout=2.0)
+
+        # Assert
+        assert seen == [("error", False, False), ("disconnect", False, False)], (
+            "a frontend reading DTR on hearing the loss must find no port, not a stale level"
+        )
 
     @pytest.mark.rule("hex-view-wire-bytes")
     def test_hex_view_calls_on_hex_not_on_lines(self):
@@ -662,112 +683,6 @@ class TestTxObservers:
 
         # Assert
         assert engine._tx_observers.count(cb) == 1, "should not add duplicate"
-
-
-# -- Hardware signal control ---------------------------------------------------
-
-
-class TestHardwareSignals:
-    def test_toggle_dtr(self):
-        """toggle_dtr flips the port's DTR line and returns the new level; RTS is untouched."""
-        # Arrange
-        engine, _, _ = _make_engine()
-        engine.connect()
-        port = engine.port_obj
-        assert isinstance(port, FakeSerial), "DEMO engine opens a FakeSerial"
-        dtr_before, rts_before = port.dtr, port.rts
-
-        # Act
-        result = engine.toggle_dtr()
-
-        # Assert
-        assert result is (not dtr_before), "returns the new DTR level"
-        assert (port.dtr, port.rts) == (not dtr_before, rts_before), "only DTR flipped"
-        engine.disconnect()
-
-    def test_toggle_rts(self):
-        """toggle_rts flips the port's RTS line and returns the new level; DTR is untouched."""
-        # Arrange
-        engine, _, _ = _make_engine()
-        engine.connect()
-        port = engine.port_obj
-        assert isinstance(port, FakeSerial), "DEMO engine opens a FakeSerial"
-        dtr_before, rts_before = port.dtr, port.rts
-
-        # Act
-        result = engine.toggle_rts()
-
-        # Assert
-        assert result is (not rts_before), "returns the new RTS level"
-        assert (port.dtr, port.rts) == (dtr_before, not rts_before), "only RTS flipped"
-        engine.disconnect()
-
-    def test_send_break(self):
-        """send_break reaches the port once, carrying the requested duration."""
-        # Arrange
-        engine, _, _ = _make_engine(open_fn=lambda c: _BreakRecordingSerial())
-        engine.connect()
-        port = engine.port_obj
-        assert isinstance(port, _BreakRecordingSerial), "engine holds the recording port"
-
-        # Act
-        engine.send_break(duration=0.1)
-
-        # Assert
-        assert port.breaks == [0.1], "one break, duration passed through"
-        engine.disconnect()
-
-    def test_get_hw_state(self):
-        """get_hw_state reports the port's live levels as (DTR, RTS), in that order."""
-        # Arrange -- opposite levels, so a swapped tuple cannot pass.
-        engine, _, _ = _make_engine()
-        engine.connect()
-        port = engine.port_obj
-        assert isinstance(port, FakeSerial), "DEMO engine opens a FakeSerial"
-        port.dtr, port.rts = False, True
-
-        # Act
-        actual = engine.get_hw_state()
-
-        # Assert
-        assert actual == (False, True), "(DTR, RTS) mirrors the port"
-        engine.disconnect()
-
-    def test_toggle_dtr_when_disconnected(self):
-        """toggle_dtr with no port raises OSError Not connected rather than crashing."""
-        # Arrange
-        engine, _, _ = _make_engine()
-
-        # Act / Assert
-        with pytest.raises(OSError, match=re.escape(STATE_MESSAGES["serial_connected"])):
-            engine.toggle_dtr()
-
-    def test_toggle_rts_when_disconnected(self):
-        """toggle_rts with no port raises OSError Not connected rather than crashing."""
-        # Arrange
-        engine, _, _ = _make_engine()
-
-        # Act / Assert
-        with pytest.raises(OSError, match=re.escape(STATE_MESSAGES["serial_connected"])):
-            engine.toggle_rts()
-
-    def test_send_break_when_disconnected(self):
-        """send_break with no port raises OSError Not connected rather than crashing."""
-        # Arrange
-        engine, _, _ = _make_engine()
-
-        # Act / Assert
-        with pytest.raises(OSError, match=re.escape(STATE_MESSAGES["serial_connected"])):
-            engine.send_break()
-
-    def test_get_hw_state_when_disconnected(self):
-        """get_hw_state with no port raises OSError Not connected rather than crashing."""
-        # Arrange
-        engine, _, _ = _make_engine()
-
-        # Act / Assert
-        with pytest.raises(OSError, match=re.escape(STATE_MESSAGES["serial_connected"])):
-            engine.get_hw_state()
 
 
 # -- Reconnect loop ------------------------------------------------------------

@@ -127,18 +127,13 @@ def _cap_stop(app: SerialTerminal) -> None:
 
 
 def _cap_show_progress(app: SerialTerminal) -> None:
-    """Mount a progress overlay in the bottom bar."""
+    """Show the capture's progress and Stop button in place of the bottom bar."""
     if app.repl.in_script:
         return  # script overlay owns the bar
     try:
-        bar = app.query_one("#bottom-bar")
-        for child in bar.children:
-            child.display = False
         label = Static("", id="cap-label", markup=False)
         label.styles.width = "1fr"
-        stop_btn = Button("Stop", id="cap-stop", variant="error")
-        bar.mount(label)
-        bar.mount(stop_btn)
+        app._cover_bottom_bar(label, Button("Stop", id="cap-stop", variant="error"))
         app._cap_progress_timer = app.set_interval(0.5, lambda: _cap_update_progress(app))
         inp = app.query_one("#cmd", Input)
         inp.disabled = True
@@ -176,13 +171,6 @@ def _cap_hide_progress(app: SerialTerminal) -> None:
     if app.repl.in_script:
         return  # script overlay owns the bar
     try:
-        bar = app.query_one("#bottom-bar")
-        for widget in bar.query("#cap-label, #cap-stop"):
-            widget.remove()
-        for child in bar.children:
-            child.display = True
-        inp = app.query_one("#cmd", Input)
-        inp.disabled = False
-        inp.focus()
+        app._uncover_bottom_bar()
     except SHUTDOWN_RACE:
         pass  # overlay gone or main widgets unmounted

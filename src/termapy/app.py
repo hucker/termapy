@@ -15,14 +15,13 @@ import sys
 import threading
 import time
 from collections import OrderedDict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from functools import partial
 from pathlib import Path
 from threading import Event
 from types import MappingProxyType
 from typing import Any, ParamSpec, TypeVar
 
-import serial
 from rich.style import Style
 from rich.text import Text
 from textual import events, on, work
@@ -34,6 +33,7 @@ from textual.css.query import NoMatches
 from textual.message import Message
 from textual.screen import ModalScreen
 from textual.timer import Timer
+from textual.widget import Widget
 from textual.widgets import Button, Input, Label, OptionList, RichLog, Static
 from textual.widgets.button import ButtonVariant
 
@@ -79,6 +79,7 @@ from termapy.dialogs import (
     QuickSetup,
     ScriptEditor,
     ScriptPicker,
+    SessionChanges,
     UpdateAvailableDialog,
 )
 from termapy.folder_ops import stamped_path
@@ -96,7 +97,7 @@ from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.views import Link, Piece
 from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol import ProtoScript, builtins_viz_dir, load_visualizers_from_dir
-from termapy.repl import ReplEngine
+from termapy.repl import SETTING_CHANGED, SETTING_NO_VALUE, SETTING_VALUE, ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label_markup
 from termapy.session_log import SessionLog
@@ -313,7 +314,7 @@ class SerialTerminal(TerminalHost, App):
         dock: bottom;
         height: auto;
     }
-    #bottom-bar {
+    #bottom-bar, #overlay-bar {
         height: 1;
     }
     #cmd {
@@ -346,7 +347,7 @@ class SerialTerminal(TerminalHost, App):
     #cmd.var-mode {
         color: cyan;
     }
-    #bottom-bar Button {
+    #bottom-bar Button, #overlay-bar Button {
         min-width: 0;
         width: auto;
         height: 1;
@@ -594,6 +595,11 @@ class SerialTerminal(TerminalHost, App):
         # on call_from_thread.  Re-entrant so nested ctx.dispatch on the same
         # thread is allowed.
         self._dispatch_guard = threading.RLock()
+        # The buttons that show a setting, widget id -> (label, command), and
+        # each one's label as last painted, so a read repaints only a change
+        # (_read_setting_buttons).
+        self._setting_buttons: dict[str, tuple[str, str]] = dict(self._HW_SETTINGS)
+        self._setting_labels: dict[str, str] = {}
         # Our own record of the main (event-loop) thread.  Textual keeps one
         # in App._thread_id, but that is private API: it is set by
         # _thread_init and zeroed after shutdown, and four output helpers
@@ -995,30 +1001,21 @@ class SerialTerminal(TerminalHost, App):
                     return b
 
                 show_hw = self.cfg["serial"]["flow_control"] == "manual"
-                self._btn_dtr = _btn(
-                    "DTR:0",
-                    "btn-dtr",
-                    "Toggle Data Terminal Ready line.",
-                    display=show_hw,
-                )
-                yield self._btn_dtr
-                self._btn_rts = _btn(
-                    "RTS:0", "btn-rts", "Toggle Request To Send line.", display=show_hw
-                )
-                yield self._btn_rts
-                self._btn_break = _btn(
-                    "Break",
-                    "btn-break",
-                    "Send serial break signal (250ms).",
-                    display=show_hw,
-                )
-                yield self._btn_break
+                for btn_id, (label, _command, tip) in self._HW_BUTTONS.items():
+                    shown = label.replace(SETTING_VALUE, SETTING_NO_VALUE)
+                    self._setting_labels[btn_id] = shown
+                    yield _btn(shown, btn_id, tip, display=show_hw)
                 # Filled by _sync_custom_buttons when custom_buttons_side is
                 # bottom; its margins are the gaps in from Break and out to Log.
                 yield Horizontal(id="custom-bar")
                 yield _btn("Log", "btn-log", "View current log file.")
                 yield _btn("SS", "btn-ss-dir", "Open screenshot folder.")
                 yield _btn("Cap", "btn-cap-dir", "Open captures folder.")
+            # A script's or a capture's Stop bar, shown in place of the bottom
+            # bar while one runs (_cover_bottom_bar).
+            overlay_bar = Horizontal(id="overlay-bar")
+            overlay_bar.display = False
+            yield overlay_bar
 
     def _show_config_info(self, path: str) -> None:
         """Delegate to ``info_views.show_config_info``."""
@@ -1055,6 +1052,7 @@ class SerialTerminal(TerminalHost, App):
         self._apply_border_color()
         self._build_context()
         self._register_tui_hooks()
+        self.repl.add_post_dispatch_observer(self._on_setting_dispatched)
         # Pre-start opens the session log and shows the VS Code tip, first
         # on screen; on_app_start then resolves the plugin folders and
         # auto-loads the symbols (engine core listeners), so the load
@@ -1065,6 +1063,7 @@ class SerialTerminal(TerminalHost, App):
         self._fire_app_start()
         self._rebuild_suggester_commands()
         self._run_startup()
+        self._refresh_setting_buttons()
         self._check_for_updates()
         self.set_interval(0.5, self._refresh_traffic)
 
@@ -1236,7 +1235,7 @@ class SerialTerminal(TerminalHost, App):
             self.save_screenshot, *a, **kw
         )
         ctx.ui._get_screen_text_impl = lambda: self._on_main(self._get_screen_text)
-        ctx.ui._exit_app_impl = lambda: self._on_main(self.exit)
+        ctx.ui._exit_app_impl = self._exit_from_command
         # The TUI's capabilities are its row of the one table, or the WEB
         # row when Textual says the screen is a browser page (registry
         # web-is-an-environment); nothing else asks "am I in a browser".
@@ -1357,7 +1356,7 @@ class SerialTerminal(TerminalHost, App):
         prefix = cmd_prefix(self.cfg)
         inp.placeholder = f"{prefix} for REPL, {PALETTE_HOTKEY} for palette"
         inp.focus()
-        self._sync_hw_buttons()
+        self._refresh_setting_buttons()
         connect_cmds = [
             command
             for _, command in on_connect_commands(self.cfg, "tui_on_connect_cmd", profile=True)
@@ -1589,28 +1588,30 @@ class SerialTerminal(TerminalHost, App):
         port = self._engine.serial_port
         return port.wait_for_data(timeout_ms) if port is not None else False
 
-    def _ask(self, screen: ModalScreen[bool]) -> bool | None:
-        """Push a yes/no modal from a worker and block until it is answered.
+    def _ask(self, screen: ModalScreen) -> object:
+        """Push a modal from a worker and block until it is answered.
 
-        The one wait behind ``/confirm`` and ``/cfg <key> <value>``: both
-        answer only after the dialog does (review 2026-10-15, D7, where
-        ``/cfg`` returned the new value with the dialog still open).
+        The one wait behind ``/confirm``, ``/cfg <key> <value>`` and the
+        unsaved-settings question: each answers only after the dialog does
+        (review 2026-10-15, D7, where ``/cfg`` returned the new value with
+        the dialog still open).
 
         THREADING: must be called from a background thread -- every command
         is (registry ``commands-off-main``).  ``call_from_thread`` posts the
         dialog to main and the calling thread waits on an event.
 
         Returns:
-            The answer; False when the app shuts down, or a running script
-            is stopped, while the dialog is up; None when called on the main
-            thread, where ``call_from_thread`` refuses.
+            The dialog's answer, as it dismissed; False when the app shuts
+            down, or a running script is stopped, while the dialog is up;
+            None when called on the main thread, where ``call_from_thread``
+            refuses.
         """
-        result: list[bool] = [False]
+        result: list[object] = [False]
         event = Event()
 
         def _show() -> None:
-            def _on_result(confirmed: bool | None) -> None:
-                result[0] = bool(confirmed)
+            def _on_result(answer: object) -> None:
+                result[0] = answer
                 event.set()
 
             self.push_screen(screen, callback=_on_result)
@@ -1652,7 +1653,7 @@ class SerialTerminal(TerminalHost, App):
         if answer is None:
             self._status(f"{cmd_prefix(self.cfg)}confirm can only be used in scripts.", "yellow")
             return False
-        return answer
+        return bool(answer)
 
     def _write_output_markup(self, text: str, log: bool = False) -> None:
         """Write Rich markup to the output pane; with ``log``, to the session log too.
@@ -1716,16 +1717,15 @@ class SerialTerminal(TerminalHost, App):
                 inp.placeholder = f"{prefix} for REPL, {PALETTE_HOTKEY} for palette"
             except SHUTDOWN_RACE:
                 pass  # widgets gone during shutdown
-            self._sync_hw_buttons(reset=True)
+            self._refresh_setting_buttons()
         except BoundaryException as e:
             self._report_exception(e)
 
     def _sync_hw_visibility(self) -> None:
         """Show or hide DTR/RTS/Break buttons based on flow_control config."""
         show = self.cfg["serial"]["flow_control"] == "manual"
-        self._btn_dtr.display = show
-        self._btn_rts.display = show
-        self._btn_break.display = show
+        for btn_id in self._HW_BUTTONS:
+            self.query_one(f"#{btn_id}", Button).display = show
 
     def _switch_to_cfg_path(self, config_path: str) -> CmdResult:
         """``/cfg.load``'s apply step in the TUI: the screen's own switch, done before the command returns.
@@ -1739,6 +1739,8 @@ class SerialTerminal(TerminalHost, App):
             cfg = load_config(config_path)
         except CONFIG_LOAD_ERRORS as e:
             return CmdResult.fail(msg=f"Cannot load config: {e}")
+        if not self._ask_unsaved_wait("Load"):
+            return CmdResult.fail(msg="Canceled.")
         self._on_main(self._switch_config, cfg, config_path)
         self._on_main(self._show_config_info, config_path)
         return CmdResult.ok(value=config_path)
@@ -1810,6 +1812,7 @@ class SerialTerminal(TerminalHost, App):
         self._sync_hw_visibility()
         self._sync_cmd_prefix()
         self._sync_all_buttons()
+        self._refresh_setting_buttons()
         self._follow_session_log(previous_log)
         # The engine resolves the new config's plugins and symbols here;
         # the cfg may also have swapped the active profile out from under
@@ -1900,7 +1903,7 @@ class SerialTerminal(TerminalHost, App):
             except CONFIG_LOAD_ERRORS as e:
                 self._status(f"Failed to load config: {e}", "red")
                 return
-            self._check_port_and_switch(cfg, result[1])
+            self._ask_unsaved_then("Load", lambda: self._check_port_and_switch(cfg, result[1]))
         elif action == "new":
             self._new_config()
         elif action == "edit":
@@ -1909,12 +1912,7 @@ class SerialTerminal(TerminalHost, App):
             except CONFIG_LOAD_ERRORS as e:
                 self._status(f"Failed to load config: {e}", "red")
                 return
-            self.push_screen(
-                ConfigEditor(
-                    cfg, result[1], used_by=cfg_users(self.repl._plugins), ctx=self.repl.ctx
-                ),
-                callback=self._on_config_result,
-            )
+            self._open_config_editor(result[1], cfg)
         elif action == "rename":
             self._rename_config(result[1])
         elif action == "delete":
@@ -2028,19 +2026,6 @@ class SerialTerminal(TerminalHost, App):
 
         update_conn_tooltip(self, widget, display)
 
-    def _sync_hw_buttons(self, reset: bool = False) -> None:
-        """Update DTR/RTS button labels to reflect actual pin state."""
-        if reset:
-            self._btn_dtr.label = "DTR:0"
-            self._btn_rts.label = "RTS:0"
-        elif self.is_connected:
-            try:
-                dtr, rts = self._engine.get_hw_state()
-                self._btn_dtr.label = f"DTR:{int(dtr)}"
-                self._btn_rts.label = f"RTS:{int(rts)}"
-            except (OSError, serial.SerialException) as e:
-                self._report_exception(e)
-
     def _btn_title_right(self) -> None:
         if self._reconnecting:
             self._reconnect_stop.set()
@@ -2057,40 +2042,129 @@ class SerialTerminal(TerminalHost, App):
             except CONFIG_LOAD_ERRORS as e:
                 self._status(f"Failed to load config: {e}", "red")
                 return
-            self.push_screen(
-                ConfigEditor(
-                    cfg, self.config_path, used_by=cfg_users(self.repl._plugins), ctx=self.repl.ctx
-                ),
-                callback=self._on_config_result,
-            )
+            self._open_config_editor(self.config_path, cfg)
         else:
             self.push_screen(
                 self._config_picker(self.config_path),
                 callback=self._on_config_picked,
             )
 
-    def _on_btn_dtr(self) -> None:
-        if self.is_connected:
-            self._serial_op(
-                "DTR",
-                lambda: setattr(self._btn_dtr, "label", f"DTR:{int(self._engine.toggle_dtr())}"),
-            )
+    # The hardware buttons, shown when flow_control is manual: widget id ->
+    # (label, command without its prefix, tooltip).  A click runs the command,
+    # so the gate answers it and a recording keeps it; a label's {value} is
+    # the setting as the bare command answers it (ReplEngine.setting_text).
+    _HW_BUTTONS: dict[str, tuple[str, str, str]] = {
+        "btn-dtr": ("DTR {value}", "port.dtr toggle", "Toggle Data Terminal Ready line."),
+        "btn-rts": ("RTS {value}", "port.rts toggle", "Toggle Request To Send line."),
+        "btn-break": ("Break", "port.break", "Send serial break signal (250ms)."),
+    }
+    # The hardware buttons that show a setting: widget id -> (label, command).
+    # The custom buttons whose name has {value} join them (_watch_custom_settings).
+    _HW_SETTINGS: dict[str, tuple[str, str]] = {
+        btn_id: (label, command)
+        for btn_id, (label, command, _tip) in _HW_BUTTONS.items()
+        if SETTING_VALUE in label
+    }
 
-    def _on_btn_rts(self) -> None:
-        if self.is_connected:
-            self._serial_op(
-                "RTS",
-                lambda: setattr(self._btn_rts, "label", f"RTS:{int(self._engine.toggle_rts())}"),
-            )
+    def _on_setting_dispatched(self, _line: str, _result: CmdResult) -> None:
+        """Post-dispatch observer: a command may have changed what a setting button shows.
 
-    def _on_btn_break(self) -> None:
-        if self.is_connected:
+        Runs on the dispatching thread with the dispatch guard held, so the
+        reads cannot race another command on the shared context.
+        """
+        self._read_setting_buttons()
 
-            def _send() -> None:
-                self._engine.send_break()
-                self.notify("Break sent", timeout=1.5)
+    @work(thread=True, group="setting-buttons")
+    def _refresh_setting_buttons(self) -> None:
+        """Refresh the setting buttons after what is not a dispatch: a connect, a disconnect, a config load.
 
-            self._serial_op("Break", _send)
+        A read runs the bare command on the shared context, so it takes the
+        dispatch guard first.  When the guard stays busy, the command
+        holding it refreshes them as it ends (``_on_setting_dispatched``).
+        Exit's own disconnect lands here too, and there is nothing to show.
+        """
+        if self._shutting_down or not self._acquire_dispatch_guard():
+            return
+        try:
+            self._read_setting_buttons()
+        finally:
+            self._dispatch_guard.release()
+
+    def _read_setting_buttons(self) -> None:
+        """Read each setting button's value, and repaint on main only the labels that changed.
+
+        A label whose setting the session changed from the config file
+        (``session_changes``, by the command's ``cfg=`` keys) ends in ``*``.
+
+        Only a change crosses to main, so a script's lines do not each wait
+        on the event loop.  The caller holds the dispatch guard.  Both maps
+        are taken once: a custom-button sync swaps in new ones whole, and a
+        read already running finishes against the old.
+        """
+        buttons, shown = self._setting_buttons, self._setting_labels
+        unsaved = {change.path for change in self.session_changes()}
+        changed: dict[str, str] = {}
+        for btn_id, (label, command) in buttons.items():
+            text = label.replace(SETTING_VALUE, self.repl.setting_text(command))
+            if unsaved & self.repl.setting_keys(command):
+                text += SETTING_CHANGED
+            if shown.get(btn_id) != text:
+                shown[btn_id] = text
+                changed[btn_id] = text
+        if changed:
+            self._on_main(self._paint_setting_buttons, changed)
+
+    def _watch_custom_settings(self, entries: list[tuple[int, dict]]) -> None:
+        """Make the mounted custom buttons whose name has ``{value}`` setting buttons, then read them (main thread).
+
+        A name shows a value only for a command that toggles or cycles a
+        setting (``ReplEngine.setting_command``); any other gets a config
+        warning and shows ``-``.  The maps are built fresh and swapped in
+        whole after the buttons mount, so a read on a worker never pairs a
+        new id with an old label.
+
+        Args:
+            entries: The enabled ``custom_buttons`` entries, each with its index.
+        """
+        prefix = cmd_prefix(self.cfg)
+        buttons = dict(self._HW_SETTINGS)
+        shown = {btn_id: self._setting_labels.get(btn_id, "") for btn_id in buttons}
+        for i, entry in entries:
+            name = entry.get("name", "")
+            if SETTING_VALUE not in name:
+                continue
+            line = self._custom_command(entry)
+            command = line[len(prefix) :] if line.startswith(prefix) else line
+            if self.repl.setting_command(command) is None:
+                self._status(
+                    f"Config warning: custom button {name}: {SETTING_VALUE} needs a command"
+                    f" that toggles or cycles a setting, not {line or '(none)'}",
+                    "yellow",
+                )
+                continue
+            btn_id = f"btn-custom-{i}"
+            buttons[btn_id] = (name, command)
+            shown[btn_id] = name.replace(SETTING_VALUE, SETTING_NO_VALUE)
+        self._setting_buttons, self._setting_labels = buttons, shown
+        self._refresh_setting_buttons()
+
+    def _paint_setting_buttons(self, labels: dict[str, str]) -> None:
+        """Write each changed setting button's label, by widget id, and lay the button out again (main thread).
+
+        Textual's ``Button.label`` only repaints, so a longer label kept the
+        button's old width until something else forced a layout: in the
+        custom-button column, which is as wide as its widest button, a load
+        left ``Baud 115200`` clipped to the width of ``Baud -``.  The
+        button's own layout request re-measures it and every auto-sized
+        container above it.
+        """
+        for btn_id, text in labels.items():
+            try:
+                button = self.query_one(f"#{btn_id}", Button)
+            except SHUTDOWN_RACE:
+                continue  # widget tree gone during teardown
+            button.label = Text(text)
+            button.refresh(layout=True)
 
     def _require_config(self) -> bool:
         """True when a config is loaded; otherwise say so and return False.
@@ -2164,19 +2238,29 @@ class SerialTerminal(TerminalHost, App):
         self.push_screen(self._config_picker(self.config_path), callback=self._on_config_picked)
 
     def _btn_exit(self) -> None:
+        self._ask_unsaved_then("Exit", self._exit_now)
+
+    def _exit_now(self) -> None:
+        """Leave: disconnect, then exit (main thread)."""
         self._shutting_down = True
         self._disconnect()
         self.exit()
+
+    async def action_quit(self) -> None:
+        """Ctrl+Q / Alt+Q: leave as the Exit button does, asking first about unsaved settings."""
+        self._ask_unsaved_then("Exit", self._exit_now)
+
+    def _exit_from_command(self) -> None:
+        """``/exit`` (``ctx.ui.exit_app``): leave, asking first when typed (from its worker)."""
+        if self._ask_unsaved_wait("Exit"):
+            self._on_main(self._exit_now)
 
     _BUTTON_DISPATCH: dict[str, str] = {
         # Title bar
         "title-right": "_btn_title_right",  # connect / disconnect / cancel reconnect
         "title-left": "_show_port_picker",  # port selection
         "title-center": "_btn_title_center",  # edit config or pick config
-        # Hardware control
-        "btn-dtr": "_on_btn_dtr",  # toggle DTR pin
-        "btn-rts": "_on_btn_rts",  # toggle RTS pin
-        "btn-break": "_on_btn_break",  # send serial break
+        # Hardware control: _HW_BUTTONS, which carries each one's command
         # Toolbar
         "btn-cmds": "_show_commands",  # REPL command picker (full plugin list)
         "btn-help": "_btn_help",  # open help
@@ -2450,13 +2534,23 @@ class SerialTerminal(TerminalHost, App):
         self.repl._script_stop.set()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Route button clicks via _BUTTON_DISPATCH, fall through for custom buttons."""
+        """Route button clicks via _BUTTON_DISPATCH and _HW_BUTTONS, fall through for custom buttons."""
         btn_id = event.button.id
         handler_name = self._BUTTON_DISPATCH.get(btn_id or "")
         if handler_name:
             getattr(self, handler_name)()
+        elif btn_id in self._HW_BUTTONS:
+            self._dispatch_on_thread(self._repl_line(self._HW_BUTTONS[btn_id][1]))
         elif btn_id and btn_id.startswith("btn-custom-"):
             self._run_custom_button(btn_id)
+
+    def _custom_command(self, entry: dict) -> str:
+        """A custom button's command with ``{prefix}`` filled in.
+
+        ``{prefix}`` is the config's REPL prefix, so the shipped Info button
+        follows ``cmd_prefix`` (help: custom-buttons).
+        """
+        return entry.get("command", "").strip().replace("{prefix}", cmd_prefix(self.cfg))
 
     def _run_custom_button(self, btn_id: str) -> None:
         """Execute the command associated with a custom button.
@@ -2467,10 +2561,7 @@ class SerialTerminal(TerminalHost, App):
         buttons = cfg_value(self.cfg, "custom_buttons")
         if idx >= len(buttons):
             return
-        # "{prefix}" in a button command is the config's REPL prefix, so the
-        # shipped Info button follows cmd_prefix (help: custom-buttons).
-        command = buttons[idx].get("command", "").replace("{prefix}", cmd_prefix(self.cfg))
-        parts = split_cmd_lines(command)
+        parts = split_cmd_lines(self._custom_command(buttons[idx]))
         if len(parts) > 1:
             self._dispatch_sequence_on_thread(parts)
         elif parts:
@@ -2520,15 +2611,7 @@ class SerialTerminal(TerminalHost, App):
             config_path = self.config_path
 
             def open_editor() -> None:
-                self.push_screen(
-                    ConfigEditor(
-                        dict(self.cfg),
-                        config_path,
-                        used_by=cfg_users(self.repl._plugins),
-                        ctx=self.repl.ctx,
-                    ),
-                    callback=self._on_config_result,
-                )
+                self._open_config_editor(config_path)
         elif ext == FOLDER_EXTS["run"]:
 
             def open_editor() -> None:
@@ -2553,15 +2636,114 @@ class SerialTerminal(TerminalHost, App):
         self._on_main(open_editor)
 
     def _palette_edit_config(self) -> None:
+        self._open_config_editor(self.config_path)
+
+    def _open_config_editor(
+        self, path: str, cfg: Mapping | None = None, *, is_new: bool = False
+    ) -> None:
+        """Open the config editor on ``path``: its one opener (main thread).
+
+        The editor shows the file, and its Save loads it, which ends what the
+        session changed (a load ends where a fresh start would).  So when
+        ``path`` is the active config and the session holds settings the
+        file does not (``session_changes``), ask first: save them and edit,
+        edit without them, or cancel.
+
+        Args:
+            path: The config file.
+            cfg: What the editor shows when the file cannot be read, and a
+                new config's starting point; the session's config when omitted.
+            is_new: The editor creates the file (the New Config wizard's Advanced).
+        """
+
+        def open_editor() -> None:
+            self.push_screen(
+                ConfigEditor(
+                    dict(cfg) if cfg is not None else dict(self.cfg),
+                    path,
+                    is_new=is_new,
+                    used_by=cfg_users(self.repl._plugins),
+                    ctx=self.repl.ctx,
+                ),
+                callback=self._on_config_result,
+            )
+
+        active = not is_new and bool(self.config_path) and Path(path) == Path(self.config_path)
+        if active:
+            self._ask_unsaved_then("Edit", open_editor)
+        else:
+            open_editor()
+
+    def _ask_unsaved_then(self, verb: str, proceed: Callable[[], None]) -> None:
+        """Run ``proceed``, asking first when the session holds unsaved settings (main thread).
+
+        An exit, a load and the editor's Save each end what the session
+        changed (``session_changes``), so the user is asked: save and go on,
+        go on without them, or cancel.  A script is never asked: it runs
+        unattended.
+
+        Args:
+            verb: What ``proceed`` does, on the dialog's buttons (``Exit``,
+                ``Load``, ``Edit``).
+            proceed: The action.
+        """
+        changes = [] if self.repl.in_script else self.session_changes()
+        if not changes:
+            proceed()
+            return
+
+        def answered(choice: tuple | None) -> None:
+            if choice == ("proceed",) or (choice == ("save",) and self._save_session_settings()):
+                proceed()
+
         self.push_screen(
-            ConfigEditor(
-                dict(self.cfg),
-                self.config_path,
-                used_by=cfg_users(self.repl._plugins),
-                ctx=self.repl.ctx,
-            ),
-            callback=self._on_config_result,
+            SessionChanges(changes, Path(self.config_path).name, verb), callback=answered
         )
+
+    def _ask_unsaved_wait(self, verb: str) -> bool:
+        """``_ask_unsaved_then`` for a command's worker: ask, wait, and say whether to go on.
+
+        Args:
+            verb: What going on does (``Exit``, ``Load``).
+
+        Returns:
+            True to go on, after saving when asked to; False on Cancel, a
+            failed save, or a stop or shutdown while asking.  True at once
+            when nothing is unsaved, in a script, and on the main thread,
+            where nobody can wait.
+        """
+        changes = [] if self.repl.in_script else self.session_changes()
+        if not changes:
+            return True
+        choice = self._ask(SessionChanges(changes, Path(self.config_path).name, verb))
+        if choice is None:
+            return True
+        return choice == ("proceed",) or (choice == ("save",) and self._save_session_settings())
+
+    def _save_session_settings(self) -> bool:
+        """Write the session's changed settings into its config file and say so.
+
+        Takes the dispatch guard (without waiting on main; a command's
+        worker already holds it): the save writes the config a running
+        command reads.
+
+        Returns:
+            True when they were written.
+        """
+        if not self._acquire_dispatch_guard():
+            self._status(self._BUSY_MSG, "yellow")
+            return False
+        try:
+            saved = self.save_session_changes()
+        except (OSError, ValueError) as e:
+            self._status(f"Save error: {e}", "red")
+            return False
+        finally:
+            self._dispatch_guard.release()
+        names = ", ".join(change.path for change in saved)
+        self._status(f"Saved {names} to {self.config_path}", "green")
+        self._on_main(self._refresh_setting_buttons)
+        return True
 
     def _palette_load_config(self) -> None:
         self.push_screen(self._config_picker(self.config_path), callback=self._on_config_picked)
@@ -2716,8 +2898,7 @@ class SerialTerminal(TerminalHost, App):
         return max(files, key=lambda f: f.stat().st_mtime)
 
     def _palette_exit(self) -> None:
-        self._disconnect()
-        self.exit()
+        self._ask_unsaved_then("Exit", self._exit_now)
 
     def _rx_enqueue(self, event: tuple) -> None:
         """Queue an ordered RX event for the main thread.  Reader thread only.
@@ -3243,7 +3424,7 @@ class SerialTerminal(TerminalHost, App):
         """
         try:
             bar = self.query_one("#bottom-bar")
-            if bool(bar.query("#script-stop")):
+            if self.query("#script-stop"):
                 return  # script overlay active; it owns the bar
             bar.disabled = busy
             if not busy:
@@ -3788,8 +3969,13 @@ class SerialTerminal(TerminalHost, App):
 
     @staticmethod
     def _custom_button(i: int, cb: dict) -> Button:
-        """A custom button from its cfg entry; the name and tooltip are cfg text, so Text."""
-        button = Button(Text(cb.get("name", f"C{i}")), id=f"btn-custom-{i}")
+        """A custom button from its cfg entry; the name and tooltip are cfg text, so Text.
+
+        A ``{value}`` in the name shows ``-`` until its setting is read
+        (``_watch_custom_settings``).
+        """
+        name = cb.get("name", f"C{i}").replace(SETTING_VALUE, SETTING_NO_VALUE)
+        button = Button(Text(name), id=f"btn-custom-{i}")
         button.tooltip = Text(cb.get("tooltip", cb.get("name", "")))
         button.add_class("custom-btn")
         return button
@@ -3803,24 +3989,30 @@ class SerialTerminal(TerminalHost, App):
         ``#custom-side`` column docked to that edge of the output pane;
         ``bottom``, and a value ``validate_config`` warned about, fill the
         bottom bar's ``#custom-bar``.  Only a region holding buttons shows.
-        Exclusive, so a second change cancels a sync still mounting.
+        Exclusive, so a second change cancels a sync still mounting.  The
+        old buttons go in one removal, and an app that exits mid-sync (a
+        load just before quitting) ends it quietly.
         """
-        for old_button in list(self.query(".custom-btn")):
-            await old_button.remove()
-        side = cfg_value(self.cfg, "custom_buttons_side")
-        bar = self.query_one("#custom-bar", Horizontal)
-        column = self.query_one("#custom-side", VerticalScroll)
-        target = column if side in ("left", "right") else bar
-        column.set_class(side == "left", "left")
-        buttons = [
-            self._custom_button(i, entry)
-            for i, entry in enumerate(cfg_value(self.cfg, "custom_buttons"))
-            if entry.get("enabled", False)
-        ]
-        if buttons:
-            await target.mount_all(buttons)
-        bar.display = target is bar and bool(buttons)
-        column.display = target is column and bool(buttons)
+        try:
+            await self.query(".custom-btn").remove()
+            side = cfg_value(self.cfg, "custom_buttons_side")
+            bar = self.query_one("#custom-bar", Horizontal)
+            column = self.query_one("#custom-side", VerticalScroll)
+            target = column if side in ("left", "right") else bar
+            column.set_class(side == "left", "left")
+            entries = [
+                (i, entry)
+                for i, entry in enumerate(cfg_value(self.cfg, "custom_buttons"))
+                if entry.get("enabled", False)
+            ]
+            buttons = [self._custom_button(i, entry) for i, entry in entries]
+            if buttons:
+                await target.mount_all(buttons)
+            bar.display = target is bar and bool(buttons)
+            column.display = target is column and bool(buttons)
+        except SHUTDOWN_RACE:
+            return  # the screen is going away
+        self._watch_custom_settings(entries)
 
     # -- REPL hook implementations (app-coupled commands) ----------------------
 
@@ -3874,11 +4066,21 @@ class SerialTerminal(TerminalHost, App):
         nesting); this override adds the TUI-only title/hardware refresh.
         """
         super()._apply_port_effects(effects)
+        if effects.get("update_title") or effects.get("sync_hw"):
+            # A /port command runs on a worker; the widgets are main's
+            # (registry output-helpers-marshal).
+            self._on_main(self._show_port_effects, effects)
+
+    def _show_port_effects(self, effects: dict) -> None:
+        """Refresh the title and the DTR/RTS/Break buttons' visibility a port effect names (main thread).
+
+        A line's level on a button comes from the command's own end
+        (``_on_setting_dispatched``), not from an effect.
+        """
         if effects.get("update_title"):
             self._update_title()
         if effects.get("sync_hw"):
             self._sync_hw_visibility()
-            self._sync_hw_buttons()
 
     def _refresh_after_cfg(self, key: str, new_val: object) -> None:
         was_connected = self.is_connected
@@ -3946,33 +4148,53 @@ class SerialTerminal(TerminalHost, App):
 
     _script_last_label: str = ""
 
+    def _cover_bottom_bar(self, *widgets: Widget) -> None:
+        """Show a Stop bar, a script's or a capture's, in place of the bottom bar (main thread).
+
+        The bottom bar is hidden whole and the overlay has a bar of its own,
+        so no widget's display changes under it: the DTR/RTS/Break buttons,
+        the find bar and the custom strip stay as their rules say, even when
+        a command in the script changes one.  Until 2026-11-18 each widget
+        was hidden and then every one shown again, which turned on the ones a
+        rule hides.  The overlay bar is never disabled, so Stop stays
+        clickable after a typed /run greyed the bottom bar.
+        """
+        overlay = self.query_one("#overlay-bar", Horizontal)
+        overlay.mount_all(widgets)
+        overlay.display = True
+        self.query_one("#bottom-bar").display = False
+
+    def _uncover_bottom_bar(self) -> None:
+        """Remove the Stop bar and show the bottom bar again, as its rules left it (main thread).
+
+        The prompt is enabled and focused before the Stop button goes:
+        removing a focused widget makes Textual reset focus asynchronously,
+        which clobbers a focus() issued after the remove, so focus first and
+        re-assert once the refresh settles.
+        """
+        overlay = self.query_one("#overlay-bar", Horizontal)
+        self.query_one("#bottom-bar").display = True
+        inp = self.query_one("#cmd", Input)
+        inp.disabled = False
+        inp.focus()
+        overlay.display = False
+        overlay.remove_children()
+        self.call_after_refresh(inp.focus)
+
     def on_serial_terminal_script_started(self, event: ScriptStarted) -> None:
-        """Mount script overlay or update label when a script starts/nests."""
+        """Show the script's Stop bar, or update its label when a script nests."""
         try:
-            bar = self.query_one("#bottom-bar")
             inp = self.query_one("#cmd", Input)
-            has_overlay = bool(bar.query("#script-stop"))
             text = " " + " \u2192 ".join(event.stack)
-            if not has_overlay:
-                for child in bar.children:
-                    child.display = False
-                # A TYPED /run reached here through _set_input_busy(True),
-                # which disabled the bar before this overlay existed; a
-                # Stop button mounted into a disabled bar is inert (only
-                # Escape stopped the script).  The script owns the bar
-                # from here, so enable it: its own buttons are hidden
-                # above and Stop must be clickable.
-                bar.disabled = False
+            if not self.query("#script-stop"):
                 label = Static(text, id="script-label", markup=False)
                 label.styles.width = "1fr"
-                stop_btn = Button("Stop", id="script-stop", variant="error")
-                bar.mount(label)
-                bar.mount(stop_btn)
+                self._cover_bottom_bar(label, Button("Stop", id="script-stop", variant="error"))
                 inp.disabled = True
             else:
-                label_w = bar.query_one("#script-label", Static)
+                label_w = self.query_one("#script-label", Static)
                 label_w.display = True
-                bar.query_one("#script-stop").display = True
+                self.query_one("#script-stop").display = True
                 label_w.update(text)
             self._script_last_label = text
         except SHUTDOWN_RACE:
@@ -4010,41 +4232,25 @@ class SerialTerminal(TerminalHost, App):
     def on_serial_terminal_script_finished(self, event: ScriptFinished) -> None:
         """Update or teardown script overlay when a script finishes."""
         try:
-            bar = self.query_one("#bottom-bar")
-            inp = self.query_one("#cmd", Input)
             if event.stack:
                 # Returned from nested script - update label to parent
                 text = " " + " \u2192 ".join(event.stack)
-                label_w = bar.query_one("#script-label", Static)
+                label_w = self.query_one("#script-label", Static)
                 label_w.display = True
-                bar.query_one("#script-stop").display = True
+                self.query_one("#script-stop").display = True
                 label_w.update(text)
                 self._script_last_label = text
             else:
                 # Top-level script done - teardown overlay.
                 self._script_last_label = ""
-                # Re-enable and focus the input BEFORE removing the Stop
-                # button.  While the input was disabled during the script,
-                # focus moved to the Stop button; removing a focused widget
-                # makes Textual reset focus asynchronously, which clobbers a
-                # focus() issued after the remove (leaving the REPL input
-                # unfocused -- keyboard dead though buttons still work).
-                # Focus first so Stop is unfocused when removed, then
-                # re-assert once the refresh settles.
-                inp.disabled = False
                 # A TYPED /run also went through _set_input_busy(True),
                 # which sets bar.disabled=True; its paired (False) bails out
                 # once the script overlay exists, so the bar would stay
                 # disabled after the script.  The script lifecycle owns the
                 # bar now -- re-enable it here so both the button path and
                 # the typed path end usable.
-                bar.disabled = False
-                inp.focus()
-                for widget in bar.query("#script-label, #script-stop"):
-                    widget.remove()
-                for child in bar.children:
-                    child.display = True
-                self.call_after_refresh(inp.focus)
+                self.query_one("#bottom-bar").disabled = False
+                self._uncover_bottom_bar()
         except SHUTDOWN_RACE:
             pass  # event posted after widget tree teardown
 

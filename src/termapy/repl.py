@@ -83,10 +83,13 @@ from termapy.plugins.command import has_required_arg, interpolate_help
 from termapy.plugins.params import parse_params
 from termapy.plugins.views import ERROR_COLOR, error_pieces
 from termapy.scripting import (
+    SETTING_CYCLE,
+    SETTING_TOGGLE,
     expand_template,
     format_duration,
     strip_ansi,
     strip_leading_echo,
+    value_text,
 )
 from termapy.symbols import session as symbols_session
 from termapy.typed_lines import TypedLines
@@ -113,6 +116,13 @@ _PRUNE_LIFECYCLE: frozenset[str] = _CORE_LIFECYCLE | {"on_app_stop"}
 # the frontend's own hooks.  Everything else came from a folder and is
 # rebuilt on every resolution.
 _EXTERNAL_KEEP: frozenset[str] = frozenset({"built-in", "app"})
+
+# A button label's placeholder for its setting's value (ReplEngine.setting_text),
+# what it shows when the setting has none to give, and the mark after a label
+# whose setting the session changed from the config file.
+SETTING_VALUE = "{value}"
+SETTING_NO_VALUE = "-"
+SETTING_CHANGED = "*"
 
 
 def _resolve_flag(raw: str, declared: dict[str, str]) -> str | None:
@@ -2017,6 +2027,61 @@ class ReplEngine:
             self._handler_depth -= 1
             self._reading_state = False
             ctx._call_level, ctx.wants_data, ctx.active_flags = saved
+
+    def setting_command(self, line: str) -> str | None:
+        """The setting a button running ``line`` shows: ``port.dtr`` for ``port.dtr toggle``.
+
+        A button reads its value from its own command, so the line must
+        toggle or cycle one setting on a command whose bare form reports it
+        (``Command.state``): what the button shows is what typing the bare
+        command answers.
+
+        Args:
+            line: The button's command, without its prefix.
+
+        Returns:
+            The command's name, or None when the line is not ``<cmd> toggle``
+            or ``<cmd> cycle`` on a state command.
+        """
+        words = line.split()
+        if len(words) != 2 or words[1].lower() not in (SETTING_TOGGLE, SETTING_CYCLE):
+            return None
+        plugin = self.plugin_for(line)
+        return plugin.name if plugin is not None and plugin.state else None
+
+    def setting_keys(self, line: str) -> frozenset[str]:
+        """The config keys the setting a button running ``line`` is kept in: its command's ``cfg=`` declaration.
+
+        Args:
+            line: The button's command, without its prefix.
+
+        Returns:
+            The key paths, empty when the line is no setting's toggle or cycle.
+        """
+        name = self.setting_command(line)
+        plugin = self._plugins.get(name) if name is not None else None
+        return frozenset(plugin.cfg) if plugin is not None else frozenset()
+
+    def setting_text(self, line: str) -> str:
+        """What a button running ``line`` shows for ``{value}``: its setting, as the bare command answers it.
+
+        Read through ``read_state`` and spelled by ``value_text``, so the
+        button reads what ``$(X) <- cmd`` captures.  ``-`` when the line is
+        no setting's toggle or cycle, the read fails (``/port.dtr`` with the
+        port closed is ``Not connected.``) or it answers no value.  The read
+        runs a handler on the shared context, so the caller holds whatever
+        serializes the frontend's dispatches.
+
+        Args:
+            line: The button's command, without its prefix.
+        """
+        name = self.setting_command(line)
+        if name is None:
+            return SETTING_NO_VALUE
+        result = self.read_state(name)
+        if not result.success or result.value is None:
+            return SETTING_NO_VALUE
+        return value_text(result.value)
 
     def dispatch(self, line: str, *, report: bool = True) -> CmdResult:
         """Parse and dispatch a REPL command (prefix already stripped).

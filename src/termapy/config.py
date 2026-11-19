@@ -12,6 +12,7 @@ import shutil
 import sys
 import threading
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -22,9 +23,11 @@ from termapy.defaults import (
     CFG_CHOICES,
     CFG_KEYS,
     DEFAULT_CFG,
+    SESSION_FLAG_KEYS,
     STANDARD_BAUD_RATES,
     CfgKey,
     cfg_key,
+    cfg_key_paths,
     cfg_value,
     cmd_prefix,
     default_cfg,
@@ -486,12 +489,21 @@ def quick_config_path(port: str) -> Path:
     return quick_cfg_root() / name / f"{name}.cfg"
 
 
+# The setting buttons a quick open turns on, by command as the defaults spell
+# them, and where they go: the line ending, echo and color a newcomer reaches
+# for first, beside the output, as VS Code's Serial Monitor offers them
+# (Chuck 2026-11-18).  A new config ships them off.
+QUICK_BUTTONS = ("{prefix}term.eol cycle", "{prefix}term.echo toggle", "{prefix}term.color toggle")
+QUICK_BUTTONS_SIDE = "right"
+
+
 def quick_config(port: str, settings: str) -> tuple[Path, str]:
     """The config ``termapy PORT [SETTING ...]`` opens, and what became of it: ``Created``, ``Updated`` or ``Using``.
 
     One config per port (``quick_config_path``), so sessions on two ports
     share nothing.  The first open creates it through ``new_config`` and
-    ``create_config``, connecting when it loads.  A later open with
+    ``create_config``, connecting when it loads, with the ``QUICK_BUTTONS``
+    turned on in the ``QUICK_BUTTONS_SIDE`` column.  A later open with
     settings lays them over it and saves it, so they are what the port
     opens with next time; one without settings leaves it as it is.  The
     settings are ``/port.connect``'s, read by its reader.
@@ -530,6 +542,10 @@ def quick_config(port: str, settings: str) -> tuple[Path, str]:
             echo=echo,
             auto_connect=True,
         )
+        for button in cfg["custom_buttons"]:
+            if button["command"] in QUICK_BUTTONS:
+                button["enabled"] = True
+        cfg["custom_buttons_side"] = QUICK_BUTTONS_SIDE
         return create_config(path, cfg), "Created"
     if not settings.split():
         return path, "Using"
@@ -589,6 +605,82 @@ def ordered_cfg(cfg: Mapping) -> dict:
             value = {**{sub: value[sub] for sub in default if sub in value}, **value}
         ordered[key] = value
     return ordered
+
+
+@dataclass(frozen=True)
+class SessionChange:
+    """One setting the session holds apart from its config file.
+
+    Attributes:
+        path: The key as ``defaults.cfg_key_paths`` spells it (``serial.baud_rate``).
+        saved: Its value as the config was loaded.
+        session: Its value now.
+    """
+
+    path: str
+    saved: object
+    session: object
+
+
+def session_changes(
+    loaded: Mapping[str, Any],
+    session: Mapping[str, Any],
+    flags: Mapping[str, Any],
+    seeded: Mapping[str, Any],
+) -> list[SessionChange]:
+    """The settings a session changed from its config as loaded, in ``CFG_KEYS`` order.
+
+    The one answer to "what would a save write" (the setting buttons' ``*``,
+    the config editor's prompt).  A key that starts a session flag
+    (``SESSION_FLAG_KEYS``: ``color``, ``echo``, ...) is read from its flag,
+    which its setter changes while the config keeps the value the load
+    started from; it counts only when the flag differs from both that value
+    and what the load seeded the flag with, so a launch overlay
+    (``--no-color``, ``--quiet``) is never a change.  Managed keys and
+    sections are not settings.
+
+    Args:
+        loaded: The config as its load left it, before the session changed it.
+        session: The config now.
+        flags: The session flags now.
+        seeded: Each session-flag key's flag as the load seeded it.
+    """
+    changes: list[SessionChange] = []
+    for path in cfg_key_paths():
+        record = cfg_key(path)
+        if record is None or record.managed or record.kind == "section":
+            continue
+        saved = cfg_value(loaded, path)
+        leaf = path.rpartition(".")[2]
+        if leaf in SESSION_FLAG_KEYS:
+            now = flags.get(leaf, saved)
+            changed = now != saved and now != seeded.get(leaf, saved)
+        else:
+            now = cfg_value(session, path)
+            changed = now != saved
+        if changed:
+            changes.append(SessionChange(path, saved, now))
+    return changes
+
+
+def save_settings(path: str | Path, changes: list[SessionChange]) -> None:
+    """Write each change's session value into the config file, every other key as written.
+
+    The file is read as written, not as ``load_config`` returns it, so a
+    ``$(env.X)`` template in a key the session did not change stays a
+    template.
+
+    Raises:
+        OSError: The file cannot be read or written.
+        ValueError: It is not JSON.
+    """
+    cfg = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    for change in changes:
+        # A path is a top-level key or one section and its leaf.
+        section, dot, leaf = change.path.rpartition(".")
+        container = cfg.setdefault(section, {}) if dot else cfg
+        container[leaf] = change.session
+    write_config_file(path, cfg)
 
 
 def write_config_file(path: str | Path, cfg: Mapping) -> None:

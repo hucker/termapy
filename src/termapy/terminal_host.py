@@ -10,22 +10,27 @@ No Textual or Rich imports - those stay in the subclasses.
 
 from __future__ import annotations
 
+import copy
 import threading
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from termapy import load_report
 from termapy.config import (
+    SessionChange,
     cap_folder_of,
     load_config,
     mcp_log_path,
     open_serial,
     open_with_system,
     reveal_in_file_manager,
+    save_settings,
+    session_changes,
     session_log_file,
 )
 from termapy.config_resolve import resolve_config
-from termapy.defaults import cfg_value, quiet_start
+from termapy.defaults import SESSION_FLAG_KEYS, cfg_value, quiet_start
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
 from termapy.plugins.output_levels import OUTPUT_LEVEL_RANK, OUTPUT_MIN_RANK
@@ -41,8 +46,6 @@ from termapy.session_log import (
 from termapy.typed_lines import TypedLine
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from termapy.capture import CaptureEngine
     from termapy.repl import ReplEngine
     from termapy.serial_engine import SerialEngine
@@ -137,6 +140,10 @@ class TerminalHost:
     _typed_lines_read: bool = False
     # The frontend's name, ``$(FRONT_END)``; each frontend sets its own.
     front_end: ClassVar[str] = "unknown"
+    # What session_changes compares against: the config as its load left it
+    # and the session-flag keys' flags as the load seeded them (_note_loaded).
+    _loaded_cfg: Any = MappingProxyType({})
+    _seeded_flags: Any = MappingProxyType({})
 
     # -- Attributes set by subclass __init__ ----------------------------------
 
@@ -769,6 +776,53 @@ class TerminalHost:
         # /term.color; the single source of truth for device color across
         # the TUI (strip before render when off) and CLI (strip in on_lines).
         flags.setdefault("color", cfg_value(self.cfg, "color") if color is None else color)
+        self._note_loaded()
+
+    def _note_loaded(self) -> None:
+        """Hold the config and the session-flag seeds as they stand: where ``session_changes`` starts.
+
+        Run at every load's flag seeding and after a save, so a change is
+        what the session did since the file last agreed with it.
+        """
+        flags = self.ctx.ns("flags")
+        # A ``_`` key is session state (warnings, migration steps), never saved.
+        self._loaded_cfg = {
+            key: copy.deepcopy(value)
+            for key, value in self.repl.cfg.items()
+            if not key.startswith("_")
+        }
+        self._seeded_flags = {key: flags[key] for key in SESSION_FLAG_KEYS if key in flags}
+
+    def session_changes(self) -> list[SessionChange]:
+        """The settings this session holds apart from its config file (``config.session_changes``)."""
+        return session_changes(
+            self._loaded_cfg, self.repl.cfg, self.ctx.ns("flags"), self._seeded_flags
+        )
+
+    def save_session_changes(self) -> list[SessionChange]:
+        """Write the session's changed settings into its config file and start counting from there.
+
+        Only the changed keys are written, over the file as written.  A
+        session-flag key's config value is brought up to its flag first, so
+        the session and the file agree on it.  The caller serializes it with
+        the frontend's dispatches: it writes the config the commands read.
+
+        Returns:
+            What was written; empty when nothing differed.
+
+        Raises:
+            OSError: The file cannot be read or written.
+            ValueError: It is not JSON.
+        """
+        changes = self.session_changes()
+        if not changes:
+            return changes
+        save_settings(self.config_path, changes)
+        for change in changes:
+            if change.path in SESSION_FLAG_KEYS:
+                self.repl.store_cfg(change.path, change.session)
+        self._note_loaded()
+        return changes
 
     def _reset_session(self) -> None:
         """Back to what a fresh start on the loaded config has.
@@ -841,15 +895,6 @@ class TerminalHost:
         """Wait until no serial data arrives for timeout_ms (delegates to SerialPort)."""
         if self.engine.serial_port:
             self.engine.serial_port.wait_for_idle(timeout_ms, max_wait_s)
-
-    def _serial_op(self, label: str, fn: Callable[[], object]) -> None:
-        """Run a serial operation, catching OSError/SerialException."""
-        from serial import SerialException
-
-        try:
-            fn()
-        except (OSError, SerialException) as e:
-            self.status(f"{label} error: {e}", "red")
 
     def _serial_write(self, data: bytes) -> None:
         """Write bytes to the port; the one TX path in every frontend.

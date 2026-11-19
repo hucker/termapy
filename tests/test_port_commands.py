@@ -115,11 +115,44 @@ class TestHardwareLines:
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.rts maybe")
         assert (
-            "Invalid RTS value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f)"
+            "Invalid RTS value: maybe (use on/off/true/false/yes/no/1/0/y/n/t/f or toggle)"
             in capsys.readouterr().out
         )
         assert result.success is False, "a refused value fails the command"
         assert port.rts is True, "a refused value leaves the line alone"
+
+    def test_toggle_twice_flips_and_flips_back(self, cli, capsys):
+        """/port.dtr toggle twice: the line flips, then flips back, each answering the level it left."""
+        # Arrange
+        port = _demo_port(cli)
+        port.dtr = True
+        capsys.readouterr()
+
+        # Act
+        first = cli.repl.dispatch_full("/port.dtr toggle")
+        first_level = port.dtr
+        second = cli.repl.dispatch_full("/port.dtr toggle")
+
+        # Assert
+        actual = (first.value, first_level, second.value, port.dtr)
+        expected = (0, False, 1, True)
+        assert actual == expected, "the second toggle starts from the first's level"
+        assert capsys.readouterr().out.split() == ["0", "1"], "each answer is the level alone"
+
+    def test_toggle_in_json_answers_the_new_level(self, cli, capsys):
+        """--json answers a toggle with the level it set, as a number."""
+        # Arrange
+        port = _demo_port(cli)
+        port.rts = False
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/port.rts toggle --json")
+        envelope = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+
+        # Assert
+        assert (envelope["success"], envelope["value"]) == (True, 1)
+        assert port.rts is True, "the line followed the toggle"
 
     def test_disconnected_reports_not_connected(self, cli, capsys):
         """A line read or set without an open port fails with Not connected."""
@@ -189,7 +222,7 @@ class TestProperties:
         port = _demo_port(cli)
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.byte_size 9")
-        assert "Invalid data bits: 9 (use 5, 6, 7, 8)" in capsys.readouterr().out
+        assert "Invalid data bits: 9 (use 5, 6, 7, 8, cycle)" in capsys.readouterr().out
         assert result.success is False, "a refused value fails the command"
         assert (port.bytesize, cli.cfg["serial"]["byte_size"]) == (8, 8), (
             "refused value applied nowhere"
@@ -225,6 +258,48 @@ class TestProperties:
         result = cli.repl.dispatch_full("/port.baud_rate")
         assert capsys.readouterr().out.strip() == "115200", "the config's rate, nothing beside it"
         assert result.value == 115200, "scripts get the number"
+
+
+class TestCycle:
+    """cycle moves an enum port setting to its next value in declared order, wrapping, on the port and the cfg."""
+
+    @pytest.mark.parametrize(
+        ("command", "start", "expected"),
+        [
+            ("parity", "N", ["E", "O"]),
+            ("parity", "S", ["N", "E"]),
+            ("byte_size", "7", [8, 5]),
+            ("stop_bits", "1", [1.5, 2]),
+            ("baud_rate", "460800", [921600, 110]),
+            ("flow_control", "xonxoff", ["manual", "none"]),
+        ],
+    )
+    def test_two_cycles_step_twice_and_wrap(self, cli, command, start, expected):
+        """Each cycle starts from the last one's value, and the last value wraps to the first."""
+        # Arrange
+        assert cli.repl.dispatch_full(f"/port.{command} {start}").success, start
+
+        # Act
+        actual = [cli.repl.dispatch_full(f"/port.{command} cycle").value for _ in range(2)]
+
+        # Assert
+        assert actual == expected, f"{command} from {start}"
+        assert cli.cfg["serial"][command] == expected[-1], "the session cfg holds the last value"
+
+    def test_cycle_reaches_the_port(self, cli):
+        """A cycled parity is the open port's parity, not only the config's."""
+        port = _demo_port(cli)
+        cli.repl.dispatch_full("/port.parity cycle")
+        assert port.parity == "E", "the port moved from N to E"
+
+    def test_cycle_without_a_port_is_refused(self, cli):
+        """With the port closed a cycle changes nothing and says Not connected, as a set does."""
+        cli._disconnect()
+        result = cli.repl.dispatch_full("/port.parity cycle")
+        assert (result.success, result.error) == (False, STATE_MESSAGES["serial_connected"]), (
+            "a cycle needs the port like any set"
+        )
+        assert cli.cfg["serial"]["parity"] == "N", "the config is untouched"
 
 
 # ── /port.mode ──────────────────────────────────────────────────────────────
@@ -344,7 +419,7 @@ class TestFlowControl:
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.flow_control bogus")
         assert (
-            "Invalid flow control: bogus (use none/rtscts/xonxoff/manual)"
+            "Invalid flow control: bogus (use none/rtscts/xonxoff/manual/cycle)"
             in capsys.readouterr().out
         )
         assert result.success is False, "a refused mode fails the command"

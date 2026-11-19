@@ -263,8 +263,10 @@ class TestScriptOverlay:
             _write_scripts(path, outer="/run inner\n/confirm second\n", inner="/confirm first\n")
             async with app.run_test() as pilot:
                 await pilot.pause()
-                bar = app.query_one("#bottom-bar")
+                bottom = app.query_one("#bottom-bar")
+                bar = app.query_one("#overlay-bar")
                 inp = app.query_one("#cmd", Input)
+                shown_before = [child.display for child in bottom.children]
 
                 def label() -> str:
                     return str(bar.query_one("#script-label", Static).render())
@@ -290,8 +292,14 @@ class TestScriptOverlay:
                     f"the outer script alone, with its step counter: {during_outer}"
                 )
                 assert prompt_disabled_during is True, "the prompt is off while the script runs"
-                assert (inp.disabled, bar.disabled) == (False, False), "prompt and bar usable again"
-                assert all(child.display for child in bar.children), "the buttons are back"
+                assert (inp.disabled, bottom.disabled) == (False, False), (
+                    "prompt and bar usable again"
+                )
+                assert bottom.display is True, "the bottom bar is back"
+                assert [child.display for child in bottom.children] == shown_before, (
+                    "each button is back as its rule left it: DTR/RTS/Break stay hidden without "
+                    "manual flow control, which every button shown again broke until 2026-11-18"
+                )
 
         _run(scenario)
 
@@ -301,7 +309,8 @@ class TestScriptOverlay:
 
         The typed path had disabled the bottom bar before the overlay
         mounted into it, so the Stop button was inert and only Escape
-        stopped a script; the started handler now enables the bar it owns.
+        stopped a script; Stop now sits in a bar of its own, which nothing
+        disables.
         """
 
         async def scenario():
@@ -311,7 +320,7 @@ class TestScriptOverlay:
             _write_scripts(path, slow="/delay 100ms\n" * 50)
             async with app.run_test() as pilot:
                 await pilot.pause()
-                bar = app.query_one("#bottom-bar")
+                bar = app.query_one("#overlay-bar")
 
                 # Act
                 await _submit(pilot, "/run slow")

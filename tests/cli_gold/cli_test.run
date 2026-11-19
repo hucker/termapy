@@ -144,8 +144,12 @@ $(BAUD) <- /port.baud_rate
 /port.dtr
 /port.dtr 1
 /port.dtr
+/port.dtr toggle
+/port.dtr toggle
 /port.rts 0
 /port.rts
+/port.rts toggle
+/port.rts toggle
 
 # ── REPL: port control - disconnect and reconnect ───────────────────────────
 /print === section: port disconnect/connect ===
@@ -379,6 +383,15 @@ MEM.INFO
 /port.baud_rate
 /port.baud_rate 115200
 /cfg custom_baud false
+# cycle steps an enum setting to its next value, in declared order, wrapping
+/port.parity cycle
+/port.parity cycle
+/port.parity N
+/port.flow_control cycle
+/port.flow_control none
+/port.baud_rate 921600
+/port.baud_rate cycle
+/port.baud_rate 115200
 /port.parity X
 /port.dtr maybe
 /port.break -5

@@ -94,6 +94,7 @@ src/termapy/
 │   ├── quick_setup.py      #   QuickSetup -- the first-run / new-config wizard: name, port and baud rate on one screen
 │   ├── script_editor.py    #   ScriptEditor -- the .run script editor
 │   ├── script_picker.py    #   ScriptPicker -- pick a .run script to run or edit, or create one
+│   ├── session_changes.py  #   SessionChanges -- the settings a session changed, asked about before they would be lost
 │   ├── set_var_dialog.py   #   SetVarDialog -- two-field name/value prompt for /var.set
 │   └── update_available.py #   UpdateAvailableDialog -- reports a newer termapy on PyPI (Info / OK)
 ├── firmware/               #              The device-side sources termapy ships, one command away: the `/firmware` registry
@@ -1110,7 +1111,9 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_serial_engine.py               | Tests for SerialEngine - connection lifecycle and reader loop                                                                                                                       |
 | test_serial_io_safety.py            | Exception-safety tests for the `ctx.serial.io()` context manager                                                                                                                    |
 | test_serial_port.py                 | Tests for SerialPort and SerialReader                                                                                                                                               |
+| test_session_changes.py             | What a session changed from its config file, and saving it (registry `session-changes-one-diff`)                                                                                    |
 | test_session_log.py                 | Tests for termapy.session_log: the one session-log writer, its line format and markers, and the old MCP log's move                                                                  |
+| test_setting_buttons.py             | A setting button shows its setting as the bare command answers it (registry `setting-button-reads-its-command`)                                                                     |
 | test_setting_replies.py             | A setting command answers with its value and nothing else (registry `setting-reply-is-value`)                                                                                       |
 | test_shutdown_race.py               | Contract tests for the SHUTDOWN_RACE exception tuple                                                                                                                                |
 | test_status_bar.py                  | Behavioral tests for the StatusBar widget                                                                                                                                           |

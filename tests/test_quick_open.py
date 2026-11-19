@@ -20,7 +20,8 @@ from typing import NoReturn
 import pytest
 
 from termapy.cli_flags import run_quick
-from termapy.config import quick_config, quick_config_path
+from termapy.config import QUICK_BUTTONS, QUICK_BUTTONS_SIDE, quick_config, quick_config_path
+from termapy.defaults import DEFAULT_CFG
 from termapy.port_control import ChipFacts
 
 
@@ -87,6 +88,26 @@ class TestQuickConfig:
         assert (serial_cfg["port"], serial_cfg["baud_rate"]) == ("COM3", 9600)
         assert (serial_cfg["parity"], serial_cfg["byte_size"]) == ("E", 7)
         assert _saved(path)["auto_connect"] is True, "typing a port asks to connect to it"
+
+    def test_the_first_open_turns_on_the_quick_buttons_in_a_column(self, cfg_root):
+        """A new port's config shows EOL, Echo and Color beside the output; Baud stays off, Info on."""
+        # Act
+        path, _ = quick_config("COM3", "")
+
+        # Assert
+        saved = _saved(path)
+        enabled = [button["name"] for button in saved["custom_buttons"] if button["enabled"]]
+        assert enabled == ["Info", "EOL {value}", "Echo {value}", "Color {value}"], (
+            "the quick buttons join Info, in the defaults' order"
+        )
+        assert saved["custom_buttons_side"] == QUICK_BUTTONS_SIDE == "right", (
+            "a column, not the bar"
+        )
+
+    def test_every_quick_button_is_a_default_button(self):
+        """Each command QUICK_BUTTONS names is a shipped button, so a rename cannot turn on nothing."""
+        commands = {button["command"] for button in DEFAULT_CFG["custom_buttons"]}
+        assert set(QUICK_BUTTONS) <= commands, f"not shipped: {set(QUICK_BUTTONS) - commands}"
 
     def test_a_second_open_without_settings_changes_nothing(self, cfg_root):
         """Twice in a row: the second open is 'Using' and the file stays byte for byte as it was."""

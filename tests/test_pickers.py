@@ -30,9 +30,14 @@ class _StubApp:
         self.config_results: list[tuple] = []
         self.connect_calls: int = 0
         self.ctx = SimpleNamespace(prefix="/", dispatch=self.dispatched.append)
-        # The Advanced path hands the editor the engine's plugin table
-        # (cfg_users) so its help line can name a key's users.
-        self.repl = SimpleNamespace(_plugins={}, ctx=None)
+        # (path, is_new) for each config-editor opening, the one opener's call.
+        self.editors: list[tuple[str, bool]] = []
+
+    def _open_config_editor(self, path: str, cfg: object = None, *, is_new: bool = False) -> None:
+        self.editors.append((path, is_new))
+
+    def _ask_unsaved_then(self, verb: str, proceed) -> None:
+        proceed()  # nothing unsaved in a stub
 
     def _on_config_result(self, result: tuple) -> None:
         self.config_results.append(result)
@@ -90,10 +95,6 @@ def test_quick_setup_advanced_path_never_dispatches(_quick_setup_env):
     # offer the icon there even if the checkbox was somehow ticked,
     # because the user is going into power-edit mode.
     app = _StubApp()
-    pushed: list = []
-    app.push_screen = lambda screen, callback=None: pushed.append(  # ty: ignore[unresolved-attribute]
-        (screen, callback)
-    )
     result = ("advanced", "demo", "COM1", 115200, False, True)
 
     # Act
@@ -101,7 +102,9 @@ def test_quick_setup_advanced_path_never_dispatches(_quick_setup_env):
 
     # Assert
     assert "/cfg.icon" not in app.dispatched, "Advanced path never auto-dispatches /cfg.icon"
-    assert pushed, "Advanced path pushed the ConfigEditor"
+    assert [is_new for _, is_new in app.editors] == [True], (
+        "Advanced opens the editor once, through the one opener, on a new config"
+    )
 
 
 def test_quick_setup_cancel_does_nothing(_quick_setup_env):

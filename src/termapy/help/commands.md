@@ -184,24 +184,24 @@ sends to the device) waits in the input line for Enter.
 | `/mem.xor <target> <mask>` | XOR a mask into one word (always read + write-back)                        |
 | `/os <cmd>`               | Run a shell command (requires `TERMAPY_OS_CMD_ENABLED=1` in env); a nonzero exit or the 10s timeout is an error and stops a script |
 | `/port {name}`            | TUI bare: open Port picker. CLI bare: list ports. With name: open it.       |
-| `/port.baud_rate {value} {custom=<bool>}` | Show or set baud rate (hardware only): a standard one, or any from 300 with `custom=true` |
+| `/port.baud_rate {value\|cycle} {custom=<bool>}` | Show or set baud rate (hardware only): a standard one, or any from 300 with `custom=true`; `cycle` steps to the next standard rate |
 | `/port.break {ms}`        | Send break signal (default 250ms)                                           |
-| `/port.byte_size {value}` | Show or set data bits (hardware only)                                       |
+| `/port.byte_size {5\|6\|7\|8\|cycle}` | Show or set data bits (hardware only)                             |
 | `/port.cd`                | Show CD state (read-only)                                                   |
 | `/port.connect {name} {baud} {mode} {custom=<bool>} {timeout=<dur>} {msg=<text>}` | Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81); a non-standard rate needs `custom=true`; `timeout=` keeps trying until the port opens (a board plugged in or rebooting), `msg=` says what for |
 | `/port.cts`               | Show CTS state (read-only)                                                  |
 | `/port.disconnect`        | Disconnect from the serial port                                             |
 | `/port.dsr`               | Show DSR state (read-only)                                                  |
-| `/port.dtr {on\|off}`     | Show or set DTR line                                                        |
-| `/port.flow_control {m}`  | Show or set flow control: none, rtscts, xonxoff, manual                     |
+| `/port.dtr {on\|off\|toggle}` | Show or set DTR line                                                    |
+| `/port.flow_control {none\|rtscts\|xonxoff\|manual\|cycle}` | Show or set flow control                     |
 | `/port.help`              | Show `/port` help (alias for `/help port`)                                  |
 | `/port.info`              | Show port status, serial parameters, hardware lines, and xfer root          |
 | `/port.list`              | Chip-aware port table (MFG, CHIP, SPEED, VID:PID, SERIAL #, ...)            |
 | `/port.mode {baud} {mode} {custom=<bool>}` | Show or set serial mode (e.g. /port.mode 9600 N81); a non-standard rate needs `custom=true` |
-| `/port.parity {value}`    | Show or set parity (hardware only)                                          |
+| `/port.parity {N\|E\|O\|M\|S\|cycle}` | Show or set parity (hardware only)                                |
 | `/port.ri`                | Show RI state (read-only)                                                   |
-| `/port.rts {on\|off}`     | Show or set RTS line                                                        |
-| `/port.stop_bits {value}` | Show or set stop bits (hardware only)                                       |
+| `/port.rts {on\|off\|toggle}` | Show or set RTS line                                                    |
+| `/port.stop_bits {1\|1.5\|2\|cycle}` | Show or set stop bits (hardware only)                               |
 | `/print <text>`           | Print a message to the terminal                                             |
 | `/print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                       |
 | `/profile.info`           | Show metadata of the active profile (plus cfg-vs-profile transport drift)   |

@@ -326,9 +326,19 @@ class QuickSetup(ModalScreen[tuple | None]):
             baud = 115200
         return baud, False
 
-    def _submit(self) -> None:
-        name = self.query_one("#qs-name", Input).value.strip()
+    def _submit(self, action: str) -> None:
+        """Dismiss with ``(action, name, port, baud, custom_baud, add_icon)``, or say what is missing.
+
+        Args:
+            action: ``connect`` (the Connect button, Enter in the name) or
+                ``advanced`` (the Advanced button).
+        """
+        name_input = self.query_one("#qs-name", Input)
+        name = name_input.value.strip()
         if not name:
+            # The cursor goes where the answer is typed, not where the
+            # click that asked for it landed.
+            name_input.focus()
             self.notify("Enter a config name", severity="warning", timeout=2)
             return
         name = Path(name).stem
@@ -346,35 +356,31 @@ class QuickSetup(ModalScreen[tuple | None]):
         baud, custom_baud = result
         add_icon = self.query_one("#qs-add-icon", StrongCheckbox).value
 
-        self.dismiss(("connect", name, port, baud, custom_baud, add_icon))
+        self.dismiss((action, name, port, baud, custom_baud, add_icon))
 
     @on(Button.Pressed, "#qs-connect")
     def connect(self) -> None:
-        self._submit()
+        self._submit("connect")
 
     @on(Input.Submitted, "#qs-name")
     def submit_name(self) -> None:
-        self._submit()
+        self._submit("connect")
 
     @on(Button.Pressed, "#qs-advanced")
     def advanced(self) -> None:
-        name = self.query_one("#qs-name", Input).value.strip()
-        if not name:
-            self.notify("Enter a config name", severity="warning", timeout=2)
-            return
-        name = Path(name).stem
-        port_ol = self.query_one("#qs-port-list", OptionList)
-        if port_ol.highlighted is not None:
-            opt = port_ol.get_option_at_index(port_ol.highlighted)
-            port = str(opt.id) if not opt.disabled else ""
-        else:
-            port = ""
-        result = self._read_baud()
-        if result is None:
-            return
-        baud, custom_baud = result
-        add_icon = self.query_one("#qs-add-icon", StrongCheckbox).value
-        self.dismiss(("advanced", name, port, baud, custom_baud, add_icon))
+        self._submit("advanced")
+
+    @on(OptionList.OptionSelected, "#qs-port-list, #qs-baud-list")
+    def _picked(self) -> None:
+        """A port or baud picked with no name yet: put the cursor in the name.
+
+        Picking a row (a click, Enter) is a choice made; the dialog's one
+        typed answer is still owed.  Arrow keys only highlight, so a
+        keyboard user still moves through the list.
+        """
+        name_input = self.query_one("#qs-name", Input)
+        if not name_input.value.strip():
+            name_input.focus()
 
     @on(Button.Pressed, "#qs-cancel")
     def cancel(self) -> None:

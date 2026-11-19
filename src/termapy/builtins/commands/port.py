@@ -7,7 +7,14 @@ import textwrap
 from typing import TYPE_CHECKING
 
 from termapy import port_control
-from termapy.defaults import STANDARD_BAUD_RATES, cfg_value
+from termapy.defaults import (
+    STANDARD_BAUD_RATES,
+    VALID_BYTE_SIZES,
+    VALID_FLOW_CONTROLS,
+    VALID_PARITIES,
+    VALID_STOP_BITS,
+    cfg_value,
+)
 from termapy.help_dynamic import compose, port_status
 from termapy.plugins import (
     CapabilitySet,
@@ -19,7 +26,7 @@ from termapy.plugins import (
 )
 from termapy.plugins.waiting import wait
 from termapy.port_format import PORT_TABLE_COLUMNS, find_chips
-from termapy.scripting import format_duration, parse_duration
+from termapy.scripting import SETTING_CYCLE, format_duration, parse_duration
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -28,6 +35,11 @@ if TYPE_CHECKING:
 
 
 # The standard rates as /help port.baud_rate lists them, from the one table.
+def _choices_args(values: tuple[object, ...]) -> str:
+    """An enum setting's synopsis, its values then ``cycle``: ``{N|E|O|M|S|cycle}``."""
+    return "{" + "|".join([*(str(value) for value in values), SETTING_CYCLE]) + "}"
+
+
 _STANDARD_RATES_HELP = textwrap.fill(
     ", ".join(str(rate) for rate in STANDARD_BAUD_RATES),
     width=62,
@@ -671,7 +683,7 @@ COMMAND = Command(
             },
         ),
         "baud_rate": Command(
-            args="{value} {custom=<bool>}",
+            args=f"{{value|{SETTING_CYCLE}}} {{custom=<bool>}}",
             help="Show or set baud rate: a standard one, or any from 300 with custom=true.",
             long_help=(
                 "Sets the open port's baud rate for the session.  It must be\n"
@@ -683,7 +695,9 @@ COMMAND = Command(
                 "mistyped one is refused instead of opened:\n"
                 "\n"
                 "  {prefix}port.baud_rate 9600\n"
-                "  {prefix}port.baud_rate 9460 custom=true"
+                "  {prefix}port.baud_rate 9460 custom=true\n"
+                "\n"
+                "cycle moves to the next standard rate, wrapping at the end."
             ),
             handler=_handler_baud_rate,
             cfg={
@@ -693,14 +707,14 @@ COMMAND = Command(
             state=True,
         ),
         "byte_size": Command(
-            args="{value}",
+            args=_choices_args(VALID_BYTE_SIZES),
             help="Show or set data bits.",
             handler=_make_prop_handler("byte_size"),
             cfg={"serial.byte_size": "set for the session; bare shows it"},
             state=True,
         ),
         "parity": Command(
-            args="{value}",
+            args=_choices_args(VALID_PARITIES),
             help="Show or set parity.",
             long_help=(
                 "Parity bit mode. Values:\n"
@@ -715,14 +729,14 @@ COMMAND = Command(
             state=True,
         ),
         "stop_bits": Command(
-            args="{value}",
+            args=_choices_args(VALID_STOP_BITS),
             help="Show or set stop bits.",
             handler=_make_prop_handler("stop_bits"),
             cfg={"serial.stop_bits": "set for the session; bare shows it"},
             state=True,
         ),
         "flow_control": Command(
-            args="{mode}",
+            args=_choices_args(VALID_FLOW_CONTROLS),
             help="Show or set flow control (none/rtscts/xonxoff/manual).",
             long_help=(
                 "Serial flow-control mode. Values:\n"
@@ -738,14 +752,14 @@ COMMAND = Command(
             state=True,
         ),
         "dtr": Command(
-            args="{on|off}",
+            args="{on|off|toggle}",
             help="Show or set DTR line (hardware only).",
             handler=_make_hw_handler("dtr"),
             needs=CapabilitySet.SERIAL_CONNECTED,
             state=True,
         ),
         "rts": Command(
-            args="{on|off}",
+            args="{on|off|toggle}",
             help="Show or set RTS line (hardware only).",
             handler=_make_hw_handler("rts"),
             needs=CapabilitySet.SERIAL_CONNECTED,

@@ -42,9 +42,9 @@ class TestValidationConstants:
         assert 115200 in STANDARD_BAUD_RATES, "common rate present"
 
     def test_byte_sizes(self):
-        """Data bits are exactly the four sizes pyserial accepts: 5, 6, 7 and 8."""
+        """Data bits are exactly the four sizes pyserial accepts, smallest first: /port.byte_size's cycle order."""
         # Assert
-        assert VALID_BYTE_SIZES == {5, 6, 7, 8}, "standard data bits"
+        assert VALID_BYTE_SIZES == (5, 6, 7, 8), "standard data bits, in cycle order"
 
     def test_parities(self):
         """None and Even parity are both accepted as valid parity codes."""
@@ -194,10 +194,17 @@ class TestDefaultCfg:
         assert DEFAULT_CFG["cmd_prefix"] == "/", "slash prefix"
 
     def test_custom_buttons_is_list(self):
-        """A fresh config ships four custom-button slots as a list."""
+        """A fresh config ships Info and a button for each setting a newcomer changes most, as a list."""
+        # Act
+        names = [button["name"] for button in DEFAULT_CFG["custom_buttons"]]
+
         # Assert
         assert isinstance(DEFAULT_CFG["custom_buttons"], list), "buttons array"
-        assert len(DEFAULT_CFG["custom_buttons"]) == 4, "four button slots"
+        assert names == ["Info", "Baud {value}", "EOL {value}", "Echo {value}", "Color {value}"], (
+            "Info, then baud, line ending, echo and color, each showing its value"
+        )
+        enabled = [button["enabled"] for button in DEFAULT_CFG["custom_buttons"]]
+        assert enabled == [True, False, False, False, False], "only Info is on in a new config"
 
 
 # -- Key paths and the one reader --------------------------------------------
@@ -243,10 +250,11 @@ class TestCfgKeyPaths:
         """A missing list or dict key yields a copy of the table's default, so a caller cannot mutate the table."""
         # Act
         buttons = cfg_value({}, "custom_buttons")
+        before = len(buttons)
         buttons.append({"enabled": False, "name": "X", "command": "", "tooltip": ""})
 
         # Assert
-        assert len(cfg_value({}, "custom_buttons")) == 4, "the table is untouched"
+        assert len(cfg_value({}, "custom_buttons")) == before, "the table is untouched"
         assert cfg_value({}, "custom_buttons") == DEFAULT_CFG["custom_buttons"], (
             "a fresh copy each time"
         )

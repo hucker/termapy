@@ -15,7 +15,7 @@ import sys
 import threading
 import time
 from collections import OrderedDict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from functools import partial
 from pathlib import Path
 from threading import Event
@@ -79,6 +79,7 @@ from termapy.dialogs import (
     QuickSetup,
     ScriptEditor,
     ScriptPicker,
+    SessionChanges,
     UpdateAvailableDialog,
 )
 from termapy.folder_ops import stamped_path
@@ -96,7 +97,7 @@ from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.plugins.views import Link, Piece
 from termapy.proto_debug import ProtoDebugScreen
 from termapy.protocol import ProtoScript, builtins_viz_dir, load_visualizers_from_dir
-from termapy.repl import SETTING_NO_VALUE, SETTING_VALUE, ReplEngine
+from termapy.repl import SETTING_CHANGED, SETTING_NO_VALUE, SETTING_VALUE, ReplEngine
 from termapy.serial_engine import SerialEngine
 from termapy.serial_port import eol_label_markup
 from termapy.session_log import SessionLog
@@ -1234,7 +1235,7 @@ class SerialTerminal(TerminalHost, App):
             self.save_screenshot, *a, **kw
         )
         ctx.ui._get_screen_text_impl = lambda: self._on_main(self._get_screen_text)
-        ctx.ui._exit_app_impl = lambda: self._on_main(self.exit)
+        ctx.ui._exit_app_impl = self._exit_from_command
         # The TUI's capabilities are its row of the one table, or the WEB
         # row when Textual says the screen is a browser page (registry
         # web-is-an-environment); nothing else asks "am I in a browser".
@@ -1587,28 +1588,30 @@ class SerialTerminal(TerminalHost, App):
         port = self._engine.serial_port
         return port.wait_for_data(timeout_ms) if port is not None else False
 
-    def _ask(self, screen: ModalScreen[bool]) -> bool | None:
-        """Push a yes/no modal from a worker and block until it is answered.
+    def _ask(self, screen: ModalScreen) -> object:
+        """Push a modal from a worker and block until it is answered.
 
-        The one wait behind ``/confirm`` and ``/cfg <key> <value>``: both
-        answer only after the dialog does (review 2026-10-15, D7, where
-        ``/cfg`` returned the new value with the dialog still open).
+        The one wait behind ``/confirm``, ``/cfg <key> <value>`` and the
+        unsaved-settings question: each answers only after the dialog does
+        (review 2026-10-15, D7, where ``/cfg`` returned the new value with
+        the dialog still open).
 
         THREADING: must be called from a background thread -- every command
         is (registry ``commands-off-main``).  ``call_from_thread`` posts the
         dialog to main and the calling thread waits on an event.
 
         Returns:
-            The answer; False when the app shuts down, or a running script
-            is stopped, while the dialog is up; None when called on the main
-            thread, where ``call_from_thread`` refuses.
+            The dialog's answer, as it dismissed; False when the app shuts
+            down, or a running script is stopped, while the dialog is up;
+            None when called on the main thread, where ``call_from_thread``
+            refuses.
         """
-        result: list[bool] = [False]
+        result: list[object] = [False]
         event = Event()
 
         def _show() -> None:
-            def _on_result(confirmed: bool | None) -> None:
-                result[0] = bool(confirmed)
+            def _on_result(answer: object) -> None:
+                result[0] = answer
                 event.set()
 
             self.push_screen(screen, callback=_on_result)
@@ -1650,7 +1653,7 @@ class SerialTerminal(TerminalHost, App):
         if answer is None:
             self._status(f"{cmd_prefix(self.cfg)}confirm can only be used in scripts.", "yellow")
             return False
-        return answer
+        return bool(answer)
 
     def _write_output_markup(self, text: str, log: bool = False) -> None:
         """Write Rich markup to the output pane; with ``log``, to the session log too.
@@ -1736,6 +1739,8 @@ class SerialTerminal(TerminalHost, App):
             cfg = load_config(config_path)
         except CONFIG_LOAD_ERRORS as e:
             return CmdResult.fail(msg=f"Cannot load config: {e}")
+        if not self._ask_unsaved_wait("Load"):
+            return CmdResult.fail(msg="Canceled.")
         self._on_main(self._switch_config, cfg, config_path)
         self._on_main(self._show_config_info, config_path)
         return CmdResult.ok(value=config_path)
@@ -1898,7 +1903,7 @@ class SerialTerminal(TerminalHost, App):
             except CONFIG_LOAD_ERRORS as e:
                 self._status(f"Failed to load config: {e}", "red")
                 return
-            self._check_port_and_switch(cfg, result[1])
+            self._ask_unsaved_then("Load", lambda: self._check_port_and_switch(cfg, result[1]))
         elif action == "new":
             self._new_config()
         elif action == "edit":
@@ -1907,12 +1912,7 @@ class SerialTerminal(TerminalHost, App):
             except CONFIG_LOAD_ERRORS as e:
                 self._status(f"Failed to load config: {e}", "red")
                 return
-            self.push_screen(
-                ConfigEditor(
-                    cfg, result[1], used_by=cfg_users(self.repl._plugins), ctx=self.repl.ctx
-                ),
-                callback=self._on_config_result,
-            )
+            self._open_config_editor(result[1], cfg)
         elif action == "rename":
             self._rename_config(result[1])
         elif action == "delete":
@@ -2042,12 +2042,7 @@ class SerialTerminal(TerminalHost, App):
             except CONFIG_LOAD_ERRORS as e:
                 self._status(f"Failed to load config: {e}", "red")
                 return
-            self.push_screen(
-                ConfigEditor(
-                    cfg, self.config_path, used_by=cfg_users(self.repl._plugins), ctx=self.repl.ctx
-                ),
-                callback=self._on_config_result,
-            )
+            self._open_config_editor(self.config_path, cfg)
         else:
             self.push_screen(
                 self._config_picker(self.config_path),
@@ -2098,15 +2093,21 @@ class SerialTerminal(TerminalHost, App):
     def _read_setting_buttons(self) -> None:
         """Read each setting button's value, and repaint on main only the labels that changed.
 
+        A label whose setting the session changed from the config file
+        (``session_changes``, by the command's ``cfg=`` keys) ends in ``*``.
+
         Only a change crosses to main, so a script's lines do not each wait
         on the event loop.  The caller holds the dispatch guard.  Both maps
         are taken once: a custom-button sync swaps in new ones whole, and a
         read already running finishes against the old.
         """
         buttons, shown = self._setting_buttons, self._setting_labels
+        unsaved = {change.path for change in self.session_changes()}
         changed: dict[str, str] = {}
         for btn_id, (label, command) in buttons.items():
             text = label.replace(SETTING_VALUE, self.repl.setting_text(command))
+            if unsaved & self.repl.setting_keys(command):
+                text += SETTING_CHANGED
             if shown.get(btn_id) != text:
                 shown[btn_id] = text
                 changed[btn_id] = text
@@ -2237,9 +2238,22 @@ class SerialTerminal(TerminalHost, App):
         self.push_screen(self._config_picker(self.config_path), callback=self._on_config_picked)
 
     def _btn_exit(self) -> None:
+        self._ask_unsaved_then("Exit", self._exit_now)
+
+    def _exit_now(self) -> None:
+        """Leave: disconnect, then exit (main thread)."""
         self._shutting_down = True
         self._disconnect()
         self.exit()
+
+    async def action_quit(self) -> None:
+        """Ctrl+Q / Alt+Q: leave as the Exit button does, asking first about unsaved settings."""
+        self._ask_unsaved_then("Exit", self._exit_now)
+
+    def _exit_from_command(self) -> None:
+        """``/exit`` (``ctx.ui.exit_app``): leave, asking first when typed (from its worker)."""
+        if self._ask_unsaved_wait("Exit"):
+            self._on_main(self._exit_now)
 
     _BUTTON_DISPATCH: dict[str, str] = {
         # Title bar
@@ -2597,15 +2611,7 @@ class SerialTerminal(TerminalHost, App):
             config_path = self.config_path
 
             def open_editor() -> None:
-                self.push_screen(
-                    ConfigEditor(
-                        dict(self.cfg),
-                        config_path,
-                        used_by=cfg_users(self.repl._plugins),
-                        ctx=self.repl.ctx,
-                    ),
-                    callback=self._on_config_result,
-                )
+                self._open_config_editor(config_path)
         elif ext == FOLDER_EXTS["run"]:
 
             def open_editor() -> None:
@@ -2630,15 +2636,114 @@ class SerialTerminal(TerminalHost, App):
         self._on_main(open_editor)
 
     def _palette_edit_config(self) -> None:
+        self._open_config_editor(self.config_path)
+
+    def _open_config_editor(
+        self, path: str, cfg: Mapping | None = None, *, is_new: bool = False
+    ) -> None:
+        """Open the config editor on ``path``: its one opener (main thread).
+
+        The editor shows the file, and its Save loads it, which ends what the
+        session changed (a load ends where a fresh start would).  So when
+        ``path`` is the active config and the session holds settings the
+        file does not (``session_changes``), ask first: save them and edit,
+        edit without them, or cancel.
+
+        Args:
+            path: The config file.
+            cfg: What the editor shows when the file cannot be read, and a
+                new config's starting point; the session's config when omitted.
+            is_new: The editor creates the file (the New Config wizard's Advanced).
+        """
+
+        def open_editor() -> None:
+            self.push_screen(
+                ConfigEditor(
+                    dict(cfg) if cfg is not None else dict(self.cfg),
+                    path,
+                    is_new=is_new,
+                    used_by=cfg_users(self.repl._plugins),
+                    ctx=self.repl.ctx,
+                ),
+                callback=self._on_config_result,
+            )
+
+        active = not is_new and bool(self.config_path) and Path(path) == Path(self.config_path)
+        if active:
+            self._ask_unsaved_then("Edit", open_editor)
+        else:
+            open_editor()
+
+    def _ask_unsaved_then(self, verb: str, proceed: Callable[[], None]) -> None:
+        """Run ``proceed``, asking first when the session holds unsaved settings (main thread).
+
+        An exit, a load and the editor's Save each end what the session
+        changed (``session_changes``), so the user is asked: save and go on,
+        go on without them, or cancel.  A script is never asked: it runs
+        unattended.
+
+        Args:
+            verb: What ``proceed`` does, on the dialog's buttons (``Exit``,
+                ``Load``, ``Edit``).
+            proceed: The action.
+        """
+        changes = [] if self.repl.in_script else self.session_changes()
+        if not changes:
+            proceed()
+            return
+
+        def answered(choice: tuple | None) -> None:
+            if choice == ("proceed",) or (choice == ("save",) and self._save_session_settings()):
+                proceed()
+
         self.push_screen(
-            ConfigEditor(
-                dict(self.cfg),
-                self.config_path,
-                used_by=cfg_users(self.repl._plugins),
-                ctx=self.repl.ctx,
-            ),
-            callback=self._on_config_result,
+            SessionChanges(changes, Path(self.config_path).name, verb), callback=answered
         )
+
+    def _ask_unsaved_wait(self, verb: str) -> bool:
+        """``_ask_unsaved_then`` for a command's worker: ask, wait, and say whether to go on.
+
+        Args:
+            verb: What going on does (``Exit``, ``Load``).
+
+        Returns:
+            True to go on, after saving when asked to; False on Cancel, a
+            failed save, or a stop or shutdown while asking.  True at once
+            when nothing is unsaved, in a script, and on the main thread,
+            where nobody can wait.
+        """
+        changes = [] if self.repl.in_script else self.session_changes()
+        if not changes:
+            return True
+        choice = self._ask(SessionChanges(changes, Path(self.config_path).name, verb))
+        if choice is None:
+            return True
+        return choice == ("proceed",) or (choice == ("save",) and self._save_session_settings())
+
+    def _save_session_settings(self) -> bool:
+        """Write the session's changed settings into its config file and say so.
+
+        Takes the dispatch guard (without waiting on main; a command's
+        worker already holds it): the save writes the config a running
+        command reads.
+
+        Returns:
+            True when they were written.
+        """
+        if not self._acquire_dispatch_guard():
+            self._status(self._BUSY_MSG, "yellow")
+            return False
+        try:
+            saved = self.save_session_changes()
+        except (OSError, ValueError) as e:
+            self._status(f"Save error: {e}", "red")
+            return False
+        finally:
+            self._dispatch_guard.release()
+        names = ", ".join(change.path for change in saved)
+        self._status(f"Saved {names} to {self.config_path}", "green")
+        self._on_main(self._refresh_setting_buttons)
+        return True
 
     def _palette_load_config(self) -> None:
         self.push_screen(self._config_picker(self.config_path), callback=self._on_config_picked)
@@ -2793,8 +2898,7 @@ class SerialTerminal(TerminalHost, App):
         return max(files, key=lambda f: f.stat().st_mtime)
 
     def _palette_exit(self) -> None:
-        self._disconnect()
-        self.exit()
+        self._ask_unsaved_then("Exit", self._exit_now)
 
     def _rx_enqueue(self, event: tuple) -> None:
         """Queue an ordered RX event for the main thread.  Reader thread only.

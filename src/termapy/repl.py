@@ -118,9 +118,11 @@ _PRUNE_LIFECYCLE: frozenset[str] = _CORE_LIFECYCLE | {"on_app_stop"}
 _EXTERNAL_KEEP: frozenset[str] = frozenset({"built-in", "app"})
 
 # A button label's placeholder for its setting's value (ReplEngine.setting_text),
-# and what it shows when the setting has none to give.
+# what it shows when the setting has none to give, and the mark after a label
+# whose setting the session changed from the config file.
 SETTING_VALUE = "{value}"
 SETTING_NO_VALUE = "-"
+SETTING_CHANGED = "*"
 
 
 def _resolve_flag(raw: str, declared: dict[str, str]) -> str | None:
@@ -2046,6 +2048,19 @@ class ReplEngine:
             return None
         plugin = self.plugin_for(line)
         return plugin.name if plugin is not None and plugin.state else None
+
+    def setting_keys(self, line: str) -> frozenset[str]:
+        """The config keys the setting a button running ``line`` is kept in: its command's ``cfg=`` declaration.
+
+        Args:
+            line: The button's command, without its prefix.
+
+        Returns:
+            The key paths, empty when the line is no setting's toggle or cycle.
+        """
+        name = self.setting_command(line)
+        plugin = self._plugins.get(name) if name is not None else None
+        return frozenset(plugin.cfg) if plugin is not None else frozenset()
 
     def setting_text(self, line: str) -> str:
         """What a button running ``line`` shows for ``{value}``: its setting, as the bare command answers it.

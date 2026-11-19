@@ -233,9 +233,9 @@ _TWO_BUTTONS = [
 ]
 
 
-_STAMP_BUTTON = {
+_TIMESTAMPS_BUTTON = {
     "enabled": True,
-    "name": "Stamp {value}",
+    "name": "Timestamps {value}",
     "command": "{prefix}term.timestamps toggle",
 }
 
@@ -253,14 +253,17 @@ class TestCustomButtons:
 
     @pytest.mark.rule("setting-button-reads-its-command")
     def test_value_follows_clicks_and_a_typed_command(self, app_factory):
-        """Stamp {value} reads off, flips on and back with two clicks, and follows a typed /term.timestamps on."""
-        app, _, _ = app_factory(custom_buttons=[_STAMP_BUTTON])
+        """Timestamps {value} reads off, flips on* and back with two clicks, and follows a typed /term.timestamps on.
+
+        on is not what the config file says, so it is marked ``*``; off is.
+        """
+        app, _, _ = app_factory(custom_buttons=[_TIMESTAMPS_BUTTON])
 
         async def scenario():
             async with app.run_test() as pilot:
                 # Arrange
                 button = app.query_one(".custom-btn", Button)
-                await until(pilot, lambda: str(button.label) == "Stamp off")
+                await until(pilot, lambda: str(button.label) == "Timestamps off")
                 shown = [str(button.label)]
 
                 # Act
@@ -273,16 +276,19 @@ class TestCustomButtons:
                 shown.append(str(button.label))
 
                 # Assert
-                assert shown == ["Stamp off", "Stamp on", "Stamp off", "Stamp on"], (
-                    "the label is what bare /term.timestamps answers after each command"
-                )
+                assert shown == [
+                    "Timestamps off",
+                    "Timestamps on*",
+                    "Timestamps off",
+                    "Timestamps on*",
+                ], "the label is what bare /term.timestamps answers, marked when the file differs"
 
         _run(scenario)
 
     @pytest.mark.rule("setting-button-reads-its-command")
     def test_a_config_load_shows_the_configs_value(self, app_factory):
         """A load resets timestamps to the config's off, and the remounted button shows it, not the session's on."""
-        app, _, path = app_factory(custom_buttons=[_STAMP_BUTTON])
+        app, _, path = app_factory(custom_buttons=[_TIMESTAMPS_BUTTON])
 
         async def scenario():
             from termapy.config import load_config
@@ -290,9 +296,9 @@ class TestCustomButtons:
             async with app.run_test() as pilot:
                 # Arrange
                 button = app.query_one(".custom-btn", Button)
-                await until(pilot, lambda: str(button.label) == "Stamp off")
+                await until(pilot, lambda: str(button.label) == "Timestamps off")
                 await _press(app, pilot, button)
-                assert str(button.label) == "Stamp on", "the session turned timestamps on"
+                assert str(button.label) == "Timestamps on*", "the session turned timestamps on"
 
                 # Act
                 app._switch_config(load_config(path), path)
@@ -301,8 +307,8 @@ class TestCustomButtons:
                 def label() -> str:
                     return str(app.query_one(".custom-btn", Button).label)
 
-                await until(pilot, lambda: label() == "Stamp off")
-                assert label() == "Stamp off", "a load ends where a fresh start would"
+                await until(pilot, lambda: label() == "Timestamps off")
+                assert label() == "Timestamps off", "a load ends where a fresh start would"
 
         _run(scenario)
 
@@ -328,11 +334,11 @@ class TestCustomButtons:
 
                 # Act
                 app._dispatch_on_thread_interactive(app._repl_line("port.baud_rate 115200"))
-                await until(pilot, lambda: button.size.width >= len("Rate 115200") + 2)
+                await until(pilot, lambda: button.size.width >= len("Rate 115200*") + 2)
 
                 # Assert
-                assert str(button.label) == "Rate 115200", "the label follows the rate"
-                assert button.size.width >= len("Rate 115200") + 2, (
+                assert str(button.label) == "Rate 115200*", "the label follows the rate"
+                assert button.size.width >= len("Rate 115200*") + 2, (
                     "the button grew with its label; Textual's label alone only repaints"
                 )
 
@@ -3972,6 +3978,249 @@ class TestHistoryFileSync:
                 assert lines == ["/theirs", "/print mine"], (
                     "the other session's command survived this one's save"
                 )
+
+        _run(scenario)
+
+
+def _showing(app, screen_type: type, selector: str) -> bool:
+    """True once ``screen_type`` is on top with ``selector`` laid out: pushed is not yet clickable.
+
+    A click on a widget composed but not yet given a region misses it.
+    """
+    if not isinstance(app.screen, screen_type):
+        return False
+    widgets = app.screen.query(selector)
+    return bool(widgets) and widgets.first().region.width > 0
+
+
+class TestUnsavedSettings:
+    """A setting the session changed is marked on its button and asked about before the config editor opens."""
+
+    @pytest.mark.rule("session-changes-one-diff")
+    def test_the_mark_goes_when_the_settings_are_saved(self, app_factory):
+        """Timestamps on* loses its * once saved, and the file holds the session's value."""
+        app, _, path = app_factory(custom_buttons=[_TIMESTAMPS_BUTTON])
+
+        async def scenario():
+            async with app.run_test(size=(120, 40)) as pilot:
+                # Arrange
+                button = app.query_one(".custom-btn", Button)
+                await until(pilot, lambda: str(button.label) == "Timestamps off")
+                await _press(app, pilot, button)
+                assert str(button.label) == "Timestamps on*", "the file says off"
+
+                # Act
+                saved = app._save_session_settings()
+                await until(pilot, lambda: str(button.label) == "Timestamps on")
+
+                # Assert
+                assert saved is True, "the save went through"
+                assert str(button.label) == "Timestamps on", "the file now agrees"
+                on_disk = json.loads(Path(path).read_text(encoding="utf-8"))
+                assert on_disk["timestamps"] is True, "the session's value is in the file"
+
+        _run(scenario)
+
+    @pytest.mark.rule("session-changes-one-diff")
+    def test_with_nothing_changed_the_editor_opens_at_once(self, app_factory):
+        """No unsaved settings, no question: the config editor opens."""
+        app, _, _ = app_factory()
+
+        async def scenario():
+            from termapy.dialogs import ConfigEditor
+
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                app._palette_edit_config()
+                await until(pilot, lambda: _showing(app, ConfigEditor, "#config-editor"))
+                assert isinstance(app.screen, ConfigEditor), "straight to the editor"
+
+        _run(scenario)
+
+    @pytest.mark.rule("session-changes-one-diff")
+    @pytest.mark.parametrize(
+        ("button", "editor", "file_value", "still_changed"),
+        [
+            ("#changes-save", True, True, False),
+            ("#changes-proceed", True, False, True),
+            ("#changes-cancel", False, False, True),
+        ],
+        ids=["save", "edit", "cancel"],
+    )
+    def test_the_editor_asks_about_unsaved_settings(
+        self, app_factory, button, editor, file_value, still_changed
+    ):
+        """Save and Edit writes them and opens the editor; Edit Without Saving opens it as the file is; Cancel does neither."""
+        app, _, path = app_factory()
+
+        async def scenario():
+            from termapy.dialogs import ConfigEditor, SessionChanges
+
+            async with app.run_test(size=(120, 40)) as pilot:
+                # Arrange
+                await pilot.pause()
+                app._dispatch_on_thread_interactive(app._repl_line("term.timestamps on"))
+                await app.workers.wait_for_complete()
+                app._palette_edit_config()
+                await until(pilot, lambda: _showing(app, SessionChanges, button))
+                assert isinstance(app.screen, SessionChanges), "an unsaved setting is asked about"
+
+                # Act
+                await pilot.click(button)
+                await until(
+                    pilot,
+                    lambda: (
+                        _showing(app, ConfigEditor, "#config-editor")
+                        if editor
+                        else not isinstance(app.screen, SessionChanges)
+                    ),
+                )
+
+                # Assert
+                on_disk = json.loads(Path(path).read_text(encoding="utf-8"))
+                actual = (
+                    isinstance(app.screen, ConfigEditor),
+                    on_disk["timestamps"],
+                    bool(app.session_changes()),
+                )
+                assert actual == (editor, file_value, still_changed), (
+                    "(editor open, file's timestamps, session still differs)"
+                )
+
+        _run(scenario)
+
+    @staticmethod
+    async def _change_a_setting(app, pilot) -> None:
+        """Turn timestamps on, as a typed command does, so the session differs from the file."""
+        await pilot.pause()
+        app._dispatch_on_thread_interactive(app._repl_line("term.timestamps on"))
+        await app.workers.wait_for_complete()
+
+    @pytest.mark.rule("session-changes-one-diff")
+    @pytest.mark.parametrize(
+        ("button", "leaving"), [("#changes-cancel", False), ("#changes-proceed", True)]
+    )
+    def test_exit_asks_about_unsaved_settings(self, app_factory, button, leaving):
+        """The Exit button asks first: Cancel stays, Exit Without Saving leaves and the file keeps its value."""
+        app, _, path = app_factory()
+
+        async def scenario():
+            from termapy.dialogs import SessionChanges
+
+            async with app.run_test(size=(120, 40)) as pilot:
+                # Arrange
+                await self._change_a_setting(app, pilot)
+
+                # Act
+                app._btn_exit()
+                await until(pilot, lambda: _showing(app, SessionChanges, button))
+                asked = isinstance(app.screen, SessionChanges)
+                await pilot.click(button)
+                await pilot.pause()
+
+                # Assert
+                on_disk = json.loads(Path(path).read_text(encoding="utf-8"))
+                actual = (asked, app._shutting_down, on_disk["timestamps"])
+                assert actual == (True, leaving, False), "(asked, leaving, file's timestamps)"
+
+        _run(scenario)
+
+    @pytest.mark.rule("session-changes-one-diff")
+    def test_ctrl_q_asks_too(self, app_factory):
+        """Ctrl+Q is the Exit button's question, not a silent quit."""
+        app, _, _ = app_factory()
+
+        async def scenario():
+            from termapy.dialogs import SessionChanges
+
+            async with app.run_test(size=(120, 40)) as pilot:
+                await self._change_a_setting(app, pilot)
+                await pilot.press("ctrl+q")
+                await until(pilot, lambda: _showing(app, SessionChanges, "#changes-cancel"))
+                assert isinstance(app.screen, SessionChanges), "asked before quitting"
+                assert app._shutting_down is False, "still running"
+
+        _run(scenario)
+
+    @pytest.mark.rule("session-changes-one-diff")
+    def test_with_nothing_changed_exit_leaves_at_once(self, app_factory):
+        """No unsaved settings, no question: Exit leaves."""
+        app, _, _ = app_factory()
+
+        async def scenario():
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                app._btn_exit()
+                await pilot.pause()
+                assert app._shutting_down is True, "left without a dialog"
+
+        _run(scenario)
+
+    @pytest.mark.rule("session-changes-one-diff")
+    def test_a_typed_load_asks_and_cancel_keeps_the_session(self, app_factory):
+        """/cfg.load typed at the prompt asks; Cancel fails the load with Canceled. and keeps the change."""
+        app, _, path = app_factory()
+
+        async def scenario():
+            from termapy.dialogs import SessionChanges
+
+            async with app.run_test(size=(120, 40)) as pilot:
+                # Arrange
+                await self._change_a_setting(app, pilot)
+                results: list[CmdResult] = []
+                app.repl.add_post_dispatch_observer(lambda _text, result: results.append(result))
+
+                # Act
+                app._dispatch_on_thread_interactive(app._repl_line(f"cfg.load {path}"))
+                await until(pilot, lambda: _showing(app, SessionChanges, "#changes-cancel"))
+                await pilot.click("#changes-cancel")
+                await app.workers.wait_for_complete()
+
+                # Assert
+                actual = [(result.success, result.error) for result in results]
+                assert actual == [(False, "Canceled.")], "the load is refused, once"
+                assert app.session_changes(), "the session keeps its change"
+
+        _run(scenario)
+
+    @pytest.mark.rule("session-changes-one-diff")
+    def test_a_script_load_never_asks(self, app_factory):
+        """A script changes a setting and loads a config unattended: no question, and the load resets it."""
+        app, _, path = app_factory()
+
+        async def scenario():
+            from termapy.dialogs import SessionChanges
+
+            async with app.run_test(size=(120, 40)) as pilot:
+                # Arrange
+                await pilot.pause()
+                folder = Path(path).parent / "run"
+                folder.mkdir(exist_ok=True)
+                (folder / "flip.run").write_text(
+                    f"/term.timestamps on\n/cfg.load {path}\n", encoding="utf-8"
+                )
+                lines: list[str] = []
+                app.repl.add_post_dispatch_observer(lambda text, _result: lines.append(text))
+
+                # Act -- until the script's load has run, or a question appears.
+                # /run returns as soon as the script's worker starts; each
+                # script line passes the observer as it ends.
+                app._dispatch_on_thread_interactive(app._repl_line("run flip"))
+                await until(
+                    pilot,
+                    lambda: (
+                        any(line.startswith("cfg.load") for line in lines)
+                        or _showing(app, SessionChanges, "#changes-proceed")
+                    ),
+                )
+                asked = isinstance(app.screen, SessionChanges)
+                if asked:
+                    await pilot.click("#changes-proceed")  # free the script's worker
+                await app.workers.wait_for_complete()
+
+                # Assert
+                assert asked is False, "a script is never asked"
+                assert app.session_changes() == [], "the script's load reset the session"
 
         _run(scenario)
 

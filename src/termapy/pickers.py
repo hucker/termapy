@@ -34,13 +34,12 @@ from termapy.config import (
 )
 from termapy.defaults import cmd_prefix
 from termapy.dialogs import (
-    ConfigEditor,
     ConfirmDialog,
     FilenameDialog,
     ProtoEditor,
     ScriptEditor,
 )
-from termapy.plugins import CmdResult, cfg_users
+from termapy.plugins import CmdResult
 
 if TYPE_CHECKING:
     from termapy.app import SerialTerminal
@@ -115,16 +114,7 @@ def on_quick_setup(app: SerialTerminal, result: tuple | None) -> None:
     if action == "advanced":
         # Advanced users skip the icon checkbox -- they can /cfg.icon after
         # editing.  The editor's Save creates the folder; Cancel leaves nothing.
-        app.push_screen(
-            ConfigEditor(
-                cfg,
-                config_path,
-                is_new=True,
-                used_by=cfg_users(app.repl._plugins),
-                ctx=app.repl.ctx,
-            ),
-            callback=app._on_config_result,
-        )
+        app._open_config_editor(config_path, cfg, is_new=True)
         return
 
     def _write_and_activate(overwrite: bool) -> None:
@@ -152,7 +142,8 @@ def on_quick_setup(app: SerialTerminal, result: tuple | None) -> None:
         if port:
             app._connect()
 
-    _write_and_activate(overwrite=False)
+    # Loading the new config ends the session's changes: ask first.
+    app._ask_unsaved_then("Load", lambda: _write_and_activate(overwrite=False))
 
 
 def prompt_rename(

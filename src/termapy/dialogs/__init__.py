@@ -15,7 +15,7 @@ package is NOT a candidate to be a standalone PyPI library (unlike
 ``termapy.usb`` / ``termapy.protocol`` / ``termapy.profile``).  The
 win here is purely organizational.
 
-Public API (the 14 ``ModalScreen`` classes) is re-exported below so
+Public API (every ``ModalScreen`` class) is re-exported below so
 consumers continue to write ``from termapy.dialogs import X`` exactly
 as before the split.
 """
@@ -33,6 +33,7 @@ from termapy.dialogs.proto_picker import ProtoPicker
 from termapy.dialogs.quick_setup import QuickSetup
 from termapy.dialogs.script_editor import ScriptEditor
 from termapy.dialogs.script_picker import ScriptPicker
+from termapy.dialogs.session_changes import SessionChanges
 from termapy.dialogs.set_var_dialog import SetVarDialog
 from termapy.dialogs.update_available import UpdateAvailableDialog
 
@@ -48,6 +49,7 @@ __all__ = [
     "QuickSetup",
     "ScriptEditor",
     "ScriptPicker",
+    "SessionChanges",
     "SetVarDialog",
     "UpdateAvailableDialog",
 ]

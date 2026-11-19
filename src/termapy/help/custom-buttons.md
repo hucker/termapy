@@ -62,15 +62,17 @@ Each button object has these fields:
 ```json
 {
     "enabled": true,
-    "name": "Stamps {value}",
+    "name": "Timestamps {value}",
     "command": "{prefix}term.timestamps toggle",
     "tooltip": "Timestamps on received lines"
 }
 ```
 
-The button reads `Stamps off`, and a click turns it into `Stamps on`. The value is what
+The button reads `Timestamps off`, and a click turns it into `Timestamps on*`. The value is what
 the bare command answers (`/term.timestamps` answers `off`), read again after every
-command, so a change typed or made by a script shows too. `{value}` needs a command
+command, so a change typed or made by a script shows too. The `*` means the session
+changed the setting and the config file still has its old value; opening the config
+editor offers to save it ([Configuration](config.md)). `{value}` needs a command
 that toggles or cycles a setting; on any other, the config load warns and the button
 shows `-`, which is also what it shows when the setting has nothing to give.
 

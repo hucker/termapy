@@ -59,6 +59,18 @@ section; and the editor's help line names the commands that use the key
 under the cursor. A change by `/cfg <key> <value>` or a `/term.*` setter
 lasts the session; the editor's Save writes the file.
 
+**Unsaved session settings.** A setting button whose value the session changed
+from the file ends in `*` (`Echo on*`). Exiting, loading a config and the editor's
+Save (a load) each end the session's changes, so in the TUI, when the session holds
+any, Exit (the button, Ctrl+Q, `/exit`), a config load (the picker, `/cfg.load`,
+the New Config wizard) and opening the editor first list them, the file's value
+beside the session's, and ask: **Save and Exit** (or Load, or Edit) writes just
+those keys into the file, a `$(env.NAME)` template in any other key staying as
+written; **Exit Without Saving** goes on and drops them; **Cancel** keeps the
+session. A script is never asked, nor the CLI or MCP, so a script that changes a
+setting and loads a config runs unattended. What you asked for at launch
+(`--no-color`, `--quiet`) is never counted as a change.
+
 **One check.** A value is judged the same way wherever it comes from: a load
 warns about a bad one, the editor shows it red and its Save refuses, and `/cfg`
 and `/cfg.auto` refuse it (`Invalid max_lines: 0 (must be a positive integer)`).

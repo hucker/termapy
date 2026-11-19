@@ -1388,6 +1388,68 @@ def test_the_suggestion_allowlist_is_not_stale():
     assert stale == [], f"drop these from SUGGESTION_PHRASE_ALLOWED: {stale}"
 
 
+# ── The config editor has one opener ──────────────────────────────────────────
+#
+# The editor shows the file and its Save loads it, which ends what the session
+# changed, so ``SerialTerminal._open_config_editor`` asks about unsaved settings
+# first.  A ``ConfigEditor`` built anywhere else opens without asking; five
+# places built one until 2026-11-18.
+EDITOR_OPENER = ("termapy/app.py", "_open_config_editor")
+
+
+def _config_editor_builds(tree: ast.AST, rel: str) -> list[str]:
+    """Every ``ConfigEditor(...)`` in ``rel`` outside the one opener."""
+    inside_opener = {
+        id(node)
+        for function in ast.walk(tree)
+        if isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and (rel, function.name) == EDITOR_OPENER
+        for node in ast.walk(function)
+    }
+    return [
+        f"{rel}:{node.lineno}  {ast.unparse(node.func)}(...)"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and id(node) not in inside_opener
+        and "ConfigEditor" in (getattr(node.func, "id", None), getattr(node.func, "attr", None))
+    ]
+
+
+@pytest.mark.rule("session-changes-one-diff")
+def test_the_config_editor_has_one_opener():
+    """Only SerialTerminal._open_config_editor builds a ConfigEditor, so every opening asks about unsaved settings."""
+    # Arrange / Act
+    violations = [
+        line
+        for path in _package_python_files()
+        for line in _config_editor_builds(
+            ast.parse(path.read_text(encoding="utf-8")), path.relative_to(SRC.parent).as_posix()
+        )
+    ]
+
+    # Assert
+    assert violations == [], (
+        "the config editor opens through app._open_config_editor:\n  " + "\n  ".join(violations)
+    )
+
+
+@pytest.mark.rule("session-changes-one-diff")
+def test_editor_opener_guard_fires_on_a_probe():
+    """The guard flags a ConfigEditor built outside the opener, by name or attribute, and not one inside it."""
+    # Arrange
+    probe = (
+        "def _open_config_editor(self):\n    return ConfigEditor(cfg, path)\n"
+        "def elsewhere(self):\n    return ConfigEditor(cfg, path)\n"
+        "def further(self):\n    return dialogs.ConfigEditor(cfg, path)\n"
+    )
+
+    # Act
+    found = _config_editor_builds(ast.parse(probe), "termapy/app.py")
+
+    # Assert
+    assert len(found) == 2, f"the two outside the opener; got {found}"
+
+
 # ── Commands that only show say so ────────────────────────────────────────────
 #
 # A click on a link runs a command at once only when the command declares

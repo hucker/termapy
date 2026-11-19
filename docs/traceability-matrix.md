@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 201: 186 registry rows (guarantees 151, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 197. Pinned by none: 4.
+Ids: 202: 187 registry rows (guarantees 152, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 198. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -796,6 +796,12 @@ Ids: 201: 186 registry rows (guarantees 151, assumptions 35), 15 spec sections i
 ### `section-default-access` (guarantee, data)
 
 - `test_symbols_table.py`: `TestSectionAccess.test_file_stores_access_only_where_it_differs` **guard**, `TestSectionAccess.test_round_trip_keeps_an_override` **guard**, `TestSectionAccess.test_unstated_access_is_the_sections` **guard**
+
+### `session-changes-one-diff` (guarantee, requirement)
+
+- `test_app_pilot.py`: `TestUnsavedSettings.test_a_script_load_never_asks` **guard**, `TestUnsavedSettings.test_a_typed_load_asks_and_cancel_keeps_the_session`, `TestUnsavedSettings.test_ctrl_q_asks_too`, `TestUnsavedSettings.test_exit_asks_about_unsaved_settings` **guard**, `TestUnsavedSettings.test_the_editor_asks_about_unsaved_settings`, `TestUnsavedSettings.test_the_mark_goes_when_the_settings_are_saved`, `TestUnsavedSettings.test_with_nothing_changed_exit_leaves_at_once`, `TestUnsavedSettings.test_with_nothing_changed_the_editor_opens_at_once`
+- `test_architecture.py`: `test_editor_opener_guard_fires_on_a_probe` **guard**, `test_the_config_editor_has_one_opener` **guard**
+- `test_session_changes.py`: the module (7 functions)
 
 ### `session-log-one-owner` (guarantee, structure)
 

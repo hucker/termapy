@@ -14,7 +14,7 @@ Low time commitment: about 1 minute from scratch, or under 10 seconds if you alr
 
 ![termapy screenshot](src/termapy/help/img/doc_01_main_tui.svg)
 
-## Install and connect
+## Install
 
 [uv](https://docs.astral.sh/uv/) is the preferred package manager: a clean install takes under 10 seconds, and subsequent updates are well under a second.
 
@@ -48,17 +48,46 @@ Low time commitment: about 1 minute from scratch, or under 10 seconds if you alr
     uv tool uninstall termapy
     ```
 
-For your own device, name its port, as with `screen`. termapy keeps the settings for next time, in your user folder rather than the project:
+## Connect your own device
+
+**1. Find its port.** You may not know which port your device is, and a machine often has more than one. Ask termapy what is plugged in:
 
 ```sh
-termapy COM4 115200 8N1
+termapy --ports
 ```
 
-When the device deserves a project of its own (scripts, plugins, a profile, MCP), one line creates its config here and connects:
+Each port gets one line: the maker, the chip and its USB serial number, so two adapters can be told apart. If you still can't tell which is yours, watch while you plug it in:
 
 ```sh
-termapy --new my_device COM4 115200 8N1
+termapy --watch     # Ctrl+C to stop
 ```
+
+```text
+[15:57:57] monitoring 3 port(s); Ctrl+C to exit
+[15:58:06] +  COM7
+[15:58:06]    COM7    closed  FTDI       USB Serial Port     FTDI FT232R / FT245R              Full-Speed  0403:6001  BG03U7VTA
+```
+
+The `+` line is the port that just arrived.
+
+**2. Open it.** Name the port, as with `screen`:
+
+```sh
+termapy COM7                   # connected, at 115200 8N1
+termapy COM7 9600 7E1 crlf     # settings after the port, when yours differ
+termapy BG03U7VTA              # by serial number, whatever COM number Windows gives it
+```
+
+termapy keeps the settings for next time, in your user folder rather than your project. Beside the output, the EOL, Echo and Color buttons show those three settings, and a click steps one.
+
+**3. Give it a project when it earns one.** For scripts, plugins, a device profile or an MCP agent, make a config in the current folder:
+
+```sh
+termapy --new my_device COM7 9600
+termapy my_device              # next time
+```
+
+Prefer not to type? In the app, **Cfg** → **New** opens the New Config dialog with the same list of ports to pick from.
 
 For a new dev board, a starter project gives it a command monitor that answers you and an MCP agent on day one. The Raspberry Pi Pico and the ESP32-S3 DevKitC-1 have one; see the Dev boards help page:
 
@@ -79,9 +108,9 @@ There's a lot more: scripting, binary protocol testing, every CRC algorithm in t
 <details>
 <summary><strong>First 60 seconds</strong> - connect, type, change settings</summary>
 
-1. **Connect:** click the port button in the title bar, pick your COM port, click the status button to connect (it turns green)
+1. **Connect:** `termapy COM7` starts connected. In the app, the port button in the title bar picks another port, and the status button beside it connects and disconnects (green when connected)
 2. **Type:** enter commands in the input box at the bottom and press Enter
-3. **Change settings:** click the config name in the title bar (or `Cfg` → `Edit`) to change port, baud rate, and other settings through the UI
+3. **Change settings:** the EOL, Echo and Color buttons step their setting; click the config name in the title bar (or `Cfg` → `Edit`) for the port, the baud rate and everything else
 
 Everything works through the UI. No config files to edit unless you want to.
 

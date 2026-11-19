@@ -186,7 +186,7 @@ reported as a type warning.
 | Field                         | Default                       | Description |
 | ----------------------------- | ----------------------------- | --- |
 | `title`                       | `""`                          | Title bar text (defaults to config filename) |
-| `border_color`                | `""`                          | Title bar color (CSS name or hex like `#ff6600`) |
+| `border_color`                | `""`                          | Title bar and output border color (CSS name or hex like `#ff6600`; empty is blue). A title-bar button that would blend into it is drawn a shade apart, and a name the TUI cannot draw is a config warning |
 | `serial.port`                 | `""`                          | Port spec. Accepts a literal device (`"COM4"`, `"/dev/ttyUSB0"`), a USB serial number (`"A1B2C3D4"`), a `\|`-separated fallback chain (`"A1B2C3D4\|COM3"`), a reserved name (`"DEMO"`), or a pyserial URL (`"rfc2217://host:2217"`). See [ports.md](ports.md) for the grammar. Auto-detected when only one port is connected. |
 | `serial.baud_rate`            | `115200`                      | Serial baud rate, one of the standard rates so a mistyped one is refused: 110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600, 115200, 230400, 460800, 921600. Any other rate from 300 up needs `custom_baud` |
 | `serial.custom_baud`          | `false`                       | Allow a baud rate off the standard list (>= 300); modern drivers take arbitrary rates. A command that sets a rate asks for one with `custom=true`, which sets this for the session |
@@ -213,7 +213,7 @@ reported as a type warning.
 | `multiline_paste_delay_ms`    | `10`                          | Delay in ms between the lines of a multi-line paste (TeraTerm's default); `0` = none |
 | `control_keys`                | `true`                        | In the TUI, Ctrl+C with nothing selected, Ctrl+D and Ctrl+Z on an empty prompt, and Escape with nothing running on an empty prompt go to the device; `false` keeps them termapy's (copy, delete, clear) in every session (set for one session: /term.control_keys) |
 | `echo`                        | `false`                       | Echo device commands sent to the wire (bare + `/term.send`). Runtime: `/term.echo {on\|off\|toggle}` |
-| `echo_fmt`                    | `[purple]$(CFG)> {cmd}[/]`    | Rich markup format for echoed commands |
+| `echo_fmt`                    | `[purple]$(CFG)> {cmd}[/]`    | Rich markup format for echoed commands. A style Rich cannot draw, or markup that does not parse, is a config warning, and the echo uses the default |
 | `timestamps`                  | `false`                       | Prefix lines with `[HH:MM:SS.mmm]` |
 | `line_no`                     | `false`                       | Show line numbers in serial output |
 | `hex`                         | `false`                       | Display received bytes as hex instead of text |

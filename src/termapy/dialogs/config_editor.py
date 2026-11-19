@@ -41,6 +41,7 @@ from termapy.dialogs._common import (
     _MODAL_BTN_CSS,
     EditorTextArea,
     FindRow,
+    box_css,
 )
 from termapy.dialogs.confirm_dialog import ConfirmDialog
 from termapy.markup import escape_markup
@@ -62,7 +63,8 @@ class ConfigEditor(ModalScreen[tuple | None]):
         border: solid $primary; background: $surface; padding: 1 2;
     }}
     #config-title {{ height: 1; text-style: bold; }}
-    #config-editor {{ height: 1fr; border: thick $primary; }}
+    #config-editor {{ height: 1fr; }}
+    {box_css("#config-editor")}
     #config-help {{ height: 4; width: 1fr; }}
     #config-error {{ height: 4; color: $error; display: none; width: 1fr; overflow-y: auto; }}
     #config-error.visible {{ display: block; }}
@@ -240,6 +242,17 @@ class ConfigEditor(ModalScreen[tuple | None]):
                         f"[yellow]{key_markup}[/] = {highlighted_markup}",
                         f"[yellow]unknown variable: {escape_markup(refs)}[/]",
                     )
+                # A markup check stands its own value in for each $(...), so
+                # it judges the template as written (an echo_fmt's colors).
+                markup_record = cfg_key(key)
+                if markup_record is not None and markup_record.kind == "markup":
+                    finding = check_cfg_value(key, template, self._editor_cfg())
+                    if finding is not None:
+                        reason_markup = escape_markup(finding.reason)
+                        return (
+                            f"[red]{key_markup}[/] = {highlighted_markup}",
+                            f"[red]{reason_markup}[/]",
+                        )
                 refs = ", ".join(f"$({name})" for name in names)
                 verb = "is a session variable" if len(names) == 1 else "are session variables"
                 note = f"{refs} {verb}, expanded when the value is used"
@@ -287,7 +300,18 @@ class ConfigEditor(ModalScreen[tuple | None]):
             return self._port_status(val, pair_markup)
         if record.kind == "baud" and value not in STANDARD_BAUD_RATES:
             return f"[green]{pair_markup}[/] [dim](custom)[/]", ""
+        if record.kind == "color" and val:
+            return self._color_status(val, pair_markup)
         return f"[green]{pair_markup}[/]", ""
+
+    def _color_status(self, val: str, pair_markup: str) -> tuple[str, str]:
+        """What only the TUI can say about a color: whether it can draw it, and as what."""
+        from termapy.title_bar import parse_color
+
+        color = parse_color(val)
+        if color is None:
+            return f"[red]{pair_markup}[/]", f"[red]unknown color: {escape_markup(val)}[/]"
+        return f"[green]{pair_markup}[/] [dim]({escape_markup(color.hex)})[/]", ""
 
     def _editor_cfg(self) -> dict:
         """The config as the editor holds it now, ``{}`` while it is not valid JSON.

@@ -35,6 +35,7 @@ from termapy.dialogs._common import (
     _highlighted_file,
     _path_link_tooltip,
     _title_row_width,
+    box_css,
 )
 from termapy.folder_ops import list_entries
 
@@ -113,7 +114,8 @@ class ConfigPicker(ModalScreen[tuple | None]):
     }}
     #picker-header {{ height: 1; }}
     #picker-title {{ width: auto; text-style: bold; }}
-    #picker-list {{ height: 1fr; border: thick $primary; }}
+    #picker-list {{ height: 1fr; }}
+    {box_css("#picker-list")}
     #picker-buttons {{ height: 1; align: right middle; }}
     """
 

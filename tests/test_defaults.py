@@ -1,4 +1,4 @@
-"""Tests for defaults.py - validation constants, resolve_color, preview helpers."""
+"""Tests for defaults.py - validation constants, preview helpers."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ import pytest
 
 from termapy.defaults import (
     CFG_HELP,
-    COLOR_ALIASES,
     DEFAULT_CFG,
     DEFAULT_CMD_PREFIX,
     STANDARD_BAUD_RATES,
@@ -17,12 +16,10 @@ from termapy.defaults import (
     VALID_PARITIES,
     VALID_STOP_BITS,
     _list_ports,
-    _preview_color,
     _preview_markup,
     cfg_key_path,
     cfg_key_paths,
     cfg_value,
-    resolve_color,
 )
 from termapy.plugins.command import interpolate_help
 
@@ -293,119 +290,6 @@ class TestListPorts:
 
         # Assert
         assert "cannot list" in actual, "graceful fallback on environmental failure"
-
-
-# -- resolve_color -----------------------------------------------------------
-
-
-class TestResolveColor:
-    def test_direct_alias(self):
-        """A termapy color alias like brown resolves to its hex value."""
-        # Act
-        actual = resolve_color("brown")
-
-        # Assert
-        assert actual == "#8B4513", "mapped to hex"
-
-    def test_alias_case_insensitive(self):
-        """Alias lookup ignores case, so BROWN resolves the same as brown."""
-        # Act
-        actual = resolve_color("BROWN")
-
-        # Assert
-        assert actual == "#8B4513", "case insensitive"
-
-    def test_unknown_color_passthrough(self):
-        """A name with no alias is handed through unchanged for Rich to interpret."""
-        # Act
-        actual = resolve_color("blue")
-
-        # Assert
-        assert actual == "blue", "not in aliases, passed through"
-
-    def test_hex_passthrough(self):
-        """A hex color code is returned as written, not looked up."""
-        # Act
-        actual = resolve_color("#ff0000")
-
-        # Assert
-        assert actual == "#ff0000", "hex codes pass through"
-
-    def test_light_prefix_with_alias(self):
-        """light_blue matches its own alias directly before any prefix stripping."""
-        # Act
-        actual = resolve_color("light_blue")
-
-        # Assert
-        assert actual == "#ADD8E6", "direct alias match for light_blue"
-
-    def test_dark_prefix_resolves(self):
-        """dark_brown matches its own alias directly to a darker hex."""
-        # Act
-        actual = resolve_color("dark_brown")
-
-        # Assert
-        assert actual == "#5C3317", "direct alias match"
-
-    def test_light_prefix_strips_to_base_alias(self):
-        """lightorange, with no alias of its own, resolves via Rich or the orange base."""
-        # "lightorange" is not a direct alias, but "orange" is
-        # Act
-        actual = resolve_color("lightorange")
-
-        # Assert
-        assert actual in ("light_orange", COLOR_ALIASES["orange"]), (
-            "Rich resolves light_orange or falls back to orange hex"
-        )
-
-    def test_dark_prefix_strips_to_base_alias(self):
-        """darkorange, with no alias of its own, resolves via Rich or the orange base."""
-        # "darkorange" is not a direct alias, but "orange" is
-        # Act
-        actual = resolve_color("darkorange")
-
-        # Assert
-        assert actual in ("dark_orange", COLOR_ALIASES["orange"]), (
-            "Rich resolves dark_orange or falls back to orange hex"
-        )
-
-
-# -- _preview_color ----------------------------------------------------------
-
-
-class TestPreviewColor:
-    def test_empty_string(self):
-        """An empty color value shows no preview at all."""
-        # Act
-        actual = _preview_color("")
-
-        # Assert
-        assert actual == "", "empty input returns empty"
-
-    def test_valid_color(self):
-        """A plain Rich color name gets a Color: preview line."""
-        # Act
-        actual = _preview_color("red")
-
-        # Assert
-        assert "Color:" in actual, "shows color info"
-
-    def test_alias_color(self):
-        """An alias preview shows the -> resolution to its underlying value."""
-        # Act
-        actual = _preview_color("brown")
-
-        # Assert
-        assert "Color:" in actual, "resolves alias"
-        assert "->" in actual, "shows alias resolution"
-
-    def test_unknown_color(self):
-        """An unparseable color name is flagged as unknown in the preview."""
-        # Act
-        actual = _preview_color("notacolor999")
-
-        # Assert
-        assert "unknown color" in actual, "reports unknown"
 
 
 # -- _preview_markup ---------------------------------------------------------

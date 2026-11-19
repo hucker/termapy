@@ -82,105 +82,6 @@ def _list_ports() -> str:
         return "(cannot list ports)"
 
 
-# Common color names that Rich doesn't recognize -> hex equivalents
-COLOR_ALIASES: dict[str, str] = {
-    "brown": "#8B4513",
-    "pink": "#FFB6C1",
-    "orange": "#FFA500",
-    "gray": "#808080",
-    "grey": "#808080",
-    "silver": "#C0C0C0",
-    "olive": "#808000",
-    "maroon": "#800000",
-    "navy": "#000080",
-    "teal": "#008080",
-    "aqua": "#00FFFF",
-    "lime": "#00FF00",
-    "fuchsia": "#FF00FF",
-    "coral": "#FF7F50",
-    "salmon": "#FA8072",
-    "gold": "#FFD700",
-    "indigo": "#4B0082",
-    "crimson": "#DC143C",
-    "tomato": "#FF6347",
-    "chocolate": "#D2691E",
-    "peru": "#CD853F",
-    "sienna": "#A0522D",
-    "beige": "#F5F5DC",
-    "ivory": "#FFFFF0",
-    "lavender": "#E6E6FA",
-    "khaki": "#F0E68C",
-    "sky_blue": "#87CEEB",
-    "skyblue": "#87CEEB",
-    # light_ variants Rich doesn't have
-    "light_blue": "#ADD8E6",
-    "light_red": "#FF6B6B",
-    "light_yellow": "#FFFFE0",
-    "light_purple": "#D8BFD8",
-    "light_magenta": "#FF77FF",
-    "light_orange": "#FFD39B",
-    "light_brown": "#C4A882",
-    # dark_ variants Rich doesn't have
-    "dark_brown": "#5C3317",
-    "dark_pink": "#C71585",
-    "dark_gray": "#404040",
-    "dark_grey": "#404040",
-    "light_gray": "#C0C0C0",
-    "light_grey": "#C0C0C0",
-}
-
-
-def resolve_color(color: str) -> str:
-    """Resolve a color name, falling back to COLOR_ALIASES for common names.
-
-    Also handles light/dark prefixes: lightpink -> light pink -> #FFB6C1
-    brightened/darkened via Rich's color system.
-    """
-    c = color.lower().strip()
-    # Direct alias match
-    if c in COLOR_ALIASES:
-        return COLOR_ALIASES[c]
-    # Handle light/dark prefix with base color alias
-    for prefix in ("light", "dark"):
-        if c.startswith(prefix):
-            base = c[len(prefix) :].strip("_").strip()
-            if base in COLOR_ALIASES:
-                # Map to Rich-style name: dark_orange -> dark_orange3
-                rich_name = f"{prefix}_{base}"
-                try:
-                    from rich.color import Color, ColorParseError
-
-                    Color.parse(rich_name)
-                    return rich_name
-                except ColorParseError:
-                    # Rich doesn't know this prefixed name -- fall back
-                    # to the base hex from the alias table.
-                    return COLOR_ALIASES[base]
-    return color
-
-
-def _preview_color(raw_val: str) -> str:
-    """Preview a color value as a Rich swatch."""
-    color = raw_val.strip().strip('"').strip()
-    if not color:
-        return ""
-    resolved = resolve_color(color)
-    from rich.color import Color, ColorParseError
-
-    from termapy.markup import escape_markup
-
-    try:
-        parsed = Color.parse(resolved)
-        # Get truecolor hex for reliable rendering
-        triplet = parsed.get_truecolor()
-        hex_color = f"#{triplet.red:02x}{triplet.green:02x}{triplet.blue:02x}"
-        if resolved != color:
-            return f"[green]Color: {escape_markup(color)} -> {escape_markup(hex_color)}[/]"
-        return f"[green]Color: {escape_markup(hex_color)}[/]"
-    except ColorParseError:
-        return f"[bold red]????[/] unknown color: {escape_markup(color)}"
-
-
 def _preview_markup(raw_val: str) -> str:
     """Preview a Rich markup format string with sample data."""
     fmt = raw_val.strip().strip('"').strip()
@@ -203,14 +104,15 @@ class CfgKey:
             section, whose default is its leaves.
         kind: Which of ``config.check_cfg_value``'s checks it gets:
             ``bool``, ``int``, ``str``, ``enum``, ``path``, ``regex``,
-            ``encoding``, ``command``, ``port``, ``baud``, ``eol``,
-            ``section`` or ``list``.
+            ``encoding``, ``command``, ``port``, ``baud``, ``eol``, ``color``,
+            ``markup``, ``section`` or ``list``.  A ``color`` is text to core; the TUI,
+            which draws it, checks it (``title_bar.parse_color``).
         choices: An ``enum``'s values, spelled as the file holds them.
         min: The least an ``int`` may be; ``None`` for no bound.
         help: One line on what it does, for the config editor and
             ``/help <key>``.  At most 70 characters, shown with ``{prefix}`` filled in.
         hint: Its valid values in one line, or a callable that lists them.
-        preview: Shows a typed value in the config editor (a color, a format).
+        preview: Shows a typed value in the config editor (a format).
         managed: termapy writes it, never the user: the editor heads its
             help line with a red DO NOT EDIT and ``/cfg`` refuses it.
         session_flag: The key starts the session flag of the same name
@@ -255,10 +157,9 @@ CFG_KEYS: tuple[CfgKey, ...] = (
     CfgKey(
         "border_color",
         "",
-        "str",
+        "color",
         help="Color of the title bar and the output border.",
         hint="CSS name (blue, red, green) or hex (#ff6600). Empty = blue.",
-        preview=_preview_color,
     ),
     # Port -- pyserial constructor arguments
     CfgKey(
@@ -489,7 +390,7 @@ CFG_KEYS: tuple[CfgKey, ...] = (
     CfgKey(
         "echo_fmt",
         "[purple]$(CFG)> {cmd}[/]",
-        "str",
+        "markup",
         help="Rich markup for a line shown by echo; {cmd} is the line sent.",
         hint="{cmd} is replaced. Example: [purple]> {cmd}[/]",
         preview=_preview_markup,

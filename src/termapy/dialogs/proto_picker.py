@@ -28,6 +28,7 @@ from termapy.dialogs._common import (
     _option_path,
     _path_link_tooltip,
     _title_row_width,
+    box_css,
 )
 from termapy.folder_ops import list_entries
 from termapy.folders import FOLDER_PATTERNS, PROTO
@@ -50,7 +51,8 @@ class ProtoPicker(ModalScreen[tuple | None]):
     }}
     #proto-header {{ height: 1; }}
     #proto-title {{ width: auto; text-style: bold; }}
-    #proto-list {{ height: 1fr; border: thick $primary; }}
+    #proto-list {{ height: 1fr; }}
+    {box_css("#proto-list")}
     #proto-buttons {{ height: 1; align: right middle; }}
     """
 

@@ -341,6 +341,52 @@ class TestTheCheck:
         assert check_cfg_value("request_err_pattern", pattern) is None
 
 
+@pytest.mark.rule("cfg-colors-drawable")
+class TestTheMarkupCheck:
+    @pytest.mark.parametrize(
+        "fmt",
+        [
+            "[purple]$(CFG)> {cmd}[/]",
+            "> {cmd}",
+            "[bold #ff6600]> {cmd}[/]",
+            "[$(COLOR)]> {cmd}[/]",
+            "[bold on $(env.BG|red)]> {cmd}[/]",
+        ],
+    )
+    def test_markup_rich_can_draw_passes(self, fmt):
+        """A Rich color or hex passes, and a $(VAR) in a tag stands as a color, so a templated one passes too."""
+        assert check_cfg_value("echo_fmt", fmt) is None, f"{fmt!r} draws"
+
+    @pytest.mark.parametrize(
+        ("fmt", "expected"),
+        [
+            ("[steel]> {cmd}[/]", "has a style Rich cannot draw: steel"),
+            ("[bold steel]> {cmd}[/]", "has a style Rich cannot draw: bold steel"),
+            ("[steel]$(CFG)> {cmd}[/]", "has a style Rich cannot draw: steel"),
+        ],
+    )
+    def test_a_style_rich_cannot_draw_is_a_finding(self, fmt, expected):
+        """Rich would drop the tag without a word, the bold with the bad color, so the check names it."""
+        # Act
+        finding = check_cfg_value("echo_fmt", fmt)
+
+        # Assert
+        assert finding is not None and finding.reason == expected, finding
+
+    def test_malformed_markup_is_a_finding(self):
+        """A closing tag with nothing open, which fails the echo outright, is reported with Rich's reason."""
+        # Act
+        finding = check_cfg_value("echo_fmt", "[/bold]> {cmd}")
+
+        # Assert
+        assert finding is not None and finding.reason.startswith("is not valid markup: "), finding
+
+    def test_a_load_warns_about_a_bad_echo_format(self):
+        """The load names the key, the style and the value, as for every other finding."""
+        expected = 'echo_fmt: has a style Rich cannot draw: steel, got "[steel]> {cmd}[/]"'
+        assert validate_config({"echo_fmt": "[steel]> {cmd}[/]"}) == [expected]
+
+
 class TestTheLoadWarnings:
     def test_a_warning_names_the_key_the_rule_and_the_value(self):
         """One shape for every key: the path, what it must be, what it holds."""

@@ -220,7 +220,7 @@ function-key shortcut (**F1**–**F4**) and a `Ctrl+Shift+1`–**5**
 alias that survives VS Code's terminal capture.  See
 [Toolbar and shortcuts](toolbar.md) for the full list.
 
-The title bar color can be set per config with `border_color` to visually distinguish multiple sessions.
+The title bar color can be set per config with `border_color` to visually distinguish multiple sessions. A title-bar button whose color would blend into it, such as the red Disconnected on a red bar, is drawn a shade darker or lighter, so the connection state still reads.
 
 ## Terminal output
 

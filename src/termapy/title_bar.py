@@ -16,10 +16,13 @@ let internal call sites stay unchanged.
 
 from __future__ import annotations
 
+import math
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rich.text import Text
+from textual.color import Color, ColorParseError, rgb_to_lab
 from textual.css.query import NoMatches
 from textual.widgets import Button
 
@@ -33,6 +36,120 @@ SHUTDOWN_RACE: tuple[type[BaseException], ...] = (NoMatches, RuntimeError)
 if TYPE_CHECKING:
     from termapy.app import SerialTerminal
     from termapy.port_control import ChipFacts
+
+DEFAULT_BORDER_COLOR = "blue"
+"""What the title bar and the output border are drawn in when ``border_color`` is empty."""
+
+# The title bar's buttons by id and their colors, the one home for them: the
+# bar behind them is the user's border_color, so apply_border_color draws each
+# through distinct_from.  A "$name" is a theme variable.
+TITLE_BUTTON_COLORS: dict[str, str] = {
+    "btn-exit": "crimson",
+    "btn-help": "$primary",
+    "btn-cfg": "dodgerblue",
+    "btn-scripts": "dodgerblue",
+    "btn-proto": "dodgerblue",
+    "btn-update": "$warning",
+    "title-center": "dodgerblue",
+}
+
+# The port and connection buttons wear the connection's state.
+CONNECTION_COLORS: dict[str, str] = {
+    "connected": "green",
+    "disconnected": "red",
+    "retry": "darkorange",
+}
+
+BLEND_DISTANCE = 40.0
+"""How far apart a button and the bar behind it must look (CIE76 delta E).
+
+Measured on renders: crimson Exit on a red bar (35) is hard to pick out,
+red Disconnected on a dark red bar (46) reads as a badge.
+"""
+
+# The shades distinct_from tries, nearest first: up to all the way to black or white.
+_SHADE_AMOUNTS = tuple(step / 20 for step in range(1, 21))
+
+
+def parse_color(text: str) -> Color | None:
+    """``text`` as the TUI draws it, a CSS name or ``#hex`` in any case, or ``None`` if it names none.
+
+    The one reader of a configured color: the title bar paints
+    ``border_color`` with it and the config editor checks the key with it,
+    so the editor never accepts a color the app cannot draw.
+    """
+    try:
+        return Color.parse(text.strip().lower())
+    except ColorParseError:
+        return None
+
+
+def named_color(name: str, variables: Mapping[str, str]) -> Color:
+    """A ``TITLE_BUTTON_COLORS`` or ``CONNECTION_COLORS`` entry as a color, a ``$name`` read from the theme's ``variables``."""
+    return Color.parse(variables[name[1:]] if name.startswith("$") else name)
+
+
+def color_distance(first: Color, second: Color) -> float:
+    """How different two colors look: the CIE76 delta E between them in Lab."""
+    return math.dist(rgb_to_lab(first), rgb_to_lab(second))
+
+
+def distinct_from(color: Color, bar: Color) -> Color:
+    """``color`` for a button on ``bar``: itself, or its nearest shade that stands apart.
+
+    A button the color of the bar behind it loses its shape (a red
+    Disconnected on a red ``border_color``).  The shade moves away from the
+    bar's lightness, darker on a bar as light or lighter, lighter on a darker
+    one, so it keeps its hue (the state still reads) by the shortest route.
+    """
+    color_lightness = rgb_to_lab(color).L
+    shade = color.darken if color_lightness <= rgb_to_lab(bar).L else color.lighten
+    shades = (color, *(shade(amount) for amount in _SHADE_AMOUNTS))
+    return next(
+        (candidate for candidate in shades if color_distance(candidate, bar) >= BLEND_DISTANCE),
+        shades[-1],
+    )
+
+
+def apply_border_color(app: SerialTerminal) -> None:
+    """Draw the title bar and the output border in ``border_color``, and the bar's buttons apart from it.
+
+    A color the TUI cannot draw is a config warning and the default, never
+    a failed start.  A button the config leaves out (``cfg_enabled``) is
+    skipped.
+    """
+    raw = cfg_value(app.cfg, "border_color") or DEFAULT_BORDER_COLOR
+    bar = parse_color(raw)
+    if bar is None:
+        app._status(
+            f"Config warning: invalid border_color: {raw} (drawing {DEFAULT_BORDER_COLOR})",
+            "yellow",
+        )
+        bar = Color.parse(DEFAULT_BORDER_COLOR)
+    app.query_one("#title-bar").styles.background = bar
+    app.query_one("#output").styles.border = ("solid", bar)
+    variables = app.get_css_variables()
+    for widget_id, name in TITLE_BUTTON_COLORS.items():
+        try:
+            _paint(app.query_one(f"#{widget_id}", Button), named_color(name, variables), bar)
+        except NoMatches:
+            continue
+    paint_connection(app)
+
+
+def paint_connection(app: SerialTerminal) -> None:
+    """Draw the port and connection buttons in the color of ``app._conn_state``, apart from the bar."""
+    bar = app.query_one("#title-bar").styles.background
+    color = named_color(CONNECTION_COLORS[app._conn_state], {})
+    for widget_id in ("title-left", "title-right"):
+        _paint(app.query_one(f"#{widget_id}", Button), color, bar)
+
+
+def _paint(button: Button, color: Color, bar: Color) -> None:
+    """Draw ``button`` in ``color`` shaded apart from ``bar``; a shaded one gets a label that reads on it."""
+    shade = distinct_from(color, bar)
+    button.styles.background = shade
+    button.styles.color = shade.get_contrast_text() if shade != color else None
 
 
 def _hotkey_label(btn_id: str) -> str:

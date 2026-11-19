@@ -23,6 +23,7 @@ from termapy import diag_log, load_report
 from termapy.converters import ConverterSpec
 from termapy.defaults import (
     CFG_HELP,
+    DEFAULT_CFG,
     SESSION_FLAG_KEYS,
     cfg_key_path,
     cfg_value,
@@ -1714,14 +1715,11 @@ class ReplEngine:
         Returns:
             The echo line as Rich markup.
         """
-        from termapy.variables import expand_vars
-
         # The marker is markup already, so it joins after the text is escaped.
         marker_markup = ""
         if eol_label is not None and cfg_value(self.cfg, "eol_markers"):
             marker_markup = eol_label(cfg_value(self.cfg, "eol"))
-        fmt = expand_vars(self.ctx, cfg_value(self.cfg, "echo_fmt"))
-        return fmt.replace("{cmd}", escape_markup(text) + marker_markup)
+        return self._echo_fmt().replace("{cmd}", escape_markup(text) + marker_markup)
 
     def echo_prompt(self) -> str:
         """The plain text the echo puts before a command (``esp32s3> ``); ``""`` when none.
@@ -1731,11 +1729,26 @@ class ReplEngine:
         so the command lines of a copied transcript can be told from its
         output (``scripting.transcript_commands``).
         """
+        head, found, _ = markup_to_plain(self._echo_fmt()).partition("{cmd}")
+        return head if found else ""
+
+    def _echo_fmt(self) -> str:
+        """``echo_fmt`` with its ``$(VAR)`` expanded, or the default's when the configured one fails its check.
+
+        A format Rich cannot draw (a bad color, a stray closing tag) was
+        reported when it was loaded or set (``config.check_cfg_value``);
+        echoing with it would drop its styles or fail outright, so the
+        default stands in, as the title bar draws blue for a bad
+        ``border_color``.  Checked after expansion, so a variable holding
+        markup is judged too.
+        """
+        from termapy.config import check_cfg_value
         from termapy.variables import expand_vars
 
-        fmt = markup_to_plain(expand_vars(self.ctx, cfg_value(self.cfg, "echo_fmt")))
-        head, found, _ = fmt.partition("{cmd}")
-        return head if found else ""
+        fmt = expand_vars(self.ctx, cfg_value(self.cfg, "echo_fmt"))
+        if check_cfg_value("echo_fmt", fmt) is None:
+            return fmt
+        return expand_vars(self.ctx, DEFAULT_CFG["echo_fmt"])
 
     def dispatch_full(
         self,

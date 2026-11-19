@@ -2021,3 +2021,29 @@ Arduino-ESP32 3.3.12; the build test skips where they are absent. **Where:** `fi
 termapy_monitor.{c,h}`, `firmware/__init__.py`, `boards/__init__.py`, `boards/pico-arduino/`,
 `boards/esp32s3-arduino/`, `help/boards.md`, `help/firmware.md`, `tests/test_firmware_monitor.py`,
 `tests/fixtures/firmware/monitor_host.c`, `tests/test_boards.py`.
+
+## 2026-11-19 — A configured color is drawn or reported, never dropped or fatal
+
+A color the user names is read by the parser of what draws it, and one it cannot draw is reported
+and the default drawn (registry `cfg-colors-drawable`). `border_color` is drawn by Textual, so
+`title_bar.parse_color` (Textual's parser) reads it for the title bar and for the config editor's
+check of the new `color` kind; core has no Textual, so a load cannot check it, and the TUI warns
+when it applies the color. A Rich alias table (`defaults.COLOR_ALIASES`, `resolve_color`) bridged
+CSS names to Rich's for the editor's preview and fed the app too: it turned `darkorange` and
+`lightcoral` into Rich names Textual refused, and the TUI died at mount. It is gone; Rich-style
+underscore names (`light_blue`) now warn and draw blue, and `lightgray` draws CSS's light gray.
+`echo_fmt` is drawn by Rich, which drops a style it cannot read without a word (`[bold steel]`
+loses the bold too) and raises on a stray closing tag, which failed the TUI on the first echo. It
+is a `markup` key now, checked by Rich at a load, in the editor and from `/cfg`, and the echo uses
+the default format when the configured one fails the check.
+
+**Title-bar buttons stand apart from the bar** (registry `title-bar-stands-apart`): Chuck runs
+several instances told apart by `border_color`, and a red or green bar swallowed the red or green
+connection badge. A button within `BLEND_DISTANCE` (CIE76 delta E 40, measured on renders) of the
+bar is shaded away from the bar's lightness, keeping its hue, rather than the palette being
+reserved or the bar painted only in its gaps (which shrink to nothing on a narrow terminal).
+
+**`--check` loads Rich** (Chuck's call, amending `flag-paths-light`): about 65 ms, because only
+Rich's parser can say whether `echo_fmt` draws, and a `--check` that passed a broken one would
+not be doing its job. **Where:** `title_bar.py`, `config._check_markup`, `ReplEngine._echo_fmt`,
+`dialogs/config_editor.py`, `tests/test_title_colors.py`, `tests/test_cfg_schema.py`.

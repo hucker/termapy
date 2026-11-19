@@ -1450,6 +1450,87 @@ def test_editor_opener_guard_fires_on_a_probe():
     assert len(found) == 2, f"the two outside the opener; got {found}"
 
 
+# ── A dialog's boxes show which one has focus ─────────────────────────────────
+#
+# A box (a list, an input, an editor) whose border is the theme color outright
+# outranks Textual's own :focus border, so every box looks focused and none can
+# be told apart: thirteen did until 2026-11-19.  A box takes
+# dialogs._common.box_css; a tall or thick border in the full theme color is
+# only ever a :focus look, or a frame named here that never takes focus.
+FOCUS_BORDER_FRAMES: dict[tuple[str, str], str] = {
+    ("termapy/proto_debug.py", "#proto-debug-dialog"): "the screen's frame, never focused",
+}
+_CSS_RULE = re.compile(r"([^{}]+)\{([^{}]*)\}")
+_FULL_PRIMARY_BOX = re.compile(r"border:\s*(?:tall|thick)\s+\$primary\s*;")
+
+
+def _css_text(node: ast.AST) -> str | None:
+    """A string literal's text, or an f-string's with each placeholder as ``_``; ``None`` for other nodes."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.JoinedStr):
+        return "".join(
+            str(part.value) if isinstance(part, ast.Constant) else "_" for part in node.values
+        )
+    return None
+
+
+def _full_primary_boxes(tree: ast.AST, rel: str) -> set[tuple[str, str]]:
+    """``(rel, selector)`` for every CSS rule, outside ``:focus``, giving a tall or thick border the full theme color."""
+    found = set()
+    for node in ast.walk(tree):
+        text = _css_text(node)
+        for selector, body in _CSS_RULE.findall(text or ""):
+            if ":focus" not in selector and _FULL_PRIMARY_BOX.search(body):
+                found.add((rel, selector.strip()))
+    return found
+
+
+@pytest.mark.rule("dialog-focus-visible")
+def test_a_box_border_shows_focus():
+    """No box border is the theme color outright, so the focused box is the one that looks it."""
+    # Arrange / Act
+    found = set().union(
+        *(
+            _full_primary_boxes(
+                ast.parse(path.read_text(encoding="utf-8")), path.relative_to(SRC.parent).as_posix()
+            )
+            for path in _package_python_files()
+        )
+    )
+    violations = sorted(
+        f"{rel}: {selector}" for rel, selector in found - FOCUS_BORDER_FRAMES.keys()
+    )
+    stale = sorted(f"{rel}: {selector}" for rel, selector in FOCUS_BORDER_FRAMES.keys() - found)
+
+    # Assert
+    assert violations == [], (
+        "a box takes dialogs._common.box_css, which dims it without focus:\n  "
+        + "\n  ".join(violations)
+    )
+    assert stale == [], "FOCUS_BORDER_FRAMES entries no rule needs any more: " + ", ".join(stale)
+
+
+@pytest.mark.rule("dialog-focus-visible")
+def test_focus_border_guard_fires_on_a_probe():
+    """The guard flags a full theme-color box border, in a string or an f-string, and passes :focus and dimmed ones."""
+    # Arrange
+    probe = (
+        'CSS = "#plain-list { height: 1fr; border: thick $primary; }"\n'
+        'FSTRING = f"#made-list {{ border: tall $primary; }} {box_css}"\n'
+        'FINE = "#a { border: thick $primary 40%; } #a:focus { border: thick $primary; }"\n'
+        'FRAME = "#a-dialog { border: solid $primary; }"\n'
+    )
+
+    # Act
+    found = _full_primary_boxes(ast.parse(probe), "termapy/probe.py")
+
+    # Assert
+    assert found == {("termapy/probe.py", "#plain-list"), ("termapy/probe.py", "#made-list")}, (
+        f"the two full-color boxes and nothing else; got {found}"
+    )
+
+
 # ── Commands that only show say so ────────────────────────────────────────────
 #
 # A click on a link runs a command at once only when the command declares
@@ -3090,9 +3171,7 @@ HEX_PARSE_ALLOWED: dict[tuple[str, str], str] = {
 }
 
 # (module, function): why it may render lowercase hex.
-HEX_LOWERCASE_ALLOWED: dict[tuple[str, str], str] = {
-    ("defaults.py", "_preview_color"): "a #rrggbb theme color, not hex data",
-}
+HEX_LOWERCASE_ALLOWED: dict[tuple[str, str], str] = {}
 
 _LOWERCASE_PRINTF = re.compile(r"%[-#0 +]*\d*x")
 

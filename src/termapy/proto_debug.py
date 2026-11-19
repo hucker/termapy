@@ -32,6 +32,7 @@ from textual.widgets import (
 from termapy import diag_log
 from termapy.config import cfg_data_dir
 from termapy.defaults import cfg_value
+from termapy.dialogs._common import box_css
 from termapy.folders import ensure_folder
 from termapy.plugins import REQUIREMENT_HINTS, BoundaryException
 from termapy.protocol import (
@@ -179,20 +180,22 @@ class ProtoDebugScreen(ModalScreen[None]):
         width: 48;
         height: auto;
         max-height: 8;
-        border: tall $primary;
     }}
+    {box_css("#proto-debug-select", "tall")}
     #viz-label, #opt-label {{
         width: auto; height: 1; margin: 0;
         color: $text-muted;
     }}
     #sel-opts {{
         width: 23; height: auto; max-height: 6;
-        margin: 0; border: tall $primary;
+        margin: 0;
     }}
+    {box_css("#sel-opts", "tall")}
     #sel-viz {{
         width: 28; height: auto; max-height: 5;
-        margin: 0; border: tall $primary;
+        margin: 0;
     }}
+    {box_css("#sel-viz", "tall")}
     #viz-col {{
         width: 29; height: auto; margin: 0 0 0 1;
     }}

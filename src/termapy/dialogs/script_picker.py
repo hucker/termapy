@@ -28,6 +28,7 @@ from termapy.dialogs._common import (
     _option_path,
     _path_link_tooltip,
     _title_row_width,
+    box_css,
 )
 from termapy.folder_ops import list_entries
 from termapy.folders import FOLDER_PATTERNS, RUN
@@ -50,7 +51,8 @@ class ScriptPicker(ModalScreen[tuple | None]):
     }}
     #script-header {{ height: 1; }}
     #script-title {{ width: auto; text-style: bold; }}
-    #script-list {{ height: 1fr; border: thick $primary; }}
+    #script-list {{ height: 1fr; }}
+    {box_css("#script-list")}
     #script-buttons {{ height: 1; align: right middle; }}
     """
 

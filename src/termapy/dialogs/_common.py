@@ -51,6 +51,24 @@ _MODAL_BTN_CSS = """
     border: none; margin: 0 0 0 1;
 """
 
+
+def box_css(selector: str, edge: str = "thick") -> str:
+    """CSS for a bordered box a dialog holds (a list, an input, an editor): dim at rest, bright with focus.
+
+    A box whose border is the theme color outright outranks Textual's own
+    ``:focus`` border, so every box looks focused and none can be told
+    apart; this rule keeps the two looks (registry ``dialog-focus-visible``).
+
+    Args:
+        selector: The box's CSS selector, ``#picker-list``.
+        edge: The border style, ``thick`` or ``tall``.
+    """
+    return (
+        f"{selector} {{ border: {edge} $primary 40%; }} "
+        f"{selector}:focus {{ border: {edge} $primary; }}"
+    )
+
+
 # Narrowest width of the three file pickers (script / proto / config).
 # Wide enough for ``name  size  age`` plus a trailing detail column that,
 # for configs, holds a macOS-length port (``/dev/cu.usbserial-A50285BI @

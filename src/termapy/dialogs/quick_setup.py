@@ -16,7 +16,12 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, OptionList
 from textual.widgets.option_list import Option
 
-from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, _populate_port_option_list
+from termapy.dialogs._common import (
+    _DISMISS_BINDINGS,
+    _MODAL_BTN_CSS,
+    _populate_port_option_list,
+    box_css,
+)
 from termapy.widgets import StrongCheckbox
 
 
@@ -40,10 +45,13 @@ class QuickSetup(ModalScreen[tuple | None]):
         border: solid $primary; background: $surface; padding: 1 2;
         border-title-align: left;
     }}
-    #qs-standard-baud {{ margin-top: 1; margin-bottom: 1; margin-left: 1; }}
-    #qs-port-list {{ height: 10; border: tall $primary; }}
-    #qs-baud-list {{ height: 6; border: tall $primary; }}
-    #qs-baud-input {{ border: tall $primary; }}
+    #qs-standard-baud {{ background: slategray; }}
+    #qs-port-list {{ height: 10; }}
+    {box_css("#qs-name", "tall")}
+    {box_css("#qs-port-list", "tall")}
+    #qs-baud-list {{ height: 6; }}
+    {box_css("#qs-baud-list", "tall")}
+    {box_css("#qs-baud-input", "tall")}
     .qs-hidden {{ display: none; }}
     #qs-buttons {{ height: 1; margin-top: 1; align: right middle; }}
     .qs-label {{ height: 1; margin-top: 1; padding-left: 1; text-style: bold; }}
@@ -124,9 +132,7 @@ class QuickSetup(ModalScreen[tuple | None]):
             if self._has_a_port_to_pick(port_list):
                 port_list.highlighted = self._FIRST_PORT_ROW
             yield port_list
-            std_btn = Button("Standard Baud Rates", id="qs-standard-baud", variant="primary")
-            std_btn.tooltip = "Click to switch to custom baud rate entry"
-            yield std_btn
+            yield Static("Baud Rate:", classes="qs-label")
             baud_list = OptionList(id="qs-baud-list")
             for baud in self._COMMON_BAUDS:
                 baud_list.add_option(Option(str(baud), id=str(baud)))
@@ -140,6 +146,11 @@ class QuickSetup(ModalScreen[tuple | None]):
             )
             baud_input.add_class("qs-hidden")
             yield baud_input
+            # Under the box it swaps, not where the heading goes: a button
+            # in a heading's place reads as the heading.
+            baud_mode = Button("Custom Rate...", id="qs-standard-baud")
+            baud_mode.tooltip = "Type a baud rate the list does not have."
+            yield baud_mode
             # Optional add-icon checkbox; off by default so existing
             # users who just want a cfg aren't surprised.  Targets
             # the non-CLI audience who's setting termapy up the first
@@ -285,15 +296,13 @@ class QuickSetup(ModalScreen[tuple | None]):
         baud_list = self.query_one("#qs-baud-list", OptionList)
         baud_input = self.query_one("#qs-baud-input", Input)
         if self._standard_baud:
-            btn.label = "Standard Baud Rates"
-            btn.variant = "primary"
-            btn.tooltip = "Click to switch to custom baud rate entry"
+            btn.label = "Custom Rate..."
+            btn.tooltip = "Type a baud rate the list does not have."
             baud_list.remove_class("qs-hidden")
             baud_input.add_class("qs-hidden")
         else:
-            btn.label = "Custom Baud Rate"
-            btn.variant = "warning"
-            btn.tooltip = "Click to switch to standard baud rate list"
+            btn.label = "Standard Rates"
+            btn.tooltip = "Pick from the standard baud rates."
             baud_list.add_class("qs-hidden")
             baud_input.remove_class("qs-hidden")
             baud_input.focus()

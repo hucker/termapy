@@ -16,7 +16,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, TextArea
 
 from termapy.defaults import PROTO_TEMPLATE
-from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, EditorTextArea
+from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, EditorTextArea, box_css
 from termapy.folders import FOLDER_EXTS, PROTO, ensure_folder, new_file_name
 
 
@@ -33,7 +33,8 @@ class ProtoEditor(ModalScreen[str | None]):
         border: solid $primary; background: $surface; padding: 1 2;
     }}
     #ped-title {{ height: 1; text-style: bold; }}
-    #ped-editor {{ height: 1fr; border: thick $primary; }}
+    #ped-editor {{ height: 1fr; }}
+    {box_css("#ped-editor")}
     #ped-name-row {{ height: 1; }}
     /* The filename fields use Textual's own compact Input variant
        (``compact=True``), which IS ``height: 1; border: none`` --

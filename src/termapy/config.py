@@ -1345,6 +1345,38 @@ def _check_regex(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | No
     return None
 
 
+# Any $(...) reference, a user variable or an environment one.
+_ANY_VAR_RE = re.compile(r"\$\([^)]*\)")
+
+
+def _check_markup(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
+    """Rich markup that parses, every style tag one Rich can draw.
+
+    Rich drops a style it cannot read without a word, the whole tag with it
+    (``[bold steel]`` loses the bold too), so a bad color is found here.  A
+    ``$(VAR)`` is expanded only at use, so each stands as Rich's ``default``
+    color here: a ``[$(COLOR)]`` tag parses, and its value goes unchecked.
+    """
+    if not isinstance(value, str):
+        return CfgFinding("must be text")
+    from rich.errors import MarkupError, StyleSyntaxError
+    from rich.style import Style
+    from rich.text import Text
+
+    try:
+        spans = Text.from_markup(_ANY_VAR_RE.sub("default", value)).spans
+    except MarkupError as e:
+        return CfgFinding(f"is not valid markup: {e}")
+    for span in spans:
+        if not isinstance(span.style, str):
+            continue
+        try:
+            Style.parse(span.style)
+        except StyleSyntaxError:
+            return CfgFinding(f"has a style Rich cannot draw: {span.style}")
+    return None
+
+
 def _check_encoding(record: CfgKey, value: object, cfg: Mapping) -> CfgFinding | None:
     """The name of a codec Python has."""
     if not isinstance(value, str):
@@ -1447,6 +1479,8 @@ CFG_CHECKS = {
     "port": _check_port,
     "baud": _check_baud,
     "eol": _check_eol,
+    "color": _check_str,
+    "markup": _check_markup,
     "section": _check_section,
     "list": _check_list,
 }

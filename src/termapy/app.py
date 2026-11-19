@@ -238,6 +238,9 @@ class SerialTerminal(TerminalHost, App):
 
     TITLE = "termapy"
     front_end = "tui"
+    # The connection's state, a key of title_bar.CONNECTION_COLORS: what the
+    # port buttons wear, repainted whenever border_color changes.
+    _conn_state = "disconnected"
 
     CSS = """
     Tooltip {
@@ -267,11 +270,9 @@ class SerialTerminal(TerminalHost, App):
         margin: 0 0 0 1;
         padding: 0 1;
     }
-    #btn-help {
-        background: $primary;
-    }
+    /* The title bar's button colors are title_bar.TITLE_BUTTON_COLORS,
+       drawn apart from border_color by apply_border_color. */
     #title-bar #btn-exit {
-        background: crimson;
         text-style: bold;
     }
     #title-bar > Button:first-of-type {
@@ -285,7 +286,6 @@ class SerialTerminal(TerminalHost, App):
     }
     #title-left {
         min-width: 20;
-        background: red;
     }
     #title-spacer-l, #title-spacer-r {
         width: 1fr;
@@ -293,18 +293,10 @@ class SerialTerminal(TerminalHost, App):
     #title-bar #title-center {
         width: 24;
         text-align: center;
-        background: dodgerblue;
     }
     #title-right {
         min-width: 14;
         text-align: center;
-        background: red;
-    }
-    #btn-cfg {
-        background: dodgerblue;
-    }
-    #btn-proto {
-        background: dodgerblue;
     }
     RichLog {
         height: 1fr;
@@ -402,12 +394,6 @@ class SerialTerminal(TerminalHost, App):
     }
     #btn-cap-dir {
         background: mediumseagreen;
-    }
-    #btn-scripts {
-        background: dodgerblue;
-    }
-    #btn-exit {
-        background: crimson;
     }
     #cap-label {
         color: green;
@@ -1038,13 +1024,10 @@ class SerialTerminal(TerminalHost, App):
         self._maybe_show_vscode_tip()
 
     def _apply_border_color(self) -> None:
-        """Apply border_color from config to title bar and output border."""
-        from termapy.defaults import resolve_color
+        """Draw border_color and the title bar's buttons.  Implementation in ``title_bar``."""
+        from termapy.title_bar import apply_border_color
 
-        color = resolve_color(cfg_value(self.cfg, "border_color") or "blue")
-        bar = self.query_one("#title-bar")
-        bar.styles.background = color
-        self.query_one("#output", RichLog).styles.border = ("solid", color)
+        apply_border_color(self)
 
     def on_mount(self) -> None:
         # Authoritative: on_mount runs on the event-loop thread (see D4).
@@ -2002,16 +1985,17 @@ class SerialTerminal(TerminalHost, App):
         update_title(self)
 
     def _set_conn_status(self, text: str, style: str = "") -> None:
+        """Show ``text`` on the connection button, both port buttons in its state's color."""
+        from termapy.title_bar import paint_connection
+
+        if style == "retry":
+            self._conn_state = "retry"
+        else:
+            self._conn_state = "connected" if text == "Connected" else "disconnected"
         try:
-            colors = {
-                "": ("green" if text == "Connected" else "red"),
-                "retry": "darkorange",
-            }
-            color = colors.get(style, colors[""])
             widget = self.query_one("#title-right", Button)
             widget.label = f"{text:^12}"
-            widget.styles.background = color
-            self.query_one("#title-left", Button).styles.background = color
+            paint_connection(self)
             self._update_conn_tooltip(widget)
         except SHUTDOWN_RACE:
             pass  # widgets gone during shutdown

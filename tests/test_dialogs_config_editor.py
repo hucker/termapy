@@ -325,6 +325,29 @@ class TestValueValidation:
 
         _run(scenario)
 
+    @pytest.mark.rule("cfg-colors-drawable")
+    def test_a_color_is_checked_by_the_reader_the_title_bar_draws_with(self, tmp_path):
+        """dodgerblue shows the hex the TUI draws, steel is an unknown color: the editor agrees with the app."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                # Arrange
+                screen, _ = await _open(app, pilot, cfg, path)
+
+                # Act
+                good_status, good_error = screen._validate_value("border_color", '"DodgerBlue"')
+                bad_status, bad_error = screen._validate_value("border_color", '"steel"')
+
+                # Assert
+                assert (good_status.startswith("[green]"), good_error) == (True, ""), good_status
+                assert "#1E90FF" in good_status, "the color as the title bar draws it"
+                assert bad_status.startswith("[red]"), "a color the app cannot draw is red"
+                assert bad_error == "[red]unknown color: steel[/]", bad_error
+
+        _run(scenario)
+
     def test_non_standard_baud_is_a_warning_unless_custom(self, tmp_path):
         """A non-standard rate is yellow with a hint, green and marked custom once custom_baud is true in the editor."""
 
@@ -421,6 +444,25 @@ class TestValueValidation:
                 assert "not resolved" not in known_note
                 assert unknown_status.startswith("[yellow]")
                 assert "unknown variable: $(NOPE_UNKNOWN_123)" in unknown_note
+
+        _run(scenario)
+
+    @pytest.mark.rule("cfg-colors-drawable")
+    def test_a_bad_color_beside_a_session_variable_is_still_red(self, tmp_path):
+        """$(DATE) is fine and steel is not: the echo format is red for the style Rich cannot draw."""
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                screen, _ = await _open(app, pilot, cfg, path)
+
+                # Act
+                status, error = screen._validate_value("echo_fmt", '"[steel]$(DATE)> {cmd}[/]"')
+
+                # Assert
+                assert status.startswith("[red]"), status
+                assert error == "[red]has a style Rich cannot draw: steel[/]", error
 
         _run(scenario)
 

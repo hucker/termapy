@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 202: 187 registry rows (guarantees 152, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 198. Pinned by none: 4.
+Ids: 205: 190 registry rows (guarantees 155, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 201. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -117,6 +117,14 @@ Ids: 202: 187 registry rows (guarantees 152, assumptions 35), 15 spec sections i
 
 - `test_capture_claim.py`: `TestCaptureOwnsItsClaim.test_claim_outlives_the_script_while_the_capture_runs` **guard**, `TestCaptureOwnsItsClaim.test_scripted_stop_releases_the_claim` **guard**
 
+### `cfg-colors-drawable` (guarantee, requirement)
+
+- `test_app_pilot.py`: `TestTitleBarColors.test_a_css_name_draws_as_itself`, `TestTitleBarColors.test_an_unknown_border_color_warns_and_draws_blue` **guard**
+- `test_cfg_schema.py`: `TestTheMarkupCheck` (4 functions)
+- `test_dialogs_config_editor.py`: `TestValueValidation.test_a_bad_color_beside_a_session_variable_is_still_red`, `TestValueValidation.test_a_color_is_checked_by_the_reader_the_title_bar_draws_with`
+- `test_markup_escape.py`: `test_an_echo_format_rich_cannot_draw_echoes_with_the_default` **guard**
+- `test_title_colors.py`: `TestParseColor` (2 functions)
+
 ### `cfg-declared` (guarantee, structure)
 
 - `test_architecture.py`: `test_cfg_read_guard_fires_on_a_probe` **probe**, `test_plugin_cfg_reads_are_declared` **guard**
@@ -139,7 +147,7 @@ Ids: 202: 187 registry rows (guarantees 152, assumptions 35), 15 spec sections i
 ### `cfg-schema-one-table` (guarantee, structure)
 
 - `test_architecture.py`: `test_every_surface_checks_through_the_one_validator` **guard**, `test_one_validator_guard_fires_on_a_probe` **probe**
-- `test_cfg_schema.py`: the module (31 functions) **guard**
+- `test_cfg_schema.py`: the module (35 functions) **guard**
 - `test_repl_cfg.py`: `TestCfgAuto.test_auto_matches_a_choice_in_any_case`, `TestCfgAuto.test_auto_refuses_a_value_outside_the_choices`, `TestCfgChange.test_a_choice_in_another_case_is_stored_as_the_config_spells_it`
 - `test_term_request.py`: `TestJsonLayout.test_a_bad_indent_in_a_cfg_warns_at_load`
 
@@ -270,6 +278,11 @@ Ids: 202: 187 registry rows (guarantees 152, assumptions 35), 15 spec sections i
 ### `diag-log-per-process` (guarantee, concurrency)
 
 - `test_diag_log.py`: `test_a_session_records_its_start_failures_and_exit` **guard**, `test_close_frees_the_folder_and_drops_later_records`, `test_prune_keeps_the_newest_and_any_running_process` **guard**
+
+### `dialog-focus-visible` (guarantee, structure)
+
+- `test_architecture.py`: `test_a_box_border_shows_focus` **guard**, `test_focus_border_guard_fires_on_a_probe` **guard**
+- `test_dialogs_quick_setup.py`: `TestCustomBaud.test_the_focused_box_is_the_one_that_looks_it`
 
 ### `did-you-mean-one` (guarantee, data)
 
@@ -514,7 +527,7 @@ Ids: 202: 187 registry rows (guarantees 152, assumptions 35), 15 spec sections i
 - `test_defaults.py`: `TestCfgHelpCoverage.test_help_text_holds_no_markup`
 - `test_help_dynamic.py`: `TestMarkup` (4 functions)
 - `test_help_state.py`: `TestThePage.test_brackets_in_a_value_stay_literal`
-- `test_markup_escape.py`: the module (14 functions)
+- `test_markup_escape.py`: the module (15 functions)
 - `test_mcp_server.py`: `TestOutputBufferLevels.test_markup_entries_carry_the_text_a_terminal_shows`
 - `test_search_markup.py`: `TestCliStatusEscapesUserText.test_write_uncolored_prints_text_literally`
 
@@ -912,6 +925,11 @@ Ids: 202: 187 registry rows (guarantees 152, assumptions 35), 15 spec sections i
 ### `timing-tests-run-alone` (guarantee, repository)
 
 - `test_architecture.py`: `test_a_test_that_reads_the_clock_runs_alone` **guard**, `test_the_timing_guard_fires_on_a_probe` **guard**
+
+### `title-bar-stands-apart` (guarantee, requirement)
+
+- `test_app_pilot.py`: `TestTitleBarColors.test_a_state_color_the_bar_would_hide_is_shaded` **guard**
+- `test_title_colors.py`: `TestDistinctFrom` (3 functions)
 
 ### `traceability-matrix-generated` (guarantee, repository)
 

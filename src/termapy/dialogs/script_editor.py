@@ -16,7 +16,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, TextArea
 
 from termapy.defaults import DEFAULT_CMD_PREFIX, SCRIPT_TEMPLATE
-from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, EditorTextArea
+from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, EditorTextArea, box_css
 from termapy.folders import FOLDER_EXTS, RUN, ensure_folder, new_file_name
 
 
@@ -39,7 +39,8 @@ class ScriptEditor(ModalScreen[str | None]):
         border: solid $primary; background: $surface; padding: 1 2;
     }}
     #sed-title {{ height: 1; text-style: bold; }}
-    #sed-editor {{ height: 1fr; border: thick $primary; }}
+    #sed-editor {{ height: 1fr; }}
+    {box_css("#sed-editor")}
     #sed-name-row {{ height: 1; }}
     /* The filename fields use Textual's own compact Input variant
        (``compact=True``), which IS ``height: 1; border: none`` --

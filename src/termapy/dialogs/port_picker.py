@@ -13,7 +13,13 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, OptionList
 
-from termapy.dialogs._common import _DISMISS_BINDINGS, _MODAL_BTN_CSS, PortOptionList, _port_facts
+from termapy.dialogs._common import (
+    _DISMISS_BINDINGS,
+    _MODAL_BTN_CSS,
+    PortOptionList,
+    _port_facts,
+    box_css,
+)
 
 
 class PortPicker(ModalScreen[str | None]):
@@ -40,7 +46,8 @@ class PortPicker(ModalScreen[str | None]):
         border: solid $primary; background: $surface; padding: 1 2;
     }}
     #port-title {{ height: 1; text-style: bold; }}
-    #port-list {{ height: 1fr; border: thick $primary; }}
+    #port-list {{ height: 1fr; }}
+    {box_css("#port-list")}
     #port-buttons {{ height: 1; align: right middle; }}
     """
 

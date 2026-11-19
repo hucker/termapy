@@ -269,8 +269,54 @@ class TestCustomBaud:
                 )
 
                 # Assert
-                assert custom_state == ("Custom Baud Rate", True, False), "list hidden, input shown"
-                assert standard_state == ("Standard Baud Rates", False, True), "and back"
+                assert custom_state == ("Standard Rates", True, False), "list hidden, input shown"
+                assert standard_state == ("Custom Rate...", False, True), "and back"
+
+        _run(scenario)
+
+    def test_baud_has_a_heading_and_its_toggle_sits_under_it(self):
+        """Baud Rate is a heading like Config Name and Serial Port, and the toggle sits under the baud boxes, not in the heading's place."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                # Arrange / Act
+                screen, _ = await _open(app, pilot)
+                children = list(screen.query_one("#qs-dialog").children)
+                ids = [child.id for child in children]
+                headings = [
+                    str(child.render()) for child in children if child.has_class("qs-label")
+                ]
+
+                # Assert
+                assert headings == ["Config Name:", "Serial Port:", "Baud Rate:"], "three alike"
+                assert ids.index("qs-standard-baud") > ids.index("qs-baud-input"), (
+                    "the toggle comes after the boxes it swaps"
+                )
+
+        _run(scenario)
+
+    @pytest.mark.rule("dialog-focus-visible")
+    def test_the_focused_box_is_the_one_that_looks_it(self):
+        """Of the name box and the two lists, only the focused one wears the bright border."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                # Arrange
+                screen, _ = await _open(app, pilot)
+                screen.query_one("#qs-port-list", OptionList).focus()
+                await pilot.pause()
+
+                # Act
+                borders = {
+                    name: screen.query_one(f"#{name}").styles.border_top
+                    for name in ("qs-name", "qs-port-list", "qs-baud-list")
+                }
+
+                # Assert
+                assert borders["qs-name"] == borders["qs-baud-list"], "the two at rest look alike"
+                assert borders["qs-port-list"] != borders["qs-name"], "the focused one stands out"
 
         _run(scenario)
 

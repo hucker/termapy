@@ -637,10 +637,12 @@ noticeably faster. The measurements are in the decision entry.
 **Enforced by `tests/test_cli.py::TestPathsStayLight`**: each path runs in
 a subprocess and the test reads `sys.modules` afterwards, so a transitive
 import is caught as surely as a direct one. The static complement is
-`ui-layer-textual`, which pins the modules allowed to import Textual. Two
+`ui-layer-textual`, which pins the modules allowed to import Textual. Three
 known exceptions: `--info` loads Rich, because it flattens the shared
-`/port.chip` page to plain text with Rich's parser, and the TUI reads
-`importlib.metadata` for the version it shows. To find a new cost, run
+`/port.chip` page to plain text with Rich's parser; `--check` loads Rich,
+because `echo_fmt` is Rich markup and only Rich's parser can say whether
+it draws; and the TUI reads `importlib.metadata` for the version it
+shows. To find a new cost, run
 `python -X importtime -c "import termapy.app" 2> importtime.txt` and sort
 by the cumulative column; the indentation shows which module pulled each
 one in.
@@ -976,7 +978,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_credits_data.py                | The dependency registry must agree with pyproject.toml, the vendored tree, and the surfaces that render it                                                                          |
 | test_credits_sync.py                | Guard the markdown -> credits.py sync                                                                                                                                               |
 | test_ctrl_keys.py                   | Tests for control characters reaching the device: /term.ctrl, and the TUI's Ctrl+C and Ctrl+D                                                                                       |
-| test_defaults.py                    | Tests for defaults.py - validation constants, resolve_color, preview helpers                                                                                                        |
+| test_defaults.py                    | Tests for defaults.py - validation constants, preview helpers                                                                                                                       |
 | test_defaults_untouched.py          | A test that leaves `DEFAULT_CFG` changed fails, and the next test sees the real defaults                                                                                            |
 | test_demo.py                        | Tests for FakeSerial demo device - ASCII, GPS/NMEA, Modbus RTU, and config setup                                                                                                    |
 | test_demo_memory.py                 | The demo device's native memory: `MEM.R` / `MEM.W` / `MEM.INFO`                                                                                                                     |
@@ -1135,6 +1137,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_term_traffic.py                | /term.traffic: the engine's TX/RX byte counts, the TUI-only toggle that shows them, and /term.info's copy                                                                           |
 | test_terminal_host.py               | Unit tests for TerminalHost - context builders, serial I/O, hooks                                                                                                                   |
 | test_title_bar.py                   | Regression tests for title_bar.update_port with a read-only cfg                                                                                                                     |
+| test_title_colors.py                | The title bar's colors: the one reader of a configured color, and the shade that keeps a button apart from border_color                                                             |
 | test_title_tooltip.py               | Tests for the title-bar tooltip formatters (pure string logic)                                                                                                                      |
 | test_traceability.py                | The rule marker's checks and the matrix: an unknown id is refused at collection, `--rule` selects by id, the index reads every marker shape, and the generated matrix stays current |
 | test_tree_render.py                 | Unit tests for `termapy.tree_render` (the `FileTree` renderer)                                                                                                                      |

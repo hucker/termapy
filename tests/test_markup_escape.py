@@ -248,6 +248,27 @@ def test_the_echo_line_expands_vars_marks_the_eol_and_escapes_the_command(tmp_pa
     assert device == "rig> AT[ok]<CR>", "a device line shows the line ending it is sent with"
 
 
+@pytest.mark.rule("cfg-colors-drawable")
+@pytest.mark.parametrize("fmt", ["[steel]$(CFG): {cmd}[/]", "[/bold]$(CFG): {cmd}"])
+def test_an_echo_format_rich_cannot_draw_echoes_with_the_default(tmp_path, fmt):
+    """A bad color or a stray closing tag, reported at load, echoes in the default format instead of failing."""
+    # Arrange
+    config_path = tmp_path / "rig" / "rig.cfg"
+    config_path.parent.mkdir()
+    cfg = {"echo_fmt": fmt}
+    config_path.write_text(json.dumps(cfg), encoding="utf-8")
+    engine = ReplEngine(cfg, str(config_path), lambda *a, **k: None, global_root=tmp_path)
+    set_context_var("CFG", lambda: config_path.stem)
+
+    # Act
+    echoed = Text.from_markup(engine.format_echo_markup("AT")).plain
+    prompt = engine.echo_prompt()
+
+    # Assert
+    assert echoed == "rig> AT", "the default format, [purple]$(CFG)> {cmd}[/]"
+    assert prompt == "rig> ", "the transcript prompt reads the same format"
+
+
 @pytest.mark.parametrize("text", TRICKY)
 def test_the_echo_shows_the_line_ending_as_text_not_codes(tmp_path, text):
     """The real marker after any device line renders as \\r\\n text, with no ANSI codes and the line intact."""

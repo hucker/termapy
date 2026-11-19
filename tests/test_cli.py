@@ -2061,8 +2061,8 @@ class TestPathsStayLight:
         # Assert
         assert actual == set(), f"{flag} loaded {sorted(actual)}"
 
-    def test_check_loads_nothing_heavy(self, tmp_path):
-        """--check validates a config without any of the heavy imports."""
+    def test_check_loads_only_rich(self, tmp_path):
+        """--check validates a config with none of the heavy imports but Rich, which checks echo_fmt's markup."""
         # Arrange
         cfg_path = tmp_path / "probe" / "probe.cfg"
         cfg_path.parent.mkdir()
@@ -2072,7 +2072,7 @@ class TestPathsStayLight:
         actual = _loaded_after("--check", str(cfg_path), cwd=tmp_path)
 
         # Assert
-        assert actual == set(), f"--check loaded {sorted(actual)}"
+        assert actual == {"rich"}, f"--check loaded {sorted(actual)}"
 
     def test_version_loads_only_metadata(self, tmp_path):
         """--version is the one flag that needs importlib.metadata, and it loads nothing else heavy."""

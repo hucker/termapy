@@ -4225,6 +4225,77 @@ class TestUnsavedSettings:
         _run(scenario)
 
 
+class TestTitleBarColors:
+    """border_color paints the title bar, and the buttons on it are drawn apart from it."""
+
+    @pytest.mark.rule("title-bar-stands-apart")
+    def test_a_state_color_the_bar_would_hide_is_shaded(self, app_factory):
+        """On a red bar Disconnected is shaded clear of it; once connected its green needs no shade."""
+        from termapy.title_bar import BLEND_DISTANCE, color_distance
+
+        app, _, _ = app_factory(border_color="red")
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                # Arrange
+                await pilot.pause()
+                bar = app.query_one("#title-bar").styles.background
+                port, status = (
+                    app.query_one(f"#{name}", Button) for name in ("title-left", "title-right")
+                )
+
+                # Act
+                disconnected = (port.styles.background, status.styles.background)
+                app._set_conn_status("Connected")
+                connected = status.styles.background
+
+                # Assert
+                assert bar.hex == "#FF0000", "the bar wears border_color"
+                assert disconnected[0] == disconnected[1], "the port and status buttons match"
+                assert color_distance(disconnected[1], bar) >= BLEND_DISTANCE, (
+                    "red Disconnected on a red bar is shaded apart"
+                )
+                assert connected.hex == "#008000", "green on red is far enough apart to stay green"
+
+        _run(scenario)
+
+    @pytest.mark.rule("cfg-colors-drawable")
+    def test_an_unknown_border_color_warns_and_draws_blue(self, app_factory):
+        """A border_color the TUI cannot draw is a config warning and the default, never a failed start."""
+        app, _, _ = app_factory(border_color="steel")
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                # Arrange / Act
+                # The pane wraps a long line, so compare without whitespace.
+                expected = "".join(
+                    "Config warning: invalid border_color: steel (drawing blue)".split()
+                )
+                await until(pilot, lambda: expected in "".join(app._get_screen_text().split()))
+
+                # Assert
+                bar = app.query_one("#title-bar").styles.background
+                assert bar.hex == "#0000FF", "the default color is drawn"
+
+        _run(scenario)
+
+    @pytest.mark.rule("cfg-colors-drawable")
+    def test_a_css_name_draws_as_itself(self, app_factory):
+        """darkorange draws as CSS spells it, not as a Rich name Textual cannot read."""
+        app, _, _ = app_factory(border_color="darkorange")
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                # Act
+                await pilot.pause()
+
+                # Assert
+                bar = app.query_one("#title-bar").styles.background
+                assert bar.hex == "#FF8C00", "CSS darkorange"
+
+        _run(scenario)
+
+
 def _manual_flow_serial() -> dict:
     """The DEMO port's serial settings with manual flow control, which shows the DTR/RTS/Break buttons."""
     serial_cfg = DEFAULT_CFG["serial"]

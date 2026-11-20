@@ -2162,3 +2162,17 @@ line, as a script does. `/run.last` keeps stopping at the first failure: each
 of its lines once succeeded, so a failure there means the state has changed,
 and the line is a replay, not a test. **Where:** `app._paste_on_thread`,
 `help/toolbar.md`.
+
+## 2026-11-20 — -e takes the rest of the line
+
+Chuck: "I usually want to run a quick command and not need quote chars."
+`-e` read one string, so `termapy -e /help term.eol` was two tokens and a
+usage error; the help page taught `MUST be quoted`. Now `-e` is
+`nargs=REMAINDER` joined with single spaces, the shape `ssh host cmd args`
+and `watch cmd args` use: `-e /help term.eol` and `-e "/help term.eol"` are
+the same command, and quotes are needed only when the command's own spacing
+matters or the shell would expand something. The cost is ssh's too: every
+word after `-e` belongs to the command, a `--flag` included, so termapy's
+flags go before it. Still refused: a second `-e` among the words and a line
+break in the text (several commands are a .run file). **Where:**
+`entry._ExecCommand`, `help/cli.md` "Quoting".

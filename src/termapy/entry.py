@@ -61,13 +61,17 @@ class _Version(argparse.Action):
         parser.exit()
 
 
-class _OneCommand(argparse.Action):
-    """``-e``: one command per invocation, never split.
+class _ExecCommand(argparse.Action):
+    """``-e``: the rest of the command line is the one command, as ``ssh host cmd args`` reads it.
 
-    argparse's default keeps the last of a repeated option silently, so
-    ``-e A -e B`` ran only B; a line break inside the value ran as one
-    mangled command.  Both are refused: several commands go in a .run
-    file, the one multi-command format.
+    The words after ``-e`` are joined with single spaces (``nargs=REMAINDER``),
+    so ``-e /help term.eol`` and ``-e "/help term.eol"`` run the same command
+    and quotes are needed only when the command's own spacing matters.  Every
+    word after ``-e`` belongs to the command, so termapy's flags go before it
+    (decision 2026-11-20).  One command per invocation, never split: a second
+    ``-e`` among the words (argparse's default kept the last silently, so
+    ``-e A -e B`` once ran only B) and a line break inside the text are
+    refused; several commands go in a .run file, the one multi-command format.
     """
 
     def __call__(
@@ -77,16 +81,20 @@ class _OneCommand(argparse.Action):
         values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
-        if getattr(namespace, self.dest) is not None:
+        words = [str(word) for word in (values or [])]
+        if not words:
+            parser.error(f"{option_string} needs a command: the words after it, quotes optional")
+        if any(word in self.option_strings for word in words):
             parser.error(
                 f"{option_string} takes one command; put several in a .run file and use --run"
             )
-        if len(str(values).splitlines()) > 1:
+        command = " ".join(words)
+        if len(command.splitlines()) > 1:
             parser.error(
                 f"{option_string} takes one command, without line breaks; "
                 f"put several in a .run file and use --run"
             )
-        setattr(namespace, self.dest, values)
+        setattr(namespace, self.dest, command)
 
 
 # Where --web serves when its address says nothing else: this machine only.
@@ -239,14 +247,16 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-e",
         "--exec",
-        action=_OneCommand,
+        action=_ExecCommand,
+        nargs=argparse.REMAINDER,
         default=None,
         metavar="COMMAND",
         dest="exec_cmd",
         help=(
-            "Run a single command and exit (CLI mode, implies --cli "
-            "and --no-color).  One per invocation: several go in a "
-            ".run file (--run)"
+            "Run one command and exit (CLI mode, implies --cli and "
+            "--no-color).  The command is the rest of the line, quotes "
+            "optional, so -e goes last.  One per invocation: several go "
+            "in a .run file (--run)"
         ),
     )
     parser.add_argument(

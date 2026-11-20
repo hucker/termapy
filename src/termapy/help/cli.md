@@ -335,7 +335,7 @@ from Task Manager or `kill`, once.
 | `--cfg-dir PATH`  | Override the default config directory for this run.           |
 | `--cli`           | Plain-text mode instead of the TUI.  Default form is an interactive REPL; pair with `--run` or `--exec` for one-shot.  With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |
 | `--run SCRIPT`    | Run a `.run` script headlessly, then exit.                    |
-| `-e`, `--exec CMD` | Run a single command and exit (CLI mode).  Implies `--cli` and `--no-color`.  See [One-shot exec](#one-shot-exec--e----exec) below. |
+| `-e`, `--exec CMD...` | Run one command and exit (CLI mode).  The command is the rest of the line, quotes optional, so `-e` goes last.  Implies `--cli` and `--no-color`.  See [One-shot exec](#one-shot-exec--e----exec) below. |
 | `--silent`        | Output level: nothing (script reads `CmdResult.value` only).  |
 | `--quiet`         | Output level: command results only.                           |
 | `--verbose`       | Output level: results + data + progress chatter.              |
@@ -352,9 +352,9 @@ Run a single command, print its output to stdout, exit with status 0
 (success) or 1 (failure):
 
 ```sh
-termapy --cli my_device -e "AT+VER"           # send a device command
-termapy --cli my_device -e "/help port"       # run a slash command
-termapy --cli my_device --exec "/proto.crc.calc crc16-modbus 01 03 00 00 00 02"
+termapy --cli my_device -e AT+VER             # send a device command
+termapy --cli my_device -e /help port         # run a slash command
+termapy --cli my_device --exec /proto.crc.calc crc16-modbus 01 03 00 00 00 02
 ```
 
 One command per invocation: a second `-e`, or a line break inside one,
@@ -362,7 +362,7 @@ is refused.  Several commands go in a `.run` file, run with `--run`.
 
 ### Worked example
 
-The general shape is `termapy <cfg> --cli -e "<command>"`.  For a
+The general shape is `termapy <cfg> --cli -e <command>`.  For a
 device whose cfg is `my_device`, asking for the firmware version
 might look like:
 
@@ -407,14 +407,17 @@ the command and got a reply.  Reading device errors from exit codes
 requires a device profile that parses the response, or you can
 ``grep -q`` the stdout yourself.
 
-**Quoting.** A single-arg flag means multi-token commands must be
-quoted, the same way `git commit -m "msg"` and `bash -c "cmd"` work --
-the shell tokenizes before argparse sees anything:
+**Quoting.** `-e` takes the rest of the command line, as `ssh host cmd
+args` does: the words after it, joined with single spaces, are the
+command, so quotes are optional and `-e` goes last -- every word after
+it belongs to the command, a `--flag` included.  Quote when the command's
+own spacing matters, or when the shell would expand something in it:
 
 ```sh
-termapy --cli cfg -e "start_system a=23 b=24"   # MUST be quoted
-termapy --cli cfg -e="start_system a=23 b=24"   # = form also works
-termapy --cli cfg -e start_system a=23 b=24     # WRONG: shell splits into 4 tokens
+termapy --cli cfg -e start_system a=23 b=24     # the rest of the line is the command
+termapy --cli cfg -e "start_system a=23 b=24"   # the same command
+termapy --cli cfg -e "/print two  spaces"       # quoted: the shell would collapse the run
+termapy --cli cfg -e '/print $(X)'              # quoted: bash would expand $(X) itself
 ```
 
 **Suppressed chrome.** Connect-time autorun (`on_connect_cmd`,

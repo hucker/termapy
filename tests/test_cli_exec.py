@@ -90,6 +90,42 @@ class TestCliExec:
             f"stdout={result.stdout!r} stderr={result.stderr!r}"
         )
 
+    def test_the_rest_of_the_line_is_the_command(self, tmp_path):
+        """The words after -e are the command, joined with spaces, so a one-liner needs no quotes."""
+        # Act
+        result = _run("-e", "/print", "hello", "wide", "world", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 0, f"stderr={result.stderr!r}"
+        assert result.stdout.strip() == "hello wide world", "the words joined with single spaces"
+
+    def test_quoted_and_unquoted_run_the_same_command(self, tmp_path):
+        """One quoted word and the same text as separate words are the same command."""
+        # Act
+        quoted = _run("-e", "/print hello wide world", cfg_dir=str(tmp_path))
+        unquoted = _run("-e", "/print", "hello", "wide", "world", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert quoted.stdout == unquoted.stdout, "the join makes the two spellings one command"
+
+    def test_a_flag_after_exec_belongs_to_the_command(self, tmp_path):
+        """Everything after -e is the command, a termapy flag included, so termapy's flags go before it."""
+        # Act -- argparse's own --version would print the version and exit
+        result = _run("-e", "/print", "after", "--version", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 0, f"stderr={result.stderr!r}"
+        assert result.stdout.strip() == "after --version", "the flag reached the command as text"
+
+    def test_an_empty_exec_is_refused(self, tmp_path):
+        """-e with nothing after it is a usage error that says what -e takes."""
+        # Act
+        result = _run("-e", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 2, f"a usage error; stderr={result.stderr!r}"
+        assert "needs a command" in result.stderr, "says what is missing"
+
     def test_a_second_exec_is_refused(self, tmp_path):
         """-e twice is refused, where argparse used to run only the last one silently."""
         # Act

@@ -120,7 +120,7 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
     Direct calls (e.g. an LLM via MCP, a script) get literal-bytes
     semantics on purpose -- predictable, no surprises.
 
-    For literal raw bytes WITHOUT a line ending, use ``/raw`` instead.
+    For literal raw bytes WITHOUT a line ending, use ``/term.raw`` instead.
     """
     if not args:
         raise UsageError()
@@ -154,7 +154,7 @@ _CTRL_NAMES = {"ESC": "["}
 def _handler_ctrl(ctx: PluginContext, args: str) -> CmdResult:
     """Send one control character: ``/term.ctrl c`` is Ctrl-C, byte 03; the value is ``^C``.
 
-    ``esc`` names Ctrl+[ (1B).  A raw byte, as ``/raw`` sends: no line
+    ``esc`` names Ctrl+[ (1B).  A raw byte, as ``/term.raw`` sends: no line
     ending, never paced.  The TUI's Ctrl+C with nothing selected and Ctrl+D
     on an empty prompt dispatch it, so a key and a script or agent send the
     same way.
@@ -238,6 +238,28 @@ def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
         ctx.internal.apply_cfg(key, new)
     ctx.io.result(value_text(new))
     return CmdResult.ok(value=new)
+
+
+def _handler_raw(ctx: PluginContext, args: str) -> CmdResult:
+    """Send the text exactly as typed: encoded with the cfg encoding, no line ending, no pacing.
+
+    The one ``/term.raw`` in every frontend.  A typed ``/term.raw <text>``
+    reaches this handler from ``ReplEngine.dispatch_full`` with the text
+    exactly as typed (no directives, transforms or flag stripping) but
+    through the same capability gate; ``raw_args`` keeps the ``$(VAR)``
+    transform off on any other route here.
+    """
+    if not args:
+        raise UsageError()
+    try:
+        ctx.serial.write(args.encode(cfg_value(ctx.cfg, "encoding")))
+    # OSError covers pyserial's SerialException; the encode can fail on a
+    # character outside the cfg encoding, or on an unknown encoding.
+    except (OSError, UnicodeError, LookupError) as e:
+        return CmdResult.fail(msg=f"Send error: {e}")
+    # SPECIAL CASE: like /term.send, a fire-and-forget send; the device's
+    # reply arrives through the read pipeline, not this CmdResult.
+    return CmdResult.ok(value="")
 
 
 def _handler_completion(ctx: PluginContext, args: str) -> CmdResult:
@@ -669,7 +691,7 @@ COMMAND = Command(
                 "user-facing behavior is unchanged.  Direct callers (LLMs,\n"
                 "scripts) get predictable literal-bytes semantics.\n"
                 "\n"
-                "For raw bytes WITHOUT a line ending, use {prefix}raw."
+                "For raw bytes WITHOUT a line ending, use {prefix}term.raw."
             ),
             handler=_handler_send,
             cfg={
@@ -681,13 +703,29 @@ COMMAND = Command(
             raw_args=True,
             needs=CapabilitySet.SERIAL_CONNECTED,
         ),
+        "raw": Command(
+            args="<text>",
+            help="Send raw text to serial (no transforms or line ending).",
+            long_help=(
+                "Sends the text exactly as typed, encoded with the config's\n"
+                "encoding: no line ending, no $(VAR) expansion, no transforms,\n"
+                "and no pacing (tx_char_delay_ms and tx_line_delay_ms apply to\n"
+                "lines only).  Use it for a partial line or a device that frames\n"
+                "without a line ending.  For a literal line WITH the line ending,\n"
+                "paced, use {prefix}term.send."
+            ),
+            handler=_handler_raw,
+            cfg={"encoding": "encodes the text sent"},
+            needs=CapabilitySet.SERIAL_CONNECTED,
+            raw_args=True,
+        ),
         "ctrl": Command(
             help="Send a control character to the device (c is Ctrl-C, byte 03).",
             long_help=(
                 "Sends the one byte a Ctrl+<key> stands for: {prefix}term.ctrl c is\n"
                 "Ctrl-C (03), d is Ctrl-D (04), esc is Esc (1B, also [).  Letters\n"
                 "A-Z and @ [ \\ ] ^ _ are the keys, and esc; case does not matter.\n"
-                "A raw byte, as {prefix}raw sends: no line ending, never paced.\n"
+                "A raw byte, as {prefix}term.raw sends: no line ending, never paced.\n"
                 "\n"
                 "In the TUI, Ctrl+C with no text selected sends Ctrl-C, Ctrl+D\n"
                 "and Ctrl+Z on an empty prompt send Ctrl-D and Ctrl-Z, and\n"

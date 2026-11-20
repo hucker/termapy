@@ -1066,6 +1066,25 @@ def test_v39_to_v40_renames_the_ui_switches_in_every_command_line():
     )
 
 
+def test_v40_to_v41_renames_raw_to_term_raw():
+    """Migration v40->v41 renames /raw in a button and an on-connect key, as the file spells its prefix."""
+    # Arrange
+    cfg = {
+        "config_version": 40,
+        "on_connect_cmd": "/raw AT",
+        "custom_buttons": [{"enabled": True, "name": "Sync", "command": "{prefix}raw \\x01"}],
+    }
+
+    # Act
+    migrated = migrate_config(cfg)
+
+    # Assert
+    actual = (migrated["on_connect_cmd"], migrated["custom_buttons"][0]["command"])
+    assert actual == ("/term.raw AT", "{prefix}term.raw \\x01"), (
+        "both spellings move; the text stays"
+    )
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labeled line to _migration_steps."""
     # Arrange -- a config from v17 runs every migrator since.

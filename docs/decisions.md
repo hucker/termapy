@@ -2131,3 +2131,18 @@ name). A user's own `.run` files are not rewritten: an old spelling fails
 with a did-you-mean naming the new one. **Where:**
 `builtins/commands/app.py`, `plugins/handles/ui.py`, `app.py`,
 `app_hooks.py`, `cli.py`, `migration.py`.
+
+## 2026-11-19 — /raw is /term.raw
+
+A bare top-level word for what is `/term.send` without the line ending;
+Chuck: "shouldn't raw be /term.raw?" Now a `/term` subcommand with the
+encode-and-write `/raw` always had (`ctx.serial.write` is the primitive every
+plugin has). The first cut invented a `SerialHandle.send_raw` for it, because
+the encoded-write guard allowlisted per file and `term.py` also holds
+`/term.send`, the command the guard protects; Chuck: no context function
+invented to satisfy a test. So the guard's allowlist is `(module, function)`
+keyed now, as the hex guard's is, `_handler_raw` has its own entry, and the
+handle grew nothing. The dispatcher's typed-text fast path keys on
+`repl.RAW_COMMAND`. Migration v40 -> v41 renames it wherever a config holds
+a command line. **Where:** `builtins/commands/term.py`,
+`plugins/handles/serial.py`, `repl.py`, `migration.py`.

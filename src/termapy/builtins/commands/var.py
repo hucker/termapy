@@ -401,7 +401,7 @@ Port variables (the open port, read when used; empty when not connected):
 
 Escaping (when your data contains literal $):
   \\$(PORT)           - literal $(PORT) (not expanded)
-  {prefix}raw $(GPS),NMEA,0 - send entire line verbatim (no expansion)
+  {prefix}term.raw $(GPS),NMEA,0 - send entire line verbatim (no expansion)
 
 Scope: variables persist until a config loads, which starts clean.
 A script is not a load: it sees them however it was launched, and what

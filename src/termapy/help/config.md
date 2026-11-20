@@ -77,7 +77,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 40,
+    "config_version": 41,
     "title": "IoT Device",
     "border_color": "blue",
     "serial": {
@@ -197,7 +197,7 @@ reported as a type warning.
 | `mcp_on_connect_cmd`          | `""`                          | Extra command to run after connecting in MCP mode. Common: `echo off` / `color off` to silence device at the source (MCP already strips ANSI; `/term.color on` re-enables) |
 | `encoding`                    | `utf-8`                       | Character encoding (utf-8, latin-1, ascii, cp437) |
 | `eol`                         | `"\r"`                        | Appended to each sent command: `\r`, `\r\n`, or `\n` |
-| `tx_char_delay_ms`            | `0`                           | Delay in ms after each character of a line sent to the device (TeraTerm's transmit delay, msec/char), for a device that drops bytes sent back to back; `0` = off. File transfers, `/proto` and `/raw` are never paced |
+| `tx_char_delay_ms`            | `0`                           | Delay in ms after each character of a line sent to the device (TeraTerm's transmit delay, msec/char), for a device that drops bytes sent back to back; `0` = off. File transfers, `/proto` and `/term.raw` are never paced |
 | `tx_line_delay_ms`            | `0`                           | Delay in ms after each line sent to the device (TeraTerm's msec/line); `0` = off |
 | `tx_chunking`                 | `true`                        | Hand a large send to the driver in 192-byte pieces, so large, high-speed transfers arrive intact (measured on an FT232R: 4 KB writes lost lines at 750000 baud and up, 192-byte writes lost none; see [Serial ports](ports.md#large-sends-go-out-in-pieces)). `false` sends each write whole |
 | `eol_rx`                      | `auto`                        | Receive newline: split output into lines. `auto`/`cr`/`lf`/`crlf` (set: /term.eol.rx) |

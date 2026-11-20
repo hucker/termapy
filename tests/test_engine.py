@@ -848,12 +848,12 @@ class TestDispatchFull:
         assert any("/help" in t for t in echoed), "echoed"
 
     def test_raw_sends_exactly_its_text(self, dispatch_env):
-        """A typed /raw writes its text as typed, with no line ending."""
+        """A typed /term.raw writes its text as typed, with no line ending."""
         # Arrange
         eng, output, logged, echoed, statuses, writes, do = dispatch_env
 
         # Act -- a leading space, a variable, a template and a flag
-        do("/raw  $(X) {seq1} --json")
+        do("/term.raw  $(X) {seq1} --json")
 
         # Assert
         expected = [b" $(X) {seq1} --json"]
@@ -863,12 +863,12 @@ class TestDispatchFull:
         )
 
     def test_bare_raw_renders_usage_and_sends_nothing(self, dispatch_env):
-        """A /raw with no text is a usage error, never an empty send."""
+        """A /term.raw with no text is a usage error, never an empty send."""
         # Arrange
         eng, output, logged, echoed, statuses, writes, do = dispatch_env
 
         # Act
-        do("/raw ")
+        do("/term.raw ")
 
         # Assert
         assert writes == [], "nothing is sent"

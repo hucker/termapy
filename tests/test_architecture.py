@@ -1160,16 +1160,22 @@ def test_containment_guard_fires_on_a_probe():
 # line by hand and writing the bytes skips the pacing: until 2026-10-31 ten
 # places did, /term.send among them.  Binary is the other path, ``write``
 # with bytes as given.  These files write encoded text on purpose.
-ENCODED_WRITE_ALLOWED = {
-    # The owner: SerialHandle.send itself.
-    "termapy/plugins/handles/serial.py",
-    # /raw sends text exactly as typed: no line ending, no pacing.
-    "termapy/builtins/commands/raw.py",
+# (module, function): why that function may encode text and write the bytes.
+# A function named "*" allows the whole module; it only ever narrows.
+ENCODED_WRITE_ALLOWED: dict[tuple[str, str], str] = {
+    (
+        "termapy/plugins/handles/serial.py",
+        "send",
+    ): "the owner: the line ending, the encoding, the pacing",
+    (
+        "termapy/builtins/commands/term.py",
+        "_handler_raw",
+    ): "/term.raw: text as typed, no line ending, no pacing",
     # The protocol subsystem is binary, its setup lines included
     # (decision 2026-10-31): /proto, its debugger, termapy --proto.
-    "termapy/builtins/commands/proto.py",
-    "termapy/proto_debug.py",
-    "termapy/protocol/runner.py",
+    ("termapy/builtins/commands/proto.py", "*"): "binary: packets and setup lines as given",
+    ("termapy/proto_debug.py", "*"): "binary: the debugger's packets",
+    ("termapy/protocol/runner.py", "*"): "binary: termapy --proto",
 }
 
 
@@ -1182,17 +1188,28 @@ def _is_encode_call(node: ast.AST) -> bool:
     )
 
 
-def _encoded_writes(tree: ast.AST, rel: str) -> list[str]:
-    """Every ``.write(...)`` of encoded text in ``rel``, written directly or through a name.
+def _encoded_writes(tree: ast.AST, rel: str) -> list[tuple[str, str]]:
+    """Every ``.write(...)`` of encoded text in ``rel`` as ``(function, line)``, written directly or through a name.
 
     A name counts when the same function (or the module) assigns it from an
     ``.encode(...)`` call: ``payload = line.encode(enc); port.write(payload)``.
+    The function is the innermost one holding the write, ``<module>`` for
+    module-level code.
     """
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+
+    def function_of(node: ast.AST) -> str:
+        while node in parents:
+            node = parents[node]
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                return node.name
+        return "<module>"
+
     scopes: list[ast.AST] = [
         node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     ]
     scopes.append(tree)
-    found: dict[int, str] = {}
+    found: dict[int, tuple[str, str]] = {}
     for scope in scopes:
         encoded = {
             target.id
@@ -1211,17 +1228,17 @@ def _encoded_writes(tree: ast.AST, rel: str) -> list[str]:
                 continue
             arg = node.args[0]
             if _is_encode_call(arg) or (isinstance(arg, ast.Name) and arg.id in encoded):
-                found[id(node)] = f"{rel}:{node.lineno}  {ast.unparse(node)}"
+                found[id(node)] = (function_of(node), f"{rel}:{node.lineno}  {ast.unparse(node)}")
     return sorted(found.values())
 
 
-def _encoded_write_files() -> dict[str, list[str]]:
-    """``{rel: [violation lines]}`` for every package file that writes encoded text.
+def _encoded_write_files() -> dict[str, list[tuple[str, str]]]:
+    """``{rel: [(function, violation line)]}`` for every package file that writes encoded text.
 
     Device code under a ``firmware/`` folder runs on the board, not in
     termapy, and is not read.
     """
-    found: dict[str, list[str]] = {}
+    found: dict[str, list[tuple[str, str]]] = {}
     for path in _package_python_files():
         if "firmware" in path.relative_to(SRC).parts:
             continue
@@ -1232,15 +1249,20 @@ def _encoded_write_files() -> dict[str, list[str]]:
     return found
 
 
+def _encoded_write_allowed(rel: str, function: str) -> bool:
+    """Whether the allowlist names this function, or its whole module."""
+    return (rel, function) in ENCODED_WRITE_ALLOWED or (rel, "*") in ENCODED_WRITE_ALLOWED
+
+
 @pytest.mark.rule("tx-text-one-path")
 def test_text_lines_go_out_through_send():
     """Outside the allowlist no code encodes text and writes the bytes; a line goes through ctx.serial.send."""
     # Arrange / Act
     violations = [
         line
-        for rel, lines in _encoded_write_files().items()
-        if rel not in ENCODED_WRITE_ALLOWED
-        for line in lines
+        for rel, writes in _encoded_write_files().items()
+        for function, line in writes
+        if not _encoded_write_allowed(rel, function)
     ]
 
     # Assert
@@ -1270,19 +1292,28 @@ def test_tx_guard_fires_on_a_probe():
     found = _encoded_writes(ast.parse(probe), "probe")
 
     # Assert
-    assert len(found) == 2, f"the direct and the named encoded writes, not the bytes one: {found}"
+    assert [function for function, _ in found] == ["direct", "named"], (
+        f"the direct and the named encoded writes, each under its function, not the bytes one: {found}"
+    )
 
 
 @pytest.mark.rule("tx-text-one-path")
 def test_encoded_write_allowlist_has_no_stale_entries():
-    """Every ENCODED_WRITE_ALLOWED file still writes encoded text, so the list only describes reality."""
+    """Every ENCODED_WRITE_ALLOWED entry still names a function (or a module) that writes encoded text."""
     # Arrange / Act
-    actual = set(_encoded_write_files())
+    actual = {
+        (rel, function) for rel, writes in _encoded_write_files().items() for function, _ in writes
+    }
+    modules = {rel for rel, _ in actual}
 
     # Assert
-    stale = sorted(ENCODED_WRITE_ALLOWED - actual)
+    stale = sorted(
+        f"{rel}: {function}"
+        for rel, function in ENCODED_WRITE_ALLOWED
+        if ((rel not in modules) if function == "*" else ((rel, function) not in actual))
+    )
     assert stale == [], (
-        "ENCODED_WRITE_ALLOWED lists files with no encoded write left; drop them:\n  "
+        "ENCODED_WRITE_ALLOWED lists functions with no encoded write left; drop them:\n  "
         + "\n  ".join(stale)
     )
 

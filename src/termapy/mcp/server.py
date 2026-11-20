@@ -762,7 +762,7 @@ class MCPHost(TerminalHost):
                         profiled = _dispatch_via_profile(self, line, confirm=confirm)
                         if profiled is not None:
                             return profiled
-                        # Use dispatch_full so /raw bypass + directive layer
+                        # Use dispatch_full so /term.raw bypass + directive layer
                         # + the /term.send fallthrough all behave normally.
                         return self.repl.dispatch_full(
                             line,

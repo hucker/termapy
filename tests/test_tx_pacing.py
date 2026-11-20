@@ -5,7 +5,7 @@
 ``TestPaths`` drives a real ``CLITerminal`` on the DEMO port and watches
 what reaches the port through a TX observer, so each route a line can take
 -- typed, ``/term.send``, request mode, bare Enter, a script -- is shown to
-go out paced, and ``/raw`` and ``/proto.send`` are shown not to.
+go out paced, and ``/term.raw`` and ``/proto.send`` are shown not to.
 """
 
 from __future__ import annotations
@@ -199,9 +199,9 @@ class TestPaths:
         assert actual == [b"A", b"T", b"\r"]
 
     def test_raw_is_not_paced(self, cli):
-        """/raw sends text exactly as typed: one write, no line ending, no pacing."""
+        """/term.raw sends text exactly as typed: one write, no line ending, no pacing."""
         # Act
-        actual = _sent(cli, "/raw AT", tx_char_delay_ms=1)
+        actual = _sent(cli, "/term.raw AT", tx_char_delay_ms=1)
 
         # Assert
         assert actual == [b"AT"]

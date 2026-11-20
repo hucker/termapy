@@ -17,7 +17,7 @@ lands in its group, not at the end of the user's file.
 import re
 from collections.abc import Callable
 
-CURRENT_CONFIG_VERSION = 40
+CURRENT_CONFIG_VERSION = 41
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -881,6 +881,15 @@ def _migrate_v39_to_v40(cfg: dict) -> dict:
 
 
 MIGRATIONS[39] = _migrate_v39_to_v40
+
+
+def _migrate_v40_to_v41(cfg: dict) -> dict:
+    """/raw is /term.raw, a send beside /term.send: renamed wherever a config holds a command line."""
+    _rename_commands(cfg, {"raw": "term.raw"})
+    return cfg
+
+
+MIGRATIONS[40] = _migrate_v40_to_v41
 
 
 def migrate_config(cfg: dict) -> dict:

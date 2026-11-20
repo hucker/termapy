@@ -283,7 +283,7 @@ CFG_KEYS: tuple[CfgKey, ...] = (
     # Transmit delay (TeraTerm's msec/char and msec/line): a device line
     # goes out one character at a time, this many ms apart, and waits this
     # long after its line ending.  For a device that drops bytes arriving
-    # back to back.  Binary (file transfers, /proto, /raw) is never paced.
+    # back to back.  Binary (file transfers, /proto, /term.raw) is never paced.
     CfgKey(
         "tx_char_delay_ms",
         0,

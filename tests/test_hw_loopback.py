@@ -460,7 +460,7 @@ class TestChunkedWrites:
         port = engine.serial_port
         assert port is not None, "the fixture connected"
 
-        # Act -- one write, as a transfer or /raw would make it; the pieces are the port's
+        # Act -- one write, as a transfer or /term.raw would make it; the pieces are the port's
         port.write(data)
         _settle(taken, quiet_s=2.0, cap_s=90.0)
 

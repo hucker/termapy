@@ -113,13 +113,13 @@ class TestLoopbackRoundTrip:
         )
 
     def test_raw_send_bypasses_transforms(self, tmp_path):
-        """/raw puts exactly its bytes on the wire, with no line ending appended."""
+        """/term.raw puts exactly its bytes on the wire, with no line ending appended."""
         # Arrange -- "ABC-raw-XYZ" is 11 bytes and the capture takes 12; the
-        # second /raw supplies the 12th, so an appended line ending would
+        # second /term.raw supplies the 12th, so an appended line ending would
         # land in the file in its place.
         lines = [
-            "/cap.bin raw.bin bytes=12 timeout=500ms cmd=/raw ABC-raw-XYZ",
-            "/raw !",
+            "/cap.bin raw.bin bytes=12 timeout=500ms cmd=/term.raw ABC-raw-XYZ",
+            "/term.raw !",
             "/delay 700ms",
         ]
 
@@ -130,7 +130,7 @@ class TestLoopbackRoundTrip:
         assert result.returncode == 0, f"exit {result.returncode}; stderr={result.stderr!r}"
         cap = _cap_file(tmp_path, "raw.bin").read_bytes()
         assert cap == b"ABC-raw-XYZ!", (
-            f"/raw must send its bytes and nothing after them, got {cap!r}"
+            f"/term.raw must send its bytes and nothing after them, got {cap!r}"
         )
 
 

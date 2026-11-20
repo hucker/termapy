@@ -181,6 +181,36 @@ demo> /help.idioms
   json        Answer this one call as a JSON object, for a script or an agent.
   level       How much one call prints, from nothing to all its detail.
   capability  What a command needs from where it runs; a frontend that lacks it refuses the command.
+demo> /help.more
+  groups beyond the terminal - 25 commands
+  GROUP     COMMAND     LEVEL      DESCRIPTION
+  --------  ----------  ---------  -------------------------------------------------------------------------
+  advanced  /app        stable     App-wide state, config and running sessions.
+  advanced  /confirm    stable     Show Yes/Cancel dialog; Cancel stops a running script.
+  advanced  /credits    stable     Print acknowledgments / third-party attributions.
+  advanced  /edit       stable     Open a project file for editing (run/, proto/ or plugin/).
+  advanced  /env        stable     Print environment variables for $(env.NAME) expansion (alias: /env.list).
+  advanced  /expect     stable     Wait for text in serial output (blocks until match or timeout).
+  advanced  /mcp        preview    MCP catalog and status (Model Context Protocol).
+  advanced  /os         stable     Run a shell command and show output (10s timeout). e.g. /os dir
+  advanced  /plugin     stable     Plugin-folder tools: list, explore, show, dump, edit.
+  advanced  /seq        stable     Print sequence counters.
+  advanced  /show       stable     Show a file.
+  advanced  /var        stable     List user variables, or show one by name.
+  devices   /board      prototype  Starter projects for real dev boards: list, new, firmware, update.
+  devices   /dev        preview    Device files: a part's registers as data (see /help devices).
+  devices   /firmware   prototype  Device-side sources termapy ships: list, copy, show, dump.
+  devices   /mem        preview    Device memory: dump, typed reads, writes and bit ops via /sym names.
+  devices   /profile    stable     Device profile commands (MCP profile schema, validator, loader).
+  devices   /sym        preview    Symbol table: name -> address, or address -> name+offset.
+  plugins   /crcsend    stable     Send text with XMODEM CRC-16 appended.
+  plugins   /probe      stable     Query the device and display the response.
+  plugins   /temp_plot  stable     Sample temperature and show ASCII sparkline.
+  plugins   /traffic    stable     Inspect serial-port byte traffic (count, hexdump, rate, snoop).
+  protocol  /ping       stable     Send a command and measure response time.
+  protocol  /proto      stable     Binary protocol tools: send, run, debug, hex, crc, info.
+  protocol  /xfer       stable     File transfer: settings and XMODEM / YMODEM / ZMODEM send and receive.
+  [63/450] /help.more (96us)
 demo> /help capability
 NAME
   capability - What a command needs from where it runs; a frontend that lacks it refuses the command.

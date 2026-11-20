@@ -515,7 +515,8 @@ def quick_config(port: str, settings: str) -> tuple[Path, str]:
     One config per port (``quick_config_path``), so sessions on two ports
     share nothing.  The first open creates it through ``new_config`` and
     ``create_config``, connecting when it loads, with the ``QUICK_BUTTONS``
-    turned on in the ``QUICK_BUTTONS_SIDE`` column.  A later open with
+    turned on in the ``QUICK_BUTTONS_SIDE`` column and the Proto button off
+    (a session is a terminal; the rest waits until asked for).  A later open with
     settings lays them over it and saves it, so they are what the port
     opens with next time; one without settings leaves it as it is.  The
     settings are ``/port.connect``'s, read by its reader.  The port is the
@@ -562,6 +563,8 @@ def quick_config(port: str, settings: str) -> tuple[Path, str]:
             if button["command"] in QUICK_BUTTONS:
                 button["enabled"] = True
         cfg["custom_buttons_side"] = QUICK_BUTTONS_SIDE
+        # A session is a terminal: protocol testing waits until asked for.
+        cfg["proto_enabled"] = False
         return create_config(path, cfg), "Created"
     from termapy.port_control import same_port
 

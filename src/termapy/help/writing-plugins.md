@@ -60,6 +60,29 @@ The fastest way to write a plugin is to copy an existing one:
 3. Change the command name, help text, and handler logic
 4. Drop it into `termapy_cfg/plugin/` (all configs) or `termapy_cfg/<config>/plugin/` (one config)
 
+Or start from the smallest plugin there is. No classes to subclass, no
+registration:
+
+```python
+# hello.py - drop into termapy_cfg/plugin/ or termapy_cfg/<config>/plugin/
+from termapy.plugins import CmdResult, Command, PluginContext
+
+
+def _handler(ctx: PluginContext, args: str) -> CmdResult:
+    name = args.strip() or "world"
+    ctx.io.result(f"Hello, {name}!")
+    return CmdResult.ok(value=name)
+
+
+# ── COMMAND (must be at end of file) ──────────────────────────────────────────
+COMMAND = Command(
+    name="hello",
+    args="{name}",  # {braces} = optional, <angle> = required, "" = no args
+    help="Say hello.",
+    handler=_handler,
+)
+```
+
 ## How plugins work
 
 Whenever a config becomes current — at startup and on every
@@ -996,6 +1019,11 @@ table, as `/help cfg` ends with the configs; it must take no arguments,
 since `/help` runs it bare, and the loader refuses one that does.
 
 ## Example plugins
+
+`examples/plugins/` in the repository holds four small working examples:
+**hello.py** (the minimal greeting above), **at_test.py** (send AT commands
+over serial), **timestamp.py** (print the current date and time) and
+**ping.py** (send a command and measure the response time).
 
 The demo config ships with four plugins of increasing complexity:
 

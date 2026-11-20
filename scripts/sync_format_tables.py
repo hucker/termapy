@@ -1,4 +1,4 @@
-"""Sync the format-spec type table -> the help page and README tables.
+"""Sync the format-spec type table -> the help page's table.
 
 One source of truth (``src/termapy/protocol/type_codes.py``, the
 ``TYPE_CODES`` table).  Every block between the markers
@@ -28,10 +28,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TARGETS = (
-    REPO_ROOT / "src" / "termapy" / "help" / "protocol-testing.md",
-    REPO_ROOT / "README.md",
-)
+TARGETS = (REPO_ROOT / "src" / "termapy" / "help" / "protocol-testing.md",)
 
 sys.path.insert(0, str(REPO_ROOT / "src"))
 from termapy.protocol.core import apply_format, parse_format_spec  # noqa: E402 -- path set above

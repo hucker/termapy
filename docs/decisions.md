@@ -2074,3 +2074,27 @@ not `quick-dev-ttyUSB0` (a day old, in no release); a quick config no longer
 auto-loads or shows in a bare start's picker. **Where:**
 `config.quick_config_path`, `config.quick_config`, `config.is_quick_config`,
 `config_resolve.find_config`, `title_bar.update_port`.
+
+## 2026-11-19 — The README covers the terminal; the rest is one page away
+
+Chuck's rule for termapy's breadth: you only use what you need, and lots more
+is available; the extras (protocol testing, CRC, memory and symbols, file
+transfer, boards, plugins, MCP) are there for agents more than for people.
+Not a mode, not a download: a download buys a few megabytes (crcglot and
+pyelftools are under 2 MB each and never load until used) and costs a second
+release flow, and a mode is a knob the user must find, two apps to test and a
+new seam. The gate is exposure, which already existed in two of the three
+places: `/help`'s landing page shows the terminal group in full and folds the
+others to one row each, and the palette lists only terminal entries. The
+third is the README, which now covers the terminal and ends with a "More,
+when you need it" table, one row per group linking its help page; the two
+sections it held on protocol testing and extending termapy moved to their
+pages (the inline-format screenshot, the log sample, the minimal `hello.py`
+and the `examples/plugins/` list went with them), the generated format table
+lives on the protocol page only, and the collapsed command list is the
+terminal group's. A quick config ships with the Proto button off: a session
+is a terminal. Presence-based promotion (a folded group opening when a config
+has a `proto/` folder) was considered and left out until the folded rows,
+which show counts and names, prove not enough. **Where:** README.md,
+`help/protocol-testing.md`, `help/writing-plugins.md`,
+`scripts/sync_format_tables.py`, `config.quick_config`.

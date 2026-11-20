@@ -67,7 +67,8 @@ port. When a port earns a name, rename its config (`/cfg.rename quick-COM3
 pico`, or the picker's Rename): the log, history and settings come along, and
 it is an ordinary config from then on. The config puts EOL, Echo and Color buttons beside the output, each
 showing its setting; a click steps it
-([Custom buttons](custom-buttons.md#showing-a-setting)).
+([Custom buttons](custom-buttons.md#showing-a-setting)). The Proto button is
+off: a session is a terminal, and the rest waits until asked for.
 
 A config wins the name: with a config called `COM3`, `termapy COM3` loads
 it. Settings follow a port only, and flags may go anywhere on the line

@@ -101,7 +101,7 @@ For a plain-text terminal (no TUI), use CLI mode:
 termapy --cli --demo
 ```
 
-There's a lot more: scripting, binary protocol testing, every CRC algorithm in the [reveng catalog](https://reveng.sourceforge.io/crc-catalogue/all.htm) (each verified against its canonical check value in the test suite), custom buttons, plugins, and packet visualizers. Expand any section below.
+There's a lot more, and none of it is in the way until you need it: scripting, data capture, binary protocol testing, every CRC algorithm in the [reveng catalog](https://reveng.sourceforge.io/crc-catalogue/all.htm), memory and symbols, file transfer, dev boards, plugins and an MCP server. The sections below cover the terminal; the rest is one page away in [More, when you need it](#more-when-you-need-it).
 
 ---
 
@@ -241,7 +241,7 @@ The most common ones:
 | `/exit`                              | Exit termapy                                        |
 
 <details>
-<summary>Full command list</summary>
+<summary>Terminal commands</summary>
 
 | Command                              | Description                                                                   |
 | ------------------------------------ | ----------------------------------------------------------------------------- |
@@ -277,20 +277,17 @@ The most common ones:
 | `/ss.txt {name} {N}`                 | Save text screenshot (all, or an N-line slice)                                |
 | `/ss.list`                           | List screenshots, newest first, with size and age                             |
 | `/ss.explore`                        | Open the screenshot folder in the system file explorer                        |
+| `/log {start\|stop\|print\|...}`     | Session log: start, stop, print, fingerprint, or open it                     |
 | `/cls`                               | Clear the terminal screen                                                     |
 | `/run {filename}`                    | Open Run picker (bare TUI), list scripts (bare CLI), or run; nests 5 deep; `--echo` shows each command line as it runs |
 | `/run.list`                          | List .run files in run/, newest first, with size, age and title; a name runs, its edit cell opens the editor |
 | `/run.rename <old> <new>`            | Rename a script (`.run` kept; never overwrites)                               |
 | `/run.help`                          | Same as `/help run`                                                           |
 | `/delay <duration>`                  | Wait for a duration (e.g. `500ms`, `1.5s`); Escape or Ctrl+C cancels          |
-| `/confirm {message}`                 | Ask Yes/Cancel (TUI dialog, CLI y/n); Cancel stops a running script           |
+| `/repeat <N> <cmd>`                  | Repeat a command N times with optional delay (Escape cancels)                 |
 | `/stop`                              | Abort a running script                                                        |
-| `/seq`                               | Show sequence counters                                                        |
-| `/seq.reset`                         | Reset all sequence counters to zero                                           |
 | `/print <text>`                      | Print a message to the terminal                                               |
 | `/print.r <text>`                    | Print Rich markup text (e.g. `[bold red]Warning![/]`)                         |
-| `/show <name>`                       | Show a file                                                                   |
-| `/show.cfg`                          | Show the current config file                                                  |
 | `/term`                              | Terminal display / session toggles (echo, line_no, timestamps, ...)           |
 | `/term.info`                         | Snapshot every `/term.*` toggle, and the bytes sent and received              |
 | `/term.echo {on\|off\|toggle}`        | Local echo of device commands to the wire; session only, seeded by cfg `echo` |
@@ -304,48 +301,10 @@ The most common ones:
 | `/term.encoding {name}`              | Show or set byte-decoding encoding (utf-8, latin-1, ...)                      |
 | `/term.json_fmt {compact\|indent\|color\|cycle}` | How JSON answers print: one line, indented, or indented and colored |
 | `/term.send_bare_enter {on\|off\|toggle}` | Send line ending on empty Enter                                          |
-| `/edit <file>`                       | Edit a project file (`run/`, `proto/` or `plugin/`)                           |
-| `/edit.cfg`                          | Edit the current config file                                                  |
-| `/edit.log`                          | Open the session log in the system viewer                                     |
-| `/edit.info`                         | Open the info report in the system viewer                                     |
-| `/os <cmd>`                          | Run a shell command (10s timeout, requires `TERMAPY_OS_CMD_ENABLED=1` in env); a nonzero exit stops a script |
 | `/grep <pattern>`                    | Search scrollback for regex matches (case-insensitive, skips own output)      |
+| `/find {pattern}`                    | Navigate scrollback matches with an interactive find bar                      |
+| `/search {--dev} <pattern>`          | Deep-search every command's metadata (name, help, args, flags, long help)      |
 | `/cfg.info {--display}`              | Write and show the project report (folder tree, config, buttons, log and history tails); also written at exit; `--display` opens it |
-| `/proto`                             | Open Proto picker (bare TUI) or list proto/ (bare CLI)                        |
-| `/proto.help`                        | Same as `/help proto`                                                         |
-| `/proto.send <hex>`                  | Send raw hex bytes and/or quoted text, display response as hex (see below)    |
-| `/proto.run <file>`                  | Run a binary protocol test script (.pro) with pass/fail                       |
-| `/proto.list`                        | List .pro files in proto/, newest first, with size, age and each one's `name`; a name runs, its edit cell opens the editor |
-| `/proto.rename <old> <new>`          | Rename a protocol script (`.pro` kept; never overwrites)                      |
-| `/proto.hex {on\|off\|toggle}`        | Same flag as `/term.hex`                                                      |
-| `/proto.crc.list {pat}`              | List available CRC algorithms (optional name pattern: `modbus`, `crc16*`)     |
-| `/proto.crc.info <name>`             | Show CRC algorithm parameters and description                                 |
-| `/proto.crc.calc <n> {d}`            | Compute CRC over hex bytes, quoted text, or a file; omit data to verify check string |
-| `/proto.crc.find bin=<hex>\|asc=<text>\|cmd=<trigger>` | Identify CRC algorithm from a captured packet, text, or a command's reply |
-| `/proto.info`                        | Print current protocol state                                                  |
-| `/mem.dump <target> {len} {type}`    | Hexdump or typed word columns; columns follow the output level (bytes at quiet, +ASCII at normal, +address at verbose) |
-| `/mem.read <target> {type}`          | One typed value: scalar, char, register field, bit or slice                   |
-| `/mem.write <target> <value>`        | Write a value to a named symbol, register or field, or hex bytes at an address (audited; destructive over MCP) |
-| `/mem.or <target> <mask>`            | Boolean ops on one word (also `.and`, `.clear`, `.xor`, `.not`); atomic via `MEM.M` where expressible |
-| `/mem.str <target> {max}`            | Read a NUL-terminated string as a first-class value                           |
-| `/mem.info`                          | Memory access config: dialect, block limit, width, endian, atomic modify      |
-| `/sym <addr\|name>`                  | Symbol table: name to address, or address to `name+offset`                   |
-| `/sym.import {file} {format=<value>}` | Convert an ELF or a linker map to `sym/<cfg>.symbols.json` and load it (bare: re-import the same file) |
-| `/sym.info`                          | Show the loaded symbol table: file, source, counts by section, range          |
-| `/sym.load {path}`                   | Load a symbol table (default: the cfg sidecar `/sym.import` writes)           |
-| `/sym.search <pattern>`              | Search symbols by name: the exact name, else a name pattern (`gpio`, `Mon*`)  |
-| `/sym.unload`                        | Clear the loaded symbol table                                                 |
-| `/dev.import <file> {format=<value>} {category=<value>} {to=<value>} {use=on\|off}` | Convert a vendor register description (CMSIS-SVD) into this config's `lib/` and reference it from `dev/` (`to=global` shares it) |
-| `/dev.lib {pattern}`                 | List the parts the libraries hold (available, not loaded), with their layer  |
-| `/dev.list`                          | List the devices this config has loaded, with layer and placement            |
-| `/dev.regs <device> {pattern}`       | List a loaded device's registers from its file (never the chip), hazards flagged |
-| `/dev.use <part> {at=<value>}`       | Add a library part to this config; `at=NAME@ADDR ...` places a relocatable one |
-| `/var {name}`                        | List user variables, or show one by name                                      |
-| `/var.set <NAME> <value>`            | Set a user variable                                                           |
-| `/var.clear`                         | Clear all user variables                                                      |
-| `/env.list {pattern}`                | List environment variables (all, or a name pattern: `path`, `COM*`)           |
-| `/env.set <name> <value>`            | Set a session-scoped environment variable                                     |
-| `/env.reload`                        | Re-snapshot variables from the OS environment                                 |
 | `/cap.text <f> ...`                  | Capture serial text to file for a timed duration                              |
 | `/cap.bin <f> ...`                   | Capture raw binary bytes to a file                                            |
 | `/cap.struct <f> ...`                | Capture binary data, decode with format spec to CSV                           |
@@ -353,6 +312,8 @@ The most common ones:
 | `/cap.stop`                          | Stop an active capture                                                        |
 | `/raw <text>`                        | Send text exactly as typed: no line ending, expansion or transforms           |
 | `/exit`                              | Exit termapy                                                                  |
+
+The protocol, device and advanced groups (`/proto`, `/mem`, `/sym`, `/dev`, `/var`, `/env`, `/edit`, `/os`, ...) are on the [REPL commands](src/termapy/help/commands.md) page; `/help` shows them folded under the terminal group.
 
 </details>
 
@@ -776,159 +737,6 @@ A progress bar and Stop button overlay the toolbar during capture. The `Cap` but
 
 </details>
 
-<details>
-<summary><strong>Binary protocol testing</strong> - hex send/receive, .pro test scripts, CRC</summary>
-
-Send raw hex bytes and see the response:
-
-```sh
-/proto.send 01 03 00 00 00 01 84 0A
-  TX: 01 03 00 00 00 01 84 0A
-  RX: 01 03 02 00 07 F9 86
-  (7 bytes, 12ms)
-```
-
-Mix hex and quoted text:
-
-```text
-/proto.send "AT+RST\r\n"
-/proto.send FF 00 "hello" 0D 0A
-```
-
-No line ending is appended; you send exactly the bytes you specify. Toggle `/proto.hex` to show all normal serial I/O as hex bytes.
-
-### Proto test scripts
-
-Write `.pro` files (TOML format) for repeatable send/expect testing with pass/fail:
-
-```toml
-name = "Modbus Register Test"
-frame_gap = "20ms"
-
-[[test]]
-name = "Read 1 register"
-send = "01 03 00 00 00 01 84 0A"
-expect = "01 03 02 00 07 F9 86"
-
-[[test]]
-name = "Write register 5 = 1234"
-send = "01 06 00 05 04 D2 1B 56"
-expect = "01 06 00 05 04 D2 1B 56"
-```
-
-Run with `/proto.run <file>` or from the proto debug screen, which adds repeat count, delay between runs, stop-on-error, scrolling results, and visualizer column data.
-
-<!-- TODO: screenshot - proto debug screen showing test results with pass/fail coloring and visualizer columns -->
-
-### Inline format specs
-
-Add `send_fmt` and `expect_fmt` to any test step to decode raw bytes into named columns. The proto debug screen displays the decoded values side by side with pass/fail highlighting, turning opaque hex into readable fields.
-
-```toml
-[[test]]
-name = "Read 2 registers"
-send = "01 03 00 00 00 02 C4 0B"
-send_fmt = "Title:Modbus_TX Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16-modbus_le"
-expect = "01 03 04 00 07 00 14 4B FD"
-expect_fmt = "Title:Modbus_Response Slave:H1 Func:H2 Bytes:U3 R0:U4-5 R1:U6-7 CRC:crc16-modbus_le"
-```
-
-Each column is `Name:TypeBytes` where the type controls how bytes are displayed:
-
-<!-- format-types:start (generated by scripts/sync_format_tables.py from protocol/type_codes.py -- do not edit by hand) -->
-
-| Code   | Meaning          | Example            | Output       |
-| ------ | ---------------- | ------------------ | ------------ |
-| `H`    | Hex bytes        | `H1`, `H3-4`       | `0A`, `01FF` |
-| `h`    | Hex, per byte    | `h3-4`             | `01 FF`      |
-| `U`    | Unsigned integer | `U1`, `U3-4`       | `10`, `256`  |
-| `I`    | Signed integer   | `I1`, `I3-4`       | `-1`, `+127` |
-| `S`    | ASCII string     | `S1-5`             | `Hello`      |
-| `F`    | IEEE 754 float   | `F1-4`             | `3.14`       |
-| `B`    | Bit field        | `B1.3`, `B1-2.7-9` | `1`, `5`     |
-| `b`    | Bit field, bits  | `b1.0-7`           | `00000110`   |
-| `_`    | Padding (hidden) | `_3-4`             | *(skipped)*  |
-| `crc*` | CRC verify       | `crc16-modbus`     | pass/fail    |
-
-<!-- format-types:end -->
-
-Byte indices are 1-based. Ranges use `-` (e.g. `U3-4` = bytes 3-4). **Byte order is controlled by the index direction.** This is how you handle big-endian vs little-endian protocols:
-
-- `U3-4`: big-endian (byte 3 is MSB, byte 4 is LSB)
-- `U4-3`: little-endian (byte 4 is LSB, byte 3 is MSB)
-- `U5-8`: 32-bit big-endian (4 bytes, MSB first)
-- `U8-5`: 32-bit little-endian (4 bytes, LSB first)
-
-This works for all multi-byte types (`U`, `I`, `H`, `F`, `B`). CRC columns auto-compute and verify the checksum over the preceding bytes. Append `_le` or `_be` to the CRC algorithm name for the byte order of the checksum itself:
-
-- `CRC:crc16-modbus_le`: CRC-16/Modbus stored little-endian (low byte first, as Modbus RTU requires)
-- `CRC:crc16-modbus_be`: same algorithm but stored big-endian (high byte first)
-
-The demo project includes two `.pro` files that exercise inline format specs: `modbus_inline.pro` (register reads/writes with Modbus decoding) and `bitfield_inline.pro` (bit field extraction and binary display). Run them from the Proto button in `--demo` mode.
-
-Here is the test that generates the Modbus response shown below:
-
-```toml
-[[test]]
-name = "Read 5 registers from addr 100"
-send = "01 03 00 64 00 05 C4 16"
-send_fmt = "Title:Modbus_TX Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16-modbus_le"
-expect = "01 03 0A 05 1B 05 28 05 35 05 42 05 4F 8C 46"
-expect_fmt = "Title:Modbus_Response Slave:H1 Func:H2 Bytes:U3 R0:U4-5 R1:U6-7 R2:U8-9 R3:U10-11 R4:U12-13 CRC:crc16-modbus_le"
-```
-
-![Inline format spec - decoded Modbus columns in proto debug screen](img/proto_inline_fmt.png)
-
-Finally here is the serial log output of a protocol test:
-
-```text
-================================================================================
-[2026-03-12 22:28:14] Script: Demo AT Command Test | Tests: 4 | Repeat: 1
-================================================================================
-  [PASS]  AT basic
-         TX:  41 54 0D
-         EXP: 4F 4B 0D 0A
-         RX:  4F 4B 0D 0A
-         Time: 77ms
-         [Hex] TX spec: Hex:h1-*
-         [Hex] TX: Hex=41 54 0D
-         [Hex] RX spec: Hex:h1-*
-         [Hex] RX: Hex=4F 4B 0D 0A
-  [PASS]  LED on
-         TX:  41 54 2B 4C 45 44 20 6F 6E 0D
-         EXP: 4F 4B 0D 0A
-         RX:  4F 4B 0D 0A
-         Time: 128ms
-         [Hex] TX spec: Hex:h1-*
-         [Hex] TX: Hex=41 54 2B 4C 45 44 20 6F 6E 0D
-         [Hex] RX spec: Hex:h1-*
-         [Hex] RX: Hex=4F 4B 0D 0A
-  [PASS]  LED off
-         TX:  41 54 2B 4C 45 44 20 6F 66 66 0D
-         EXP: 4F 4B 0D 0A
-         RX:  4F 4B 0D 0A
-         Time: 99ms
-         [Hex] TX spec: Hex:h1-*
-         [Hex] TX: Hex=41 54 2B 4C 45 44 20 6F 66 66 0D
-         [Hex] RX spec: Hex:h1-*
-         [Hex] RX: Hex=4F 4B 0D 0A
-  [PASS]  Unknown command
-         TX:  49 4E 56 41 4C 49 44 0D
-         EXP: 45 52 52 4F 52 3A 20 55 6E 6B 6E 6F 77 6E 20 63 6F 6D 6D 61 6E 64 20 27 49 4E 56 41 4C 49 44 27 0D 0A
-         RX:  45 52 52 4F 52 3A 20 55 6E 6B 6E 6F 77 6E 20 63 6F 6D 6D 61 6E 64 20 27 49 4E 56 41 4C 49 44 27 0D 0A
-         Time: 72ms
-         [Hex] TX spec: Hex:h1-*
-         [Hex] TX: Hex=49 4E 56 41 4C 49 44 0D
-         [Hex] RX spec: Hex:h1-*
-         [Hex] RX: Hex=45 52 52 4F 52 3A 20 55 6E 6B 6E 6F 77 6E 20 63 6F 6D 6D 61 6E 64 20 27 49 4E 56 41 4C 49 44 27 0D 0A
-Summary: 4/4 PASS (4 tests)
-```
-
-### CRC algorithms
-
-Every CRC algorithm in the [reveng catalog](https://reveng.sourceforge.io/crc-catalogue/all.htm) (maintained by Greg Cook -- see [ACKNOWLEDGMENTS](src/termapy/help/acknowledgments.md)) is built in, with full parameterization (poly, init, refin, refout, xorout) and each one verified against its catalog check value in the test suite. If you need a CRC and it has a name, termapy already has it, correctly. Browse with `/proto.crc.list`, inspect with `/proto.crc.info <name>`, compute with `/proto.crc.calc`, identify an unknown one from a captured packet with `/proto.crc.find`. You can also generate standalone C, C#, Go, Java, Lua, Python, Rust, TypeScript, Verilog, VHDL, or Zig source for any of them with `/proto.crc.python`, `/proto.crc.c`, `/proto.crc.rust` so you never have to port one by hand again.
-
-</details>
 
 <details>
 <summary><strong>Demo mode</strong> - simulated device for trying everything without hardware</summary>
@@ -1058,196 +866,25 @@ It's also a reversible toggle from inside the TUI, like `/cli` <-> `/tui`: `/vt1
 
 </details>
 
-<details>
-<summary><strong>Extending termapy</strong> - plugins, subcommands, visualizers</summary>
-
-### Symbols, memory and parts
-
-`/sym.import out/default.elf` turns your build into names, sizes and C types (from its debug info), so `/mem.read gTemp` reads a variable by name instead of by address, signed or float as declared; a linker map works too, with names and sizes only. A `const` in the build keeps its value, and a pointer constant to a peripheral names its registers under your own name (`SPI_PORT_DIR` for `PORTC_DIR`). `/dev.import part.svd` does the same for the silicon: a vendor CMSIS-SVD becomes a **device file** -- every register of the part with its bit fields -- stored once in the config's `lib/` and referenced from its `dev/`, so `/mem.read PORT_GROUP0_DIR` works and a checked-in config folder carries its parts. A part on the external bus (two ADCs, an FPGA block) is written once with register offsets and placed per board: `/dev.use acme-adc16 at=ADC1@0x60000000 ADC2@0x60001000`. Registers are live silicon, not variables, so `/mem.*` refuses bulk reads over them, refuses reads of write-only registers, and logs the rest. The device side is the MEM wire spec (`/firmware.copy mem` writes the drop-in `termapy_mem.c` into your tree) or a profile block describing your monitor's own peek/poke grammar. See the Symbols, Devices and Memory help pages.
-
-### Plugins
-
-Every built-in command (`/help`, `/cfg`, `/grep`, all of them) is itself a plugin loaded from the same folder you'd drop your own into. If something was hard to build as a plugin, the API was wrong. [Dogfooding](https://en.wikipedia.org/wiki/Eating_your_own_dog_food) all the way down.
-
-Add custom REPL commands by dropping a `.py` file in a plugin folder. No classes to subclass, no registration:
-
-```python
-# hello.py - drop into termapy_cfg/plugin/ or termapy_cfg/<config>/plugin/
-from termapy.plugins import CmdResult, Command, PluginContext
-
-
-def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    name = args.strip() or "world"
-    ctx.io.result(f"Hello, {name}!")
-    return CmdResult.ok(value=name)
-
-
-# ── COMMAND (must be at end of file) ──────────────────────────────────────────
-COMMAND = Command(
-    name="hello",
-    args="{name}",  # {braces} = optional, <angle> = required, "" = no args
-    help="Say hello.",
-    handler=_handler,
-)
-```
-
-**Plugin locations** (loaded in order, later overrides earlier):
-
-1. **Built-in:** shipped with termapy, always available
-2. **Global:** `termapy_cfg/plugin/*.py`, shared across all configs
-3. **Per-config:** `termapy_cfg/<name>/plugin/*.py`, specific to one config
-4. **App hooks:** frontend-specific commands (`/ss.svg`, `/vt100`, `/tui`, etc.)
-
-Resolution is the same in every frontend (TUI, CLI, MCP server) and reruns on every config switch; a folder plugin can never take an app hook's name.
-
-Subcommands (`/tool.run`, `/tool.status`), typed parameters, scriptable return values, the full `PluginContext` API with its five handles and capability gating, and `ctx.internal`, the engine and host services every plugin may use, are all in the [Writing plugins](src/termapy/help/writing-plugins.md) guide, which also ships in the in-app help.
-
-<details>
-<summary>Example plugins</summary>
-
-See `examples/plugins/` for working examples:
-
-- **hello.py:** minimal greeting command
-- **at_test.py:** send AT commands over serial
-- **timestamp.py:** print the current date/time
-- **ping.py:** send a command and measure response time
-
-More complete examples ship with `--demo`: `probe.py` demonstrates the drain → write → read → parse cycle for device interaction; `traffic.py` (with `/traffic.count`, `/traffic.hexdump`, `/traffic.rate`, `/traffic.snoop`) demonstrates the passive RX/TX observer pattern via the `ctx.serial.rx_observer()` / `ctx.serial.tx_observer()` context managers. Run `/help probe` or `/help traffic` to see the documentation, or `/help.dev <name>` for the source docstrings.
 
 </details>
 
-### Binary format specs
+## More, when you need it
 
-Embedded protocols send raw bytes. Format specs decode them into human-readable fields - so you see "Temp: 200" and "CRC: OK" instead of `00 C8 ... XX XX`. Used in protocol testing (`.pro` files), data capture (`/cap.struct`, `/cap.hex`), and the proto debug screen.
+Each of these is there when you need it and otherwise out of the way: `/help` folds them under the terminal commands (`/help.more` opens them all), the palette never lists them, and the MCP catalog carries them all.
 
-A format spec is a one-line definition of your packet layout. Each field has a name, a type, and a byte range:
-
-```text
-"ID:H1 Temp:U2-3 Signed:I4-5 Status:H6"
-```
-
-Given the bytes `01 00 C8 FF FE 0A`, this decodes to:
-
-```text
-  ID     = 01      (byte 1 as hex)
-  Temp   = 200     (bytes 2-3 as unsigned int, big-endian)
-  Signed = -2      (bytes 4-5 as signed int, big-endian)
-  Status = 0A      (byte 6 as hex)
-```
-
-In protocol tests, termapy decodes both expected and actual bytes using your spec, then shows per-column pass/fail:
-
-```text
-Expected: 01 00 C8 FF FE 0A  ->  ID:01  Temp:200   Signed:-2   Status:0A
-Actual:   01 00 C9 FF FE 0A  ->  ID:01  Temp:201   Signed:-2   Status:0A
-                                  match  MISMATCH   match       match
-```
-
-<details>
-<summary>Supported types</summary>
-
-<!-- format-types:start (generated by scripts/sync_format_tables.py from protocol/type_codes.py -- do not edit by hand) -->
-
-| Code   | Meaning          | Example            | Output       |
-| ------ | ---------------- | ------------------ | ------------ |
-| `H`    | Hex bytes        | `H1`, `H3-4`       | `0A`, `01FF` |
-| `h`    | Hex, per byte    | `h3-4`             | `01 FF`      |
-| `U`    | Unsigned integer | `U1`, `U3-4`       | `10`, `256`  |
-| `I`    | Signed integer   | `I1`, `I3-4`       | `-1`, `+127` |
-| `S`    | ASCII string     | `S1-5`             | `Hello`      |
-| `F`    | IEEE 754 float   | `F1-4`             | `3.14`       |
-| `B`    | Bit field        | `B1.3`, `B1-2.7-9` | `1`, `5`     |
-| `b`    | Bit field, bits  | `b1.0-7`           | `00000110`   |
-| `_`    | Padding (hidden) | `_3-4`             | *(skipped)*  |
-| `crc*` | CRC verify       | `crc16-modbus`     | pass/fail    |
-
-<!-- format-types:end -->
-
-Integers support 1, 2, 3, 4, and 8 byte widths. Floats are 4-byte (F32) or 8-byte (F64).
-
-</details>
-
-<details>
-<summary>Endianness</summary>
-
-Byte order in the spec IS the endianness - no flags needed:
-
-- `U2-3` = bytes 2 then 3 = big-endian: `00 C8` = 200
-- `U3-2` = bytes 3 then 2 = little-endian: `C8 00` = 51200
-- `I4-5` = big-endian signed: `FF FE` = -2
-- `I5-4` = little-endian signed: `FE FF` = -257
-
-You read the spec the same way you read the protocol datasheet. Modbus devices are big-endian (`U2-3`), x86-based devices are little-endian (`U3-2`).
-
-</details>
-
-<details>
-<summary>Real-world examples</summary>
-
-**Modbus RTU response** (read 2 holding registers):
-
-```text
-"Slave:H1 Func:H2 Len:U3 Reg0:U4-5 Reg1:U6-7 CRC:crc16-modbus_le"
-```
-
-Decodes: `01 03 04 00 C8 01 F4 XX XX` -> Slave:01 Func:03 Len:4 Reg0:200 Reg1:500 CRC:pass
-
-**GPS binary packet** (mixed types):
-
-```text
-"Sync:H1-2 MsgID:U3 Lat:F4-7 Lon:F8-11 Alt:F12-15 Sats:U16 _:_17 CRC:crc8-maxim"
-```
-
-**Sensor with bit flags** (status byte with packed bits):
-
-```text
-"Temp:U1-2 Humid:U3 MotorOn:B4.0 AlarmHi:B4.1 AlarmLo:B4.2 Mode:B4.5-7"
-```
-
-Decodes byte 4 into individual bit fields: MotorOn=1, AlarmHi=0, AlarmLo=0, Mode=3
-
-**Simple checksum** (not CRC - custom sum):
-
-```text
-"Header:H1 Payload:H2-9 Sum:H10"
-```
-
-For non-standard checksums, add a CRC plugin (3 lines of Python):
-
-```python
-NAME = "sum8"
-WIDTH = 1
-
-
-def compute(data: bytes) -> int:
-    return sum(data) & 0xFF
-```
-
-Drop into `builtins/crc/` or `termapy_cfg/<name>/crc/`.
-
-</details>
-
-<details>
-<summary>CRC support</summary>
-
-100+ built-in algorithms covering CRC-8, CRC-16, CRC-32 families (Modbus, XMODEM, CCITT, USB, and more).
-
-In format specs, CRC columns verify data integrity automatically:
-
-- `CRC:crc16-modbus_le` - little-endian Modbus CRC-16
-- `CRC:crc16-xmodem_be` - big-endian XMODEM CRC-16
-- `CRC:crc8-maxim` - 1-byte CRC (no endianness needed)
-
-From the REPL:
-
-- `/proto.crc.list` - list every algorithm
-- `/proto.crc.info crc16-modbus` - show parameters
-- `/proto.crc.calc crc16-modbus 01 03 00 00 00 0A` - compute CRC
-- `/proto.crc.find bin=01 03 00 00 00 0A C5 CD` - identify the algorithm from a captured packet
-
-</details>
-
-</details>
+| Group | What it does | Page |
+| --- | --- | --- |
+| Protocol testing | `.pro` send/expect tests with pass/fail, the debug screen, packet visualizers, format specs that decode bytes into named columns | [Protocol testing](src/termapy/help/protocol-testing.md) |
+| Serial tools and CRC | `/proto.send` raw hex and text, hex display, every CRC in the reveng catalog (verified against its check value), code generation in eleven languages, identifying a CRC from a captured packet | [Serial tools](src/termapy/help/serial-tools.md) |
+| Symbols | `/sym.import` turns an ELF or a linker map into names, sizes and C types, so memory commands take a variable's name | [Symbols](src/termapy/help/symbols.md) |
+| Devices | A vendor's CMSIS-SVD becomes a device file: every register with its bit fields, placed per board | [Devices](src/termapy/help/devices.md) |
+| Memory | `/mem.*` reads and writes a target by name or address, typed, with the silicon's hazards respected | [Memory](src/termapy/help/memory.md) |
+| Firmware and JSON | The device-side kit: a command monitor, the MEM wire spec and JSON replies for C and MicroPython | [Firmware](src/termapy/help/firmware.md), [JSON integration](src/termapy/help/firmware-json.md) |
+| Dev boards | A starter project for the Raspberry Pi Pico and the ESP32-S3: device code, a config and a profile on day one | [Dev boards](src/termapy/help/boards.md) |
+| File transfer | XMODEM, YMODEM and ZMODEM send and receive from the prompt | [File transfer](src/termapy/help/file-transfer.md) |
+| Plugins | Add a command by dropping a `.py` file in a folder; every built-in is one | [Writing plugins](src/termapy/help/writing-plugins.md) |
+| MCP server | Drive termapy from an LLM through a conservative, sandboxed tool surface | [MCP server](src/termapy/help/mcp-server.md) |
 
 <details>
 <summary><strong>Portability</strong></summary>

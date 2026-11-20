@@ -525,7 +525,7 @@ The narrative — the thread diagram, the two hand-off mechanisms and why each r
   scripts/sync_architecture.py`; `tests/test_architecture_sync.py` fails on a
   stale or hand-edited block. A weak row is fixed in the docstring, never
   in the doc; a non-Python entry's text is `NOTES` in the script.
-- Update README.md and help/*.md
+- Update README.md and help/*.md. The README covers the terminal group; a feature in another group gets its help page, and the README's "More, when you need it" table links it (decision 2026-11-19)
 - Update ARCHITECTURE.md's prose if modules, plugins, or structure changed
 - **Do NOT hand-update the test/ty counts or badges on feature
   builds.** The test count, ty diagnostic count, and the

@@ -1,7 +1,7 @@
 """Guard the format-spec type tables against hand edits and decoder drift.
 
 ``protocol/type_codes.py`` is the single source; ``scripts/sync_format_tables.py``
-renders it into the help page and README, decoding every example through the
+renders it into the help page, decoding every example through the
 real parser.  If a test here fails, edit ``TYPE_CODES`` (not a generated
 table) and run::
 
@@ -26,7 +26,7 @@ pytestmark = pytest.mark.rule("format-type-table-single-source")
 
 
 def test_generated_tables_are_in_sync():
-    """Every generated type table in the help page and README matches TYPE_CODES."""
+    """Every generated type table in the help page matches TYPE_CODES."""
     assert main(["--check"]) == 0, (
         "a type table was hand-edited or TYPE_CODES changed; "
         "run: uv run python scripts/sync_format_tables.py"

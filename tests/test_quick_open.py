@@ -132,6 +132,14 @@ class TestQuickConfig:
             "a column, not the bar"
         )
 
+    def test_a_quick_config_is_a_terminal(self, cfg_root):
+        """The first open leaves the Proto button off: protocol testing waits until asked for."""
+        # Act
+        path, _ = quick_config("COM3", "")
+
+        # Assert
+        assert _saved(path)["proto_enabled"] is False, "a session shows a terminal"
+
     def test_every_quick_button_is_a_default_button(self):
         """Each command QUICK_BUTTONS names is a shipped button, so a rename cannot turn on nothing."""
         commands = {button["command"] for button in DEFAULT_CFG["custom_buttons"]}

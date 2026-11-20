@@ -341,7 +341,9 @@ from Task Manager or `kill`, once.
 | `--verbose`       | Output level: results + data + progress chatter.              |
 
 Any REPL command also accepts `--json` to render its result as a JSON
-envelope -- `termapy --cli -e "/port.list --json"` pipes cleanly to `jq`.
+envelope -- `termapy --cli -e /port.list --json` pipes cleanly to `jq`.
+The flag means JSON wherever it stands: `termapy --json -e /port.list`
+is the same command, the flag handed to it.
 See [Scripting](scripting.md#json-output-termrequest-on-or---json-per-call).
 
 `termapy --help` has the full list.

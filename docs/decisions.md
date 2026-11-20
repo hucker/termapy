@@ -2193,3 +2193,20 @@ stays eager: a script is a session (Chuck). The knowledge lives in the
 engine so the TUI and MCP can ask the same question later (Chuck).
 Such a one-shot's breadcrumb records the config's port but no open port.
 **Where:** `repl.ReplEngine.needs_port`, `cli.CLITerminal._connects_first`.
+
+## 2026-11-20 — --json before -e is the command's --json
+
+Item 2 of the command-line review. `termapy --json -e /port.list` printed
+the text table: the flag's help said it applied to three print-and-exit
+flags, so with `-e` it was a silent no-op, while `-e /port.list --json`
+gave the envelope. Now the flag means JSON wherever it stands: with `-e`
+it is appended to the command as its own `--json` (a doubled flag is
+harmless), so both spellings print the same envelope, and a bare device
+line comes back as the envelope of the exchange, as a typed `AT --json`
+does. Refusing with a usage error was the alternative; an unambiguous
+request deserves the answer, not a correction (registry
+`json-flag-reaches-the-command`). Folded in from Chuck's question the
+same day: with no config loaded, a key page's closing line said the
+editor "saves it to the config file", a file that did not exist; it now
+says no config is loaded. **Where:** `entry.main`,
+`builtins/commands/help._cfg_scope_text`.

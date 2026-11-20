@@ -2210,3 +2210,25 @@ same day: with no config loaded, a key page's closing line said the
 editor "saves it to the config file", a file that did not exist; it now
 says no config is loaded. **Where:** `entry.main`,
 `builtins/commands/help._cfg_scope_text`.
+
+## 2026-11-20 — --help groups the flags by job
+
+Item 3 of the command-line review. Thirty flags in one flat list, in
+declaration order, was the command line's real usability cost; the CLI
+help page had the same flat table in a different order. Now both use
+five argparse argument groups, in one order: start a session; run one
+thing and exit; settings (Chuck: color, the output levels and the table
+width "are not run one thing, they are settings"); ask about the machine
+(no session, no port opened); running termapys. A flag that serves two groups (`-y`, `--json`) sits in
+the one that uses it most and its help names the others. The usage line
+and the exit-code epilog are unchanged. Chuck, on the first cut: "Why are
+the blue titles in lower case?" The titles are Title Case (registry
+`labels-title-case`), and `-h` sits in the first group so argparse's own
+lowercase "options:" heading is gone (`add_help=False`). The description,
+"TUI serial terminal with ANSI color support", was the first day's; the
+one sentence `--help` and the pyproject now share says what termapy is
+today. And the common flags have short forms, by convention: `-p -w -i -u`
+for the discovery set, `-j`, `-V` for version (`-v` is verbose everywhere,
+python, pip, ssh, curl), `-q -v`, `-c -r -d`; the rest stay long only.
+**Where:** `entry._build_parser`, `help/cli.md` "Every flag, by job",
+`pyproject.toml`.

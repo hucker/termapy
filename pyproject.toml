@@ -1,7 +1,7 @@
 [project]
 name = "termapy"
 version = "0.81.0"
-description = "A TUI serial terminal with ANSI color support, built on Textual and pyserial"
+description = "A serial terminal that is also a command line for the device: a TUI, a plain CLI, one-shots for scripts and an MCP server for agents."
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"

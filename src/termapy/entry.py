@@ -381,8 +381,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--json",
         action="store_true",
-        help="Emit JSON instead of a column-aligned table.  "
-        "Applies to --ports, --chips, and --usb.",
+        help="Emit JSON: the records instead of a column-aligned table for "
+        "--ports, --chips and --usb; with -e, the command's own --json, "
+        "its JSON envelope.",
     )
     parser.add_argument(
         "--validate-profile",
@@ -660,6 +661,13 @@ def main() -> None:
 
     if args.run or args.exec_cmd:
         args.cli = True  # --run / --exec imply --cli
+
+    if args.json and args.exec_cmd:
+        # --json anywhere on the line means JSON out: with -e it is the
+        # command's own flag, so `termapy --json -e /port.list` is
+        # `termapy -e /port.list --json`.  A doubled flag is harmless
+        # (registry json-flag-reaches-the-command).
+        args.exec_cmd = f"{args.exec_cmd} --json"
 
     if args.exec_cmd:
         # --exec is for piping/scripting; ANSI escapes pollute captured

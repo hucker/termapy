@@ -220,11 +220,15 @@ def _cfg_json_fragment(path: str, value: object) -> str:
 
 
 def _cfg_scope_text(prefix: str, key: str, file_name: str) -> str:
-    """The one line on where a change lasts: the session by command, the named file by the editor."""
-    return (
-        f"A change by {prefix}cfg {key} <value> lasts the session; "
-        f"the config editor ({prefix}cfg.edit) saves it to {file_name or 'the config file'}."
-    )
+    """The one line on where a change lasts: the session by command, the named file by the editor.
+
+    With no config loaded there is no file and the editor would refuse, so
+    the line says that instead of naming a file that does not exist.
+    """
+    lasts = f"A change by {prefix}cfg {key} <value> lasts the session; "
+    if not file_name:
+        return lasts + "no config is loaded, so there is no file to save it to."
+    return lasts + f"the config editor ({prefix}cfg.edit) saves it to {file_name}."
 
 
 def _cfg_scope_markup(prefix: str, key: str, file_name: str) -> str:

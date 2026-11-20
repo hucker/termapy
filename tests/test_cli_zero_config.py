@@ -104,6 +104,18 @@ class TestZeroConfigWelcomeBanner:
 class TestZeroConfigOneShot:
     """A one-shot prints only what its command prints, config or no config."""
 
+    def test_a_key_page_names_no_file_when_no_config_is_loaded(self):
+        """With no config loaded, a config key's page says so instead of naming a file the editor would save to."""
+        # Act
+        result = _run_zero_config(args=["-e", "/help eol"])
+
+        # Assert
+        assert result.returncode == 0, f"stderr: {result.stderr!r}"
+        assert "no config is loaded, so there is no file to save it to." in result.stdout, (
+            result.stdout
+        )
+        assert "saves it to" not in result.stdout, "no file is named"
+
     def test_exec_prints_no_welcome(self):
         """-e with no config runs the command without the welcome banner, as with a config.
 

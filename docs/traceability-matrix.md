@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 208: 193 registry rows (guarantees 158, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 204. Pinned by none: 4.
+Ids: 209: 194 registry rows (guarantees 159, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 205. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -469,6 +469,10 @@ Ids: 208: 193 registry rows (guarantees 158, assumptions 35), 15 spec sections i
 ### `io-semantic-channels` (guarantee, structure)
 
 - `test_architecture.py`: `test_plugins_do_not_use_engine_io_primitives` **guard**
+
+### `json-flag-reaches-the-command` (guarantee, contract)
+
+- `test_cli_exec.py`: `TestCliExec.test_json_before_exec_is_the_commands_json` **guard**, `TestCliExec.test_json_before_exec_reaches_a_bare_device_line` **guard**
 
 ### `json-mode-ids` (guarantee, contract)
 

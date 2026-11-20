@@ -8,6 +8,7 @@ real entry point.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -184,6 +185,33 @@ class TestCliExec:
         # Assert
         assert result.returncode == 2, f"a usage error; stderr={result.stderr!r}"
         assert "needs a command" in result.stderr, "says what is missing"
+
+    @pytest.mark.rule("json-flag-reaches-the-command")
+    def test_json_before_exec_is_the_commands_json(self, tmp_path):
+        """--json before -e is handed to the command, so the one-shot prints the command's envelope."""
+        # Act
+        before = _run("--json", "-e", "/print", "hi", cfg_dir=str(tmp_path))
+        after = _run("-e", "/print", "hi", "--json", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert before.returncode == 0, f"stderr={before.stderr!r}"
+        envelope = json.loads(before.stdout)
+        assert (envelope["cmd"], envelope["value"]) == ("/print hi", "hi"), "the command's envelope"
+        twin = json.loads(after.stdout)
+        envelope.pop("elapsed_s"), twin.pop("elapsed_s")
+        assert envelope == twin, "the two spellings are one command, timing aside"
+
+    @pytest.mark.rule("json-flag-reaches-the-command")
+    def test_json_before_exec_reaches_a_bare_device_line(self, tmp_path):
+        """A bare device line takes --json as a typed line does: the exchange comes back as the envelope."""
+        # Act
+        result = _run("--json", "-e", "AT+INFO", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 0, f"stderr={result.stderr!r}"
+        envelope = json.loads(result.stdout.strip().splitlines()[-1])
+        assert envelope["cmd"] == "AT+INFO", "the device line is the request"
+        assert envelope["success"] and envelope["value"], "the reply is the value"
 
     def test_a_second_exec_is_refused(self, tmp_path):
         """-e twice is refused, where argparse used to run only the last one silently."""

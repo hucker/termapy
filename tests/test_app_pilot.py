@@ -133,7 +133,7 @@ class TestAppBoots:
         assert "Session End" in log, "the session log was ended, as /exit ends it"
 
     def test_a_tui_on_a_terminal_has_its_console(self, app_factory):
-        """Not served in a browser, the TUI has a terminal that /cli and /vt100 can take over."""
+        """Not served in a browser, the TUI has a terminal that /app.cli and /app.vt100 can take over."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -159,7 +159,7 @@ class TestAppBoots:
 
         _run(scenario)
 
-    @pytest.mark.parametrize("command", ["/cli", "/vt100", "/demo.vt100"])
+    @pytest.mark.parametrize("command", ["/app.cli", "/app.vt100", "/demo.vt100"])
     def test_without_a_console_the_mode_switches_are_refused(self, app_factory, command):
         """In a browser tab (no console) the switches fail at the gate and the TUI stays."""
 

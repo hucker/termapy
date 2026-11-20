@@ -37,6 +37,15 @@ from termapy.plugins.capabilities import CapabilitySet, MissingCapability
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from termapy.plugins.command import CmdResult
+
+
+def _no_switch_ui(mode: str) -> CmdResult:
+    """The default ``switch_ui``: a host that hands its terminal to no other mode."""
+    from termapy.plugins.command import CmdResult
+
+    return CmdResult.fail(msg=f"Not available here: {mode}")
+
 
 @dataclass
 class UIHandle:
@@ -51,6 +60,7 @@ class UIHandle:
     _save_screenshot_impl: Callable = lambda path: None
     _get_screen_text_impl: Callable = lambda: ""
     _exit_app_impl: Callable = lambda: None
+    _switch_ui_impl: Callable = _no_switch_ui
 
     # Capability snapshot for the gates.  PluginContext sets this in
     # __post_init__ to its own CapabilitySet.
@@ -145,3 +155,19 @@ class UIHandle:
         keep itself out of MCP and other non-interactive environments.
         """
         self._exit_app_impl()
+
+    def switch_ui(self, mode: str) -> CmdResult:
+        """Leave this frontend for ``mode`` (``tui``, ``cli``, ``vt100``), the host's own act.
+
+        One command per mode, ``/app.tui``, ``/app.cli`` and ``/app.vt100``,
+        each with one handler in every frontend (registry
+        ``one-handler-per-command``); what the switch does is the host's,
+        wired here.  A host already in ``mode`` does nothing and succeeds,
+        so a script written for one frontend runs in the other.  Not gated
+        at the handle level: the commands declare the capabilities a switch
+        needs (``console`` for a mode that takes over the terminal).
+
+        Returns:
+            The host's ``CmdResult``.
+        """
+        return self._switch_ui_impl(mode)

@@ -210,7 +210,6 @@ demo> /help.more
   protocol  /ping       stable     Send a command and measure response time.
   protocol  /proto      stable     Binary protocol tools: send, run, debug, hex, crc, info.
   protocol  /xfer       stable     File transfer: settings and XMODEM / YMODEM / ZMODEM send and receive.
-  [63/450] /help.more (96us)
 demo> /help capability
 NAME
   capability - What a command needs from where it runs; a frontend that lacks it refuses the command.
@@ -233,8 +232,9 @@ CAPABILITIES
   ui_notify             - the TUI's toast notifications  [TUI WEB]
   status_bar            - the TUI's status line  [TUI WEB]
   screen_capture        - the TUI's render surface (screenshots, screen text)  [TUI WEB]
-  tui_mode              - the TUI (switch with /tui)  [TUI WEB]
+  tui_mode              - the TUI (switch with /app.tui)  [TUI WEB]
   console               - the terminal this process runs in; a browser tab has none  [TUI CLI]
+  cli_repl              - the CLI's prompt (switch with /app.cli)  [CLI]
   config_loaded         - a loaded config  [session state: No config loaded.]
   serial_connected      - an open serial port  [session state: Not connected.]
   profile_loaded        - a loaded device profile  [session state: No profile loaded.]
@@ -322,7 +322,7 @@ AVAILABLE
   TUI: yes   WEB: yes   CLI: yes (current)   MCP: yes
 
 SEE ALSO
-  /term.color, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.info, /term.json_fmt, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.traffic, /term.usb_db, /term
+  /term.color, /term.completion, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.info, /term.json_fmt, /term.line_no, /term.log, /term.output, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.traffic, /term.usb_db, /term
 demo> /cfg.auto custom_buttons_side Right
   right
 demo> /cfg custom_buttons_side
@@ -343,7 +343,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-      "config_version": 39,
+      "config_version": 40,
       "title": "Demo Device",
       "border_color": "",
       "serial": {
@@ -1742,10 +1742,6 @@ demo> /help.run
 demo> /print === section: help.plugin ===
   === section: help.plugin ===
 demo> /help.plugin
--- Application --
-  /cli          Already in CLI mode.
-  /tui          Switch to TUI mode.
-
 -- Application Plugins --
   /app          App-wide state, config and running sessions.
   /board        Starter projects for real dev boards: list, new, firmware, update.
@@ -1795,7 +1791,7 @@ demo> /help.plugin
 -- Script Commands (.run files only) --
   /confirm      Show Yes/Cancel dialog; Cancel stops a running script.
   /expect       Wait for text in serial output (blocks until match or timeout).
-  46 commands.
+  44 commands.
 demo> /print === section: help.group ===
   === section: help.group ===
 demo> /help.group
@@ -1806,7 +1802,7 @@ demo> /help.group
   devices          6  board, dev, firmware, mem, profile, sym
   plugins          4  crcsend, probe, temp_plot, traffic
   protocol         3  ping, proto, xfer
-  terminal        21  cap, cfg, cli, cls, delay, demo, exit, ...
+  terminal        19  cap, cfg, cls, delay, demo, exit, find, ...
 demo> /help.group devices
   devices - 6 commands
   COMMAND    LEVEL      DESCRIPTION
@@ -1934,7 +1930,12 @@ demo> /port.break -5
 demo> /print === section: capability gates (tui_mode + screen_capture) ===
   === section: capability gates (tui_mode + screen_capture) ===
 demo> /term.line_no on
-  Error: /term.line_no requires the tui_mode capability, the TUI (switch with /tui); not available in this environment
+  Error: /term.line_no requires the tui_mode capability, the TUI (switch with /app.tui); not available in this environment
+demo> /app.vt100
+  Error: /app.vt100 requires the tui_mode capability, the TUI (switch with /app.tui); not available in this environment
+demo> /app.cli
+demo> /term.completion
+  on
 demo> /ss.svg
   Error: /ss.svg requires the screen_capture capability, the TUI's render surface (screenshots, screen text); not available in this environment
 demo> /ss.txt
@@ -1942,9 +1943,9 @@ demo> /ss.txt
 demo> /print === section: json mode ===
   === section: json mode ===
 demo> /term.line_no --json
-  {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires the tui_mode capability, the TUI (switch with /tui); not available in this environment", "value": "", "data": null, "output_lines": [], "elapsed_s": 0}
+  {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires the tui_mode capability, the TUI (switch with /app.tui); not available in this environment", "value": "", "data": null, "output_lines": [], "elapsed_s": 0}
 demo> /term.line_no.json
-  {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires the tui_mode capability, the TUI (switch with /tui); not available in this environment", "value": "", "data": null, "output_lines": [], "elapsed_s": 0}
+  {"cmd": "/term.line_no", "success": false, "error": "/term.line_no requires the tui_mode capability, the TUI (switch with /app.tui); not available in this environment", "value": "", "data": null, "output_lines": [], "elapsed_s": 0}
 demo> /term.request on
   on
 demo> /print hello enveloped
@@ -1996,7 +1997,7 @@ demo> /term.control_keys
 demo> /term.timestamps
   off
 demo> /term.traffic
-  Error: /term.traffic requires the tui_mode capability, the TUI (switch with /tui); not available in this environment
+  Error: /term.traffic requires the tui_mode capability, the TUI (switch with /app.tui); not available in this environment
 demo> /term.color
   off
 demo> /term.color on
@@ -2135,7 +2136,7 @@ demo> /proto.send --dry-run "AT\r"
 demo> /proto.crc.verify crc16-modbus endian=le 01 03 00 00 00 01 84 0A
   OK  crc16-modbus  endian=little  crc=0x0A84  (6 data bytes)
 demo> /proto.debug demo.pro
-  Error: /proto.debug requires the tui_mode capability, the TUI (switch with /tui); not available in this environment
+  Error: /proto.debug requires the tui_mode capability, the TUI (switch with /app.tui); not available in this environment
 demo> /print === section: coverage: profile and help ===
   === section: coverage: profile and help ===
 demo> /profile.validate demo_legacy.profile.json

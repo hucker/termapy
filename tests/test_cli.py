@@ -957,6 +957,24 @@ class TestHistory:
         # Assert
         assert actual.endswith("test.history"), "history file uses config stem"
 
+    def test_completion_off_keeps_a_prompt_without_the_extras(self, cli):
+        """build_session with completion off is still a prompt_toolkit session (history, editing) with no completer or suggestions."""
+        from prompt_toolkit.application import create_app_session
+        from prompt_toolkit.input import DummyInput
+        from prompt_toolkit.output import DummyOutput
+
+        from termapy.cli_prompt import build_session
+
+        # Act -- headless prompt_toolkit, so no terminal is needed
+        with create_app_session(input=DummyInput(), output=DummyOutput()):
+            on = build_session(cli.repl, cli.prefix, cli._history_path())
+            off = build_session(cli.repl, cli.prefix, cli._history_path(), completion=False)
+
+        # Assert
+        assert on.completer is not None and on.auto_suggest is not None, "on: the extras"
+        assert off.completer is None and off.auto_suggest is None, "off: no extras"
+        assert off.history is not None, "off keeps the history: a prompt, never a plain input()"
+
     def test_build_session_creates_completer(self, cli):
         """Completer class is wired with repl and prefix."""
         from termapy.cli_prompt import _TermapyCompleter
@@ -1232,7 +1250,7 @@ class TestNoSessionLog:
 
 
 class TestExitFromAScript:
-    """/exit and /tui end a CLI session from a script, not only typed at the prompt.
+    """/exit and /app.tui end a CLI session from a script, not only typed at the prompt.
 
     Until 2026-10-16 the prompt loop matched the typed words, and dispatched
     from a ``.run`` file or ``-e`` ``/exit`` was a no-op, so the script went
@@ -1257,12 +1275,12 @@ class TestExitFromAScript:
         assert (cli._exit_requested, cli.switch_to) == (True, None), "a plain exit, no mode switch"
 
     def test_tui_in_a_script_switches_to_the_tui(self, cli, capsys):
-        """/tui in a script stops it and hands the mode loop the TUI."""
+        """/app.tui in a script stops it and hands the mode loop the TUI."""
         # Act
-        self._run_script(cli, "/tui\n/print after\n")
+        self._run_script(cli, "/app.tui\n/print after\n")
 
         # Assert
-        assert "after" not in capsys.readouterr().out, "the script stopped at /tui"
+        assert "after" not in capsys.readouterr().out, "the script stopped at /app.tui"
         assert (cli._exit_requested, cli.switch_to) == (True, "tui")
 
 
@@ -1334,8 +1352,7 @@ class TestHookRegistration:
             "demo.force",
             "raw",
             "help.open",
-            "tui",
-            "cli",
+            "term.completion",
         }
 
         # Assert
@@ -1347,31 +1364,31 @@ class TestHookRegistration:
 
 
 class TestCliCompletionHook:
-    """``/cli.completion`` is a setting command: bare queries, a vocabulary token sets, toggle flips, anything else fails."""
+    """``/term.completion`` is a setting command: bare queries, a vocabulary token sets, toggle flips, anything else fails."""
 
     def test_bare_queries_without_changing_anything(self, cli):
-        """A bare /cli.completion reports the cfg state and leaves it alone."""
+        """A bare /term.completion reports the cfg state and leaves it alone."""
         cli.cfg["cli_completion"] = True
-        result = cli.repl.dispatch("cli.completion")
+        result = cli.repl.dispatch("term.completion")
         assert (result.success, result.value) == (True, True)
         assert cli.cfg["cli_completion"] is True, "a query never mutates"
 
     def test_off_disables_and_drops_the_session(self, cli):
         """off records the cfg value and drops the prompt session so the next prompt is plain."""
         cli.cfg["cli_completion"] = True
-        result = cli.repl.dispatch("cli.completion off")
+        result = cli.repl.dispatch("term.completion off")
         assert (result.value, cli.cfg["cli_completion"], cli._session) == (False, False, None)
 
     def test_toggle_flips(self, cli):
         """toggle flips the cfg value from off to on."""
         cli.cfg["cli_completion"] = False
-        result = cli.repl.dispatch("cli.completion toggle")
+        result = cli.repl.dispatch("term.completion toggle")
         assert (result.value, cli.cfg["cli_completion"]) == (True, True)
 
     def test_an_unknown_token_fails_instead_of_querying(self, cli):
         """A typo fails with the setting message; it used to read as a bare query and return ok."""
         cli.cfg["cli_completion"] = True
-        result = cli.repl.dispatch("cli.completion maybe")
+        result = cli.repl.dispatch("term.completion maybe")
         assert result.success is False, "a token outside the vocabulary is refused"
         assert (
             result.error

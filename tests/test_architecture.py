@@ -2628,6 +2628,8 @@ _CRCGLOT = "its output is crcglot's catalogue or generated code, which changes w
 # One name per family: the family's alphabetically first name.
 NOT_IN_GOLD: dict[str, str] = {
     "app.config": _PATH,
+    "app.tui": "ends the CLI run: the mode loop opens the TUI next",
+    "term": "bare /term sends 'help term' to the device (review 2026-10-15, open)",
     "app.config.dump": "prints the user's app-wide config, which differs per machine",
     "app.config.edit": _OPENS_APP,
     "app.explore": _OPENS_APP,
@@ -2698,7 +2700,6 @@ NOT_IN_GOLD: dict[str, str] = {
     "show": _OPENS_APP,
     "show.cfg": _OPENS_APP,
     "stop": "stops the running script, which is the gold run",
-    "term": "bare /term sends 'help term' to the device (review 2026-10-15, open)",
     "term.send": "sends without waiting; the reply prints whenever it arrives",
     "term.usb_db": _PATH,
     "xfer.root": _PATH,
@@ -4387,8 +4388,6 @@ def derive(ctx, cfg):
 # (headless), CLI and MCP command tables and compares each name's handler
 # code.  The allowlist names what still differs and why; it only shrinks.
 KNOWN_DIVERGENT_COMMANDS: dict[str, str] = {
-    "cli": "switches to the CLI: a different act in each frontend",
-    "tui": "switches to the TUI: a different act in each frontend",
     "ss.svg": "a stub builtin the TUI replaces (Chuck 2026-10-16: convert later)",
     "ss.txt": "a stub builtin the TUI replaces (convert later)",
 }
@@ -4703,9 +4702,7 @@ def test_known_divergent_commands_has_no_stale_entries(frontend_tables):
 # registered; ``/clr`` was the CLI's alone.  This builds the three tables and
 # fails on a frontend that lacks a command its row claims.  The allowlist
 # only shrinks.
-KNOWN_UNREGISTERED_WHERE_AVAILABLE: dict[str, str] = {
-    "cli.completion": "the CLI prompt's own setting; no capability names the CLI prompt, so the row says TUI: yes",
-}
+KNOWN_UNREGISTERED_WHERE_AVAILABLE: dict[str, str] = {}
 
 
 def _claimed_but_unregistered(

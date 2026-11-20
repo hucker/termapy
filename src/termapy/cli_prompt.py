@@ -138,20 +138,30 @@ class _TermapyCompleter(Completer):
                     yield Completion(name, start_position=-len(line))
 
 
-def build_session(repl: ReplEngine, prefix: str, history_path: str) -> PromptSession:
-    """The CLI's prompt: shared plain-text history, tab completion, suggestions.
+def build_session(
+    repl: ReplEngine, prefix: str, history_path: str, *, completion: bool = True
+) -> PromptSession:
+    """The CLI's prompt: shared plain-text history, and with ``completion`` tab completion and suggestions.
+
+    With ``completion`` off (``cli_completion``, ``/term.completion off``)
+    the prompt keeps its history and line editing and drops the completer,
+    the suggestions and the dropdown's reserved rows.  It is still a
+    prompt_toolkit session: the CLI's loop runs under ``patch_stdout`` once
+    one exists, and a plain ``input()`` inside it takes no keys on Windows
+    (found 2026-11-19).
 
     Args:
         repl: The engine whose commands, profile and folders complete.
         prefix: The REPL command prefix (``/``).
         history_path: The per-config history file, shared with the TUI.
+        completion: Whether to complete, suggest and reserve the dropdown.
     """
     return PromptSession(
         history=PlainFileHistory(history_path),
-        completer=_TermapyCompleter(repl, prefix),
-        auto_suggest=AutoSuggestFromHistory(),
+        completer=_TermapyCompleter(repl, prefix) if completion else None,
+        auto_suggest=AutoSuggestFromHistory() if completion else None,
         # The space kept below the prompt for the completion dropdown shows as
         # an empty band, so it scales with the terminal's height.  Read once:
         # prompt_toolkit takes it at construction.
-        reserve_space_for_menu=_menu_rows_for_terminal(),
+        reserve_space_for_menu=_menu_rows_for_terminal() if completion else 0,
     )

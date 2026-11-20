@@ -33,7 +33,7 @@ key or in an environment variable, uses one vocabulary, case-insensitive:
 | ----------------------------------- | ------------------------------------ |
 | `on`, `true`, `yes`, `1`, `y`, `t`  | `off`, `false`, `no`, `0`, `n`, `f`  |
 
-A setting command (`/term.echo`, `/term.hex`, `/cli.completion`, ...) also
+A setting command (`/term.echo`, `/term.hex`, `/term.completion`, ...) also
 takes the verb `toggle`, and a bare invocation shows the current value
 without changing it.  Leaving an optional boolean out means its documented
 default.  Any other word is an error that names the accepted tokens, never

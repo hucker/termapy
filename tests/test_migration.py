@@ -1027,6 +1027,45 @@ def test_v38_to_v39_adds_tx_chunking_on():
     assert kept["tx_chunking"] is False, "a value already in the file wins"
 
 
+def test_v39_to_v40_renames_the_ui_switches_in_every_command_line():
+    """Migration v39->v40 renames /cli, /tui, /vt100 and /cli.completion (now /term.completion) in the on-connect keys and the buttons, as the file spells them."""
+    # Arrange -- a config with its own prefix, a placeholder, and names that must not change
+    cfg = {
+        "config_version": 39,
+        "cmd_prefix": "!",
+        "on_connect_cmd": "!vt100",
+        "tui_on_connect_cmd": "{prefix}tui",
+        "cli_on_connect_cmd": "!cli.completion off",
+        "mcp_on_connect_cmd": "!demo.vt100",
+        "custom_buttons": [
+            {"enabled": True, "name": "CLI", "command": "{prefix}cli"},
+            {"enabled": True, "name": "Clip", "command": "!clip tui"},
+        ],
+    }
+
+    # Act
+    migrated = migrate_config(cfg)
+
+    # Assert
+    actual = (
+        migrated["on_connect_cmd"],
+        migrated["tui_on_connect_cmd"],
+        migrated["cli_on_connect_cmd"],
+        migrated["mcp_on_connect_cmd"],
+        [button["command"] for button in migrated["custom_buttons"]],
+    )
+    expected = (
+        "!app.vt100",
+        "{prefix}app.tui",
+        "!term.completion off",
+        "!demo.vt100",
+        ["{prefix}app.cli", "!clip tui"],
+    )
+    assert actual == expected, (
+        "the switches and the completion setting move; demo.vt100 and a word stay"
+    )
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labeled line to _migration_steps."""
     # Arrange -- a config from v17 runs every migrator since.

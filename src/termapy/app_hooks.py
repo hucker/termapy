@@ -130,21 +130,9 @@ def register_tui_hooks(app: SerialTerminal) -> None:
 
     # Named, documented handlers: /help.dev prints these docstrings
     # (registry handler-docstring); a lambda would have none.
-    def _switch_to_cli(ctx: PluginContext, args: str) -> CmdResult:
-        """Leave the TUI for the CLI on the same config and port."""
-        return app._switch_to_cli()
-
-    def _switch_to_vt100(ctx: PluginContext, args: str) -> CmdResult:
-        """Hand the device to the VT100 passthrough view; Ctrl-] returns."""
-        return app._switch_to_vt100()
-
     def _switch_to_vt100_demo(ctx: PluginContext, args: str) -> CmdResult:
         """Open the VT100 widget-tour demo device; Ctrl-] returns."""
         return app._switch_to_vt100(demo=True)
-
-    def _already_tui(ctx: PluginContext, args: str) -> CmdResult:
-        """Already in TUI mode: a no-op, so a script written for the CLI runs unchanged."""
-        return CmdResult.ok(value="")
 
     app.repl.register_hook(
         "ss.svg",
@@ -166,27 +154,8 @@ def register_tui_hooks(app: SerialTerminal) -> None:
     # .profile) are owned by the run.py builtin -- its
     # picker="run" opens the Run picker through ctx.internal.open_picker,
     # wired at the top of this function.
-    app.repl.register_hook(
-        "cli",
-        "",
-        "Switch to CLI mode.",
-        _switch_to_cli,
-        source="app",
-        group="terminal",
-        # The CLI takes over this terminal; a browser tab has none.
-        needs=CapabilitySet(interactive=True, console=True),
-    )
-    app.repl.register_hook(
-        "vt100",
-        "",
-        "Switch to VT100 passthrough on the current device (Ctrl-] returns).",
-        _switch_to_vt100,
-        source="app",
-        group="terminal",
-        # Only the TUI on a terminal offers it: the round trip returns
-        # here on Ctrl-], and a browser tab has no terminal to pass through.
-        needs=CapabilitySet(tui_mode=True, console=True),
-    )
+    # /app.tui, /app.cli and /app.vt100 are the app builtin's; the TUI's
+    # act behind them is ctx.ui.switch_ui (SerialTerminal._switch_ui).
     app.repl.register_hook(
         "demo.vt100",
         "",
@@ -194,17 +163,6 @@ def register_tui_hooks(app: SerialTerminal) -> None:
         _switch_to_vt100_demo,
         source="app",
         needs=CapabilitySet(tui_mode=True, console=True),
-    )
-    app.repl.register_hook(
-        "tui",
-        "",
-        "Already in TUI mode.",
-        # SPECIAL CASE: this hook fires when the user types /tui while
-        # already in TUI mode -- no state change, no scriptable output.
-        _already_tui,
-        source="app",
-        group="terminal",
-        needs=CapabilitySet.INTERACTIVE,
     )
     app.repl.register_hook(
         "help.open",

@@ -398,6 +398,21 @@ _KILL_LONG_HELP = (
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
+def _handler_tui(ctx: PluginContext, args: str) -> CmdResult:
+    """Switch to the TUI, the frontend's own act (``ctx.ui.switch_ui``); already there, nothing happens."""
+    return ctx.ui.switch_ui("tui")
+
+
+def _handler_cli(ctx: PluginContext, args: str) -> CmdResult:
+    """Switch to the plain-text CLI on this terminal (``ctx.ui.switch_ui``); already there, nothing happens."""
+    return ctx.ui.switch_ui("cli")
+
+
+def _handler_vt100(ctx: PluginContext, args: str) -> CmdResult:
+    """Hand the current device to the VT100 passthrough view (``ctx.ui.switch_ui``); Ctrl-] returns."""
+    return ctx.ui.switch_ui("vt100")
+
+
 COMMAND = Command(
     group="advanced",
     name="app",
@@ -410,6 +425,40 @@ COMMAND = Command(
     long_help=_APP_LONG_HELP,
     handler=None,
     sub_commands={
+        "tui": Command(
+            help="Switch to the TUI; already there, nothing happens.",
+            long_help=(
+                "The frontends are peers on one config: the serial connection and the "
+                "config carry over, only the interface changes.  In the TUI this does "
+                "nothing and succeeds, so a script written for the CLI runs unchanged."
+            ),
+            handler=_handler_tui,
+            needs=CapabilitySet.INTERACTIVE,
+        ),
+        "cli": Command(
+            help="Switch to the plain-text CLI on this terminal; already there, nothing happens.",
+            long_help=(
+                "The CLI takes over the terminal the TUI runs in, so a TUI served in a "
+                "browser tab cannot offer it.  In the CLI this does nothing and succeeds, "
+                "so a script written for the TUI runs unchanged."
+            ),
+            handler=_handler_cli,
+            # The CLI takes over this terminal; a browser tab has none.
+            needs=CapabilitySet(interactive=True, console=True),
+        ),
+        "vt100": Command(
+            help="Switch to VT100 passthrough on the current device (Ctrl-] returns).",
+            long_help=(
+                "A reversible toggle from the TUI: the current device goes to a passthrough "
+                "terminal, and Ctrl-] returns here on the same config.  Only the TUI on a "
+                "terminal offers it; {prefix}demo.vt100 opens the widget-tour demo device "
+                "the same way."
+            ),
+            handler=_handler_vt100,
+            # Only the TUI on a terminal: the round trip returns here on
+            # Ctrl-], and a browser tab has no terminal to pass through.
+            needs=CapabilitySet(tui_mode=True, console=True),
+        ),
         "alive": Command(
             help="List the termapy sessions running on this machine.",
             long_help=(

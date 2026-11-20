@@ -32,7 +32,7 @@ def test_web_is_the_tui_without_its_terminal_and_desktop(monkeypatch):
     """WEB equals TUI except console, never, and gui_apps, only when TERMAPY_GUI says the viewer sits at the server."""
     monkeypatch.delenv(env_flags.WEB_HOST_VARIABLE, raising=False)
     tui, web = environment_capabilities("TUI"), environment_capabilities("WEB")
-    assert web.console is False, "a browser tab has no terminal to hand to /cli or /vt100"
+    assert web.console is False, "a browser tab has no terminal to hand to /app.cli or /app.vt100"
     assert web.gui_apps is (env_flags.GUI_OVERRIDE is True), (
         "not served by --web, the desktop is not the viewer's: only the override counts"
     )

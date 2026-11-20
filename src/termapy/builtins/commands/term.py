@@ -240,6 +240,11 @@ def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
     return CmdResult.ok(value=new)
 
 
+def _handler_completion(ctx: PluginContext, args: str) -> CmdResult:
+    """Query, set or toggle the CLI prompt's Tab completion, auto-suggest and help toolbar (cfg ``cli_completion``)."""
+    return _cfg_toggle(ctx, args, "cli_completion")
+
+
 def _handler_eol_markers(ctx: PluginContext, args: str) -> CmdResult:
     """Query, set or toggle dim CR/LF markers on received lines (cfg ``eol_markers``)."""
     # Show dim \r \n markers in received output for line-ending debugging.
@@ -714,6 +719,14 @@ COMMAND = Command(
             handler=_handler_line_no,
             cfg={"line_no": "the value a load starts from"},
             needs=CapabilitySet.TUI_MODE,
+            state=True,
+        ),
+        "completion": Command(
+            args="{on|off|toggle}",
+            help="Toggle the CLI prompt's Tab completion, auto-suggest and help toolbar (CLI only).",
+            handler=_handler_completion,
+            cfg={"cli_completion": "the value a load starts from"},
+            needs=CapabilitySet(cli_repl=True),
             state=True,
         ),
         "traffic": Command(

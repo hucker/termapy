@@ -459,6 +459,24 @@ class TestRunScript:
         # Assert
         assert any("invalid duration: 'bad_value'" in t for t, _ in output), "error message shown"
 
+    @pytest.mark.rule("run-ends-only-at-a-stop")
+    def test_a_failing_line_does_not_stop_the_script(self, tmp_path):
+        """A failing line prints its error and the lines after it run; only a stop ends a script."""
+        # Arrange
+        eng, output, writes, script = self._make_engine(
+            tmp_path, "/print first\n/nope\n/print last\n"
+        )
+
+        # Act
+        eng.run_script(script)
+
+        # Assert
+        texts = [t for t, _ in output]
+        failure = next(i for i, t in enumerate(texts) if "Unknown command: nope" in t)
+        last = next(i for i, t in enumerate(texts) if t == "last")
+        assert failure < last, "the line after the failure ran"
+        assert not any("stopped" in t.lower() for t in texts), "a failure is not a stop"
+
     def test_script_stop(self, tmp_path):
         """A stop set before the run sends no lines and reports the script stopped."""
         # Arrange

@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 206: 191 registry rows (guarantees 156, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 202. Pinned by none: 4.
+Ids: 207: 192 registry rows (guarantees 157, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 203. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -785,6 +785,11 @@ Ids: 206: 191 registry rows (guarantees 156, assumptions 35), 15 spec sections i
 
 - `test_architecture.py`: `test_rule_markers_name_known_ids` **guard**, `test_rules_registry_matches_the_guards` **guard**
 - `test_traceability.py`: the module (14 functions) **guard**
+
+### `run-ends-only-at-a-stop` (guarantee, requirement)
+
+- `test_app_pilot.py`: `TestMultilinePaste.test_a_failing_line_does_not_stop_the_paste` **guard**
+- `test_engine.py`: `TestRunScript.test_a_failing_line_does_not_stop_the_script` **guard**
 
 ### `rx-every-line-delivered` (guarantee, contract)
 

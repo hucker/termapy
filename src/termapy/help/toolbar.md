@@ -105,7 +105,9 @@ line goes as pasted, indentation and all, a blank line sends a bare line
 ending, and a line starting with `/` runs as a command, so a pasted script
 works too.  The lines go `multiline_paste_delay_ms` apart (10 by default,
 TeraTerm's), giving a device time to take each one.  **Escape** stops the
-rest, and a line that fails stops it as well.  A pasted line that connects
+rest.  A line that fails prints its error and the next line runs, as in a
+`.run` script, so a pasted test can check error replies too; device lines
+pasted into a closed port are refused one by one.  A pasted line that connects
 the port holds the lines after it until the on-connect commands finish, so
 they never reach the device ahead of that setup.  A one-line paste lands in
 the prompt for you to edit.  Set `multiline_paste` to `false` to paste

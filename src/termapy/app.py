@@ -3481,8 +3481,9 @@ class SerialTerminal(TerminalHost, App):
         kept (Enter strips a typed line; pasted code needs its indent), a
         blank line sends a bare line ending, and a line starting with the
         prefix runs as a command.  Pasted lines stay out of the history.
-        A line that fails stops the rest, as it stops a script, so a paste
-        into a closed port answers once rather than once per line.  Escape
+        A line that fails prints its error and the next line runs, as in a
+        script, so a pasted test can check error replies; only a stop ends
+        the rest (registry ``run-ends-only-at-a-stop``).  Escape
         stops it through the shared stop event, which the paste may clear
         because it is then the outermost cancellable operation (registry
         ``plugin-never-clears-stop``).  Each line waits its turn behind
@@ -3500,10 +3501,8 @@ class SerialTerminal(TerminalHost, App):
                 break
             command = line.strip() if line.lstrip().startswith(prefix) else line
             try:
-                result = self._dispatch_single(command)
+                self._dispatch_single(command)
             except RuntimeError:
-                break
-            if not result.success:
                 break
             sent += 1
             if sent < len(lines) and delay_s > 0:

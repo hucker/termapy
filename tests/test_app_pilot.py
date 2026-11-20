@@ -1607,8 +1607,9 @@ class TestMultilinePaste:
 
         _run(scenario)
 
-    def test_a_closed_port_answers_once_not_per_line(self, app_factory):
-        """A failed line stops the paste, so a paste into a closed port reports once."""
+    @pytest.mark.rule("run-ends-only-at-a-stop")
+    def test_a_failing_line_does_not_stop_the_paste(self, app_factory):
+        """A failing line prints its error and the lines after it run, as in a script, so a pasted test can check error replies."""
 
         async def scenario():
             # Arrange
@@ -1617,14 +1618,38 @@ class TestMultilinePaste:
                 await pilot.pause()
 
                 # Act
-                _paste(app, "A\nB\nC")
-                await until(pilot, lambda: "Paste stopped after" in app._get_screen_text())
+                _paste(app, "/print first\n/nope\n/print last-line-ran")
+                await until(
+                    pilot, lambda: "last-line-ran" in app._get_screen_text() and not app._busy
+                )
 
                 # Assert
                 text = app._get_screen_text()
-                actual = text.count(STATE_MESSAGES["serial_connected"])
-                assert actual == 1, f"one refusal, not one per line: {text!r}"
-                assert "Paste stopped after 0 of 3 lines." in text, "the stop says how far it got"
+                assert "Unknown command: nope" in text, "the failing line reported its error"
+                assert "Paste stopped after" not in text, "a failure is not a stop"
+
+        _run(scenario)
+
+    def test_a_closed_port_refuses_each_device_line(self, app_factory):
+        """Device lines pasted into a closed port are refused one by one and the paste runs to its end."""
+
+        async def scenario():
+            # Arrange
+            app, _, _ = app_factory(multiline_paste_delay_ms=0)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                refusal = STATE_MESSAGES["serial_connected"]
+
+                # Act
+                _paste(app, "A\nB\nC")
+                await until(
+                    pilot, lambda: app._get_screen_text().count(refusal) == 3 and not app._busy
+                )
+
+                # Assert
+                assert "Paste stopped after" not in app._get_screen_text(), (
+                    "a refusal is not a stop"
+                )
 
         _run(scenario)
 

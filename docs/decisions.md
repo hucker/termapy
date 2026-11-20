@@ -2146,3 +2146,19 @@ handle grew nothing. The dispatcher's typed-text fast path keys on
 `repl.RAW_COMMAND`. Migration v40 -> v41 renames it wherever a config holds
 a command line. **Where:** `builtins/commands/term.py`,
 `plugins/handles/serial.py`, `repl.py`, `migration.py`.
+
+## 2026-11-20 — A paste runs past a failing line, as a script does
+
+Chuck, after a seven-line test paste stopped at its second line (a bare
+`/term.raw`, there to show its usage line): "Should we add a 'continue on
+error' mechanism for testing?" No new flag: a `.run` script already runs past a
+failing line and ends only at a stop (`/expect` timeout, `/confirm` cancel,
+`/stop`, Escape); the CLI gold depends on it. The paste was the one runner that
+broke at any failure, and its docstring claimed it did so "as it stops a
+script", which was false. Now a paste follows the script's rule (registry
+`run-ends-only-at-a-stop`). **Behavior removed:** a paste of device lines into
+a closed port answered `Not connected.` once and stopped; it now refuses each
+line, as a script does. `/run.last` keeps stopping at the first failure: each
+of its lines once succeeded, so a failure there means the state has changed,
+and the line is a replay, not a test. **Where:** `app._paste_on_thread`,
+`help/toolbar.md`.

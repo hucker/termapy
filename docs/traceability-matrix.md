@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 207: 192 registry rows (guarantees 157, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 203. Pinned by none: 4.
+Ids: 208: 193 registry rows (guarantees 158, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 204. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -606,6 +606,11 @@ Ids: 207: 192 registry rows (guarantees 157, assumptions 35), 15 spec sections i
 - `test_app_pilot.py`: `TestEditHooks.test_cfg_load_switches_before_it_returns`
 - `test_app_pilot_targets.py`: `TestScriptPickedDelete.test_the_pickers_delete_is_run_delete`, `TestScriptPickedDelete.test_the_proto_pickers_rename_stays_open_on_the_new_name`
 - `test_architecture.py`: `test_each_command_has_one_handler_in_every_frontend` **guard**
+
+### `oneshot-connects-on-need` (guarantee, requirement)
+
+- `test_cli_exec.py`: `TestOneShotConnectsOnNeed.test_a_one_shot_command_that_declares_the_port_still_connects` **guard**, `TestOneShotConnectsOnNeed.test_a_one_shot_device_line_still_needs_the_port` **guard**, `TestOneShotConnectsOnNeed.test_a_one_shot_that_needs_no_port_runs_without_the_device` **guard**
+- `test_engine.py`: `TestDispatchCapabilities.test_needs_port_reads_the_declaration` **guard**
 
 ### `os-never-under-mcp` (guarantee, contract)
 

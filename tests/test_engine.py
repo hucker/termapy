@@ -1450,6 +1450,38 @@ class TestDispatchCapabilities:
         eng.set_context(ctx)
         return eng, ctx, output
 
+    @pytest.mark.rule("oneshot-connects-on-need")
+    def test_needs_port_reads_the_declaration(self, cap_env):
+        """A device line and a command declaring serial_connected need the port; any other command, unknown ones included, does not."""
+        # Arrange
+        eng, _, _ = cap_env
+
+        # Act
+        actual = {
+            line: eng.needs_port(line)
+            for line in (
+                "AT+VER",
+                "/term.send AT",
+                "/term.send.quiet AT",
+                "/term.raw AT",
+                "/port.list",
+                "/help",
+                "/nope",
+            )
+        }
+
+        # Assert
+        expected = {
+            "AT+VER": True,
+            "/term.send AT": True,
+            "/term.send.quiet AT": True,
+            "/term.raw AT": True,
+            "/port.list": False,
+            "/help": False,
+            "/nope": False,
+        }
+        assert actual == expected
+
     def test_no_needs_runs_anywhere(self, cap_env):
         """A command with the default empty needs runs in a default env."""
         # Arrange

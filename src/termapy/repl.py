@@ -1505,6 +1505,30 @@ class ReplEngine:
         name = repl_cmd.split(None, 1)[0].lower() if repl_cmd.strip() else ""
         return self._plugins.get(self.split_suffixes(name)[0])
 
+    def needs_port(self, line: str) -> bool:
+        """Whether running ``line`` as typed would use the serial port.
+
+        A device line (no REPL prefix) sends bytes, and so does a command
+        whose declaration says ``serial_connected`` (``/term.send``,
+        ``/term.raw``, ``/expect``), suffixes included.  The declaration is
+        the truth because missing session state is the gate's answer, never
+        a handler's check (registry ``state-answered-by-gate``).  Anything
+        else, an unknown command included, runs without the port.  The CLI's
+        one-shot asks this before connecting (registry
+        ``oneshot-connects-on-need``).
+
+        Args:
+            line: The line as typed, prefix and all.
+
+        Returns:
+            True when the line sends bytes or its command declares the port.
+        """
+        stripped = line.strip()
+        if not stripped.startswith(self.prefix):
+            return True
+        plugin = self.plugin_for(stripped[len(self.prefix) :])
+        return plugin is not None and plugin.needs.serial_connected
+
     def split_suffixes(self, name: str) -> tuple[str, str | None, bool]:
         """A typed command name, the level it asks for, and whether it asks for JSON.
 

@@ -360,6 +360,12 @@ termapy --cli my_device --exec /proto.crc.calc crc16-modbus 01 03 00 00 00 02
 One command per invocation: a second `-e`, or a line break inside one,
 is refused.  Several commands go in a `.run` file, run with `--run`.
 
+A one-shot opens the config's port only when its command uses it: a
+device line, or a command whose declaration says so (`/term.send`,
+`/term.raw`, `/expect`).  So `termapy my_device -e /port.list` lists the
+ports with the board unplugged, and `termapy my_device -e AT+VER` fails
+with the port error.  A `--run` script always connects first.
+
 ### Worked example
 
 The general shape is `termapy <cfg> --cli -e <command>`.  For a

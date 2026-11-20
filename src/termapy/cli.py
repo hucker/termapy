@@ -509,6 +509,19 @@ class CLITerminal(TerminalHost):
         """
         return bool(self.run_script or self.exec_cmd)
 
+    def _connects_first(self) -> bool:
+        """Whether this run opens the config's port before anything runs.
+
+        Every mode does, a ``--run`` script included (a script is a session,
+        and nearly every script talks to the device), except a ``-e``
+        one-shot whose command does not use the port: ``termapy my_device
+        -e /port.list`` lists the ports with the board unplugged, where it
+        used to fail on the connect and tell the user to run ``/port.list``
+        (registry ``oneshot-connects-on-need``).  The engine answers from
+        the command's declaration, ``ReplEngine.needs_port``.
+        """
+        return not self.exec_cmd or self.repl.needs_port(self.exec_cmd)
+
     def _run_script_mode(self, run_script: str) -> None:
         """Execute a .run script and exit."""
         script_path = Path(run_script)
@@ -579,7 +592,10 @@ class CLITerminal(TerminalHost):
         try:
             with self.ctx.serial.rx_observer(_bump_last_rx):
                 result = self.ctx.dispatch(command)
-                deadline = _time.monotonic() + self._EXEC_MAX_WAIT_S
+                # A one-shot that opened no port has no reply to wait for.
+                deadline = _time.monotonic() + (
+                    self._EXEC_MAX_WAIT_S if self.engine.is_connected else 0.0
+                )
                 while _time.monotonic() < deadline and not self._exit_requested:
                     if (_time.monotonic() - last_arrival[0]) >= self._EXEC_IDLE_GAP_S:
                         break
@@ -700,7 +716,7 @@ class CLITerminal(TerminalHost):
         if self.zero_config:
             if not self.is_oneshot:
                 self._show_zero_config_welcome()
-        elif not self._connect():
+        elif self._connects_first() and not self._connect():
             sys.exit(1)
 
         # Show hint before on_connect_cmd so it appears first.  All

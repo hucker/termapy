@@ -17,7 +17,7 @@ lands in its group, not at the end of the user's file.
 import re
 from collections.abc import Callable
 
-CURRENT_CONFIG_VERSION = 39
+CURRENT_CONFIG_VERSION = 40
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -833,6 +833,54 @@ def _migrate_v38_to_v39(cfg: dict) -> dict:
 
 
 MIGRATIONS[38] = _migrate_v38_to_v39
+
+
+# Every config key whose value is a command line.
+_COMMAND_KEYS = ("on_connect_cmd", "tui_on_connect_cmd", "cli_on_connect_cmd", "mcp_on_connect_cmd")
+
+
+def _rename_commands(cfg: dict, renames: dict[str, str]) -> None:
+    """Rename commands in every command line a config holds: the on-connect keys and each custom button.
+
+    A command is matched as the file spells it, after its own prefix
+    (``cmd_prefix``, as written) or the ``{prefix}`` placeholder, as a
+    whole name: ``/cli`` is renamed, ``/cli.completion`` only when the
+    table names it, ``/demo.vt100`` never.
+    """
+    prefix = re.escape(cfg.get("cmd_prefix", "/"))
+    names = "|".join(re.escape(name) for name in sorted(renames, key=len, reverse=True))
+    pattern = re.compile(rf"(^|\s)(\{{prefix\}}|{prefix})({names})(?=\s|$)")
+
+    def fix(line: str) -> str:
+        return pattern.sub(lambda m: f"{m.group(1)}{m.group(2)}{renames[m.group(3)]}", line)
+
+    for key in _COMMAND_KEYS:
+        if isinstance(cfg.get(key), str):
+            cfg[key] = fix(cfg[key])
+    for button in cfg.get("custom_buttons") or []:
+        if isinstance(button, dict) and isinstance(button.get("command"), str):
+            button["command"] = fix(button["command"])
+
+
+def _migrate_v39_to_v40(cfg: dict) -> dict:
+    """The UI switches are /app's: /cli, /tui and /vt100 become /app.cli, /app.tui and /app.vt100.
+
+    Renamed wherever a config holds a command line (the on-connect keys,
+    each custom button); ``/cli.completion`` becomes ``/term.completion``.
+    """
+    _rename_commands(
+        cfg,
+        {
+            "cli.completion": "term.completion",
+            "cli": "app.cli",
+            "tui": "app.tui",
+            "vt100": "app.vt100",
+        },
+    )
+    return cfg
+
+
+MIGRATIONS[39] = _migrate_v39_to_v40
 
 
 def migrate_config(cfg: dict) -> dict:

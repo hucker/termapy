@@ -34,12 +34,8 @@ from termapy.markup import escape_markup, received_json_markup
 from termapy.plugins import CapabilitySet, CmdResult
 from termapy.repl import ReplEngine
 from termapy.scripting import (
-    SETTING_QUERY,
-    SETTING_TOGGLE,
-    parse_bool_setting,
     render_progress_bar,
     strip_ansi,
-    value_text,
 )
 from termapy.serial_engine import SerialEngine
 from termapy.session_log import SessionLog
@@ -49,8 +45,6 @@ if TYPE_CHECKING:
     import argparse
 
     from prompt_toolkit import PromptSession
-
-    from termapy.plugins import PluginContext
 
 
 class CLITerminal(TerminalHost):
@@ -112,7 +106,7 @@ class CLITerminal(TerminalHost):
         self.prefix = cmd_prefix(cfg)
         self._xfer_cancel = threading.Event()
         self._exec_exit_code = 0
-        # Set by /exit and /tui (_request_exit); the prompt loop ends on it.
+        # Set by /exit and /app.tui (_request_exit); the prompt loop ends on it.
         self._exit_requested = False
         # -y / --yes: every question this session asks is answered yes.
         self._assume_yes = assume_yes
@@ -269,6 +263,8 @@ class CLITerminal(TerminalHost):
         self.ctx.io.notify = lambda text, **kw: self.write(f"[notice] {text}")
         self.ctx.io.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
         self.ctx.ui._exit_app_impl = self._request_exit
+        self.ctx.ui._switch_ui_impl = self._switch_ui
+        self.ctx.internal.apply_cfg = self._apply_cfg
         self.ctx.ui._get_screen_text_impl = lambda: ""
         # The CLI's capabilities are its row of the one table (registry
         # web-is-an-environment).  block_until is added dynamically by the
@@ -294,12 +290,6 @@ class CLITerminal(TerminalHost):
     def _register_hooks(self) -> None:
         """Register the CLI's own commands."""
 
-        # Named and documented: /help.dev prints this docstring
-        # (registry handler-docstring); a lambda would have none.
-        def _already_cli(ctx: PluginContext, args: str) -> CmdResult:
-            """Already in CLI mode: a no-op, so a script written for the TUI runs unchanged."""
-            return CmdResult.ok(value="")
-
         self.repl.register_hook(
             "help.open",
             "{topic}",
@@ -310,41 +300,12 @@ class CLITerminal(TerminalHost):
             shows=True,
         )
         # The /log.* family is the log builtin's (builtins/commands/log.py).
-        self.repl.register_hook(
-            "tui",
-            "",
-            "Switch to TUI mode.",
-            self._hook_tui,
-            source="app",
-            group="terminal",
-            # The TUI takes over this terminal, as /cli does the other way.
-            needs=CapabilitySet(interactive=True, console=True),
-        )
-        self.repl.register_hook(
-            "cli",
-            "",
-            "Already in CLI mode.",
-            _already_cli,
-            source="app",
-            group="terminal",
-            needs=CapabilitySet.INTERACTIVE,
-            intro=(
-                "The plain-text frontend's own settings: for now, whether its prompt "
-                "offers tab completion and suggestions."
-            ),
-        )
-        self.repl.register_hook(
-            "cli.completion",
-            "{on|off|toggle}",
-            "Show or toggle CLI tab completion, auto-suggest, and help toolbar.",
-            self._hook_cli_completion,
-            source="app",
-            needs=CapabilitySet.INTERACTIVE,
-            state=True,
-        )
+        # /app.tui and /app.cli are the app builtin's, their act here
+        # ctx.ui.switch_ui (_switch_ui); /term.completion is the term
+        # builtin's, gated by cli_repl, its effect here _apply_cfg.
         # Historically, CLI registered placeholder hooks for TUI-only
         # commands (/line_no and friends) so users got a clear "Only
-        # available in /tui mode." error rather than "Unknown command".
+        # available in /app.tui mode." error rather than "Unknown command".
         # That role is now played by the capability model: TUI-only
         # commands declare ``needs=CapabilitySet.TUI_MODE`` and
         # dispatch reports the missing capability uniformly.  No CLI-side
@@ -355,7 +316,7 @@ class CLITerminal(TerminalHost):
     def _request_exit(self, switch_to: str | None = None) -> None:
         """End the session once the current command returns (``ctx.ui.exit_app``).
 
-        ``/exit`` asks for it, and ``/tui`` with ``switch_to="tui"``, which
+        ``/exit`` asks for it, and ``/app.tui`` with ``switch_to="tui"``, which
         the mode loop opens next.  A running script stops before its next
         line, and the prompt loop ends after the dispatch that asked.  Until
         2026-10-16 both worked only typed at the prompt: from a ``.run``
@@ -374,7 +335,7 @@ class CLITerminal(TerminalHost):
         device.  A prompt waiting for a line ends as Ctrl+D ends it, through
         the loop's own teardown, and a prompt just starting ends itself
         (``_end_prompt_if_asked`` as its ``pre_run``).  The plain ``input()``
-        prompt (no tty, or ``cli_completion`` off) cannot be woken: the
+        prompt (no tty) cannot be woken: the
         session leaves after its next line, or is ended outright.
         """
         self._log_line("#", f"Stop requested by termapy PID {by}")
@@ -396,36 +357,22 @@ class CLITerminal(TerminalHost):
         if app.is_running and app.future is not None and not app.future.done():
             app.exit(exception=EOFError)
 
-    def _hook_tui(self, ctx: PluginContext, args: str) -> CmdResult:
-        """``/tui``: leave the CLI for the TUI, on the current config."""
-        self._request_exit("tui")
-        # SPECIAL CASE: the session ends after this returns; no caller
-        # reads the value.
-        return CmdResult.ok(value="")
+    def _switch_ui(self, mode: str) -> CmdResult:
+        """``ctx.ui.switch_ui``: leave the CLI for the TUI on the current config; the CLI itself is a no-op."""
+        if mode == "cli":
+            return CmdResult.ok(value="")
+        if mode == "tui":
+            self._request_exit("tui")
+            # SPECIAL CASE: the session ends after this returns; no caller
+            # reads the value.
+            return CmdResult.ok(value="")
+        return CmdResult.fail(msg=f"Not available in the CLI: {mode}")
 
-    def _hook_cli_completion(self, ctx: PluginContext, args: str) -> CmdResult:
-        """Query, set, or toggle CLI completion (tab completion, auto-suggest, toolbar).
-
-        A setting command: bare QUERIES, a vocabulary token sets, ``toggle``
-        flips, anything else fails -- see the rule in CLAUDE.md.
-        """
-        try:
-            action = parse_bool_setting(args)
-        except ValueError as e:
-            return CmdResult.fail(msg=str(e))
-        current = bool(cfg_value(self.cfg, "cli_completion"))
-        if action is SETTING_QUERY:
-            ctx.io.result(f"CLI completion: {value_text(current)}")
-            return CmdResult.ok(value=current)
-        enabled = (not current) if action is SETTING_TOGGLE else action
-        self.cfg["cli_completion"] = enabled
-        if enabled:
+    def _apply_cfg(self, key: str, value: object) -> None:
+        """``ctx.internal.apply_cfg`` for the CLI: the engine's write, then the prompt follows ``cli_completion``."""
+        self.repl._apply_cfg(key, value)
+        if key == "cli_completion":
             self._session = self._build_session()
-            self.status("CLI completion enabled.", "green")
-        else:
-            self._session = None
-            self.status("CLI completion disabled.")
-        return CmdResult.ok(value=enabled)
 
     # ``_hook_run`` and ``_hook_run_help`` are gone -- ``/run`` and
     # ``/run.help`` are now owned by the ``run.py`` built-in.
@@ -474,10 +421,11 @@ class CLITerminal(TerminalHost):
         return cfg_history_path(self.config_path)
 
     def _build_session(self) -> PromptSession | None:
-        """Create a prompt_toolkit session with history and tab completion.
+        """Create a prompt_toolkit session with history, and tab completion when ``cli_completion`` is on.
 
-        Returns None when stdout is not a terminal, or when
-        ``cli_completion`` is disabled in the config.
+        Returns None only when stdout is not a terminal.  With completion
+        off the session stays (history, line editing), so a session can
+        never drop to plain ``input()`` under ``patch_stdout`` mid-run.
 
         Deliberately does NOT use ``bottom_toolbar``: prompt_toolkit
         reserves a full-width row for the toolbar whenever the kwarg
@@ -490,13 +438,16 @@ class CLITerminal(TerminalHost):
         """
         if not sys.stdout.isatty():
             return None
-        if not cfg_value(self.cfg, "cli_completion"):
-            return None
         # Imported here, not at the top: prompt_toolkit costs ~0.2 s, and a
         # one-shot (-e, --run) never builds a prompt.
         from termapy.cli_prompt import build_session
 
-        return build_session(self.repl, self.prefix, self._history_path())
+        return build_session(
+            self.repl,
+            self.prefix,
+            self._history_path(),
+            completion=bool(cfg_value(self.cfg, "cli_completion")),
+        )
 
     # -- Reader thread --------------------------------------------------------
 

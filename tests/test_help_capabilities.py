@@ -203,6 +203,6 @@ class TestTheRows:
     def test_the_tooltip_is_the_hint(self, cli):
         """A link to a capability's page says what the capability is, read from the field."""
         assert cli.repl.link_summary("help gui_apps") == REQUIREMENT_HINTS["gui_apps"]
-        assert cli.repl.link_summary("help tui_mode") == "the TUI (switch with /tui)", (
+        assert cli.repl.link_summary("help tui_mode") == "the TUI (switch with /app.tui)", (
             "with the prefix filled in"
         )

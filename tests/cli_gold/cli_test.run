@@ -406,6 +406,9 @@ MEM.INFO
 # satisfy block_until -- neither reaches the gate here.
 /print === section: capability gates (tui_mode + screen_capture) ===
 /term.line_no on
+/app.vt100
+/app.cli
+/term.completion
 /ss.svg
 /ss.txt
 

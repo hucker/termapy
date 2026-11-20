@@ -248,7 +248,7 @@ boolean token (`1`, `0`, `on`, `off`, ...) to override it.
 ### Browser (`termapy --web`)
 
 Served in a browser tab, the TUI is the same app without the terminal it
-runs in, so `/cli` and `/vt100` have nothing to switch to.  Served on this
+runs in, so `/app.cli` and `/app.vt100` have nothing to switch to.  Served on this
 machine (`termapy --web`, which listens on `localhost`), the browser is on
 the desktop the TUI runs on, so `/help.open`, the `.show` and `.explore`
 commands and the pickers' folder links open things here as on a terminal.

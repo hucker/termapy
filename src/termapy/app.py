@@ -1219,6 +1219,7 @@ class SerialTerminal(TerminalHost, App):
         )
         ctx.ui._get_screen_text_impl = lambda: self._on_main(self._get_screen_text)
         ctx.ui._exit_app_impl = self._exit_from_command
+        ctx.ui._switch_ui_impl = self._switch_ui
         # The TUI's capabilities are its row of the one table, or the WEB
         # row when Textual says the screen is a browser page (registry
         # web-is-an-environment); nothing else asks "am I in a browser".
@@ -1808,6 +1809,18 @@ class SerialTerminal(TerminalHost, App):
         if (keep_connection and was_connected) or cfg_value(cfg, "auto_connect"):
             self._connect()
 
+    def _switch_ui(self, mode: str) -> CmdResult:
+        """``ctx.ui.switch_ui``: leave the TUI for ``mode``; the TUI itself is a no-op."""
+        from termapy.defaults import UI_MODES
+
+        if mode == "tui":
+            return CmdResult.ok(value="")
+        if mode == "cli":
+            return self._switch_to_cli()
+        if mode == "vt100":
+            return self._switch_to_vt100()
+        return CmdResult.fail(msg=f"Unknown UI mode: {mode} (use {'/'.join(UI_MODES)})")
+
     def _switch_to_cli(self) -> CmdResult:
         """Switch to CLI mode - sets flag and exits TUI."""
         self.switch_to = "cli"
@@ -1823,7 +1836,7 @@ class SerialTerminal(TerminalHost, App):
 
         The outer mode loop sees the switch, runs ``run_vt100_mode``, and
         (because we came from the TUI) returns here on Ctrl-] -- a reversible
-        toggle like ``/cli`` <-> ``/tui``.
+        toggle like ``/app.cli`` <-> ``/app.tui``.
 
         Args:
             demo: When True (``/demo.vt100``), force the ``DEMO_VT100``

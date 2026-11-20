@@ -707,7 +707,7 @@ def main() -> None:
         elif mode == "vt100":
             from termapy.vt100 import run_vt100_mode
 
-            # Entered from the TUI (/vt100, /demo.vt100) -> Ctrl-] returns to
+            # Entered from the TUI (/app.vt100, /demo.vt100) -> Ctrl-] returns to
             # the TUI (reversible toggle).  Launched via --vt100 -> quits.
             args._vt100_return_to = "tui" if prev_mode == "tui" else None
             result = run_vt100_mode(args)

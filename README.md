@@ -563,7 +563,7 @@ Set `serial.flow_control` to `"manual"` to get DTR, RTS, and Break buttons in th
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 39,
+    "config_version": 40,
     "title": "",
     "border_color": "",
     "serial": {
@@ -858,9 +858,9 @@ termapy --vt100 --demo         # no hardware: an interactive ANSI menu/dashboard
 
 It's a peer of CLI and TUI mode: set `"default_ui": "vt100"` in a config to make it the default, and `--vt100` overrides the config the same way `--cli` does. The port is termapy's own serial engine, as in every mode; the console is the vendored pyserial `miniterm`, which enables VT processing on Windows 10+ automatically. It writes the TUI's session log, `<cfg>.log`: received lines only, since in passthrough each key goes to the device as typed and the device's echo is the record.
 
-It's also a reversible toggle from inside the TUI, like `/cli` <-> `/tui`: `/vt100` hands the current device to a passthrough terminal, and `/demo.vt100` jumps to the widget tour. In both cases Ctrl-] returns you to the TUI (when launched from the shell with `--vt100`, Ctrl-] quits instead).
+It's also a reversible toggle from inside the TUI, like `/app.cli` <-> `/app.tui`: `/app.vt100` hands the current device to a passthrough terminal, and `/demo.vt100` jumps to the widget tour. In both cases Ctrl-] returns you to the TUI (when launched from the shell with `--vt100`, Ctrl-] quits instead).
 
-**Exit:** Ctrl+] (or back to the TUI, if entered via `/vt100`). Every other key, including Ctrl+T, goes straight to the device - miniterm's settings menu is disabled so the session reads as a native termapy view.
+**Exit:** Ctrl+] (or back to the TUI, if entered via `/app.vt100`). Every other key, including Ctrl+T, goes straight to the device - miniterm's settings menu is disabled so the session reads as a native termapy view.
 
 **Caveats:** needs a VT-capable host terminal (universal on macOS/Linux; Windows Terminal / VS Code / Win10+ on Windows; legacy `conhost` is iffy). Run it in a standalone terminal tab for zero extra key interception; VS Code's integrated terminal adds one layer (the same one any serial terminal faces there). For LLM-driven menu navigation, a headless emulator + MCP is the intended path, not passthrough.
 

@@ -2098,3 +2098,36 @@ has a `proto/` folder) was considered and left out until the folded rows,
 which show counts and names, prove not enough. **Where:** README.md,
 `help/protocol-testing.md`, `help/writing-plugins.md`,
 `scripts/sync_format_tables.py`, `config.quick_config`.
+
+## 2026-11-19 — The UI switches are /app's, with one handler each
+
+`/cli`, `/tui` and `/vt100` were three bare top-level words, each a
+different handler in each frontend (allowlisted in
+`KNOWN_DIVERGENT_COMMANDS`), and the review's taxonomy question made the
+drift visible. Chuck: `/app.tui`, `/app.cli`, `/app.vt100`, verbs that end
+one frontend and start another, not a `/app.ui {mode}` setting (the setting
+is the config key `default_ui`). Each is now one builtin in `app.py` with
+one handler calling `ctx.ui.switch_ui(mode)`; what the switch does is the
+host's, wired like `exit_app` (`SerialTerminal._switch_ui`,
+`CLITerminal._switch_ui`), and a host already in that mode does nothing and
+succeeds, so a script written for one frontend runs in the other. The
+allowlist shrank by the two entries. `/cli.completion`, the CLI prompt's own
+setting, is `/term.completion`: a builtin like the other `/term` toggles,
+gated by a new `cli_repl` capability only the CLI's row has, so the TUI
+answers "requires the cli_repl capability, the CLI's prompt (switch with
+/app.cli)" rather than "Unknown command" (found by Chuck typing it in the
+TUI), and `/help` says CLI only; the CLI's `_apply_cfg` rebuilds its prompt
+when the key changes. A childless `/app.cli` may not carry the intro a
+family needs, which is why the setting is not its child. Turning it off
+used to drop the prompt to a plain `input()` inside prompt_toolkit's
+patched stdout, which on Windows takes no keys (Chuck, trying
+`/term.completion off`; the old `/cli.completion off` did the same): off
+now means a prompt_toolkit session without the completer, the
+suggestions and the dropdown's rows, never no session. **Migration v39 ->
+v40** renames the four spellings in every command line a config holds (the
+on-connect keys and each custom button), as the file spells its prefix or
+with the `{prefix}` placeholder, whole names only (`/demo.vt100` keeps its
+name). A user's own `.run` files are not rewritten: an old spelling fails
+with a did-you-mean naming the new one. **Where:**
+`builtins/commands/app.py`, `plugins/handles/ui.py`, `app.py`,
+`app_hooks.py`, `cli.py`, `migration.py`.

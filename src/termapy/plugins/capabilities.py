@@ -194,15 +194,22 @@ class CapabilitySet:
     # Where: TUI only.  Distinct from ``screen_capture`` -- that's about
     #        *reading* the render surface; this is about *using* TUI-only
     #        features at runtime.
-    tui_mode: bool = _restricted("the TUI (switch with {prefix}tui)")
+    tui_mode: bool = _restricted("the TUI (switch with {prefix}app.tui)")
 
     # What:  The process runs in a terminal it can hand to another mode:
-    #        ``/cli`` turns the session into the CLI REPL and ``/vt100``
+    #        ``/app.cli`` turns the session into the CLI REPL and ``/app.vt100``
     #        into passthrough, both on that terminal.
     # Where: The TUI on a terminal and the CLI.  NOT a TUI served in a
     #        browser (``--web``): its screen is a web page, with no
     #        terminal to switch to (Textual's ``App.is_web``).  Not MCP.
     console: bool = _restricted("the terminal this process runs in; a browser tab has none")
+
+    # What:  The CLI's own prompt (prompt_toolkit): its Tab completion,
+    #        history auto-suggest and help toolbar, which /term.completion
+    #        switches.
+    # Where: The CLI only.  The TUI's input line completes on its own and
+    #        has nothing to switch; MCP has no prompt.
+    cli_repl: bool = _restricted("the CLI's prompt (switch with {prefix}app.cli)")
 
     # What:  A config is loaded: ``ctx.config_path`` names its file, so
     #        the config's folder and the data folders under it are
@@ -672,8 +679,8 @@ def _build_environments() -> dict[str, CapabilitySet]:
     return {
         "TUI": tui,
         # The same TUI served in a browser (--web; Textual's App.is_web):
-        # the screen is a web page, so there is no terminal to hand to /cli
-        # or /vt100.  Served on a loopback address the browser is on this
+        # the screen is a web page, so there is no terminal to hand to
+        # /app.cli or /app.vt100.  Served on a loopback address the browser is on this
         # machine, so the desktop the TUI runs on is the viewer's and the
         # detection applies; served to the network (or not served at all,
         # as /help's column in any other frontend) the desktop is not the
@@ -689,6 +696,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
         "CLI": CapabilitySet(
             interactive=True,
             console=True,
+            cli_repl=True,
             gui_apps=gui,
             file_editor=gui,
             confirm_dialog=True,

@@ -129,7 +129,7 @@ def test_the_cli_refuses_the_toggle(tmp_path):
 
     # Assert
     assert result.error == (
-        "/term.traffic requires the tui_mode capability, the TUI (switch with /tui); "
+        "/term.traffic requires the tui_mode capability, the TUI (switch with /app.tui); "
         "not available in this environment"
     )
 

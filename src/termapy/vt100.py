@@ -322,7 +322,7 @@ def run_vt100_mode(args: argparse.Namespace) -> str | None:
 
     Returns:
         The mode to switch to on exit: ``"tui"`` when entered from the TUI
-        (``/vt100`` / ``/demo.vt100``, signaled by ``args._vt100_return_to``)
+        (``/app.vt100`` / ``/demo.vt100``, signaled by ``args._vt100_return_to``)
         so Ctrl-] is a reversible toggle, else ``None`` to quit the process
         (the ``--vt100`` launch case). Matches ``_run_cli_mode`` /
         ``_run_tui_mode`` so entry.py's mode loop can switch on the value.
@@ -356,7 +356,7 @@ def run_vt100_mode(args: argparse.Namespace) -> str | None:
 
     # miniterm's Windows Console swaps sys.stdout/sys.stderr for UTF-8 wrappers
     # and never restores them (its own main() exits the process, so it never
-    # had to). We reuse the process across mode switches, so a second /vt100
+    # had to). We reuse the process across mode switches, so a second /app.vt100
     # entry would call Console() with the leftover wrapper -- which has no
     # .buffer -- and crash. Save and restore them around the session. On POSIX
     # this is a harmless no-op (that Console doesn't touch sys.stdout).

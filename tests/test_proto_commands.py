@@ -415,6 +415,6 @@ class TestDebug:
         """/proto.debug needs the TUI: the CLI refuses it by capability before the handler runs."""
         result = cli.repl.dispatch_full("/proto.debug anything")
         assert result.error == (
-            "/proto.debug requires the tui_mode capability, the TUI (switch with /tui); "
+            "/proto.debug requires the tui_mode capability, the TUI (switch with /app.tui); "
             "not available in this environment"
         )

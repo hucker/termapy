@@ -131,7 +131,7 @@ piping output, or when you prefer a minimal interface. Start with
 
 **VT100 mode:** raw ANSI passthrough for devices that draw their own
 screens (menus, cursor-addressed dashboards).  Start with `termapy --vt100`
-or `/vt100` from a session; see [VT100 mode](vt100.md).
+or `/app.vt100` from a session; see [VT100 mode](vt100.md).
 
 ### CLI completion
 
@@ -142,7 +142,7 @@ CLI mode includes built-in completion powered by prompt\_toolkit:
 
 ![CLI completion](img/doc_31_cli_completion.png)
 
-Toggle completion during a session with `/cli.completion on|off`, or
+Toggle completion during a session with `/term.completion on|off`, or
 disable it in your config:
 
 ```json
@@ -154,7 +154,7 @@ to keep the output clean.
 
 ### Switching modes
 
-Use the `/tui`, `/cli`, and `/vt100` REPL commands to switch modes during a session.
+Use `/app.tui`, `/app.cli` and `/app.vt100` to switch modes during a session.
 The serial connection and config carry over; only the interface changes.
 
 You can also set the default mode in your config:

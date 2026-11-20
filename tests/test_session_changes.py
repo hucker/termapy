@@ -111,3 +111,29 @@ def test_a_load_ends_the_changes(cli):
     # Assert
     assert result.success, result.error
     assert cli.session_changes() == [], "a load ends where a fresh start would"
+
+
+@pytest.mark.rule("quick-config-port-is-name")
+def test_a_quick_sessions_port_is_never_a_change(tmp_path):
+    """In a quick session the port is the config's name: a port set for the session is not offered for saving, another setting is."""
+    import copy
+
+    from termapy.cli import CLITerminal
+    from termapy.defaults import DEFAULT_CFG
+
+    # Arrange
+    default_serial = DEFAULT_CFG["serial"]
+    assert isinstance(default_serial, dict), "DEFAULT_CFG['serial'] is a dict"
+    cfg = {**copy.deepcopy(DEFAULT_CFG), "serial": {**default_serial, "port": "DEMO"}}
+    config_path = tmp_path / "quick-DEMO" / "quick-DEMO.cfg"
+    config_path.parent.mkdir()
+    config_path.write_text(json.dumps(cfg))
+    terminal = CLITerminal(cfg, str(config_path), no_color=True, term_width=120)
+    terminal.repl.global_root = tmp_path
+
+    # Act
+    for line in ("/cfg port COM9", "/term.timestamps on"):
+        assert terminal.repl.dispatch_full(line).success, line
+
+    # Assert
+    assert _paths(terminal) == ["timestamps"], "the port is the name; timestamps is a change"

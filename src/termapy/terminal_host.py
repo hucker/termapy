@@ -20,6 +20,7 @@ from termapy import load_report
 from termapy.config import (
     SessionChange,
     cap_folder_of,
+    is_quick_config,
     load_config,
     mcp_log_path,
     open_serial,
@@ -796,10 +797,18 @@ class TerminalHost:
         self._seeded_flags = {key: flags[key] for key in SESSION_FLAG_KEYS if key in flags}
 
     def session_changes(self) -> list[SessionChange]:
-        """The settings this session holds apart from its config file (``config.session_changes``)."""
-        return session_changes(
+        """The settings this session holds apart from its config file (``config.session_changes``).
+
+        A quick session's port is its config's name, so another port picked
+        in it is this session's alone, never a change to keep (registry
+        ``quick-config-port-is-name``).
+        """
+        changes = session_changes(
             self._loaded_cfg, self.repl.cfg, self.ctx.ns("flags"), self._seeded_flags
         )
+        if is_quick_config(self.config_path):
+            changes = [change for change in changes if change.path != "serial.port"]
+        return changes
 
     def save_session_changes(self) -> list[SessionChange]:
         """Write the session's changed settings into its config file and start counting from there.

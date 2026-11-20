@@ -409,13 +409,28 @@ def update_conn_tooltip(
 
 
 def update_port(app: SerialTerminal, port: str) -> None:
-    """Change serial port for this session and reconnect.
+    """Change the serial port for this session and reconnect.
 
-    Does not write to disk - the config editor is the only path
-    that persists changes.  This keeps $(env.NAME) templates intact.
+    In a quick session the port is the config's name, so another port is
+    another config: the pick opens that port's own quick config, made on the
+    spot if it is new, through the same load the picker uses (which asks
+    about unsaved settings first).  In a project config the port is a
+    session change, kept or dropped like any other, and ``$(env.NAME)``
+    templates in the file stay intact (registry ``quick-config-port-is-name``).
     """
     import copy
 
+    from termapy.config import is_quick_config, load_config, quick_config
+
+    if is_quick_config(app.config_path):
+        try:
+            path, _ = quick_config(port, "")
+            cfg = load_config(str(path))
+        except (OSError, ValueError, RuntimeError) as e:
+            app._status(f"Cannot open {port}: {e}", "red")
+            return
+        app._ask_unsaved_then("Load", lambda: app._check_port_and_switch(cfg, str(path)))
+        return
     # app.cfg is a read-only MappingProxyType view (ReplEngine owns the dict).
     # dict() un-proxies the top level so deepcopy can build a fully mutable
     # copy; deepcopy chokes on a mappingproxy ("cannot pickle 'mappingproxy'").

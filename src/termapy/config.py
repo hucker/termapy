@@ -470,29 +470,35 @@ def new_config_from_args(name: str, settings: str, *, source: "PortSource | None
 QUICK_PREFIX = "quick-"
 
 
-def quick_cfg_root() -> Path:
-    """Where a quick session's config lives: the OS folder, unless a config directory was named.
+def quick_config_path(port: str, *, system: str | None = None) -> Path:
+    """The ``.cfg`` a quick session on ``port`` uses: ``quick-`` and the port's short name, file-name safe.
 
-    ``--cfg-dir`` and ``TERMAPY_CFG_DIR`` win as in ``cfg_dir``; a
-    ``./termapy_cfg`` does not, so typing a port inside a project never adds
-    a config to it (registry ``quick-open-outside-project``).  A read:
-    nothing is created here.
+    The short name (``port_control.port_short_name``) is the one spelling a
+    person reads, so every spelling of a port reaches one config, plugged
+    in or not: ``COM3`` and ``com3`` are ``quick-COM3``, ``/dev/ttyUSB0``
+    and ``ttyUSB0`` are ``quick-ttyUSB0``, ``/dev/cu.usbserial-A10K`` is
+    ``quick-usbserial-A10K``.  Every run of characters a file name may not
+    hold becomes one dash: ``socket://localhost:7000`` is
+    ``quick-socket-localhost-7000``.
+
+    It lives where every config lives, ``cfg_dir()``: the project's
+    ``termapy_cfg/`` when there is one, else the user folder (a quick config
+    is a config; decision 2026-11-19).
+
+    Args:
+        port: The port as the system lists it, or as typed.
+        system: A ``sys.platform`` value; the running one when ``None``.
     """
-    if CFG_DIR is not None or os.environ.get("TERMAPY_CFG_DIR"):
-        return cfg_dir()
-    return _os_default_cfg_dir()
+    from termapy.port_control import port_short_name
+
+    short = port_short_name(port, system=system)
+    name = QUICK_PREFIX + re.sub(r"[^A-Za-z0-9._]+", "-", short).strip("-.")
+    return cfg_dir() / name / f"{name}.cfg"
 
 
-def quick_config_path(port: str) -> Path:
-    """The ``.cfg`` a quick session on ``port`` uses: ``quick-`` and the port, file-name safe.
-
-    Every run of characters a file name may not hold becomes one dash:
-    ``COM3`` is ``quick-COM3``, ``socket://localhost:7000`` is
-    ``quick-socket-localhost-7000`` and ``/dev/ttyUSB0`` is
-    ``quick-dev-ttyUSB0``.
-    """
-    name = QUICK_PREFIX + re.sub(r"[^A-Za-z0-9._]+", "-", port).strip("-.")
-    return quick_cfg_root() / name / f"{name}.cfg"
+def is_quick_config(path: str | Path) -> bool:
+    """Whether ``path`` is a quick session's config (``quick_config_path``), by its name."""
+    return Path(path).stem.startswith(QUICK_PREFIX)
 
 
 # The setting buttons a quick open turns on, by command as the defaults spell
@@ -509,10 +515,15 @@ def quick_config(port: str, settings: str) -> tuple[Path, str]:
     One config per port (``quick_config_path``), so sessions on two ports
     share nothing.  The first open creates it through ``new_config`` and
     ``create_config``, connecting when it loads, with the ``QUICK_BUTTONS``
-    turned on in the ``QUICK_BUTTONS_SIDE`` column.  A later open with
+    turned on in the ``QUICK_BUTTONS_SIDE`` column and the Proto button off
+    (a session is a terminal; the rest waits until asked for).  A later open with
     settings lays them over it and saves it, so they are what the port
     opens with next time; one without settings leaves it as it is.  The
-    settings are ``/port.connect``'s, read by its reader.
+    settings are ``/port.connect``'s, read by its reader.  The port is the
+    config's name, so every open puts it back should the file name another
+    (a port picked in the title bar and saved; registry
+    ``quick-config-port-is-name``); a ``$(env.X)`` template is left as the
+    user wrote it.
 
     Args:
         port: The port as the config should name it.
@@ -552,14 +563,24 @@ def quick_config(port: str, settings: str) -> tuple[Path, str]:
             if button["command"] in QUICK_BUTTONS:
                 button["enabled"] = True
         cfg["custom_buttons_side"] = QUICK_BUTTONS_SIDE
+        # A session is a terminal: protocol testing waits until asked for.
+        cfg["proto_enabled"] = False
         return create_config(path, cfg), "Created"
-    if not settings.split():
-        return path, "Using"
+    from termapy.port_control import same_port
+
     # The file as written, not load_config's view: that one has its
     # $(env.X) values expanded, which saving would bake into the file.
     cfg = json.loads(path.read_text(encoding="utf-8-sig"))
     cfg.setdefault("serial", {})
-    apply_open_settings(cfg, baud=baud, custom_baud=custom, mode=mode, eol=eol, echo=echo)
+    changed = bool(settings.split())
+    if changed:
+        apply_open_settings(cfg, baud=baud, custom_baud=custom, mode=mode, eol=eol, echo=echo)
+    stored = str(cfg_value(cfg, "serial.port"))
+    if "$(" not in stored and not same_port(stored, port):
+        cfg["serial"]["port"] = port
+        changed = True
+    if not changed:
+        return path, "Using"
     write_config_file(path, cfg)
     return path, "Updated"
 

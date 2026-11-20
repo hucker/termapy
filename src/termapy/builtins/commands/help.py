@@ -1250,7 +1250,13 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     if groups:
         if terminal:
             ctx.io.output_markup("")
-        ctx.io.output_markup(f"[{_SEP}]-- More --[/]")
+        ctx.io.output_markup_segments(
+            [
+                Piece("-- More (", None, _SEP),
+                Piece(f"{prefix}help.more", Link("help.more"), _CMD),
+                Piece(" opens them all) --", None, _SEP),
+            ]
+        )
         fold_w = _fold_opener_w(sorted(groups), prefix)
         for group in sorted(groups):
             members = groups[group]
@@ -1422,6 +1428,23 @@ def _group_members(ctx: PluginContext, group: str) -> list:
         ),
         key=lambda pair: pair[0],
     )
+
+
+def _handler_more(ctx: PluginContext, args: str) -> CmdResult:
+    """Expand every group the landscape folds, on one page: everything but the terminal group.
+
+    The in-app twin of the README's "More, when you need it": the landing
+    page shows the terminal group and folds the rest, and this is the one
+    command that opens the rest at once.  A table, like ``/help.group``.
+    """
+    present = sorted(
+        {plugin.group for name, plugin in ctx.internal.plugins.items() if "." not in name}
+    )
+    folded = [group for group in present if group != GROUP_TERMINAL]
+    if not folded:
+        ctx.io.output("Every command is in the terminal group.")
+        return CmdResult.ok(value=0)
+    return _members_table(ctx, folded, "beyond the terminal")
 
 
 def _handler_group(ctx: PluginContext, args: str) -> CmdResult:
@@ -1601,6 +1624,11 @@ reads as the name alone. Typing {prefix}help with zero matches points you at
             help="List the words commands share: --json, --quiet, toggle, cycle and more.",
             long_help=_IDIOMS_LONG_HELP,
             handler=_handler_idioms,
+            shows=True,
+        ),
+        "more": Command(
+            help="Expand every group the landscape folds: everything but the terminal commands.",
+            handler=_handler_more,
             shows=True,
         ),
         "group": Command(

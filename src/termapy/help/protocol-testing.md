@@ -83,6 +83,28 @@ Per `[[test]]`:
 - `viz`: force one visualizer for this test in the debug screen
 - `send_fmt` / `expect_fmt`: inline format specs for this test
 
+### Inline format specs
+
+`send_fmt` and `expect_fmt` on a test decode its bytes into named columns, and
+the debug screen shows the decoded values side by side with pass/fail
+highlighting, so opaque hex reads as fields:
+
+```toml
+[[test]]
+name = "Read 5 registers from addr 100"
+send = "01 03 00 64 00 05 C4 16"
+send_fmt = "Title:Modbus_TX Slave:H1 Func:H2 Addr:U3-4 Count:U5-6 CRC:crc16-modbus_le"
+expect = "01 03 0A 05 1B 05 28 05 35 05 42 05 4F 8C 46"
+expect_fmt = "Title:Modbus_Response Slave:H1 Func:H2 Bytes:U3 R0:U4-5 R1:U6-7 R2:U8-9 R3:U10-11 R4:U12-13 CRC:crc16-modbus_le"
+```
+
+![Inline format spec: decoded Modbus columns in the proto debug screen](img/proto_inline_fmt.png)
+
+The demo config ships two scripts that exercise this: `modbus_inline.pro`
+(register reads and writes with Modbus decoding) and `bitfield_inline.pro`
+(bit-field extraction and binary display). The language is under
+[Format spec language](#format-spec-language).
+
 ### Legacy flat format
 
 Older scripts use a colon-keyed flat format: header directives
@@ -155,6 +177,27 @@ teardown blocks on their own (disabled when the script has none), **Run**
 runs the checked tests, **Stop** ends the run after the test in flight,
 **Log** opens the debug log in your system viewer, and **Help** opens
 this page.
+
+### In the session log
+
+A run is logged like any other traffic, one block per test, so a log tells
+what was sent and what came back:
+
+```text
+================================================================================
+[2026-03-12 22:28:14] Script: Demo AT Command Test | Tests: 4 | Repeat: 1
+================================================================================
+  [PASS]  AT basic
+         TX:  41 54 0D
+         EXP: 4F 4B 0D 0A
+         RX:  4F 4B 0D 0A
+         Time: 77ms
+         [Hex] TX spec: Hex:h1-*
+         [Hex] TX: Hex=41 54 0D
+         [Hex] RX spec: Hex:h1-*
+         [Hex] RX: Hex=4F 4B 0D 0A
+Summary: 4/4 PASS (4 tests)
+```
 
 ## Packet visualizers
 

@@ -729,9 +729,11 @@ Ids: 206: 191 registry rows (guarantees 156, assumptions 35), 15 spec sections i
 
 - `test_python_versions.py`: the module (5 functions) **guard**
 
-### `quick-open-outside-project` (guarantee, requirement)
+### `quick-config-port-is-name` (guarantee, requirement)
 
-- `test_quick_open.py`: `TestCommandLine.test_quick_open_outside_project` **guard**
+- `test_app_pilot.py`: `TestQuickSessionPortPick` (2 functions)
+- `test_quick_open.py`: `TestQuickConfigPath` (1 functions), `TestQuickConfigsStayOut` (1 functions), `TestCommandLine.test_a_quick_open_inside_a_project_joins_it` **guard**, `TestQuickConfig.test_a_reopen_puts_the_port_back` **guard**, `TestQuickConfig.test_a_templated_port_is_left_as_written`
+- `test_session_changes.py`: `test_a_quick_sessions_port_is_never_a_change`
 
 ### `raw-primitive-one-home` (guarantee, structure)
 
@@ -820,7 +822,7 @@ Ids: 206: 191 registry rows (guarantees 156, assumptions 35), 15 spec sections i
 
 - `test_app_pilot.py`: `TestUnsavedSettings.test_a_script_load_never_asks` **guard**, `TestUnsavedSettings.test_a_typed_load_asks_and_cancel_keeps_the_session`, `TestUnsavedSettings.test_ctrl_q_asks_too`, `TestUnsavedSettings.test_exit_asks_about_unsaved_settings` **guard**, `TestUnsavedSettings.test_the_editor_asks_about_unsaved_settings`, `TestUnsavedSettings.test_the_mark_goes_when_the_settings_are_saved`, `TestUnsavedSettings.test_with_nothing_changed_exit_leaves_at_once`, `TestUnsavedSettings.test_with_nothing_changed_the_editor_opens_at_once`
 - `test_architecture.py`: `test_editor_opener_guard_fires_on_a_probe` **guard**, `test_the_config_editor_has_one_opener` **guard**
-- `test_session_changes.py`: the module (7 functions)
+- `test_session_changes.py`: the module (8 functions)
 
 ### `session-log-one-owner` (guarantee, structure)
 

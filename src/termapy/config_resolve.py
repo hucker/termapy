@@ -44,11 +44,15 @@ def find_config() -> tuple[str | None, bool]:
     - 0 cfg files: ``(None, False)`` -- show name picker for new config
     - 2+ cfg files: ``(None, True)`` -- show file picker
 
-    A read: it writes nothing (``--check`` relies on that).
+    A quick session's config (``config.is_quick_config``) never counts: a
+    bare start after a ``termapy COM3`` must not open COM3 unasked, nor
+    turn the auto-load of the one real config into a picker (registry
+    ``quick-config-port-is-name``).  A read: it writes nothing (``--check``
+    relies on that).
     """
-    from termapy.config import cfg_dir, config_files
+    from termapy.config import cfg_dir, config_files, is_quick_config
 
-    cfg_files = config_files(cfg_dir())
+    cfg_files = [path for path in config_files(cfg_dir()) if not is_quick_config(path)]
     if len(cfg_files) == 1:
         return str(cfg_files[0]), False
     if len(cfg_files) > 1:

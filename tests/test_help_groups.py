@@ -74,7 +74,9 @@ def test_every_other_group_is_one_folded_row(tmp_path):
     shown = _shown(_engine(tmp_path), "help")
 
     # Assert -- the folded groups are rows; their members are not
-    assert any(line.strip() == "-- More --" for line in shown), "the folded groups have a section"
+    assert any(line.strip().startswith("-- More (") for line in shown), (
+        "the folded groups have a section"
+    )
     folded = [line for line in shown if "/help.group devices" in line]
     assert len(folded) == 1, "the devices group is exactly one row"
     assert not any(line.strip().startswith("/mem ") for line in shown), (
@@ -111,6 +113,30 @@ def test_a_folded_row_links_to_its_group(tmp_path):
     assert links == {"help.group devices"}, (
         "every clickable piece of the row opens that group, so a click anywhere on it works"
     )
+
+
+def test_help_more_opens_every_folded_group(tmp_path):
+    """/help.more lists every command outside the terminal group on one page, and none inside it."""
+    # Arrange / Act
+    shown = _shown(_engine(tmp_path), "help.more")
+    # A row is GROUP, COMMAND, LEVEL, DESCRIPTION; the command is the second word.
+    parts = [line.split() for line in shown]
+    rows = [words[1] for words in parts if len(words) > 1 and words[1].startswith("/")]
+
+    # Assert
+    for name in ("/board", "/proto", "/app"):
+        assert name in rows, f"{name}, a folded group's command, is on the page"
+    assert "/port" not in rows, "the terminal group is the landing page's, not this one's"
+
+
+def test_the_more_header_names_the_command_that_opens_it(tmp_path):
+    """The landing's More header carries /help.more, so a reader knows how to open every fold at once."""
+    # Arrange / Act
+    shown = _shown(_engine(tmp_path), "help")
+
+    # Assert
+    header = next(line for line in shown if line.strip().startswith("-- More ("))
+    assert "/help.more" in header, header
 
 
 def test_expanding_a_group_lists_its_commands(tmp_path):

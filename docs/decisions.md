@@ -2047,3 +2047,54 @@ reserved or the bar painted only in its gaps (which shrink to nothing on a narro
 Rich's parser can say whether `echo_fmt` draws, and a `--check` that passed a broken one would
 not be doing its job. **Where:** `title_bar.py`, `config._check_markup`, `ReplEngine._echo_fmt`,
 `dialogs/config_editor.py`, `tests/test_title_colors.py`, `tests/test_cfg_schema.py`.
+
+## 2026-11-19 — A quick config's port is its name
+
+The 2026-11-19 review found that one Save after picking another port in the
+title bar re-pointed `quick-COM7` at COM8 (H1), that a bare `termapy` after one
+`termapy COM3` opened COM3 unasked or turned the one real config's auto-load
+into a picker (M2), and that on Linux and macOS the short name typed for an
+unplugged port looked for a config the plugged-in open never made (M4). All
+three come from a quick config being a config in every mechanism but not in
+its home: the 2026-11-08 entry put it in the user folder, never a project's
+`termapy_cfg/`, so from inside a project the picker could not list the config
+the session was running (L6). Chuck, shown that: "Why would they be saved in
+a different place? They are just cfgs." The fear behind 11-08, a
+`termapy_cfg/` appearing in a folder that just wanted a terminal, was already
+met by `cfg_dir()`, which never creates one. Decided: a quick config is a
+config. It lives where every config lives, is named for the port's short
+name, so every spelling reaches one file; the port is the name, so every open
+puts the file's port back, and a port picked in the title bar of a quick
+session opens that port's own quick config instead of changing this one; and
+a bare start never counts a quick config. Registry `quick-config-port-is-name`
+replaces `quick-open-outside-project`. **Behavior changed:** inside a project
+the config goes into the project (the ones already in the user folder still
+open from any non-project folder); on Linux and macOS it is `quick-ttyUSB0`,
+not `quick-dev-ttyUSB0` (a day old, in no release); a quick config no longer
+auto-loads or shows in a bare start's picker. **Where:**
+`config.quick_config_path`, `config.quick_config`, `config.is_quick_config`,
+`config_resolve.find_config`, `title_bar.update_port`.
+
+## 2026-11-19 — The README covers the terminal; the rest is one page away
+
+Chuck's rule for termapy's breadth: you only use what you need, and lots more
+is available; the extras (protocol testing, CRC, memory and symbols, file
+transfer, boards, plugins, MCP) are there for agents more than for people.
+Not a mode, not a download: a download buys a few megabytes (crcglot and
+pyelftools are under 2 MB each and never load until used) and costs a second
+release flow, and a mode is a knob the user must find, two apps to test and a
+new seam. The gate is exposure, which already existed in two of the three
+places: `/help`'s landing page shows the terminal group in full and folds the
+others to one row each, and the palette lists only terminal entries. The
+third is the README, which now covers the terminal and ends with a "More,
+when you need it" table, one row per group linking its help page; the two
+sections it held on protocol testing and extending termapy moved to their
+pages (the inline-format screenshot, the log sample, the minimal `hello.py`
+and the `examples/plugins/` list went with them), the generated format table
+lives on the protocol page only, and the collapsed command list is the
+terminal group's. A quick config ships with the Proto button off: a session
+is a terminal. Presence-based promotion (a folded group opening when a config
+has a `proto/` folder) was considered and left out until the folded rows,
+which show counts and names, prove not enough. **Where:** README.md,
+`help/protocol-testing.md`, `help/writing-plugins.md`,
+`scripts/sync_format_tables.py`, `config.quick_config`.

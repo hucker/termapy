@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -1461,6 +1462,44 @@ class TestHelpFlag:
             f"--help should produce a substantive multi-line block "
             f"(>= 40 lines); got {len(lines)} lines"
         )
+
+    def test_help_groups_the_flags_by_job(self, capsys, monkeypatch):
+        """--help prints five groups by job, in order, and a sample flag sits under each one's title."""
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--help"])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit):
+            main()
+        out = capsys.readouterr().out
+        titles = [
+            "Start a Session",
+            "Run One Thing and Exit",
+            "Settings",
+            "Ask About the Machine (No Session, No Port Opened)",
+            "Running Termapys",
+        ]
+        positions = [out.index(f"\n{title}:") for title in titles]
+
+        # Assert
+        assert positions == sorted(positions), "the four groups, in this order"
+        under = {}
+        for flag in ("--demo", "--run", "--quiet", "--ports", "--kill"):
+            # The flag's own row starts a line, short form first when it has one; the name also appears inside other rows' text.
+            match = re.search(rf"^  (?:-\w, )?{re.escape(flag)}\b", out, re.MULTILINE)
+            assert match is not None, f"{flag} has a row"
+            # The nearest title above the row, by position.
+            under[flag] = max(
+                (pos, title) for title, pos in zip(titles, positions) if pos < match.start()
+            )[1]
+        assert under == {
+            "--demo": "Start a Session",
+            "--run": "Run One Thing and Exit",
+            "--quiet": "Settings",
+            "--ports": "Ask About the Machine (No Session, No Port Opened)",
+            "--kill": "Running Termapys",
+        }, "each sample flag under its group's title"
 
     def test_help_documents_every_major_flag(self, capsys, monkeypatch):
         """Every user-facing flag in the curated set appears in --help."""

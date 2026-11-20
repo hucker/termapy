@@ -142,7 +142,14 @@ def _build_parser() -> argparse.ArgumentParser:
         # Without it argparse names the program after sys.argv[0], which
         # on Windows is the venv launcher: "python.exe ...\Scripts\termapy".
         prog="termapy",
-        description="TUI serial terminal with ANSI color support",
+        # The raw formatter keeps the line break; one line would overflow 80 columns.
+        description=(
+            "A serial terminal that is also a command line for the device:\n"
+            "a TUI, a plain CLI, one-shots for scripts and an MCP server for agents."
+        ),
+        # -h joins the first group below, so no lowercase "options:" heading
+        # stands above the Title Case ones.
+        add_help=False,
         # No prefix abbreviation: without it, argparse silently expands
         # `--port COM3` to `--ports COM3` (a print-and-exit flag), so a
         # perfectly reasonable-looking invocation lists ports and exits 0
@@ -157,38 +164,64 @@ def _build_parser() -> argparse.ArgumentParser:
             "  130  interrupted with Ctrl+C"
         ),
     )
-    parser.add_argument(
+    # Five groups, by the job a flag does; the CLI help page's tables use the
+    # same five, in the same order (decision 2026-11-20).  argparse prints a
+    # group only if it holds an argument; -h is in the first.
+    session = parser.add_argument_group(
+        "Start a Session",
+        "Open the TUI (or --cli, --vt100, --web) on a config or a port.",
+    )
+    oneshot = parser.add_argument_group(
+        "Run One Thing and Exit",
+        "A command, a script or a protocol test on a config, without the TUI.",
+    )
+    settings = parser.add_argument_group(
+        "Settings",
+        "Shape a CLI run's output: color, how much is said, the table width.",
+    )
+    machine = parser.add_argument_group(
+        "Ask About the Machine (No Session, No Port Opened)",
+        "Print and exit; --json makes the answer JSON.",
+    )
+    sessions = parser.add_argument_group(
+        "Running Termapys",
+        "The sessions on this machine, from the breadcrumb each keeps.",
+    )
+    session.add_argument("-h", "--help", action="help", help="Show this help and exit.")
+    machine.add_argument(
+        "-V",
         "--version",
         action=_Version,
-        help="show program's version number and exit",
+        help="Show the installed version and exit.",
     )
-    parser.add_argument(
+    session.add_argument(
         "config",
         nargs="?",
         default=None,
         metavar="CONFIG|PORT",
         help="A config by name or path (auto-detects a single .cfg in termapy_cfg/), "
         "else a port: a device name (COM3, /dev/ttyUSB0), a USB serial number or "
-        "a URL, opened with its own quick config in your user folder",
+        "a URL, opened with its own quick config, kept beside your other configs",
     )
-    parser.add_argument(
+    session.add_argument(
         "settings",
         nargs="*",
         metavar="SETTING",
         help="After a port, /port.connect's settings: baud, frame (8N1), "
         "cr|lf|crlf, echo|noecho; saved with the port's quick config",
     )
-    parser.add_argument(
+    session.add_argument(
         "--cfg-dir",
         default=None,
         help="Config directory (default: ./termapy_cfg if present, else OS config dir)",
     )
-    parser.add_argument(
+    session.add_argument(
+        "-d",
         "--demo",
         action="store_true",
         help="Start with simulated demo device (no hardware needed)",
     )
-    parser.add_argument(
+    session.add_argument(
         "--new",
         nargs="+",
         default=None,
@@ -201,7 +234,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "default to 115200 8N1.  An existing config asks before its .cfg "
         "is overwritten; its other files are kept.",
     )
-    parser.add_argument(
+    session.add_argument(
         "--board",
         default=None,
         metavar="BOARD",
@@ -210,18 +243,19 @@ def _build_parser() -> argparse.ArgumentParser:
         "board's USB serial number as its port and reused after that.  "
         "/board.list names the boards.",
     )
-    parser.add_argument(
+    oneshot.add_argument(
         "--proto",
         default=None,
         metavar="NAME",
         help="Run a .pro test script headlessly and write JSON results (no TUI)",
     )
-    parser.add_argument(
+    machine.add_argument(
         "--check",
         action="store_true",
         help="Validate config and print JSON result to stdout (no TUI)",
     )
-    parser.add_argument(
+    session.add_argument(
+        "-c",
         "--cli",
         action="store_true",
         help=(
@@ -229,7 +263,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "default; pair with --run or --exec for one-shot)"
         ),
     )
-    parser.add_argument(
+    session.add_argument(
         "--vt100",
         action="store_true",
         help=(
@@ -238,13 +272,14 @@ def _build_parser() -> argparse.ArgumentParser:
             "etc. render. Quit with Ctrl+]."
         ),
     )
-    parser.add_argument(
+    oneshot.add_argument(
+        "-r",
         "--run",
         default=None,
         metavar="SCRIPT",
         help="Run a .run script and exit (CLI mode, implies --cli)",
     )
-    parser.add_argument(
+    oneshot.add_argument(
         "-e",
         "--exec",
         action=_ExecCommand,
@@ -259,7 +294,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "in a .run file (--run)"
         ),
     )
-    parser.add_argument(
+    session.add_argument(
         "--web",
         nargs="?",
         const=(WEB_HOST_DEFAULT, WEB_PORT_DEFAULT),
@@ -274,7 +309,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "computer.  There is no login: anyone who can reach it can drive the port"
         ),
     )
-    parser.add_argument(
+    sessions.add_argument(
         "--alive",
         action="store_true",
         help=(
@@ -282,7 +317,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "settings, version and what started each (/app.alive)"
         ),
     )
-    parser.add_argument(
+    sessions.add_argument(
         "--kill",
         nargs="*",
         default=None,
@@ -293,7 +328,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "for them to leave.  Bare, list them as --alive does"
         ),
     )
-    parser.add_argument(
+    oneshot.add_argument(
         "-y",
         "--yes",
         action="store_true",
@@ -303,12 +338,12 @@ def _build_parser() -> argparse.ArgumentParser:
             "never under --mcp"
         ),
     )
-    parser.add_argument(
+    settings.add_argument(
         "--no-color",
         action="store_true",
         help="Strip ANSI color codes from output (CLI mode)",
     )
-    output_level = parser.add_mutually_exclusive_group()
+    output_level = settings.add_mutually_exclusive_group()
     output_level.add_argument(
         "--silent",
         dest="output_level",
@@ -317,6 +352,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Output level: nothing visible (use exit code).",
     )
     output_level.add_argument(
+        "-q",
         "--quiet",
         dest="output_level",
         action="store_const",
@@ -324,19 +360,21 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Output level: command results only.",
     )
     output_level.add_argument(
+        "-v",
         "--verbose",
         dest="output_level",
         action="store_const",
         const="verbose",
         help="Output level: results, data, and progress chatter.",
     )
-    parser.add_argument(
+    settings.add_argument(
         "--term-width",
         type=int,
         default=None,
         help="Override terminal width for CLI mode (default: auto-detect)",
     )
-    parser.add_argument(
+    machine.add_argument(
+        "-i",
         "--info",
         nargs="?",
         const="*",
@@ -346,7 +384,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "Optional PORT name (e.g. COM3, /dev/ttyUSB0); "
         "omit for all connected ports.",
     )
-    parser.add_argument(
+    machine.add_argument(
+        "-p",
         "--ports",
         nargs="?",
         const="*",
@@ -356,19 +395,21 @@ def _build_parser() -> argparse.ArgumentParser:
         "Optional PATTERN shows the ports any field of which contains it "
         "(FTDI, Microchip, a serial number, COM4); a wildcard makes a glob.",
     )
-    parser.add_argument(
+    machine.add_argument(
+        "-w",
         "--watch",
         action="store_true",
         help="Monitor serial ports and print changes "
         "(presence, in-use, serial number) as events.  Ctrl+C to exit.",
     )
-    parser.add_argument(
+    machine.add_argument(
+        "-u",
         "--usb",
         action="store_true",
         help="Show the whole USB tree -- every hub, device and "
         "interface -- with serial ports marked.  Windows and Linux.",
     )
-    parser.add_argument(
+    machine.add_argument(
         "--chips",
         nargs="?",
         const="*",
@@ -378,28 +419,29 @@ def _build_parser() -> argparse.ArgumentParser:
         "Optional PATTERN shows the chips any column of which contains it "
         "(ftdi, 0403, high); a wildcard makes a glob.",
     )
-    parser.add_argument(
+    machine.add_argument(
+        "-j",
         "--json",
         action="store_true",
         help="Emit JSON: the records instead of a column-aligned table for "
         "--ports, --chips and --usb; with -e, the command's own --json, "
         "its JSON envelope.",
     )
-    parser.add_argument(
+    machine.add_argument(
         "--validate-profile",
         default=None,
         metavar="PATH",
         help="Validate a device profile (.json or .toml) against the schema "
         "and exit.  Exit 0 if valid, 1 with errors otherwise.",
     )
-    parser.add_argument(
+    machine.add_argument(
         "--strict",
         action="store_true",
         help="With --validate-profile: treat compatibility warnings "
         "(unknown fields, non-canonical values) as errors and exit 1. "
         "For CI and pre-commit hooks, where nobody reads warnings.",
     )
-    parser.add_argument(
+    session.add_argument(
         "--mcp",
         action="store_true",
         help="Run as a stdio MCP (Model Context Protocol) server, a preview "
@@ -408,7 +450,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "<cfg_dir>/<name>.mcp.log.  Requires the 'mcp' extra: "
         "pip install termapy[mcp].",
     )
-    parser.add_argument(
+    session.add_argument(
         "--mcp-verbose",
         action="store_true",
         help="Dev observability for --mcp: tee log events to stderr in real "

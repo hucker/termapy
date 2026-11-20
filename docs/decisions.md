@@ -2176,3 +2176,20 @@ word after `-e` belongs to the command, a `--flag` included, so termapy's
 flags go before it. Still refused: a second `-e` among the words and a line
 break in the text (several commands are a .run file). **Where:**
 `entry._ExecCommand`, `help/cli.md` "Quoting".
+
+## 2026-11-20 — A one-shot opens the port only when its command needs it
+
+From the command-line review Chuck asked for: seven print-and-exit flags
+have an in-app twin (`--ports` and `/port.list`, `--usb` and `/port.usb`,
+...), and the one thing that kept the twins necessary was that `-e` ran
+inside a session that connected first. `termapy my_cfg -e /port.list` with
+the board unplugged exited 1 with "Cannot open COM99 ... check the port
+name with /port.list". Now the CLI asks the engine, `ReplEngine.needs_port`,
+before connecting: a device line or a command whose declaration says
+`serial_connected` connects first and fails as before; any other command
+runs without the port, and the exec idle wait is skipped when no port is
+open. The declaration is trustworthy by `state-answered-by-gate`. `--run`
+stays eager: a script is a session (Chuck). The knowledge lives in the
+engine so the TUI and MCP can ask the same question later (Chuck).
+Such a one-shot's breadcrumb records the config's port but no open port.
+**Where:** `repl.ReplEngine.needs_port`, `cli.CLITerminal._connects_first`.

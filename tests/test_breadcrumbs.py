@@ -971,7 +971,10 @@ class TestSessionTrail:
         envelope = json.loads(result.stdout)
         own = [record for record in envelope["data"] if record["this_session"]]
         assert [(record["version"], record["parent_pid"]) for record in own] == [("", None)]
-        assert own[0]["settings"] == "115200 8N1", "the free facts are still there"
+        assert own[0]["port"], "the config's port, a free fact, is still there"
+        assert (own[0]["open_port"], own[0]["settings"]) == ("", ""), (
+            "a one-shot whose command needs no port opens none, so there is no open port to record"
+        )
 
 
 class TestAppCommands:

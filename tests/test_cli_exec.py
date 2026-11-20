@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -34,6 +35,64 @@ def _run(*extra_args: str, cfg_dir: str) -> subprocess.CompletedProcess:
         text=True,
         timeout=30,
     )
+
+
+def _run_on_absent_port(*extra_args: str, cfg_dir: str) -> subprocess.CompletedProcess:
+    """Spawn ``termapy probe --cli`` on a config whose port, COM99, is not on the machine."""
+    from termapy.config import create_config, new_config
+
+    create_config(Path(cfg_dir) / "probe" / "probe.cfg", new_config("probe", port="COM99"))
+    return subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; "
+            f"sys.argv = ['termapy', 'probe', '--cli', '--no-color', "
+            f"'--cfg-dir', {cfg_dir!r}, "
+            + ", ".join(repr(extra_arg) for extra_arg in extra_args)
+            + "]; from termapy.entry import main; main()",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+
+class TestOneShotConnectsOnNeed:
+    """A one-shot opens the port only when its command uses it (registry oneshot-connects-on-need)."""
+
+    @pytest.mark.rule("oneshot-connects-on-need")
+    def test_a_one_shot_that_needs_no_port_runs_without_the_device(self, tmp_path):
+        """With the board absent, a command that does not use the port runs and exits 0."""
+        # Act
+        result = _run_on_absent_port("-e", "/print", "no port needed", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 0, f"stdout={result.stdout!r} stderr={result.stderr!r}"
+        assert result.stdout.strip() == "no port needed", "the command ran, nothing else printed"
+        assert "Cannot open" not in result.stdout + result.stderr, "no connect was attempted"
+
+    @pytest.mark.rule("oneshot-connects-on-need")
+    def test_a_one_shot_device_line_still_needs_the_port(self, tmp_path):
+        """A bare device line sends bytes, so the one-shot connects first and fails on the absent port."""
+        # Act
+        result = _run_on_absent_port("-e", "AT", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 1, f"stdout={result.stdout!r} stderr={result.stderr!r}"
+        assert "Cannot open COM99" in result.stdout + result.stderr, "the port error, as before"
+
+    @pytest.mark.rule("oneshot-connects-on-need")
+    def test_a_one_shot_command_that_declares_the_port_still_connects(self, tmp_path):
+        """A command whose declaration says serial_connected connects first, /term.raw among them."""
+        # Act
+        result = _run_on_absent_port("-e", "/term.raw", "AT", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 1, f"stdout={result.stdout!r} stderr={result.stderr!r}"
+        assert "Cannot open COM99" in result.stdout + result.stderr, (
+            "the declaration asked for the port"
+        )
 
 
 class TestCliExec:

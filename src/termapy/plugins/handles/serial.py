@@ -92,7 +92,7 @@ class SerialHandle:
 
         The one way a text line goes out (registry ``tx-text-one-path``).
         Binary -- a transfer, the protocol subsystem's packets and setup
-        lines, ``/raw`` -- goes straight to ``write`` and is never paced.
+        lines, ``/term.raw`` -- goes straight to ``write`` and is never paced.
 
         Pacing is TeraTerm's transmit delay, both off by default: with
         ``tx_char_delay_ms`` each character is written on its own and

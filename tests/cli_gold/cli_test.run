@@ -464,8 +464,8 @@ MEM.R 0x1000 2 --json
 /term.info
 /term.log a line for the session log, not the screen
 /port.mode
-# /raw sends no line ending; the device line after it completes the command
-/raw AT
+# /term.raw sends no line ending; the device line after it completes the command
+/term.raw AT
 +PROD-ID
 /print === section: coverage: folders ===
 /run.help at_demo

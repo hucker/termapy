@@ -91,7 +91,7 @@ A `$(*NAME)` reference is recognized only when it is an entire argument:
 It works in any command that declares typed parameters, in every argument slot
 except a `rest` value (a `rest` value is a whole line, not an argument, so it
 has no arity to guarantee - use `$(NAME)` there). Commands that take their
-arguments literally - `/raw`, `/term.send`, `/var.set`, `/search` - are
+arguments literally - `/term.raw`, `/term.send`, `/var.set`, `/search` - are
 unaffected by both forms.
 
 Because it resolves after the argument split, a dereferenced value is always
@@ -269,12 +269,12 @@ Use `\$` to prevent expansion:
 /print \$(ADDR) = $(ADDR)     # prints: $(ADDR) = 01
 ```
 
-Use `/term.send` to send a line with no expansion at all, or `/raw` to
+Use `/term.send` to send a line with no expansion at all, or `/term.raw` to
 send the text with no line ending either:
 
 ```text
 /term.send $(GPS),NMEA,0      # sends literal $(GPS),NMEA,0 and the line ending
-/raw $(GPS),NMEA,0            # sends literal $(GPS),NMEA,0 and nothing after it
+/term.raw $(GPS),NMEA,0            # sends literal $(GPS),NMEA,0 and nothing after it
 ```
 
 ## Scope

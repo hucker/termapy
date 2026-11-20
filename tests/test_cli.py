@@ -315,7 +315,7 @@ class TestTermHex:
         assert "OK" not in printed, "the decoded line is not printed as well"
 
 
-# -- /raw --------------------------------------------------------------------
+# -- /term.raw --------------------------------------------------------------------
 
 
 class TestRaw:
@@ -323,12 +323,12 @@ class TestRaw:
     @pytest.mark.parametrize(
         "route",
         [
-            pytest.param(lambda cli: cli._dispatch("/raw hello"), id="typed"),
-            pytest.param(lambda cli: cli.repl.dispatch("raw hello"), id="dispatched"),
+            pytest.param(lambda cli: cli._dispatch("/term.raw hello"), id="typed"),
+            pytest.param(lambda cli: cli.repl.dispatch("term.raw hello"), id="dispatched"),
         ],
     )
     def test_raw_not_connected(self, cli, route):
-        """/raw with no open port is the gate's answer by either route, typed text included."""
+        """/term.raw with no open port is the gate's answer by either route, typed text included."""
         # Arrange -- fixture is disconnected by default.
         # Act
         result = route(cli)
@@ -336,30 +336,30 @@ class TestRaw:
         # Assert
         assert not result.success, "fails when disconnected"
         assert result.error == STATE_MESSAGES["serial_connected"], (
-            "the gate answered; a typed /raw past it would reach the write and say 'Send error: ...'"
+            "the gate answered; a typed /term.raw past it would reach the write and say 'Send error: ...'"
         )
 
     def test_raw_no_args(self, cli):
-        """/raw with no payload renders the usage line instead of sending."""
+        """/term.raw with no payload renders the usage line instead of sending."""
         # Arrange -- connect to DEMO so the "no args" branch is reached.
         cli._connect()
 
         # Act
-        result = cli._dispatch("/raw")
+        result = cli._dispatch("/term.raw")
 
         # Assert
-        assert not result.success, "a bare /raw is a usage error"
+        assert not result.success, "a bare /term.raw is a usage error"
         assert "Usage:" in result.error, "the dispatcher renders the declaration"
 
     @pytest.mark.parametrize(
         "route",
         [
-            pytest.param(lambda cli: cli._dispatch("/raw AT"), id="typed"),
-            pytest.param(lambda cli: cli.repl.dispatch("raw AT"), id="dispatched"),
+            pytest.param(lambda cli: cli._dispatch("/term.raw AT"), id="typed"),
+            pytest.param(lambda cli: cli.repl.dispatch("term.raw AT"), id="dispatched"),
         ],
     )
     def test_raw_sends_data(self, cli, route):
-        """/raw writes the payload byte-for-byte with no line ending, by either route."""
+        """/term.raw writes the payload byte-for-byte with no line ending, by either route."""
         # Arrange -- real connect to DEMO.  FakeSerial records bytes
         # in ``_input_buf`` until it sees a line ending, so with none
         # sent the bytes sit there where we can verify them.
@@ -1350,7 +1350,7 @@ class TestHookRegistration:
             "run.profile.explore",
             "demo",
             "demo.force",
-            "raw",
+            "term.raw",
             "help.open",
             "term.completion",
         }

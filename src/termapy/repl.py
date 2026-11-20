@@ -121,6 +121,9 @@ _EXTERNAL_KEEP: frozenset[str] = frozenset({"built-in", "app"})
 # A button label's placeholder for its setting's value (ReplEngine.setting_text),
 # what it shows when the setting has none to give, and the mark after a label
 # whose setting the session changed from the config file.
+# The command whose typed text bypasses every transform (dispatch_full step 1).
+RAW_COMMAND = "term.raw"
+
 SETTING_VALUE = "{value}"
 SETTING_NO_VALUE = "-"
 SETTING_CHANGED = "*"
@@ -1703,7 +1706,7 @@ class ReplEngine:
         ``text``, escaped.  With ``eol_markers`` on and an ``eol_label``
         renderer (the engine does not import the serial layer, so the
         caller supplies it), the line ending is shown after the text.  One
-        builder for every echo -- a slash command (``/raw`` included) and a
+        builder for every echo -- a slash command (``/term.raw`` included) and a
         bare device line -- so they all read the same.
 
         Args:
@@ -1764,7 +1767,7 @@ class ReplEngine:
     ) -> CmdResult:
         """Route a raw command through the full pipeline.
 
-        Decides: /raw -> directives -> REPL command -> serial command.
+        Decides: /term.raw -> directives -> REPL command -> serial command.
         Applies transforms and sends via callbacks. This is the testable
         core that app.py's ``_dispatch_single`` delegates to.
 
@@ -1791,7 +1794,7 @@ class ReplEngine:
         def _announce(line: str, *, eol: Callable[[str], str] | None = None) -> None:
             """Record and show an input line this dispatch has accepted.
 
-            Every route through here -- ``/raw``, a directive, a slash
+            Every route through here -- ``/term.raw``, a directive, a slash
             command, a device line -- announces the same way, through the
             one builder, so the user's ``echo_fmt`` governs all of them.
 
@@ -1808,7 +1811,7 @@ class ReplEngine:
             """
             _echo(self.format_echo_markup(line, eol))
 
-        # REPL/slash-command echo (/cfg, /help, /raw, directives, warnings)
+        # REPL/slash-command echo (/cfg, /help, /term.raw, directives, warnings)
         # is governed by echo_repl -- distinct from device-command echo
         # (self.echo / cfg echo), which fires on the bare-line path.
         # .get: a context built without _init_flags (some tests) lacks it.
@@ -1818,18 +1821,19 @@ class ReplEngine:
         # default but a script can re-enable echo explicitly.
         echo_repl_on = self.ctx.ns("flags").get("echo_repl", False)
 
-        # 1. /raw: the text exactly as typed goes to the /raw handler, the
-        #    one /raw in every frontend.  Not through dispatch(), which
+        # 1. /term.raw: the text exactly as typed goes to its handler, the
+        #    one /term.raw in every frontend.  Not through dispatch(), which
         #    would strip leading spaces and --flags and expand {seq}
         #    templates in it; through the capability gate all the same.
-        #    A bare "/raw " falls through, so dispatch renders the usage line.
-        raw_text = cmd[len(prefix) + 4 :] if cmd.startswith(prefix + "raw ") else ""
-        raw_plugin = self._plugins.get("raw")
+        #    A bare "/term.raw " falls through, so dispatch renders the usage line.
+        raw_opener = f"{prefix}{RAW_COMMAND} "
+        raw_text = cmd[len(raw_opener) :] if cmd.startswith(raw_opener) else ""
+        raw_plugin = self._plugins.get(RAW_COMMAND)
         if raw_text and raw_plugin is not None:
             _log(">", cmd)
             if echo_repl_on:
                 _announce(cmd)
-            refusal = self._capability_refusal(raw_plugin, "raw")
+            refusal = self._capability_refusal(raw_plugin, RAW_COMMAND)
             result = (
                 CmdResult.fail(msg=refusal)
                 if refusal is not None

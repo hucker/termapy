@@ -227,7 +227,7 @@ sends to the device) waits in the input line for Enter.
 | `/proto.run <file>`       | Run a binary protocol test script (.pro); TUI bare: the Proto picker        |
 | `/proto.send <hex>`       | Send raw hex bytes and display response                                     |
 | `/proto.info`             | Print current protocol mode state                                           |
-| `/raw <text>`             | Send text exactly as typed: no line ending, expansion or transforms         |
+| `/term.raw <text>`             | Send text exactly as typed: no line ending, expansion or transforms         |
 | `/repeat ...`             | Repeat a command N times: `count=<N> {delay=<dur>} {var=<name>} cmd=<cmd>`  |
 | `/run {file}`             | TUI bare: open Run picker. CLI bare: list scripts. With file: run it.       |
 | `/run.edit {file}`        | Edit a .run script (same as `/edit.run`)                                    |

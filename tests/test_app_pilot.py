@@ -2624,10 +2624,10 @@ class TestSessionLog:
 
 
 class TestRawEcho:
-    """/raw echoes through the engine's one echo builder."""
+    """/term.raw echoes through the engine's one echo builder."""
 
     def test_raw_echo_expands_the_echo_format(self, app_factory):
-        """The /raw echo reads echo_fmt like every other echo: $(CFG) expands, [ok] stays text."""
+        """The /term.raw echo reads echo_fmt like every other echo: $(CFG) expands, [ok] stays text."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -2636,12 +2636,12 @@ class TestRawEcho:
                 app.repl.ctx.ns("flags")["echo_repl"] = True
 
                 # Act -- not connected, so the line is echoed and refused, never sent
-                app._dispatch_single("/raw AT[ok]")
+                app._dispatch_single("/term.raw AT[ok]")
                 await pilot.pause()
 
                 # Assert
                 text = app._get_screen_text()
-                assert "proj> /raw AT[ok]" in text, (
+                assert "proj> /term.raw AT[ok]" in text, (
                     f"the echo expands $(CFG) and keeps the brackets:\n{text}"
                 )
                 assert "$(CFG)" not in text, "the variable never shows unexpanded"

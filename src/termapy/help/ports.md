@@ -189,7 +189,7 @@ The spacing is what termapy gives the driver: a USB adapter's driver can
 still group bytes, and its own settings (an FTDI adapter's Advanced port
 settings, say) are where to tune that. Every line sent to
 the device is paced: typed, from a script, pasted, or sent by an MCP
-agent. Binary is not: file transfers, `/proto` and `/raw` go out exactly
+agent. Binary is not: file transfers, `/proto` and `/term.raw` go out exactly
 as given.
 
 ## When you're evaluating whether to buy a faster cable

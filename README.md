@@ -78,7 +78,7 @@ termapy COM7 9600 7E1 crlf     # settings after the port, when yours differ
 termapy BG03U7VTA              # by serial number, whatever COM number Windows gives it
 ```
 
-On Linux and macOS a port shows by its short name, `ttyUSB0` or `usbserial-A50285BI`, and you can type that or the full path. termapy keeps the settings for next time, in your user folder rather than your project. Beside the output, the EOL, Echo and Color buttons show those three settings, and a click steps one.
+On Linux and macOS a port shows by its short name, `ttyUSB0` or `usbserial-A50285BI`, and you can type that or the full path. termapy keeps the settings for next time, in a config of the port's own beside your other configs. Beside the output, the EOL, Echo and Color buttons show those three settings, and a click steps one.
 
 **3. Give it a project when it earns one.** For scripts, plugins, a device profile or an MCP agent, make a config in the current folder:
 

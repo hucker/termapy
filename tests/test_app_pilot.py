@@ -4296,6 +4296,57 @@ class TestTitleBarColors:
         _run(scenario)
 
 
+@pytest.mark.rule("quick-config-port-is-name")
+class TestQuickSessionPortPick:
+    """A title-bar port pick opens that port's own quick config in a quick session; in a project it is a session change."""
+
+    def test_a_port_pick_in_a_quick_session_opens_that_ports_config(
+        self, app_factory, tmp_path, monkeypatch
+    ):
+        """Picking DEMO_JSON in quick-DEMO loads quick-DEMO_JSON, made on the spot, so the title bar agrees with itself."""
+        import termapy.config as config_module
+
+        monkeypatch.setattr(config_module, "CFG_DIR", str(tmp_path))
+        app, _, path = app_factory(name="quick-DEMO")
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                # Arrange
+                await pilot.pause()
+
+                # Act
+                app._update_port("DEMO_JSON")
+                await until(pilot, lambda: app.config_path != path)
+
+                # Assert
+                expected = tmp_path / "quick-DEMO_JSON" / "quick-DEMO_JSON.cfg"
+                assert Path(app.config_path) == expected, "that port's own config"
+                assert expected.is_file(), "made now, where every config goes"
+                assert app.cfg["serial"]["port"] == "DEMO_JSON"
+
+        _run(scenario)
+
+    def test_a_port_pick_in_a_project_session_is_a_session_change(self, app_factory):
+        """Picking DEMO_JSON in a project config keeps the config and changes its port for the session only."""
+        app, _, path = app_factory()
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                # Arrange
+                await pilot.pause()
+
+                # Act
+                app._update_port("DEMO_JSON")
+                await until(pilot, lambda: app.cfg["serial"]["port"] == "DEMO_JSON")
+
+                # Assert
+                assert app.config_path == path, "the project config stays"
+                changed = [change.path for change in app.session_changes()]
+                assert changed == ["serial.port"], "offered for saving, like any setting"
+
+        _run(scenario)
+
+
 def _manual_flow_serial() -> dict:
     """The DEMO port's serial settings with manual flow control, which shows the DTR/RTS/Break buttons."""
     serial_cfg = DEFAULT_CFG["serial"]

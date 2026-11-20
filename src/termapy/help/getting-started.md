@@ -50,17 +50,24 @@ termapy ttyUSB0                  # Linux and macOS: /dev/ttyUSB0 by its short na
 termapy --vt100 COM5 115200      # a U-Boot or Linux console
 ```
 
-The first open gives the port a config of its own, `quick-COM3`, in your
-user folder and never in the current project: `%APPDATA%\termapy` on
-Windows, `~/Library/Application Support/termapy` on macOS,
-`~/.config/termapy` on Linux. So its log, history and screenshots have a home and your
-project gains nothing. The settings you type are saved there, so the next
-`termapy COM3` opens with them, and a port you have opened before still
-opens while it is unplugged, as any config whose port is missing does. Each
-port has its own config, so two termapys on two ports share nothing. A
-serial number follows the board whatever COM number it gets. The config puts
-EOL, Echo and Color buttons beside the output, each showing its setting; a click
-steps it ([Custom buttons](custom-buttons.md#showing-a-setting)).
+The first open gives the port a config of its own, named for the port's
+short name (`quick-COM3`, `quick-ttyUSB0`), beside your other configs: in
+your project's `termapy_cfg/` when you launch inside one, else in your user
+folder (`%APPDATA%\termapy` on Windows, `~/Library/Application
+Support/termapy` on macOS, `~/.config/termapy` on Linux). So its log,
+history and screenshots have a home, and the config picker lists it like any
+other. The settings you type are saved there, so the next `termapy COM3`
+opens with them, and a port you have opened before still opens while it is
+unplugged, as any config whose port is missing does. Each port has its own
+config, and the port is its name: pick another port in the title bar and
+termapy opens that port's config, made on the spot if it is new, so
+`termapy COM3` always opens COM3. A serial number follows the board whatever
+COM number it gets. A bare `termapy` never opens a quick config; type the
+port. When a port earns a name, rename its config (`/cfg.rename quick-COM3
+pico`, or the picker's Rename): the log, history and settings come along, and
+it is an ordinary config from then on. The config puts EOL, Echo and Color buttons beside the output, each
+showing its setting; a click steps it
+([Custom buttons](custom-buttons.md#showing-a-setting)).
 
 A config wins the name: with a config called `COM3`, `termapy COM3` loads
 it. Settings follow a port only, and flags may go anywhere on the line

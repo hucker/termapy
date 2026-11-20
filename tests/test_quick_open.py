@@ -51,26 +51,54 @@ def _saved(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+@pytest.mark.rule("quick-config-port-is-name")
 class TestQuickConfigPath:
-    """A quick config is named ``quick-`` and the port, with what a file name cannot hold made a dash."""
+    """A quick config is named ``quick-`` and the port's short name, with what a file name cannot hold made a dash."""
 
     @pytest.mark.parametrize(
-        ("port", "expected"),
+        ("port", "system", "expected"),
         [
-            ("COM3", "quick-COM3"),
-            ("socket://localhost:7000", "quick-socket-localhost-7000"),
-            ("/dev/ttyUSB0", "quick-dev-ttyUSB0"),
-            ("/dev/tty.usbserial-A10K", "quick-dev-tty.usbserial-A10K"),
-            ("58E6C5716A840000", "quick-58E6C5716A840000"),
+            ("COM3", "win32", "quick-COM3"),
+            ("com3", "win32", "quick-COM3"),
+            ("socket://localhost:7000", "linux", "quick-socket-localhost-7000"),
+            ("/dev/ttyUSB0", "linux", "quick-ttyUSB0"),
+            ("ttyUSB0", "linux", "quick-ttyUSB0"),
+            ("/dev/cu.usbserial-A10K", "darwin", "quick-usbserial-A10K"),
+            ("/dev/tty.usbserial-A10K", "darwin", "quick-tty.usbserial-A10K"),
+            ("/dev/serial/by-id/usb-FTDI-x", "linux", "quick-dev-serial-by-id-usb-FTDI-x"),
+            ("58E6C5716A840000", "win32", "quick-58E6C5716A840000"),
         ],
     )
-    def test_the_name_follows_the_port(self, cfg_root, port, expected):
-        """Each port spelling gets a name a folder can have, in the config folder's <name>/<name>.cfg layout."""
+    def test_the_name_follows_the_port(self, cfg_root, port, system, expected):
+        """Every spelling of a port, typed or listed, names the one config; a link or a URL keeps its path."""
         # Act
-        actual = quick_config_path(port)
+        actual = quick_config_path(port, system=system)
 
         # Assert
         assert actual == cfg_root / expected / f"{expected}.cfg"
+
+
+@pytest.mark.rule("quick-config-port-is-name")
+class TestQuickConfigsStayOut:
+    """A quick config is reached by typing its port, never by a bare start."""
+
+    def test_a_bare_start_never_counts_a_quick_config(self, cfg_root):
+        """One quick config is no config to auto-load; beside one real config, that config still auto-loads."""
+        from termapy.config import create_config, new_config
+        from termapy.config_resolve import find_config
+
+        # Arrange
+        quick_config("COM3", "")
+        quick_config("COM4", "")
+
+        # Act
+        alone = find_config()
+        real = create_config(cfg_root / "bench" / "bench.cfg", new_config("bench"))
+        beside = find_config()
+
+        # Assert
+        assert alone == (None, False), "two quick configs: neither an auto-load nor a picker"
+        assert beside == (str(real), False), "the one real config auto-loads as if alone"
 
 
 class TestQuickConfig:
@@ -121,6 +149,39 @@ class TestQuickConfig:
         # Assert
         assert (again, verb) == (path, "Using")
         assert path.read_bytes() == before, "an open with no settings must not rewrite the config"
+
+    @pytest.mark.rule("quick-config-port-is-name")
+    def test_a_reopen_puts_the_port_back(self, cfg_root):
+        """A quick config whose file names another port (a saved title-bar pick) opens on its own port again."""
+        # Arrange
+        path, _ = quick_config("COM3", "9600")
+        drifted = _saved(path)
+        drifted["serial"]["port"] = "COM4"
+        path.write_text(json.dumps(drifted), encoding="utf-8")
+
+        # Act
+        _, verb = quick_config("COM3", "")
+
+        # Assert
+        assert verb == "Updated", "the file was put right"
+        assert _saved(path)["serial"]["port"] == "COM3", "termapy COM3 opens COM3"
+        assert _saved(path)["serial"]["baud_rate"] == 9600, "the other settings stay"
+
+    @pytest.mark.rule("quick-config-port-is-name")
+    def test_a_templated_port_is_left_as_written(self, cfg_root):
+        """A $(env.X) in the port is the user's own edit, so a reopen neither expands nor replaces it."""
+        # Arrange
+        path, _ = quick_config("COM3", "")
+        edited = _saved(path)
+        edited["serial"]["port"] = "$(env.BENCH_PORT|COM3)"
+        path.write_text(json.dumps(edited), encoding="utf-8")
+        before = path.read_bytes()
+
+        # Act
+        _, verb = quick_config("COM3", "")
+
+        # Assert
+        assert verb == "Using" and path.read_bytes() == before, "the template is kept as written"
 
     @pytest.mark.rule("config-created-once")
     def test_later_settings_are_laid_over_and_kept(self, cfg_root):
@@ -308,9 +369,9 @@ def _termapy(cwd: Path, *argv: str, env_extra: dict[str, str]) -> subprocess.Com
 class TestCommandLine:
     """``main()`` end to end, ``--check`` standing in for the frontend as TestNewFlag's tests do."""
 
-    @pytest.mark.rule("quick-open-outside-project")
-    def test_quick_open_outside_project(self, tmp_path):
-        """A port typed inside a project makes its config in the user folder, never ./termapy_cfg."""
+    @pytest.mark.rule("quick-config-port-is-name")
+    def test_a_quick_open_inside_a_project_joins_it(self, tmp_path):
+        """A port typed inside a project makes its config beside the project's others, not in the user folder."""
         # Arrange -- a project folder, and a user folder the OS lookup lands in on every platform
         project = tmp_path / "project"
         (project / "termapy_cfg").mkdir(parents=True)
@@ -324,10 +385,10 @@ class TestCommandLine:
         )
 
         # Assert
-        made = list(home.rglob("quick-*.cfg"))
+        made = [path.name for path in (project / "termapy_cfg").glob("*/*.cfg")]
         assert result.returncode == 0, result.stderr
-        assert [path.name for path in made] == ["quick-socket-localhost-7000.cfg"]
-        assert list((project / "termapy_cfg").glob("*/*.cfg")) == [], "the project gains no config"
+        assert made == ["quick-socket-localhost-7000.cfg"], "a quick config is a config"
+        assert list(home.rglob("quick-*.cfg")) == [], "nothing lands in the user folder"
 
     def test_a_flag_may_sit_between_the_settings(self, tmp_path):
         """termapy PORT 9600 --check E71: the words on both sides of the flag are settings."""

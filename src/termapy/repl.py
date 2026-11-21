@@ -1510,9 +1510,12 @@ class ReplEngine:
 
         A device line (no REPL prefix) sends bytes, and so does a command
         whose declaration says ``serial_connected`` (``/term.send``,
-        ``/term.raw``, ``/expect``), suffixes included.  The declaration is
-        the truth because missing session state is the gate's answer, never
-        a handler's check (registry ``state-answered-by-gate``).  Anything
+        ``/term.raw``, ``/expect``), suffixes included, or ``uses_port``
+        (``/proto.crc.find``, which sends for ``cmd=`` and not for ``bin=``).
+        The declarations are the truth because missing session state is the
+        gate's answer, never a handler's check (registry
+        ``state-answered-by-gate``), and a handler that must check it anyway
+        says so with ``uses_port`` (registry ``uses-port-declared``).  Anything
         else, an unknown command included, runs without the port.  The CLI's
         one-shot asks this before connecting (registry
         ``oneshot-connects-on-need``).
@@ -1527,7 +1530,7 @@ class ReplEngine:
         if not stripped.startswith(self.prefix):
             return True
         plugin = self.plugin_for(stripped[len(self.prefix) :])
-        return plugin is not None and plugin.needs.serial_connected
+        return plugin is not None and (plugin.needs.serial_connected or plugin.uses_port)
 
     def split_suffixes(self, name: str) -> tuple[str, str | None, bool]:
         """A typed command name, the level it asks for, and whether it asks for JSON.

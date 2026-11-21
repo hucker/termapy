@@ -478,6 +478,7 @@ COMMAND = Command(
                 "are applied to the live cfg."
             ),
             handler=_handler_load,
+            uses_port=True,  # cmd= loads from the device; a path does not
             cfg={"encoding": "decodes the profile a cmd= fetches"},
         ),
         "save": Command(

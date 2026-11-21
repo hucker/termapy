@@ -736,6 +736,18 @@ def _long_help(ctx):
 answers needs none of this: declare `state=True`, and the page and the
 command cannot disagree.
 
+## A command that uses the port only sometimes
+
+The gate answers `Not connected.` for a command whose `needs` say
+`serial_connected`, so a handler never checks the port itself -- except
+when the need depends on its arguments: `/proto.crc.find cmd=AT+RND`
+sends, `/proto.crc.find bin=...` does not.  Such a command declares
+`uses_port=True`, checks `ctx.serial.is_connected()` in the handler and
+returns `STATE_MESSAGES["serial_connected"]` when the arguments need the
+port.  The declaration is the one license for that check, and a one-shot
+(`termapy cfg -e ...`) opens the port before running the command, as it
+does for a declared need.
+
 ## Serial I/O pattern
 
 Most plugins follow this pattern: send a command, read the response, do something with it.

@@ -896,6 +896,7 @@ COMMAND = Command(
             help="Poll commands on a schedule, display (and optionally save) results.",
             long_help=_cap_long_help_with_prose(_CAP_POLL_PROSE),
             handler=_handler_poll,
+            uses_port=True,  # a device line polls the port; a command does not
             cfg={"encoding": "decodes each polled reply"},
             # raw_args keeps cmd= literal (device commands, no $(VAR) expansion);
             # params still parse the keywords + rest (raw_args skips only transforms).

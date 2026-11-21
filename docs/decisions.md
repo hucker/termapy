@@ -2232,3 +2232,23 @@ for the discovery set, `-j`, `-V` for version (`-v` is verbose everywhere,
 python, pip, ssh, curl), `-q -v`, `-c -r -d`; the rest stay long only.
 **Where:** `entry._build_parser`, `help/cli.md` "Every flag, by job",
 `pyproject.toml`.
+
+## 2026-11-20 — A command that uses the port by argument says so
+
+Found running the CRC tour after item 1 of the command-line review: with
+one-shots connecting only for a declared need, `termapy --demo -e
+/proto.crc.find cmd=AT+RND` answered `Not connected.` The command declares
+no need because its need depends on its arguments (`cmd=` sends, `bin=`
+does not), so its handler checks the port itself, which the rules allow
+for exactly that case; the CLI used to connect for every one-shot, so the
+check never fired there. An AST scan found thirteen in-handler checks:
+reporters that only show the state, and six commands that use the port by
+argument: `/proto.send` (`--dry-run` needs none), `/proto.crc.find`,
+`/proto.crc.reverse`, `/profile.load cmd=`, `/cap.poll`, `/var.capture`.
+Now `Command(uses_port=True)` declares that: `ReplEngine.needs_port` reads
+it beside `needs.serial_connected`, so a one-shot connects first; `/help`
+shows a hedged `serial_connected` row for it; and a guard makes it the one
+license for a handler's own refusal (registry `uses-port-declared`). The
+reporters are untouched: they return a view, not the refusal.
+**Where:** `plugins/command.py`, `repl.ReplEngine.needs_port`, six
+declarations, `tests/test_architecture.py`.

@@ -813,7 +813,7 @@ The demo comes with everything wired up so you can try each feature:
 termapy --cli my_device              # interactive REPL
 termapy --cli --demo                 # demo device, no hardware needed
 termapy --cli smoke_test.run         # run a .run script and exit
-termapy --cli my_device -e "AT+VER"  # one-shot: run command, print stdout, exit
+termapy my_device -e "AT+VER"  # one-shot: run command, print stdout, exit
 termapy --cli my_device --no-color   # strip ANSI color codes (REPL piping)
 ```
 

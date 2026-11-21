@@ -593,7 +593,7 @@ The rules the layers rely on are listed in [docs/rules.md](docs/rules.md), the r
 
 termapy is one package with several front doors: the TUI, the plain-text
 CLI, the MCP server, VT100 passthrough, and the print-and-exit flags
-(`--ports`, `--usb`, `--chips`, `--check`, `--version`). A process pays for
+(`--ports`, `--usb`, `--check`, `--version`). A process pays for
 every module it imports before it does any work, and imports are
 transitive: one top-level `import` in a widely shared module is paid by
 every door that reaches it. So each path loads only what it shows (registry
@@ -964,7 +964,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_cli.py                         | Unit tests for CLITerminal - hooks, helpers, output, and dispatch                                                                                                                   |
 | test_cli_exec.py                    | End-to-end tests for `--exec` / `-e` one-shot CLI mode                                                                                                                              |
 | test_cli_gold.py                    | CLI gold-standard tests - run .run scripts and compare stdout to expected output                                                                                                    |
-| test_cli_improvements.py            | The print-and-exit port flags: --ports / --chips JSON, the VID/PID/mfg/SN filters, and the driver column                                                                            |
+| test_cli_improvements.py            | The print-and-exit port flags: --ports JSON, the VID/PID/mfg/SN filters, and the driver column                                                                                      |
 | test_cli_prefix.py                  | End-to-end test: the REPL command prefix is actually configurable                                                                                                                   |
 | test_cli_zero_config.py             | End-to-end tests for zero-config CLI mode                                                                                                                                           |
 | test_commands_doc_sync.py           | Freshness guard: every command listed in help/commands.md must exist                                                                                                                |

@@ -1501,6 +1501,30 @@ class TestHelpFlag:
             "--kill": "Running Termapys",
         }, "each sample flag under its group's title"
 
+    @pytest.mark.rule("flag-twins-declared")
+    def test_help_names_each_twin_flags_command(self, capsys, monkeypatch, cli):
+        """Every FLAG_TWINS flag is a --help row ending in the twin sentence, its twin is a registered command, and the CLI page's row names it too."""
+        # Arrange
+        from termapy import cli as cli_module
+        from termapy.entry import FLAG_TWINS, main
+
+        monkeypatch.setattr("sys.argv", ["termapy", "--help"])
+        page = (Path(cli_module.__file__).parent / "help" / "cli.md").read_text(encoding="utf-8")
+
+        # Act
+        with pytest.raises(SystemExit):
+            main()
+        out = " ".join(capsys.readouterr().out.split())  # argparse wraps; compare on one line
+
+        # Assert
+        for flag, command in FLAG_TWINS.items():
+            assert re.search(rf"(^|[\s\[]){re.escape(flag)}\b", out), f"{flag} is a flag"
+            assert f"Same as -e /{command}, without a session." in out, f"{flag} names its twin"
+            assert command in cli.repl._plugins, f"{flag}'s twin /{command} is a registered command"
+            assert f"Same as `-e /{command}`" in page, (
+                f"the CLI page's row for {flag} names its twin"
+            )
+
     def test_help_documents_every_major_flag(self, capsys, monkeypatch):
         """Every user-facing flag in the curated set appears in --help."""
         # Arrange
@@ -1524,7 +1548,6 @@ class TestHelpFlag:
             "--run",
             "--exec",
             "--ports",
-            "--chips",
             "--info",
             "--watch",
             "--validate-profile",
@@ -1787,49 +1810,6 @@ class TestPortsFlag:
         # Assert
         out = capsys.readouterr().out
         assert "--ports" in out, "--ports is in --help"
-
-
-# -- --chips CLI flag --------------------------------------------------------
-
-
-class TestChipsFlag:
-    """Tests for --chips: print the USB_SERIAL_CHIPS lookup table."""
-
-    def test_chips_unfiltered_dumps_table(self, capsys, monkeypatch):
-        """Bare --chips dumps the whole table, ending in a Count= line."""
-        # Arrange
-        monkeypatch.setattr("sys.argv", ["termapy", "--chips"])
-        from termapy.entry import main
-
-        # Act
-        with pytest.raises(SystemExit) as exc:
-            main()
-
-        # Assert
-        out = capsys.readouterr().out
-        assert exc.value.code == 0, "--chips exits 0"
-        assert "VID:PID" in out and "CHIP MODEL" in out, "header emitted"
-        assert "FT232R" in out, "at least one known chip present"
-        assert out.rstrip().splitlines()[-1].startswith("Count="), "final line is Count=<N>"
-
-    def test_chips_filter_narrows(self, capsys, monkeypatch):
-        """A --chips filter keeps matching vendors and drops the rest."""
-        # Arrange
-        monkeypatch.setattr("sys.argv", ["termapy", "--chips=ftdi"])
-        from termapy.entry import main
-
-        # Act
-        with pytest.raises(SystemExit) as exc:
-            main()
-
-        # Assert
-        out = capsys.readouterr().out
-        assert exc.value.code == 0, "filter exits 0"
-        data_lines = [
-            data_line for data_line in out.splitlines() if ":" in data_line and "FTDI" in data_line
-        ]
-        assert data_lines, "FTDI rows present"
-        assert "Silicon Labs" not in out, "non-matching vendor excluded"
 
 
 # -- --watch CLI flag (tricky: loop + KeyboardInterrupt) ---------------------
@@ -2108,9 +2088,9 @@ class TestPathsStayLight:
     frist via ``scripting``'s tables, metadata via ``entry``'s parser.
     """
 
-    @pytest.mark.parametrize("flag", ["--ports", "--chips", "--usb", "--alive", "--kill"])
+    @pytest.mark.parametrize("flag", ["--ports", "--usb", "--alive", "--kill"])
     def test_print_and_exit_flags_load_nothing_heavy(self, tmp_path, flag):
-        """--ports, --chips, --usb, --alive and --kill load no UI framework, no metadata and no frist."""
+        """--ports, --usb, --alive and --kill load no UI framework, no metadata and no frist."""
         # Act
         actual = _loaded_after(flag, cwd=tmp_path)
 

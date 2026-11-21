@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 210: 195 registry rows (guarantees 160, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 206. Pinned by none: 4.
+Ids: 211: 196 registry rows (guarantees 161, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 207. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -375,6 +375,10 @@ Ids: 210: 195 registry rows (guarantees 160, assumptions 35), 15 spec sections i
 - `test_cli.py`: `TestPathsStayLight` (5 functions)
 - `test_cli_improvements.py`: `TestCliFlagsImportDiscipline` (2 functions)
 - `test_mcp_entry.py`: `TestLazyImport.test_entry_import_does_not_pull_mcp_sdk`
+
+### `flag-twins-declared` (guarantee, structure)
+
+- `test_cli.py`: `TestHelpFlag.test_help_names_each_twin_flags_command` **guard**
 
 ### `folder-exts-from-table` (guarantee, data)
 

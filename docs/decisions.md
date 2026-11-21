@@ -2252,3 +2252,28 @@ license for a handler's own refusal (registry `uses-port-declared`). The
 reporters are untouched: they return a view, not the refusal.
 **Where:** `plugins/command.py`, `repl.ReplEngine.needs_port`, six
 declarations, `tests/test_architecture.py`.
+
+## 2026-11-20 — The flag twins are one table, and --chips is retired
+
+Items 4 and 5 of the command-line review. Seven print-and-exit flags did
+the job of an in-app command, and only `--alive` and `--kill` said so in
+their help. Now `entry.FLAG_TWINS` maps each flag to its command, every
+twin flag's `--help` ends with the sentence the table builds, "Same as -e
+/port.list, without a session", the CLI help page's rows say the same, and
+a test holds the three together and checks each twin is a registered
+command (registry `flag-twins-declared`). The reason the twins stay is the
+one stated in the review: a flag opens no session and no port, loads
+nothing but what it prints, and answers before a config exists. Two
+corrections while filling the table: `--info`'s twin is `/port.chip`, the
+command that shares its producer (`port_control.chip_info`), not
+`/port.info`, which reports the connected port's status and signals; and
+`--version` has one, `/app.ver`. Not in the table: `--check`, `--watch`
+and `--strict` have no in-app twin, and `--run` and `--proto` are session
+runners, whose `-e /run` and `-e /proto.run` spellings are a question for
+another day.
+**Behavior removed:** `--chips` and `--chips=ftdi`. Their twin,
+`/port.chip.list {pattern}`, dumps the same table through the same filter,
+and `-e /port.chip.list --json` gives the records, which now carry `vid`
+and `pid` as ints as the flag's JSON did. The flag was typed by nobody
+before a config existed, which is the one thing a flag buys. **Where:**
+`entry.FLAG_TWINS`, `cli_flags.py` (the runner gone), `help/cli.md`.

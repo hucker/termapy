@@ -20,7 +20,6 @@ Available flags:
     --info [PORT]      full multi-line chip dump (reuses /port.info)
     --ports [PORT]     one-line-per-port picker-style table
     --watch            poll 2 Hz, print events on presence/in-use/SN change
-    --chips [FILTER]   dump the USB_SERIAL_CHIPS lookup table
     --check            validate config, print JSON status
     --new NAME PORT .. create a config, then hand it back to main()
 
@@ -580,61 +579,6 @@ def _emit_diff(
             print(_format_state_line(" ", new, widths))
         if (old.serial or "") != (new.serial or "") or ((old.vid_pid or "") != (new.vid_pid or "")):
             print(_format_state_line("~", new, widths))
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# --chips: dump USB_SERIAL_CHIPS table
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def run_chips(args: argparse.Namespace) -> None:
-    """Dump the USB-serial chip lookup table to stdout.
-
-    An optional name pattern narrows it to the chips any column of which
-    matches (VID:PID, model, speed), through the one filter ``/port.chip.list`` uses
-    (``port_format.find_chips``); the bare flag's ``*`` matches them
-    all.  ``--json`` produces an array of chip records instead of the
-    column-aligned table.
-
-    Exits 0 even on no matches; a zero-match filter is a legitimate
-    query, not an error.
-    """
-    from termapy.port_format import find_chips
-
-    rows = find_chips((args.chips or "").strip())
-
-    if args.json:
-        records = [
-            {
-                "vid": vid,
-                "pid": pid,
-                "vid_pid": f"{vid:04X}:{pid:04X}",
-                "model": info.model,
-                "speed": info.speed,
-                "max_baud": info.max_baud,
-            }
-            for vid, pid, info in rows
-        ]
-        print(json.dumps(records, indent=2))
-        sys.exit(0)
-
-    if not rows:
-        print(f"No chips match '{args.chips}'", file=sys.stderr)
-        sys.exit(0)
-
-    model_w = max(len(info.model) for _, _, info in rows)
-    baud_w = max(len(f"{info.max_baud:,}") for _, _, info in rows)
-
-    header = f"{'VID:PID':9}  {'CHIP MODEL':{model_w}}  {'SPEED':5}  {'MAX BAUD':>{baud_w}}"
-    print(header)
-    print("-" * len(header))
-    for vid, pid, info in rows:
-        print(
-            f"{vid:04X}:{pid:04X}  {info.model:{model_w}}  "
-            f"{info.speed:5}  {info.max_baud:>{baud_w},}"
-        )
-    print(f"Count={len(rows)}")
-    sys.exit(0)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

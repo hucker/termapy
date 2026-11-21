@@ -413,6 +413,20 @@ it now reads `crcglot.LANGUAGES[lang]` there. The next cost is in
 crcglot itself: building `crcglot.VERBS`, which termapy reads at plugin
 load, imports every language generator though no verb generates code.
 
+**2026-11-20, the plugins' turn.** A `--cli -e /print` one-shot took 650 ms,
+180 of them the interpreter. `-X importtime` put the ZMODEM handlers at
+80 ms (yesterwind-xyzmodem imports asyncio), the vendored XMODEM at 10 (it
+imports `logging`), the boards table at 9 (`port_control` and
+`importlib.resources`) and the stale-pyc scan at 13 (a stat per cached
+file, 222 of them with five interpreters' caches in the built-ins folder).
+Each library is now imported where its handler runs and the scan lists the
+sources once: 404 modules became 338 and, on an idle machine, the median
+one-shot 676 ms became 505 (best run 663 to 472). What is left is the one-shot's own:
+Rich for the CLI console, `termapy.config`, and `crcglot.verbs` for the
+`/proto.crc.detect` manifest, which today imports every comment style
+(17 ms) rather than every language generator; that one is crcglot's to
+fix. The guard gained `test_cli_one_shot_loads_no_handler_library`.
+
 ## 2026-10-18 — A name is honored at its size and access; `/mem.write` takes a value there
 
 A named target is the symbol's whole extent and nothing past it.

@@ -56,16 +56,20 @@ def builtins_dir() -> Path:
 def _clean_stale_pyc(folder: Path) -> None:
     """Remove orphaned .pyc files whose .py source no longer exists.
 
-    Prevents stale bytecode from being loaded after a plugin file is
-    deleted or renamed.
+    A deleted or renamed plugin leaves its bytecode behind in ``__pycache__``
+    (Python never runs it: PEP 3147 ignores a cached file without its
+    source), so this keeps the cache to what the folder holds.  It runs at
+    every start, so it lists the sources once instead of asking the
+    filesystem about each cached file: that cost 13 ms a start with five
+    interpreters' caches in the built-ins folder (2026-11-20).
     """
     cache = folder / "__pycache__"
     if not cache.is_dir():
         return
+    sources = {path.stem for path in folder.glob(FOLDER_PATTERNS[PLUGIN])}
     for pyc in cache.glob("*.pyc"):
-        # PEP 3147: foo.cpython-311.pyc → foo.py
-        stem = pyc.stem.split(".")[0]
-        if not (folder / f"{stem}.py").exists():
+        # PEP 3147: foo.cpython-311.pyc -> foo.py
+        if pyc.stem.split(".")[0] not in sources:
             try:
                 pyc.unlink()
             except OSError:

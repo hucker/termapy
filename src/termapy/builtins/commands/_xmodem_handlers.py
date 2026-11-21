@@ -3,7 +3,9 @@
 Filename is underscore-prefixed so the plugin loader skips it --
 the actual command tree (``/xfer.xmodem.send`` / ``recv``) is wired up
 in ``xfer.py``.  This module exists only as a home for the handlers and
-the ``QueueByteReader`` shared with ymodem.
+the ``QueueByteReader`` shared with ymodem.  The vendored engine is imported
+in the handlers, so loading the plugin costs nothing for it (registry
+``flag-paths-light``).
 """
 
 from __future__ import annotations
@@ -17,7 +19,6 @@ from termapy.defaults import cfg_value
 from termapy.folders import ensure_folder, file_suggestion
 from termapy.plugins import CmdResult, UsageError
 from termapy.scripting import resolve_seq_filename
-from termapy.vendor.xmodem import XMODEM
 
 if TYPE_CHECKING:
     import threading
@@ -121,6 +122,8 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context.
         args: Filename to send.
     """
+    from termapy.vendor.xmodem import XMODEM
+
     filename = args.strip()
     if not filename:
         raise UsageError()
@@ -167,6 +170,8 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context.
         args: Filename to save to.
     """
+    from termapy.vendor.xmodem import XMODEM
+
     filename = args.strip()
     if not filename:
         raise UsageError()

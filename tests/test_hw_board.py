@@ -107,6 +107,10 @@ def board_port(request, pytestconfig: pytest.Config):
         time.sleep(BOOT_SETTLE_S)
         port.reset_input_buffer()
         board_id = _ask(port, "id")
+        if board_id.startswith("{"):
+            # The firmware answers in its JSON framing when that is on (or the
+            # default): the id is the reply's result.
+            board_id = str(json.loads(board_id).get("result", ""))
         if not (port_serial and board_id and port_serial.startswith(board_id)):
             _rig_unusable(
                 pytestconfig,

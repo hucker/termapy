@@ -240,7 +240,7 @@ help text, nothing printed outside it.  Errors arrive in the `error` field
 rather than as a separate red line.  Composes with the level flags -- the
 envelope rides the result channel, so `--json --quiet` prints just the
 envelope and `--json --silent` prints nothing (scripts still read `value`).
-From a shell, `termapy --cli -e "/port.list --json"` pipes cleanly to `jq`.
+From a shell, `termapy -e "/port.list --json"` pipes cleanly to `jq`.
 
 On a bare device line, `--json` is the one-call form of the request/response
 dial: `MEM.R 0x1000 2 --json` sends the line, waits for the reply, and returns

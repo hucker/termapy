@@ -3586,6 +3586,21 @@ class TestRepeat:
 class TestPortChipList:
     """/port.chip.list dumps the USB-serial chip lookup table."""
 
+    def test_records_carry_the_ids_as_ints(self, repl_env):
+        """Each record has the six chip fields, vid, pid and max_baud as ints, so --json consumers get numbers."""
+        # Arrange
+        engine, _, _, _ = repl_env
+
+        # Act
+        result = engine.dispatch("port.chip.list")
+
+        # Assert
+        record = result.data[0]
+        assert set(record) == {"vid", "pid", "vid_pid", "model", "speed", "max_baud"}, "every field"
+        assert all(isinstance(record[key], int) for key in ("vid", "pid", "max_baud")), (
+            "ints, not text"
+        )
+
     def test_unfiltered_lists_many_chips(self, repl_env):
         """With no filter, a header and many rows print, and the value is the row count."""
         # Arrange

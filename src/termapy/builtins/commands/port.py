@@ -353,6 +353,8 @@ def _handler_chip_list(ctx: PluginContext, args: str) -> CmdResult:
 
     records = [
         {
+            "vid": vid,
+            "pid": pid,
             "vid_pid": f"{vid:04X}:{pid:04X}",
             "model": info.model,
             "speed": info.speed,

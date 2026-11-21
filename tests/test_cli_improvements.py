@@ -1,9 +1,9 @@
-"""The print-and-exit port flags: --ports / --chips JSON, the VID/PID/mfg/SN filters, and the driver column.
+"""The print-and-exit port flags: --ports JSON, the VID/PID/mfg/SN filters, and the driver column.
 
 Covers:
 
 - The Textual/Rich import-discipline guard for ``termapy.cli_flags``.
-- ``--json`` output shape for ``--ports`` and ``--chips``.
+- ``--json`` output shape for ``--ports``.
 - ``--vid`` / ``--pid`` / ``--mfg`` / ``--sn`` filters.
 - The driver column in ``--ports`` (Linux populates from sysfs;
   Windows from winreg; macOS leaves it null and the column drops).
@@ -98,12 +98,6 @@ class TestCliFlagsImportDiscipline:
 def _ports_args(**overrides) -> argparse.Namespace:
     """Build an argparse.Namespace mirroring entry.py defaults."""
     base = dict(ports="*", json=False)
-    base.update(overrides)
-    return argparse.Namespace(**base)
-
-
-def _chips_args(**overrides) -> argparse.Namespace:
-    base = dict(chips="*", json=False)
     base.update(overrides)
     return argparse.Namespace(**base)
 
@@ -256,29 +250,6 @@ class TestPortsJsonShape:
         # `select(.chip != null)` instead of string-matching the sentinel.
         record = json.loads(out)[0]
         assert record["chip"] is None, "unknown chip -> null"
-
-
-# ── JSON output: --chips --json ───────────────────────────────────────────────
-
-
-class TestChipsJsonShape:
-    def test_record_shape(self):
-        """Each --chips --json record has exactly six keys, with vid, pid, and max_baud as ints."""
-        # Arrange + Act
-        buf = io.StringIO()
-        with pytest.raises(SystemExit) as exc, redirect_stdout(buf):
-            cli_flags.run_chips(_chips_args(json=True, chips="*"))
-
-        # Assert
-        records = json.loads(buf.getvalue())
-        assert exc.value.code == 0, "exit 0"
-        assert len(records) > 0, "chip table not empty"
-        actual = records[0]
-        expected_keys = {"vid", "pid", "vid_pid", "model", "speed", "max_baud"}
-        assert set(actual.keys()) == expected_keys, "every field present"
-        assert isinstance(actual["vid"], int), "vid is int"
-        assert isinstance(actual["pid"], int), "pid is int"
-        assert isinstance(actual["max_baud"], int), "max_baud is int"
 
 
 # ── Multi-axis filters ────────────────────────────────────────────────────────

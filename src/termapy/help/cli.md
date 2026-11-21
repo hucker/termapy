@@ -182,8 +182,8 @@ found or no ports are connected.
 
 ## JSON output
 
-`--json` emits a JSON array instead of the column table, for `--ports`,
-`--chips` and `--usb`.  Filter it with the tool you script in:
+`--json` emits a JSON array instead of the column table, for `--ports`
+and `--usb`.  Filter it with the tool you script in:
 
 ```sh
 termapy --ports --json | jq -r '.[] | select(.vid_pid == "0403:6001") | .device'
@@ -331,7 +331,7 @@ form, shown first; `-h` prints the same help.
 | `--new NAME PORT [SETTING ...]` | Create config NAME for PORT and start it connected (see [Quick setup](getting-started.md#quick-setup)). |
 | `--board BOARD`   | Start a dev board's starter config, creating it on first use from the attached board (see [Dev boards](boards.md)). |
 | `--cfg-dir PATH`  | Override the default config directory for this run.           |
-| `-c`, `--cli`     | Plain-text mode instead of the TUI.  Default form is an interactive REPL; pair with `--run` or `--exec` for one-shot.  With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |
+| `-c`, `--cli`     | Plain-text mode instead of the TUI, an interactive REPL; `--run` and `-e` imply it.  With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |
 | `--vt100`         | Start in VT100 passthrough mode (see [VT100 mode](vt100.md)). |
 | `--web [[HOST:]PORT]` | Serve the TUI in a browser: `http://localhost:8000`, this machine only, unless `9000`, `192.168.1.50` or `192.168.1.50:9000` says otherwise. A network address opens it to other computers, with no login. A browser tab is a WEB session: the TUI without the console. |
 | `--mcp`           | Run as a stdio MCP server for an AI agent (see [MCP server](mcp-server.md)); `--mcp-verbose` tees its log to stderr. |
@@ -361,26 +361,24 @@ Shape a CLI run's output; each lasts this run.
 
 | Flag              | What it does                                                  |
 | ----------------- | ------------------------------------------------------------- |
-| `-V`, `--version` | Print the installed version and exit.                         |
+| `-V`, `--version` | Print the installed version and exit. Same as `-e /app.ver`.  |
 | `--check`         | Validate your config, print JSON status, exit.                |
-| `-p`, `--ports [PATTERN]` | List the serial ports (see [`--ports`](#--ports-whats-plugged-in-right-now) above). |
+| `-p`, `--ports [PATTERN]` | List the serial ports (see [`--ports`](#--ports-whats-plugged-in-right-now) above). Same as `-e /port.list`. |
 | `-w`, `--watch`   | Print port events as they happen (see [`--watch`](#--watch-live-log-of-port-events) above). |
-| `-i`, `--info [PORT]` | Chip details for one or every port (see [`--info`](#--info-chip-details-for-one-or-every-port) above). |
-| `-u`, `--usb`     | Whole USB tree with serial ports marked, in color at a terminal (Windows and Linux); pairs with `--json`. |
-| `--chips`         | Dump the full USB-serial chip lookup table (VID:PID → model). |
-| `--chips=ftdi`    | Only the chips any column of which contains it (`ftdi`, `0403`, `high`); a wildcard makes a glob. |
-| `-j`, `--json`    | JSON instead of a table for `--ports`, `--chips` and `--usb`; with `-e`, the command's own `--json` (see [JSON output](#json-output) above). |
-| `--validate-profile PATH` | Validate a device profile (.json or .toml) against the schema; exit 0 if valid, 1 with errors. `--strict` treats compatibility warnings as errors, for CI. |
+| `-i`, `--info [PORT]` | Chip details for one or every port (see [`--info`](#--info-chip-details-for-one-or-every-port) above). Same as `-e /port.chip`. |
+| `-u`, `--usb`     | Whole USB tree with serial ports marked, in color at a terminal (Windows and Linux); pairs with `--json`. Same as `-e /port.usb`. |
+| `-j`, `--json`    | JSON instead of a table for `--ports` and `--usb`; with `-e`, the command's own `--json` (see [JSON output](#json-output) above). The chip lookup table is `-e /port.chip.list --json`. |
+| `--validate-profile PATH` | Validate a device profile (.json or .toml) against the schema; exit 0 if valid, 1 with errors. `--strict` treats compatibility warnings as errors, for CI. Same as `-e /profile.validate`. |
 
 ### Running termapys
 
 | Flag              | What it does                                                  |
 | ----------------- | ------------------------------------------------------------- |
-| `--alive`         | List the termapys running on this machine (see [`--alive` and `--kill`](#--alive-and---kill-see-and-stop-sessions) above). |
-| `--kill TARGET`   | Ask the termapys a TARGET picks to exit; bare, list them (same section). |
+| `--alive`         | List the termapys running on this machine (see [`--alive` and `--kill`](#--alive-and---kill-see-and-stop-sessions) above). Same as `-e /app.alive`. |
+| `--kill TARGET`   | Ask the termapys a TARGET picks to exit; bare, list them (same section). Same as `-e /app.kill`. |
 
 Any REPL command also accepts `--json` to render its result as a JSON
-envelope -- `termapy --cli -e /port.list --json` pipes cleanly to `jq`.
+envelope -- `termapy -e /port.list --json` pipes cleanly to `jq`.
 The flag means JSON wherever it stands: `termapy --json -e /port.list`
 is the same command, the flag handed to it.
 See [Scripting](scripting.md#json-output-termrequest-on-or---json-per-call).
@@ -393,9 +391,9 @@ Run a single command, print its output to stdout, exit with status 0
 (success) or 1 (failure):
 
 ```sh
-termapy --cli my_device -e AT+VER             # send a device command
-termapy --cli my_device -e /help port         # run a slash command
-termapy --cli my_device --exec /proto.crc.calc crc16-modbus 01 03 00 00 00 02
+termapy my_device -e AT+VER             # send a device command
+termapy my_device -e /help port         # run a slash command
+termapy my_device --exec /proto.crc.calc crc16-modbus 01 03 00 00 00 02
 ```
 
 One command per invocation: a second `-e`, or a line break inside one,
@@ -409,12 +407,12 @@ with the port error.  A `--run` script always connects first.
 
 ### Worked example
 
-The general shape is `termapy <cfg> --cli -e <command>`.  For a
+The general shape is `termapy <cfg> -e <command>`.  For a
 device whose cfg is `my_device`, asking for the firmware version
 might look like:
 
 ```text
-$ termapy my_device --cli -e "AT+VER"
+$ termapy my_device -e "AT+VER"
 Firmware v1.4.2
 $ echo $?
 0
@@ -428,7 +426,7 @@ to use the bundled simulator (no hardware needed); the rest of the
 shape is identical:
 
 ```text
-$ termapy --cli --demo -e "AT+INFO"
+$ termapy --demo -e "AT+INFO"
 Bassomatic v77 v1.0
 Uptime: 0h 0m 0s
 Free memory: 29135 bytes
@@ -442,7 +440,7 @@ the device's response.**  An unknown slash command exits 1 because
 termapy can detect it locally:
 
 ```text
-$ termapy --cli --demo -e "/notacommand"
+$ termapy --demo -e "/notacommand"
   Error: Unknown command: notacommand
 $ echo $?
 1
@@ -461,10 +459,10 @@ it belongs to the command, a `--flag` included.  Quote when the command's
 own spacing matters, or when the shell would expand something in it:
 
 ```sh
-termapy --cli cfg -e start_system a=23 b=24     # the rest of the line is the command
-termapy --cli cfg -e "start_system a=23 b=24"   # the same command
-termapy --cli cfg -e "/print two  spaces"       # quoted: the shell would collapse the run
-termapy --cli cfg -e '/print $(X)'              # quoted: bash would expand $(X) itself
+termapy cfg -e start_system a=23 b=24     # the rest of the line is the command
+termapy cfg -e "start_system a=23 b=24"   # the same command
+termapy cfg -e "/print two  spaces"       # quoted: the shell would collapse the run
+termapy cfg -e '/print $(X)'              # quoted: bash would expand $(X) itself
 ```
 
 **Suppressed chrome.** Connect-time autorun (`on_connect_cmd`,

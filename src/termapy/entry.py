@@ -2,7 +2,7 @@
 
 This module builds the argparse parser and dispatches to the right
 runner.  Print-and-exit flags (``--info``, ``--ports``, ``--watch``,
-``--chips``, ``--check``, ``--version``) dispatch to
+``--check``, ``--version``) dispatch to
 ``termapy.cli_flags`` and never touch the TUI stack.
 
 **Architectural constraint:** importing ``termapy.entry`` must not
@@ -136,6 +136,26 @@ def _web_address(text: str) -> tuple[str, int]:
     return host, int(port_text)
 
 
+# A print-and-exit flag with an in-app twin: the command that does the same
+# job inside a session, which a one-shot runs (registry flag-twins-declared).
+# Each flag's help ends with the sentence _same_as builds, and the CLI help
+# page's row for the flag says the same.
+FLAG_TWINS: dict[str, str] = {
+    "--ports": "port.list",
+    "--info": "port.chip",
+    "--version": "app.ver",
+    "--usb": "port.usb",
+    "--alive": "app.alive",
+    "--kill": "app.kill",
+    "--validate-profile": "profile.validate",
+}
+
+
+def _same_as(flag: str) -> str:
+    """The sentence that ends a twin flag's help: the in-app command it equals."""
+    return f"  Same as -e /{FLAG_TWINS[flag]}, without a session."
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """Build the argparse parser.  No side effects; pure construction."""
     parser = argparse.ArgumentParser(
@@ -192,7 +212,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "-V",
         "--version",
         action=_Version,
-        help="Show the installed version and exit.",
+        help="Show the installed version and exit." + _same_as("--version"),
     )
     session.add_argument(
         "config",
@@ -259,8 +279,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--cli",
         action="store_true",
         help=(
-            "Use plain-text mode instead of the TUI (interactive REPL by "
-            "default; pair with --run or --exec for one-shot)"
+            "Use plain-text mode instead of the TUI (an interactive REPL; --run and -e imply it)"
         ),
     )
     session.add_argument(
@@ -314,7 +333,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "List the termapys running on this machine: mode, config, port and its "
-            "settings, version and what started each (/app.alive)"
+            "settings, version and what started each." + _same_as("--alive")
         ),
     )
     sessions.add_argument(
@@ -324,8 +343,8 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="TARGET [timeout=DUR]",
         help=(
             "Stop the termapys a TARGET picks -- all, a PID, a port (COM3) or a "
-            "config name -- after a yes (/app.kill), waiting timeout= (default 3s) "
-            "for them to leave.  Bare, list them as --alive does"
+            "config name -- after a yes, waiting timeout= (default 3s) "
+            "for them to leave.  Bare, list them as --alive does." + _same_as("--kill")
         ),
     )
     oneshot.add_argument(
@@ -382,7 +401,7 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="PORT",
         help="Show serial port chip info and exit (verbose per-port dump). "
         "Optional PORT name (e.g. COM3, /dev/ttyUSB0); "
-        "omit for all connected ports.",
+        "omit for all connected ports." + _same_as("--info"),
     )
     machine.add_argument(
         "-p",
@@ -393,7 +412,7 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="PATTERN",
         help="List serial ports one line per port and exit.  "
         "Optional PATTERN shows the ports any field of which contains it "
-        "(FTDI, Microchip, a serial number, COM4); a wildcard makes a glob.",
+        "(FTDI, Microchip, a serial number, COM4); a wildcard makes a glob." + _same_as("--ports"),
     )
     machine.add_argument(
         "-w",
@@ -407,24 +426,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--usb",
         action="store_true",
         help="Show the whole USB tree -- every hub, device and "
-        "interface -- with serial ports marked.  Windows and Linux.",
-    )
-    machine.add_argument(
-        "--chips",
-        nargs="?",
-        const="*",
-        default=None,
-        metavar="PATTERN",
-        help="Dump the USB-serial chip lookup table and exit.  "
-        "Optional PATTERN shows the chips any column of which contains it "
-        "(ftdi, 0403, high); a wildcard makes a glob.",
+        "interface -- with serial ports marked.  Windows and Linux." + _same_as("--usb"),
     )
     machine.add_argument(
         "-j",
         "--json",
         action="store_true",
         help="Emit JSON: the records instead of a column-aligned table for "
-        "--ports, --chips and --usb; with -e, the command's own --json, "
+        "--ports and --usb; with -e, the command's own --json, "
         "its JSON envelope.",
     )
     machine.add_argument(
@@ -432,7 +441,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PATH",
         help="Validate a device profile (.json or .toml) against the schema "
-        "and exit.  Exit 0 if valid, 1 with errors otherwise.",
+        "and exit.  Exit 0 if valid, 1 with errors otherwise." + _same_as("--validate-profile"),
     )
     machine.add_argument(
         "--strict",
@@ -577,10 +586,6 @@ def main() -> None:
         from termapy.cli_flags import run_usb
 
         run_usb(args)
-    if args.chips is not None:
-        from termapy.cli_flags import run_chips
-
-        run_chips(args)
     if args.alive:
         from termapy.cli_flags import run_alive
 

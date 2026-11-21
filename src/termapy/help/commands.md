@@ -72,7 +72,7 @@ has to match the whole name. Case never matters. With
 
 A pattern that matches nothing gives an empty list, not an error. The
 filters are `/env`, `/dev.lib`, `/proto.crc.list`, `/port.chip.list`,
-`termapy --chips`, `termapy --ports` (which reads every field of each
+`termapy --ports` (which reads every field of each
 row) and `/sym.search`, which shows an exact name alone before it reads
 the text as a pattern.
 

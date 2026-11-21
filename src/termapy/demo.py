@@ -809,7 +809,9 @@ class FakeSerial:
         lines = ["Bassomatic v77 -- AT command help", ""]
         for name, spec in commands.items():
             sig = f"{name} {spec.get('args', '')}".rstrip()
-            lines.append(f"  {sig:<28}{spec.get('help', '')}")
+            # A signature that fills the column gets a space (AT+BINDUMP's ran into its help).
+            gap = "" if len(sig) < 28 else " "
+            lines.append(f"  {sig:<28}{gap}{spec.get('help', '')}")
         lines.append("")
         lines.append("AT+HELP.JSON returns the same list as a machine-readable descriptor.")
         return ("\r\n".join(lines) + "\r\n").encode()

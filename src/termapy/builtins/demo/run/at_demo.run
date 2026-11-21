@@ -40,7 +40,7 @@ mem 0x1000 32
 
 /print
 /print [6] Help listing
-help
+AT+HELP
 /delay 500ms
 
 /print

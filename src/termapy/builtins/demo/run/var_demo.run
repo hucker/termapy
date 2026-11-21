@@ -8,6 +8,7 @@
 $(SLAVE) = 01
 $(REG) = 0064
 $(COUNT) = 05
+$(LED) = on
 /delay 300ms
 
 /print
@@ -22,7 +23,7 @@ $(COUNT) = 05
 
 /print
 /print [4] Use in a device command
-AT+ADDR=$(SLAVE)
+AT+LED $(LED)
 /delay 300ms
 
 /print

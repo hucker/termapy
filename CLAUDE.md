@@ -269,7 +269,12 @@ All other paths relative to `src/termapy/`.
   `/sym.info`) is not gated: declare the need and drop the
   check (registry `state-answered-by-gate`); code that must say it anyway
   reads `capabilities.STATE_MESSAGES`, the view of the capability field
-  that declares it (registry `state-messages-one-owner`). Everything about
+  that declares it (registry `state-messages-one-owner`). A command whose
+  use of the port depends on its arguments (`/proto.crc.find cmd=` sends,
+  `bin=` does not) declares `Command(uses_port=True)`: the one license for
+  a handler's own `is_connected()` refusal, and what makes a one-shot open
+  the port first (registry `uses-port-declared`, `oneshot-connects-on-need`).
+  Everything about
   a restrictive capability -- its `/help` hint, its gate answer, whether
   any frontend can reach it -- is declared once on its field with
   `_restricted` (registry `capability-declared-once`); `/help capability` lists

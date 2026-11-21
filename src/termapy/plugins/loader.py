@@ -343,6 +343,7 @@ def _flatten_command(
         shows=node.shows,
         cfg=dict(node.cfg),
         state=node.state,
+        uses_port=node.uses_port,
         intro=node.intro,
     )
     result.insert(0, info)

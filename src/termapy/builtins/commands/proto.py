@@ -2483,6 +2483,7 @@ COMMAND = Command(
             args=('{algo{_le|_be}{_ascii}} <hex|"text"|~delay>... {--dry-run} {--ascii}'),
             help="Send raw bytes (with optional CRC), show response.",
             handler=_handler_send,
+            uses_port=True,  # --dry-run needs no port
             flags={
                 "--dry-run": (
                     "Print the bytes that would be sent without writing "
@@ -2602,6 +2603,7 @@ COMMAND = Command(
                         "  {prefix}proto.crc.find cmd=AT+RND\n"
                     ),
                     handler=_handler_crc_find,
+                    uses_port=True,  # cmd= sends; bin= does not
                     cfg={
                         "eol": "appended to the cmd= trigger",
                         "encoding": "encodes the cmd= trigger",
@@ -2686,6 +2688,7 @@ COMMAND = Command(
                         "text), which is why this command parses its own args."
                     ),
                     handler=_handler_crc_reverse,
+                    uses_port=True,  # cmd= sends; bin= does not
                     cfg={
                         "eol": "appended to the cmd= trigger",
                         "encoding": "encodes the cmd= trigger",

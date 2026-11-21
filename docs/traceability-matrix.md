@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 209: 194 registry rows (guarantees 159, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 205. Pinned by none: 4.
+Ids: 210: 195 registry rows (guarantees 160, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 206. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -1005,6 +1005,12 @@ Ids: 209: 194 registry rows (guarantees 159, assumptions 35), 15 spec sections i
 - `test_folder_ops_delete.py`: `test_bare_is_a_usage_error`
 - `test_term_send.py`: `TestTermSendErrors.test_no_args_returns_usage`
 - `test_usage_error.py`: the module (11 functions)
+
+### `uses-port-declared` (guarantee, contract)
+
+- `test_architecture.py`: `test_a_handlers_port_refusal_belongs_to_a_uses_port_command` **guard**, `test_uses_port_guard_fires_on_a_probe` **probe**
+- `test_cli_exec.py`: `TestOneShotConnectsOnNeed.test_a_one_shot_connects_for_a_command_that_may_use_the_port` **guard**
+- `test_engine.py`: `TestDispatchCapabilities.test_needs_port_reads_the_declaration` **guard**
 
 ### `value-is-scalar` (guarantee, structure)
 

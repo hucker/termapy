@@ -751,7 +751,11 @@ def _render_man_page(
         for row in _required_capability_rows(plugin.needs)
         if full or not getattr(effective, row[0])
     ]
-    if required:
+    # A command that uses the port by argument has no row of its own in
+    # needs; its declaration (uses_port) is shown as a hedged row, always
+    # when the port is closed, else behind --verbose like a met row.
+    by_argument = plugin.uses_port and (full or not effective.serial_connected)
+    if required or by_argument:
         ctx.io.output_markup("")
         # The title is a link to the idea (/help capability); each name a
         # link to that capability's page: who provides it, the other
@@ -770,6 +774,19 @@ def _render_man_page(
             if not met:
                 pieces += [Piece(" "), Piece("(missing)", None, _REQ)]
             ctx.io.output_markup_segments(pieces)
+        if by_argument:
+            ctx.io.output_markup_segments(
+                [
+                    Piece("  "),
+                    Piece("serial_connected", _capability_link("serial_connected"), _OPT),
+                    Piece(" - "),
+                    Piece(
+                        "for the arguments that send to the device; a one-shot opens the port first",
+                        None,
+                        _SEP,
+                    ),
+                ]
+            )
 
     # AVAILABLE ───────────────────────────────────────────────────────────────
     # Symmetric "where does this run" matrix across all known environments.

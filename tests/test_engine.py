@@ -1451,8 +1451,9 @@ class TestDispatchCapabilities:
         return eng, ctx, output
 
     @pytest.mark.rule("oneshot-connects-on-need")
+    @pytest.mark.rule("uses-port-declared")
     def test_needs_port_reads_the_declaration(self, cap_env):
-        """A device line and a command declaring serial_connected need the port; any other command, unknown ones included, does not."""
+        """A device line, a command declaring serial_connected and one declaring uses_port need the port; any other command, unknown ones included, does not."""
         # Arrange
         eng, _, _ = cap_env
 
@@ -1464,6 +1465,8 @@ class TestDispatchCapabilities:
                 "/term.send AT",
                 "/term.send.quiet AT",
                 "/term.raw AT",
+                "/proto.crc.find cmd=AT+RND",
+                "/proto.send 01 02",
                 "/port.list",
                 "/help",
                 "/nope",
@@ -1476,6 +1479,8 @@ class TestDispatchCapabilities:
             "/term.send AT": True,
             "/term.send.quiet AT": True,
             "/term.raw AT": True,
+            "/proto.crc.find cmd=AT+RND": True,
+            "/proto.send 01 02": True,
             "/port.list": False,
             "/help": False,
             "/nope": False,

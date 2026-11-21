@@ -5793,6 +5793,130 @@ def _undeclared_cfg_reads() -> list[str]:
     return violations
 
 
+def _port_refusals(tree: ast.Module) -> list[tuple[str, int]]:
+    """Every ``return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])`` in ``tree``, as ``(function, line)``."""
+    found: list[tuple[str, int]] = []
+    for func in ast.walk(tree):
+        if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for node in ast.walk(func):
+            if not (isinstance(node, ast.Return) and isinstance(node.value, ast.Call)):
+                continue
+            for keyword in node.value.keywords:
+                if (
+                    keyword.arg == "msg"
+                    and isinstance(keyword.value, ast.Subscript)
+                    and ast.unparse(keyword.value.value) == "STATE_MESSAGES"
+                    and isinstance(keyword.value.slice, ast.Constant)
+                    and keyword.value.slice.value == "serial_connected"
+                ):
+                    found.append((func.name, node.lineno))
+    return found
+
+
+def _declares_uses_port(tree: ast.Module) -> bool:
+    """Whether a ``Command(...)`` in ``tree`` says ``uses_port=True``."""
+    return any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "Command"
+        and any(
+            keyword.arg == "uses_port"
+            and isinstance(keyword.value, ast.Constant)
+            and keyword.value.value is True
+            for keyword in node.keywords
+        )
+        for node in ast.walk(tree)
+    )
+
+
+def _checks_the_port(tree: ast.Module) -> bool:
+    """Whether code in ``tree`` calls ``ctx.serial.is_connected()``."""
+    return any(
+        isinstance(node, ast.Call) and ast.unparse(node.func).endswith("serial.is_connected")
+        for node in ast.walk(tree)
+    )
+
+
+def _uses_port_violations(scopes) -> list[str]:
+    """Modules that refuse the port themselves without ``uses_port``, and ones declaring it that never check the port."""
+    violations: list[str] = []
+    for module, scope in scopes:
+        trees = [tree for _, tree in scope]
+        declared = any(_declares_uses_port(tree) for tree in trees)
+        refusals = [
+            f"{path.name}:{line} {function}"
+            for path, tree in scope
+            for function, line in _port_refusals(tree)
+        ]
+        if refusals and not declared:
+            violations.append(
+                f"{module}: refuses the port itself without a Command(uses_port=True): "
+                + ", ".join(refusals)
+            )
+        if declared and not any(_checks_the_port(tree) for tree in trees):
+            violations.append(f"{module}: declares uses_port but never checks the port")
+    return violations
+
+
+def _plugin_scopes() -> list[tuple[str, list]]:
+    """Every command module of the plugin folders with its declaration scope, named by its path."""
+    root = SRC.parent.parent
+    scopes = []
+    for folder in PLUGIN_FOLDERS:
+        for module in sorted(folder.glob("*.py")):
+            if module.name.startswith("_"):
+                continue
+            scopes.append((module.relative_to(root).as_posix(), _plugin_scope(module)))
+    return scopes
+
+
+@pytest.mark.rule("uses-port-declared")
+def test_a_handlers_port_refusal_belongs_to_a_uses_port_command():
+    """A handler that answers Not connected itself belongs to a command declaring uses_port, and such a command checks the port."""
+    # Arrange / Act
+    violations = _uses_port_violations(_plugin_scopes())
+
+    # Assert
+    assert violations == [], (
+        "declare uses_port=True on the command whose need depends on its arguments, "
+        "or declare needs=CapabilitySet.SERIAL_CONNECTED and drop the check:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+@pytest.mark.rule("uses-port-declared")
+def test_uses_port_guard_fires_on_a_probe():
+    """The guard flags a refusal with no declaration and a declaration with no check, and passes the declared pair."""
+    # Arrange -- three modules: undeclared refusal, declared without a check, the honest pair
+    refusing = ast.parse(
+        "def _handler(ctx, args):\n"
+        "    if not ctx.serial.is_connected():\n"
+        '        return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])\n'
+        "COMMAND = {'x': Command(handler=_handler)}\n"
+    )
+    idle = ast.parse("COMMAND = {'x': Command(handler=None, uses_port=True)}\n")
+    honest = ast.parse(
+        "def _handler(ctx, args):\n"
+        "    if not ctx.serial.is_connected():\n"
+        '        return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])\n'
+        "COMMAND = {'x': Command(handler=_handler, uses_port=True)}\n"
+    )
+    scopes = [
+        ("refusing.py", [(Path("refusing.py"), refusing)]),
+        ("idle.py", [(Path("idle.py"), idle)]),
+        ("honest.py", [(Path("honest.py"), honest)]),
+    ]
+
+    # Act
+    violations = _uses_port_violations(scopes)
+
+    # Assert
+    assert [violation.split(":")[0] for violation in violations] == ["refusing.py", "idle.py"], (
+        violations
+    )
+
+
 @pytest.mark.rule("cfg-declared")
 def test_plugin_cfg_reads_are_declared():
     """Every config key a plugin module reads or sets is one a command in it declares, with how.

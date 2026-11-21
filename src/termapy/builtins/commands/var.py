@@ -470,6 +470,7 @@ COMMAND = Command(
             help="Capture command output into a user variable.",
             long_help=_var_state_line,
             handler=_handler_capture,
+            uses_port=True,  # a device line is sent; a command is dispatched
             cfg={"encoding": "decodes the device reply"},
             raw_args=True,
         ),

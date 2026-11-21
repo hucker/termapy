@@ -602,6 +602,16 @@ class Command:
             argument, so a click on it must not run it.  Not inherited.
             Requires ``safety="safe"``, no ``picker`` and no required
             argument, checked at construction.
+        uses_port: True when the command uses the open port only for some
+            of its arguments (``/proto.crc.find cmd=`` sends, ``bin=`` does
+            not), so the gate cannot answer for it: its handler checks
+            ``ctx.serial.is_connected()`` itself and returns
+            ``STATE_MESSAGES["serial_connected"]``, and this declaration is
+            the one license for that check (registry ``uses-port-declared``).
+            A one-shot opens the port before running it, as it does for a
+            command whose ``needs`` say ``serial_connected`` (registry
+            ``oneshot-connects-on-need``).  A command that always sends
+            declares the need instead.
         intro: What this family of commands is for, in a sentence or two of
             plain words.  Shown above the list when a bare call lists the
             subcommands, and first on the ``/help`` page.  Requires
@@ -629,6 +639,7 @@ class Command:
     maturity: str = ""
     shows: bool = False
     state: bool = False
+    uses_port: bool = False
     intro: str = ""
 
     def __post_init__(self) -> None:
@@ -989,6 +1000,8 @@ class PluginInfo:
             link to it runs it.
         state: ``Command.state``: its bare form reports current state, so
             ``/help`` runs it for CURRENT STATE.
+        uses_port: ``Command.uses_port``: it may use the open port, by
+            argument, so a one-shot connects first.
         intro: ``Command.intro``: what this family is for, first on its page.
     """
 
@@ -1013,6 +1026,7 @@ class PluginInfo:
     maturity: str = "stable"
     shows: bool = False
     state: bool = False
+    uses_port: bool = False
     intro: str = ""
 
     def __post_init__(self) -> None:

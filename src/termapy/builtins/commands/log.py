@@ -179,8 +179,8 @@ _DUMP_LONG_HELP = (
 
 
 def _kv(key: str, value: object, col: int = 22) -> str:
-    """Align a ``key: value`` pair on a consistent column."""
-    return f"{key:<{col}}{value}"
+    """Align a ``key: value`` pair on a consistent column; a key that fills the column gets a space."""
+    return f"{key:<{col}}{value}" if len(key) < col else f"{key} {value}"
 
 
 def _termapy_version() -> str:

@@ -497,7 +497,7 @@ demo> /cfg.delete nosuch
 demo> /print === section: config folders ===
   === section: config folders ===
 demo> /run.list
-  run/ - 9 scripts
+  run/ - 10 scripts
   NAME EDIT SIZE UPDATED TITLE
   -- -- -- -- --
   at_demo.run          edit  <SIZE>  just now  AT Command Demo
@@ -509,6 +509,7 @@ demo> /run.list
   status_check.run     edit  <SIZE>  just now  Status Check
   var_demo.run         edit  <SIZE>  just now  Variable Demo
   welcome.run          edit  <SIZE>  just now  Welcome
+  zmodem_demo.run      edit  <SIZE>  just now  ZMODEM Transfer Demo
 demo> /proto.list
   proto/ - 3 scripts
   NAME EDIT SIZE UPDATED TITLE
@@ -1488,7 +1489,7 @@ SUBCOMMANDS
   /help run --verbose shows the rest: status, where it runs, see also.
 
 SCRIPTS
-  run/ - 9 scripts
+  run/ - 10 scripts
   NAME EDIT SIZE UPDATED TITLE
   -- -- -- -- --
   at_demo.run          edit  <SIZE>  just now  AT Command Demo
@@ -1500,6 +1501,7 @@ SCRIPTS
   status_check.run     edit  <SIZE>  just now  Status Check
   var_demo.run         edit  <SIZE>  just now  Variable Demo
   welcome.run          edit  <SIZE>  just now  Welcome
+  zmodem_demo.run      edit  <SIZE>  just now  ZMODEM Transfer Demo
 demo> /help grep
 NAME
   /grep - Search the scrollback for lines matching a pattern (case-insensitive regex).
@@ -1727,7 +1729,7 @@ demo> /profile.save
 demo> /print === section: help.run ===
   === section: help.run ===
 demo> /help.run
-  run/ - 9 scripts
+  run/ - 10 scripts
   NAME EDIT SIZE UPDATED TITLE
   -- -- -- -- --
   at_demo.run          edit  <SIZE>  just now  AT Command Demo
@@ -1739,6 +1741,7 @@ demo> /help.run
   status_check.run     edit  <SIZE>  just now  Status Check
   var_demo.run         edit  <SIZE>  just now  Variable Demo
   welcome.run          edit  <SIZE>  just now  Welcome
+  zmodem_demo.run      edit  <SIZE>  just now  ZMODEM Transfer Demo
 demo> /print === section: help.plugin ===
   === section: help.plugin ===
 demo> /help.plugin
@@ -2034,7 +2037,7 @@ demo> /run.help at_demo
   AT Command Demo
   Walks through all demo device commands.
 demo> /edit.run.list
-  run/ - 9 scripts
+  run/ - 10 scripts
   NAME EDIT SIZE UPDATED TITLE
   -- -- -- -- --
   at_demo.run          edit  <SIZE>  just now  AT Command Demo
@@ -2046,6 +2049,7 @@ demo> /edit.run.list
   status_check.run     edit  <SIZE>  just now  Status Check
   var_demo.run         edit  <SIZE>  just now  Variable Demo
   welcome.run          edit  <SIZE>  just now  Welcome
+  zmodem_demo.run      edit  <SIZE>  just now  ZMODEM Transfer Demo
 demo> /run.dump status_check
   # Status Check
   # A quick look at the demo device: AT+STATUS, then AT+TEMP.

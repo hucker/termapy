@@ -6,6 +6,7 @@ import time
 import pytest
 
 from termapy.demo import FakeSerial, _modbus_add_crc, _modbus_crc
+from termapy.folders import FOLDER_PATTERNS, PLUGIN, PROTO, RUN
 
 
 @pytest.fixture
@@ -515,26 +516,52 @@ class TestDemoConfigSetup:
         assert (tmp_path / "demo" / "plugin" / "probe.py").exists(), "demo plugin copied"
         assert (tmp_path / "demo" / "dev" / "console.device.json").exists(), "device file copied"
 
-    def test_setup_ships_every_demo_plugin(self, tmp_path) -> None:
-        """Every plugin in the demo package lands in the demo's plugin/: traffic.py was left out of the copy list for months."""
+    @pytest.mark.rule("demo-ships-every-file")
+    @pytest.mark.parametrize("folder", [RUN, PROTO, PLUGIN])
+    def test_setup_ships_every_file_in_the_folder(self, tmp_path, folder) -> None:
+        """Every file the demo package ships in run/, proto/ and plugin/ lands in the demo folder: a typed copy list left traffic.py out for months and zmodem_demo.run for a week."""
         import importlib.resources
 
         from termapy.config import setup_demo_config
+        from termapy.matching import matches
 
         # Arrange
-        package = importlib.resources.files("termapy.builtins.demo") / "plugin"
+        package = importlib.resources.files("termapy.builtins.demo") / folder
         expected = sorted(
             entry.name
             for entry in package.iterdir()
-            if entry.name.endswith(".py") and not entry.name.startswith("_")
+            if entry.is_file()
+            and not entry.name.startswith("_")
+            and matches(entry.name, FOLDER_PATTERNS[folder])
         )
 
         # Act
         config_path = setup_demo_config(tmp_path)
 
         # Assert
-        actual = sorted(path.name for path in (config_path.parent / "plugin").glob("*.py"))
-        assert actual == expected, "a demo plugin in the package is missing from the install list"
+        actual = sorted(
+            path.name for path in (config_path.parent / folder).iterdir() if path.is_file()
+        )
+        assert expected, f"the demo package ships files in {folder}/"
+        assert actual == expected, f"a shipped {folder}/ file is missing from the demo folder"
+
+    @pytest.mark.rule("demo-ships-every-file")
+    def test_setup_adds_a_newly_shipped_file_and_keeps_an_edited_one(self, tmp_path) -> None:
+        """A second --demo brings a script the folder lacks and leaves an edited one alone, so an upgrade adds what is new without overwriting work."""
+        from termapy.config import setup_demo_config
+
+        # Arrange -- a demo folder from before a script shipped, with one edited script
+        run_dir = setup_demo_config(tmp_path).parent / RUN
+        (run_dir / "zmodem_demo.run").unlink()
+        edited = run_dir / "welcome.run"
+        edited.write_text("# Mine\n", encoding="utf-8")
+
+        # Act
+        setup_demo_config(tmp_path)
+
+        # Assert
+        assert (run_dir / "zmodem_demo.run").is_file(), "the newly shipped script arrives"
+        assert edited.read_text(encoding="utf-8") == "# Mine\n", "an edited script is kept"
 
     def test_setup_creates_only_the_folders_it_populates(self, tmp_path) -> None:
         """``--demo`` ships run/ proto/ plugin/ sym/ dev/; the rest appear on first use."""

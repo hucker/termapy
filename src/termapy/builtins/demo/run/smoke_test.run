@@ -5,7 +5,7 @@
 
 # Section 1: basic commands
 /cls
-help
+AT+HELP
 /delay 500ms
 /ss.svg s{seq2+}_{seq1+}_help
 /ss.txt s{seq2}_{seq1}_help

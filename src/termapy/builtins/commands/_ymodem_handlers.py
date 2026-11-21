@@ -2,7 +2,8 @@
 
 Sibling of ``_xmodem_handlers`` and ``_zmodem_handlers``; the three are
 mounted by ``xfer.py`` into the ``/xfer.{xmodem,ymodem,zmodem}.{send,recv}``
-tree.
+tree.  The vendored engine is imported in the handlers, so loading the plugin
+costs nothing for it (registry ``flag-paths-light``).
 """
 
 from __future__ import annotations
@@ -13,8 +14,6 @@ from typing import TYPE_CHECKING
 from termapy.folder_ops import staged_receive
 from termapy.folders import ensure_folder, file_suggestion
 from termapy.plugins import CmdResult, UsageError
-from termapy.vendor.ymodem.Protocol import ProtocolType
-from termapy.vendor.ymodem.Socket import ModemSocket
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -37,6 +36,9 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context.
         args: One or more filenames to send.
     """
+    from termapy.vendor.ymodem.Protocol import ProtocolType
+    from termapy.vendor.ymodem.Socket import ModemSocket
+
     filenames = args.strip().split()
     if not filenames:
         raise UsageError()
@@ -95,6 +97,9 @@ def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context.
         args: Optional directory to save to (defaults to cap/).
     """
+    from termapy.vendor.ymodem.Protocol import ProtocolType
+    from termapy.vendor.ymodem.Socket import ModemSocket
+
     target_dir = args.strip() if args.strip() else ""
 
     if target_dir:

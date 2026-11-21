@@ -36,7 +36,7 @@ The demo creates a complete project at `termapy_cfg/demo/` with:
 - A simulated device called **[BASSOMATIC-77](https://en.wikipedia.org/wiki/Bass-O-Matic)** (the natural successor to Dan Aykroyd's '76) that responds to AT
   commands, GPS/NMEA queries, and binary Modbus RTU frames
 - **Toolbar buttons**: Demo Help, AT Demo, Info, Probe, TempPlot
-- **Scripts**: welcome, at_demo, gps_demo, smoke_test, status_check, var_demo, expect_test, crc_tour, doc_screenshots
+- **Scripts**: welcome, at_demo, gps_demo, smoke_test, status_check, var_demo, expect_test, crc_tour, zmodem_demo, doc_screenshots
 - **Protocol test files**: at_test, bitfield_inline, modbus_inline
 - **Plugins**: cmd (custom shortcut), probe (device query), temp_plot (sparkline), traffic (RX/TX byte tap)
 - **Symbol table**: sym/demo.symbols.json, names for the `mem` addresses (try `/sym main`, `/sym 0x2010`, `/sym.search g*`), with two constants the build holds (`/sym kBaud`, `/sym CONSOLE`)

@@ -566,6 +566,36 @@ class TestDemoDevice:
         _wait_for(lambda: "upload.bin" in device.vfs, "the device to store the file")
         assert device.vfs["upload.bin"] == src.read_bytes(), "the pushed bytes are on the device"
 
+    def test_the_senders_over_and_out_does_not_head_the_next_command(
+        self, cli: CLITerminal
+    ) -> None:
+        """After a push, the device answers the next command normally: it read the sender's OO as rz does.
+
+        Found 2026-11-21 running zmodem_demo.run: the OO that ends a send
+        reached the device's prompt and the next line failed as
+        ``Unknown command 'OOAT+FS.LIST'``.
+        """
+        # Arrange -- a completed push
+        _write_files(cli.ctx.fs.cap_dir, **{"upload.bin": PAYLOAD})
+        device = cli.engine.port_obj
+        assert isinstance(device, FakeSerial), "the DEMO engine opens a FakeSerial"
+        cli.repl.dispatch_full("AT+ZMODEM=RECV")
+        result = cli.repl.dispatch_full("/xfer.zmodem.send upload.bin")
+        assert result.success, result.error
+        peer = device._zmodem_peer
+        assert peer is not None, "AT+ZMODEM=RECV created the peer"
+        _wait_for(lambda: not peer.active, "the device peer to read the OO and finish")
+
+        # Act -- the next command, straight to the device
+        with cli.ctx.serial.io():
+            cli.ctx.serial.drain()
+            cli.ctx.serial.write(b"AT+FS.LIST\r")
+            reply = cli.ctx.serial.read_raw(1000) or b""
+
+        # Assert
+        assert b"Unknown command" not in reply, f"the OO headed the next command: {reply!r}"
+        assert b"upload.bin" in reply, f"the device lists the pushed file: {reply!r}"
+
     def test_the_device_leaks_no_bytes_before_the_transfer_claims(self, cli: CLITerminal) -> None:
         """AT+ZMODEM=SEND must not emit a protocol byte until the host starts: the device peer waits.
 

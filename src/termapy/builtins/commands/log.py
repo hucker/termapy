@@ -28,8 +28,6 @@ TUI's log rather than the agent's own (review 2026-10-15, D3).
 from __future__ import annotations
 
 import os
-import platform as _platform
-import socket
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -181,8 +179,8 @@ _DUMP_LONG_HELP = (
 
 
 def _kv(key: str, value: object, col: int = 22) -> str:
-    """Align a ``key: value`` pair on a consistent column."""
-    return f"{key:<{col}}{value}"
+    """Align a ``key: value`` pair on a consistent column; a key that fills the column gets a space."""
+    return f"{key:<{col}}{value}" if len(key) < col else f"{key} {value}"
 
 
 def _termapy_version() -> str:
@@ -196,6 +194,8 @@ def _termapy_version() -> str:
 
 
 def _python_info() -> str:
+    import platform as _platform
+
     impl = _platform.python_implementation()
     ver = _platform.python_version()
     return f"{ver} ({impl.lower()})"
@@ -316,6 +316,11 @@ def _runtime_flags_snapshot(ctx: PluginContext) -> list[str]:
 
 def _handler_fingerprint(ctx: PluginContext, args: str) -> CmdResult:
     """Write a full session fingerprint to the session log."""
+    # The host's facts are read here, behind host_info, not when the plugin
+    # loads at every start (registry flag-paths-light).
+    import platform as _platform
+    import socket
+
     show = ctx.flag("--show")
 
     lines: list[str] = [

@@ -41,7 +41,6 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from importlib.resources import files
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -55,11 +54,14 @@ from termapy.config import (
 from termapy.defaults import cfg_value
 from termapy.firmware import copy_files
 from termapy.folders import FIRMWARE, PROFILE_SUFFIX, ensure_folder
-from termapy.port_control import PortSource, list_port_records
 
+# The port list and the package's files are read where a command asks for
+# them: ``/board`` loads at every start, and a one-shot that never lists
+# ports should not pay for ``port_control`` (registry ``flag-paths-light``).
 if TYPE_CHECKING:
     from importlib.resources.abc import Traversable
 
+    from termapy.port_control import PortSource
     from termapy.usb_tree import UsbSource
 
 
@@ -293,6 +295,8 @@ def attached(
         source: A substitute port list, as ``port_control`` takes it.
         usb_source: Substitute USB records, as ``usb_tree`` takes them.
     """
+    from termapy.port_control import list_port_records
+
     running = tuple(
         (record["device"], record["serial_number"] or record["device"])
         for record in list_port_records(source=source)
@@ -332,6 +336,8 @@ def not_attached_message(board: Board, found: Attached) -> str:
 
 def _package(board: Board) -> Traversable:
     """The board's folder of package data."""
+    from importlib.resources import files
+
     return files(__name__) / board.name
 
 
@@ -424,6 +430,8 @@ def create_board_config(
 
 def firmware_paths(board: Board) -> list[Path]:
     """Where the board's device code sits in the installed package: its own, then its runtime's."""
+    from importlib.resources import files
+
     own = _package(board) / "firmware"
     shared = files("termapy").joinpath(*board.runtime.folder)
     return [Path(str(own / name)) for name in board.firmware] + [

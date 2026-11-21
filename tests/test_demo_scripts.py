@@ -34,6 +34,14 @@ DEMONSTRATED_MISSES: dict[str, tuple[str, ...]] = {
     "expect_test.run": ('Expect "NOPE" timeout after 2s',),  # test 4: a miss aborts the script
 }
 
+# A device ``ERROR:`` reply a script provokes on purpose, by name.  Any
+# other is a defect the transcript shows: found 2026-11-21, when the two
+# bytes a ZMODEM sender ends with headed the device's next command
+# (``Unknown command 'OOAT+FS.LIST'``) and this test passed.
+DEMONSTRATED_DEVICE_ERRORS: dict[str, tuple[str, ...]] = {
+    "at_demo.run": ("Unknown command 'BOGUS'",),
+}
+
 # Scripts written for the TUI: the CLI's gate refuses these commands for
 # the capability named, and nothing else in the script may fail.
 TUI_ONLY: dict[str, tuple[str, tuple[str, ...]]] = {
@@ -41,6 +49,7 @@ TUI_ONLY: dict[str, tuple[str, tuple[str, ...]]] = {
 }
 
 _ERROR_LINE = re.compile(r"^\s*Error: (.*)$")
+_DEVICE_ERROR_LINE = re.compile(r"^\s*ERROR: (.*)$")
 
 # A protocol byte that leaked to the terminal: a device that speaks when the
 # host is not reading.  ZMODEM's headers (ZRQINIT / ZRINIT / ZFIN) start with
@@ -90,12 +99,25 @@ def test_a_demo_script_runs_without_an_error(script: Path, tmp_path: Path) -> No
     ]
 
     leaked = [line for line in completed.stdout.splitlines() if _LEAKED_PROTOCOL.match(line)]
+    device_errors = [
+        match.group(1)
+        for line in completed.stdout.splitlines()
+        if (match := _DEVICE_ERROR_LINE.match(line)) is not None
+    ]
+    demonstrated_device = set(DEMONSTRATED_DEVICE_ERRORS.get(script.name, ()))
 
     # Assert
     assert completed.returncode == 0, f"{script.name} crashed: {completed.stderr}"
     unexpected = [error for error in errors if error not in allowed]
     assert unexpected == [], f"{script.name} failed on lines it should not: {unexpected}"
     assert demonstrated <= set(errors), f"{script.name} no longer demonstrates its miss"
+    unexpected_device = [error for error in device_errors if error not in demonstrated_device]
+    assert unexpected_device == [], (
+        f"{script.name} drew a device error it does not demonstrate: {unexpected_device}"
+    )
+    assert demonstrated_device <= set(device_errors), (
+        f"{script.name} no longer demonstrates its device error"
+    )
     assert leaked == [], (
         f"{script.name} leaked a protocol byte or device error to the transcript "
         f"(a device spoke while the host was not reading): {leaked}"

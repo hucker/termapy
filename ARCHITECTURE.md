@@ -629,6 +629,15 @@ which imports the whole plugin API; that is how Rich reached `--ports`
 (`port_control` → `plugins` → `markup` → Rich) though no flag code names
 Rich.
 
+The other trap is a plugin's module body. The loader runs every
+built-in's body at every start of every frontend, so a library a handler
+needs is imported in the handler, not at the top of the plugin: the
+ZMODEM engine (yesterwind-xyzmodem, which brings asyncio with it), the
+vendored XMODEM and YMODEM, the host's facts for `/log.fingerprint`, the
+port list for `/board`. Found 2026-11-20, when a one-shot that printed a
+line spent an eighth of its start importing asyncio for a transfer it
+would never run; the measurements are in the decision entry.
+
 What it bought: the print-and-exit flags start in half the time or less, a
 CLI one-shot loads about a third fewer modules, and the TUI imports
 noticeably faster. The measurements are in the decision entry.

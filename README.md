@@ -798,7 +798,7 @@ Modbus RTU supports function 0x03 (read holding registers) and 0x06 (write singl
 
 The demo comes with everything wired up so you can try each feature:
 
-- **Scripts:** `at_demo.run`, `smoke_test.run`, `status_check.run`, `gps_demo.run`, `var_demo.run`, `expect_test.run`, `crc_tour.run`, and more. Run via the Run button or `/run`.
+- **Scripts:** `at_demo.run`, `smoke_test.run`, `status_check.run`, `gps_demo.run`, `var_demo.run`, `expect_test.run`, `crc_tour.run`, `zmodem_demo.run`, and more. Run via the Run button or `/run`.
 - **Proto test files:** `at_test.pro`, `bitfield_inline.pro`, `modbus_inline.pro`. Run via the Proto button for pass/fail results.
 - **Plugins:** `/probe` sends a command sequence and reports results; `/cmd` adds a custom shortcut; `/temp_plot` draws a sparkline; `/traffic.*` taps RX/TX bytes.
 

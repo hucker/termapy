@@ -335,5 +335,9 @@ def step_receive(
         for name in written:
             path = Path(name)
             on_file(path.name, path.read_bytes())
+        # rz reads the sender's OO after the ZFIN exchange.  A receiver that
+        # returns to its prompt first finds those two bytes heading its next
+        # command line (found 2026-11-21: ``Unknown command 'OOAT+FS.LIST'``).
+        await transport.read(len(_ZMODEM_OVER_AND_OUT))
 
     return transport, run()

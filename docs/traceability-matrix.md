@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 211: 196 registry rows (guarantees 161, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 207. Pinned by none: 4.
+Ids: 212: 197 registry rows (guarantees 162, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 208. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -260,6 +260,10 @@ Ids: 211: 196 registry rows (guarantees 161, assumptions 35), 15 spec sections i
 
 - `test_demo_scripts.py`: the module (2 functions)
 
+### `demo-ships-every-file` (guarantee, repository)
+
+- `test_demo.py`: `TestDemoConfigSetup.test_setup_adds_a_newly_shipped_file_and_keeps_an_edited_one` **guard**, `TestDemoConfigSetup.test_setup_ships_every_file_in_the_folder` **guard**
+
 ### `destructive-declared` (assumption, contract)
 
 - `test_demo_profiles.py`: `TestDemoNdjsonProfileShape.test_safety_classifications`
@@ -372,7 +376,7 @@ Ids: 211: 196 registry rows (guarantees 161, assumptions 35), 15 spec sections i
 
 ### `flag-paths-light` (guarantee, structure)
 
-- `test_cli.py`: `TestPathsStayLight` (5 functions)
+- `test_cli.py`: `TestPathsStayLight` (6 functions)
 - `test_cli_improvements.py`: `TestCliFlagsImportDiscipline` (2 functions)
 - `test_mcp_entry.py`: `TestLazyImport.test_entry_import_does_not_pull_mcp_sdk`
 

@@ -37,6 +37,7 @@ from termapy.folders import (
     DEV,
     FOLDER_EXTS,
     FOLDER_MIGRATIONS,
+    FOLDER_PATTERNS,
     HISTORY_FILE,
     HISTORY_SUFFIX,
     LIB,
@@ -44,6 +45,7 @@ from termapy.folders import (
     MCP_LOG_SUFFIX,
     PLUGIN,
     PROFILE_TMP_GLOB,
+    PROTO,
     RUN,
     SIDECARS,
     SYM,
@@ -55,6 +57,7 @@ from termapy.folders import (
     is_inside,
     prune_empty_folders,
 )
+from termapy.matching import matches
 from termapy.migration import (
     CURRENT_CONFIG_VERSION,
     DEPRECATED_CFG,
@@ -64,6 +67,8 @@ from termapy.port_allow import PortPolicy
 from termapy.scripting import parse_bool, value_text
 
 if TYPE_CHECKING:
+    from importlib.resources.abc import Traversable
+
     from termapy.port_control import PortSource
 
 CFG_DIR: str | None = None  # set by --cfg-dir; None = use resolution chain
@@ -2100,6 +2105,23 @@ def config_names() -> list[str]:
     return [path.stem for path in config_files(cfg_dir())]
 
 
+def _copy_shipped(shipped: Traversable, folder: Path, pattern: str, force: bool) -> None:
+    """Copy every shipped file matching ``pattern`` into ``folder``; a file already there stays unless *force*.
+
+    The shipped folder is the list, so a file added to the package reaches
+    every demo folder on its next ``--demo`` and nothing is named twice: a
+    typed copy list left ``traffic.py`` out for months and ``zmodem_demo.run``
+    for a week (registry ``demo-ships-every-file``).  A leading-underscore
+    name is private wherever it is, so ``__init__.py`` stays behind.
+    """
+    for src in shipped.iterdir():
+        if not src.is_file() or src.name.startswith("_") or not matches(src.name, pattern):
+            continue
+        dest = folder / src.name
+        if force or not dest.exists():
+            dest.write_bytes(src.read_bytes())
+
+
 def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
     """Copy bundled demo config files to the target directory.
 
@@ -2151,42 +2173,10 @@ def setup_demo_config(target_path: Path, *, force: bool = False) -> Path:
         src = pkg / "demo_legacy.profile.json"
         legacy_path.write_bytes(src.read_bytes())
 
-    # Copy run scripts
-    run_dir = ensure_folder(demo_dir / "run")
-    run_pkg = pkg / "run"
-    for name in (
-        "welcome.run",
-        "at_demo.run",
-        "gps_demo.run",
-        "smoke_test.run",
-        "status_check.run",
-        "var_demo.run",
-        "expect_test.run",
-        "doc_screenshots.run",
-        "crc_tour.run",
-    ):
-        dest = run_dir / name
-        if force or not dest.exists():
-            src = run_pkg / name
-            dest.write_bytes(src.read_bytes())
-
-    # Copy proto files
-    proto_dir = ensure_folder(demo_dir / "proto")
-    proto_pkg = pkg / "proto"
-    for name in ("at_test.pro", "bitfield_inline.pro", "modbus_inline.pro"):
-        dest = proto_dir / name
-        if force or not dest.exists():
-            src = proto_pkg / name
-            dest.write_bytes(src.read_bytes())
-
-    # Copy demo plugins
-    plugin_dir = ensure_folder(demo_dir / "plugin")
-    plugin_pkg = pkg / "plugin"
-    for name in ("cmd.py", "probe.py", "temp_plot.py", "traffic.py"):
-        dest = plugin_dir / name
-        if force or not dest.exists():
-            src = plugin_pkg / name
-            dest.write_bytes(src.read_bytes())
+    # Scripts, protocol files and plugins: whatever the shipped folders hold.
+    _copy_shipped(pkg / "run", ensure_folder(demo_dir / RUN), FOLDER_PATTERNS[RUN], force)
+    _copy_shipped(pkg / "proto", ensure_folder(demo_dir / PROTO), FOLDER_PATTERNS[PROTO], force)
+    _copy_shipped(pkg / "plugin", ensure_folder(demo_dir / PLUGIN), FOLDER_PATTERNS[PLUGIN], force)
 
     # Copy .gitignore for transient data
     gitignore_dest = demo_dir / ".gitignore"

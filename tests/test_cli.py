@@ -2040,9 +2040,22 @@ _HEAVY = (
     "logging",
 )
 
+# Libraries only a handler needs: the transfer engines and the host's facts.
+# A plugin's module body runs at every start, so each is imported in its
+# handler and no path loads it before that command runs.
+_HANDLER_ONLY = (
+    "yesterwind_xyzmodem",
+    "asyncio",
+    "termapy.vendor.xmodem",
+    "termapy.vendor.ymodem",
+    "termapy.zmodem_transport",
+    "platform",
+    "socket",
+)
 
-def _loaded_after(*argv: str, cwd: Path) -> set[str]:
-    """Run ``termapy <argv>`` in a subprocess; return which ``_HEAVY`` families it loaded."""
+
+def _loaded_after(*argv: str, cwd: Path, families: tuple[str, ...] = _HEAVY) -> set[str]:
+    """Run ``termapy <argv>`` in a subprocess; return which of ``families`` (``_HEAVY`` by default) it loaded."""
     import os
     import subprocess
     import sys as _sys
@@ -2055,7 +2068,7 @@ def _loaded_after(*argv: str, cwd: Path) -> set[str]:
         "    main()\n"
         "except SystemExit:\n"
         "    pass\n"
-        f"heavy = {_HEAVY!r}\n"
+        f"heavy = {families!r}\n"
         "loaded = [family for family in heavy if any("
         "name == family or name.startswith(family + '.') for name in sys.modules)]\n"
         "sys.__stdout__.write('\\nLOADED=' + json.dumps(loaded) + '\\n')\n"
@@ -2086,6 +2099,10 @@ class TestPathsStayLight:
     prompt, so it loads no prompt_toolkit.  Each was found loaded on
     2026-10-17, through a transitive import: Rich via ``termapy.markup``,
     frist via ``scripting``'s tables, metadata via ``entry``'s parser.
+    A library only a handler needs (``_HANDLER_ONLY``) is imported in the
+    handler, because a plugin's module body runs at every start: found
+    2026-11-20, when a one-shot that printed a line imported asyncio for
+    a ZMODEM transfer.
     """
 
     @pytest.mark.parametrize("flag", ["--ports", "--usb", "--alive", "--kill"])
@@ -2157,6 +2174,27 @@ class TestPathsStayLight:
         # Assert
         assert "prompt_toolkit" not in actual, "no prompt is built for -e"
         assert "textual" not in actual, "and the CLI never loads Textual"
+
+    def test_cli_one_shot_loads_no_handler_library(self, tmp_path):
+        """A --cli -e one-shot loads no library only a handler needs: the transfer engines and the host's facts wait for their command."""
+        # Arrange
+        cfg_root = tmp_path / "cfg"
+        cfg_root.mkdir()
+
+        # Act
+        actual = _loaded_after(
+            "--cli",
+            "--demo",
+            "--cfg-dir",
+            str(cfg_root),
+            "-e",
+            "/print hi",
+            cwd=tmp_path,
+            families=_HANDLER_ONLY,
+        )
+
+        # Assert
+        assert actual == set(), f"the one-shot loaded {sorted(actual)}"
         assert "elftools" not in actual, "the ELF reader loads only for an ELF import"
 
 

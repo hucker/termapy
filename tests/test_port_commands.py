@@ -622,6 +622,7 @@ class _OpensAfter:
 class TestConnectTimeout:
     """/port.connect timeout=: tries until the port opens or the time runs out."""
 
+    @pytest.mark.rule("wait-words-with-progress")
     def test_a_timed_connect_waits_until_the_port_opens_twice(self, cli, capsys):
         """A port that misses twice opens on the third try, and a second timed connect does the same."""
         for _ in range(2):
@@ -640,6 +641,23 @@ class TestConnectTimeout:
             out = capsys.readouterr().out
             assert out.count("Waiting for DEMO...") == 1, "the default message, said once"
 
+    @pytest.mark.rule("wait-words-with-progress")
+    def test_a_wait_too_short_for_a_bar_still_says_what_it_is_for(self, cli, capsys):
+        """A 300 ms timed connect draws no bar but prints its msg= once: the words never depend on the bar."""
+        # Arrange
+        cli._disconnect()
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/port.connect DEMO_FAIL timeout=300ms msg=Blink")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert result.success is False, "DEMO_FAIL never opens"
+        assert out.count("Blink") == 1, out
+        assert "[" not in out, "no bar for a wait under a second"
+
+    @pytest.mark.rule("wait-words-with-progress")
     def test_msg_replaces_the_waiting_line_and_takes_the_rest(self, cli, capsys):
         """msg= is the waiting line, verbatim to the end; a 9600 inside it is not a baud rate."""
         # Arrange

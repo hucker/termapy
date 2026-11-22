@@ -252,8 +252,10 @@ def _handler_connect(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.ok(value=port or "")
     if timeout <= 0:
         return CmdResult.fail(msg=opener.error)
-    ctx.io.output(msg or f"Waiting for {port or cfg_value(ctx.cfg, 'serial.port')}...")
-    outcome = wait(ctx, timeout, opener, interval=_RETRY_S)
+    # The words go with the progress, and the frontend places them: the
+    # TUI's ghost text, a CLI line (registry wait-words-with-progress).
+    label = msg or f"Waiting for {port or cfg_value(ctx.cfg, 'serial.port')}..."
+    outcome = wait(ctx, timeout, opener, interval=_RETRY_S, label=label)
     if outcome == "met":
         return CmdResult.ok(value=port or "")
     if outcome == "stopped":
@@ -617,7 +619,8 @@ COMMAND = Command(
                 "               dur (e.g. 10s): a board being plugged in or\n"
                 "               rebooting, or a port another program is\n"
                 "               letting go of.  Without it, one try.\n"
-                "  msg=text     What the wait is for, shown while it waits\n"
+                "  msg=text     What the wait is for, shown while it waits in\n"
+                "               the TUI's prompt, as a line on the CLI\n"
                 "               (default: Waiting for <port>...).  The rest\n"
                 "               of the line, so it comes last; no quotes.\n"
                 "\n"

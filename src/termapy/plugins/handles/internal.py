@@ -167,10 +167,12 @@ class InternalHandle:
 
     run_script: Callable | None = None  # (path, profile, verbose); TUI via @work
 
-    # delay_progress(elapsed_s, total_s, done) -> None: how this frontend
-    # draws /delay's progress (the TUI's bottom bar or script overlay, the
-    # CLI's terminal bar); None where nothing is drawn (MCP).  /delay owns
-    # the wait itself; this is the only per-frontend part of it.
+    # delay_progress(elapsed_s, total_s, done, label) -> None: how this
+    # frontend draws a wait's progress (the TUI's bottom bar or script
+    # overlay, the CLI's terminal bar) and where it puts the wait's words
+    # (the TUI's ghost text, a CLI line); None where nothing is drawn
+    # (MCP).  plugins.waiting owns the wait itself; this is the only
+    # per-frontend part of it.
     delay_progress: Callable | None = None
 
     # session_log_path() -> Path | None: the file THIS frontend writes its

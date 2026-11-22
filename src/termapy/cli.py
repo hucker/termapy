@@ -105,6 +105,8 @@ class CLITerminal(TerminalHost):
         self.output_level = output_level
         self.prefix = cmd_prefix(cfg)
         self._xfer_cancel = threading.Event()
+        # A wait's words are printed once, at its first tick (_delay_progress).
+        self._wait_label_shown = False
         self._exec_exit_code = 0
         # Set by /exit and /app.tui (_request_exit); the prompt loop ends on it.
         self._exit_requested = False
@@ -384,14 +386,22 @@ class CLITerminal(TerminalHost):
 
     _DELAY_BAR_WIDTH = 30
 
-    def _delay_progress(self, elapsed: float, total: float, done: bool) -> None:
-        """Draw /delay's progress as a bar redrawn in place, and erase it when done.
+    def _delay_progress(self, elapsed: float, total: float, done: bool, label: str = "") -> None:
+        """Draw a wait's progress as a bar redrawn in place, and erase it when done.
 
-        Only for a delay typed at the prompt: inside a script or a one-shot
-        run (--run / --exec) the CLI draws no bar, so piped output carries
-        no carriage-return redraws.  The wait and the done line are /delay's.
+        A ``label`` (what the wait is for) is printed once, as a line, in
+        every mode.  The bar is only for a wait typed at the prompt: inside
+        a script or a one-shot run (--run / --exec) the CLI draws none, so
+        piped output carries no carriage-return redraws.
         """
-        if self.repl.in_script or self.is_oneshot:
+        if done:
+            self._wait_label_shown = False
+        elif label and not self._wait_label_shown:
+            self._wait_label_shown = True
+            self.repl.ctx.io.output(label)
+        from termapy.plugins.waiting import PROGRESS_MIN_S
+
+        if self.repl.in_script or self.is_oneshot or total < PROGRESS_MIN_S:
             return
         if done:
             full = render_progress_bar(

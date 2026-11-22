@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 217: 202 registry rows (guarantees 167, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 213. Pinned by none: 4.
+Ids: 218: 203 registry rows (guarantees 168, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 214. Pinned by none: 4.
 
 ## Pinned by no test
 

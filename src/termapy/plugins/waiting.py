@@ -23,7 +23,8 @@ if TYPE_CHECKING:
 
 # Progress redraw and stop-check interval.
 TICK_S = 0.25
-# Shorter waits draw no progress: the bar would flash and vanish.
+# Shorter waits draw no progress bar: it would flash and vanish.  Their
+# words still show; the frontends read this to leave the bar out.
 PROGRESS_MIN_S = 1.0
 
 Outcome = Literal["met", "elapsed", "stopped"]
@@ -35,6 +36,7 @@ def wait(
     until: Callable[[], bool] | None = None,
     *,
     interval: float = TICK_S,
+    label: str = "",
 ) -> Outcome:
     """Wait up to ``seconds``, or until ``until()`` is True, showing progress and honoring a stop.
 
@@ -45,6 +47,10 @@ def wait(
         until: Checked first and then every ``interval``; the wait ends
             when it returns True.  None waits the whole time.
         interval: How often ``until`` is checked and progress redrawn.
+        label: What the wait is for, in words.  The frontend places it
+            beside its progress: the TUI in the prompt's ghost text, the
+            CLI as a line before its bar, MCP nowhere.  Empty for a wait
+            that needs no words (``/delay``, which says its own).
 
     Returns:
         ``"met"`` when ``until`` returned True, ``"elapsed"`` when the time
@@ -53,18 +59,20 @@ def wait(
     stop = ctx.internal.script_stop_event
     if stop is not None and not ctx.internal.in_script():
         stop.clear()
-    shows_progress = seconds >= PROGRESS_MIN_S and ctx.output_level in ("normal", "verbose")
-    progress = ctx.internal.delay_progress if shows_progress else None
+    shows = ctx.output_level in ("normal", "verbose") and (seconds >= PROGRESS_MIN_S or label)
+    progress = ctx.internal.delay_progress if shows else None
     t0 = time.monotonic()
     try:
         while True:
+            # The tick comes first, so a wait met at its first check has
+            # still said what it was for.
+            elapsed = time.monotonic() - t0
+            if progress is not None:
+                progress(min(elapsed, seconds), seconds, False, label)
             if until is not None and until():
                 return "met"
-            elapsed = time.monotonic() - t0
             if elapsed >= seconds:
                 return "elapsed"
-            if progress is not None:
-                progress(elapsed, seconds, False)
             step = min(interval, seconds - elapsed)
             if stop is None:
                 time.sleep(step)
@@ -77,4 +85,4 @@ def wait(
         return "stopped"
     finally:
         if progress is not None:
-            progress(seconds, seconds, True)
+            progress(seconds, seconds, True, label)

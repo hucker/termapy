@@ -2889,6 +2889,42 @@ class TestScreenshots:
         _run(scenario)
 
 
+class TestWaitWords:
+    """What a wait is for shows in the prompt's ghost text, not as a line in the pane."""
+
+    @pytest.mark.rule("wait-words-with-progress")
+    def test_the_waits_words_are_the_prompts_ghost_text_not_a_pane_line(self, app_factory):
+        """/port.connect DEMO_FAIL timeout=3s msg=Hold on: the prompt says Hold on while it waits, the pane never does."""
+
+        async def scenario():
+            from textual.widgets import Input
+
+            app, _, _ = app_factory()
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                inp = app.query_one("#cmd", Input)
+                resting = inp.placeholder
+
+                # Act -- typed and entered, the path a person uses
+                inp.value = "/port.connect DEMO_FAIL timeout=3s msg=Hold on"
+                inp.focus()
+                await pilot.pause()
+                await pilot.press("enter")
+                await until(pilot, lambda: "Hold on" in inp.placeholder, seconds=5)
+                during = inp.placeholder
+                await until(pilot, lambda: not app._busy, seconds=15)
+
+                # Assert
+                assert during == "Hold on  escape to cancel", during
+                assert inp.placeholder == resting, "the prompt's own words come back"
+                text = app._get_screen_text()
+                own_lines = [line for line in text.splitlines() if line.strip() == "Hold on"]
+                assert own_lines == [], f"the wait's words reached the pane as a line:\n{text}"
+                assert "Cannot open DEMO_FAIL" in text, "the outcome is still reported"
+
+        _run(scenario)
+
+
 class TestPortBanners:
     """A quiet command's connection banner stays off the pane and in the session log."""
 

@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 215: 200 registry rows (guarantees 165, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 211. Pinned by none: 4.
+Ids: 216: 201 registry rows (guarantees 166, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 212. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -1070,6 +1070,11 @@ Ids: 215: 200 registry rows (guarantees 165, assumptions 35), 15 spec sections i
 ### `vt100-on-engine` (guarantee, contract)
 
 - `test_vt100.py`: `TestPassthroughSession` **guard** (3 functions)
+
+### `wait-words-with-progress` (guarantee, contract)
+
+- `test_app_pilot.py`: `TestWaitWords.test_the_waits_words_are_the_prompts_ghost_text_not_a_pane_line` **guard**
+- `test_port_commands.py`: `TestConnectTimeout.test_a_timed_connect_waits_until_the_port_opens_twice` **guard**, `TestConnectTimeout.test_a_wait_too_short_for_a_bar_still_says_what_it_is_for`, `TestConnectTimeout.test_msg_replaces_the_waiting_line_and_takes_the_rest` **guard**
 
 ### `web-is-an-environment` (guarantee, structure)
 

@@ -546,6 +546,10 @@ class SerialTerminal(TerminalHost, App):
         # (after _end_busy) knows its command is over and does nothing.
         self._busy_generation = 0
         self._saved_placeholder = ""
+        # A wait's own words for the prompt (``_delay_progress``'s label) and
+        # the generic busy text they stand in for while the wait runs.
+        self._wait_placeholder = ""
+        self._busy_placeholder = ""
         # Clickable output (_write_link_segments): link id -> Link, the
         # newest _LINK_LIMIT kept, so a long session's table stays bounded.
         self._links: OrderedDict[int, Link] = OrderedDict()
@@ -3390,7 +3394,8 @@ class SerialTerminal(TerminalHost, App):
         self._busy_look_timer = None
         inp = self.query_one("#cmd", Input)
         self._saved_placeholder = inp.placeholder
-        inp.placeholder = placeholder
+        self._busy_placeholder = placeholder
+        inp.placeholder = self._wait_placeholder or placeholder
         self._set_input_busy(True)
         self._busy_look_shown = True
 
@@ -3401,6 +3406,7 @@ class SerialTerminal(TerminalHost, App):
         if self._busy_look_timer is not None:
             self._busy_look_timer.stop()
             self._busy_look_timer = None
+        self._wait_placeholder = ""
         if self._busy_look_shown:
             self._busy_look_shown = False
             self._restore_input_placeholder()
@@ -4013,17 +4019,41 @@ class SerialTerminal(TerminalHost, App):
 
     # -- REPL hook implementations (app-coupled commands) ----------------------
 
-    def _delay_progress(self, elapsed: float, total: float, done: bool) -> None:
-        """Draw /delay's progress: on the script overlay while a script runs, else the bottom bar.
+    def _delay_progress(self, elapsed: float, total: float, done: bool, label: str = "") -> None:
+        """Draw a wait's progress: on the script overlay while a script runs, else the bottom bar.
 
-        Called off main by /delay (``ctx.internal.delay_progress``); the
-        overlay message and ``_on_main`` both reach the widgets safely.
+        Called off main by a wait (``ctx.internal.delay_progress``); the
+        overlay message and ``_on_main`` both reach the widgets safely.  A
+        ``label`` (what the wait is for) goes beside the bar on the
+        overlay and, at the prompt, into the ghost text in place of the
+        generic busy words (registry ``wait-words-with-progress``).
         """
-        bar = "" if done else render_progress_bar(elapsed, total)
+        from termapy.plugins.waiting import PROGRESS_MIN_S
+
+        bar = "" if done or total < PROGRESS_MIN_S else render_progress_bar(elapsed, total)
         if self.repl.in_script:
-            self.post_message(self.DelayProgress(bar, done))
+            text = "  ".join(part for part in (label, bar) if part) if not done else ""
+            self.post_message(self.DelayProgress(text, done))
         else:
             self._on_main(self._set_progress_label, bar)
+            if label:
+                self._on_main(
+                    self._set_wait_placeholder, "" if done else f"{label}  escape to cancel"
+                )
+
+    def _set_wait_placeholder(self, text: str) -> None:
+        """A wait's words as the prompt's ghost text (main thread); empty when the wait ends.
+
+        Shown at once when the busy look is up, else kept for
+        ``_show_busy_look`` to use, so the saved placeholder the look
+        restores is never a wait's words.
+        """
+        self._wait_placeholder = text
+        if self._busy_look_shown:
+            try:
+                self.query_one("#cmd", Input).placeholder = text or self._busy_placeholder
+            except SHUTDOWN_RACE:
+                pass
 
     def _set_progress_label(self, text: str) -> None:
         """Write progress text to the bottom-bar status label (main thread).

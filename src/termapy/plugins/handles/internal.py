@@ -162,6 +162,9 @@ class InternalHandle:
     json_layout: Callable[[], tuple[int, bool]] = lambda: (0, False)
 
     start_capture: Callable = lambda **kw: None
+    # stop_capture() -> CaptureResult | None: the finished capture, None
+    # when none was running.  It prints nothing: the caller answers
+    # with the result (its ``summary`` is the completion line).
     stop_capture: Callable = lambda: None
     # Whether a capture is running: the dispatch gate's ``capture_idle``.
     capture_active: Callable[[], bool] = lambda: False

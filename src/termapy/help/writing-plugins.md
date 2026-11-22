@@ -378,8 +378,13 @@ Examples that should set `value=`:
 
 Examples that should not:
 
-- Pure side-effect commands (`/cls`, `/edit`, `/cap.stop`)
+- Pure side-effect commands (`/cls`, `/edit`, `/exit`)
 - Commands that print a page of prose (`/help`)
+
+A command that finds nothing to do says so in one line,
+`ctx.io.result("No capture running.")`, and still succeeds, so a script
+written for another frontend runs unchanged; it never answers with a blank
+success.
 
 ## Usage errors: raise UsageError, never hand-write "Usage:" strings
 

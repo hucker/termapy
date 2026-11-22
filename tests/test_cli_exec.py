@@ -227,6 +227,17 @@ class TestCliExec:
         assert envelope["cmd"] == "AT+INFO", "the device line is the request"
         assert envelope["success"] and envelope["value"], "the reply is the value"
 
+    @pytest.mark.rule("envelope-is-the-whole-answer")
+    def test_a_one_shot_device_line_prints_the_envelope_alone(self, tmp_path):
+        """--json -e on a device line prints one envelope and nothing beside it, no request echo."""
+        # Act
+        result = _run("--json", "-e", "AT+INFO", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 0, f"stderr={result.stderr!r}"
+        envelope = json.loads(result.stdout)
+        assert envelope["cmd"] == "AT+INFO", "all of stdout is the one envelope"
+
     def test_a_second_exec_is_refused(self, tmp_path):
         """-e twice is refused, where argparse used to run only the last one silently."""
         # Act

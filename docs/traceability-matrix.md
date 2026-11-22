@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 222: 207 registry rows (guarantees 172, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 218. Pinned by none: 4.
+Ids: 224: 209 registry rows (guarantees 173, assumptions 36), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 220. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -336,7 +336,9 @@ Ids: 222: 207 registry rows (guarantees 172, assumptions 35), 15 spec sections i
 ### `envelope-is-the-whole-answer` (guarantee, contract)
 
 - `test_app_pilot_targets.py`: `TestJsonEnvelopeInThePane.test_help_json_prints_no_row_beside_the_envelope` **guard**
+- `test_cli_exec.py`: `TestCliExec.test_a_one_shot_device_line_prints_the_envelope_alone` **guard**
 - `test_engine.py`: `TestJsonFlag.test_a_clicking_frontend_sends_its_linked_lines_into_the_envelope` **guard**, `TestJsonFlag.test_silent_withholds_linked_lines_too` **guard**
+- `test_term_request.py`: `TestRequestEnvelopeEcho.test_a_one_shot_prints_no_request_echo` **guard**
 
 ### `error-message-style` (assumption, contract)
 
@@ -503,6 +505,11 @@ Ids: 222: 207 registry rows (guarantees 172, assumptions 35), 15 spec sections i
 
 - `test_cli_exec.py`: `TestCliExec.test_json_before_exec_is_the_commands_json` **guard**, `TestCliExec.test_json_before_exec_reaches_a_bare_device_line` **guard**
 
+### `json-is-a-shape` (guarantee, contract)
+
+- `test_cli.py`: `TestNoOpSaysSo.test_cap_stop_json_holds_its_line_in_the_envelope`, `TestNoOpSaysSo.test_cap_stop_prints_its_line_once_as_its_answer`, `TestNoOpSaysSo.test_cap_stop_silent_prints_nothing`
+- `test_engine.py`: `TestJsonFlag.test_the_level_decides_how_much_and_json_the_shape` **guard**
+
 ### `json-mode-ids` (guarantee, contract)
 
 - `test_demo_ndjson.py`: `TestJsonModeIdsAgainstDemoJson` (2 functions)
@@ -644,6 +651,12 @@ Ids: 222: 207 registry rows (guarantees 172, assumptions 35), 15 spec sections i
 ### `no-mojibake` (guarantee, structure)
 
 - `test_architecture.py`: `test_text_files_are_never_utf8_read_as_cp1252` **guard**
+
+### `noop-says-so` (assumption, requirement)
+
+- `test_app_pilot.py`: `TestNoOpSaysSo.test_app_tui_in_the_tui_says_it_is_already_there`, `TestNoOpSaysSo.test_cap_stop_answers_with_what_the_capture_wrote`
+- `test_cli.py`: `TestNoOpSaysSo.test_a_no_op_says_so_and_succeeds`, `TestNoOpSaysSo.test_cap_stop_answers_with_what_the_capture_wrote`
+- `test_find.py`: `TestClear.test_clear_on_idle_says_there_is_no_search`
 
 ### `number-vocabularies` (assumption, data)
 

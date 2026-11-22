@@ -1194,7 +1194,8 @@ class SerialTerminal(TerminalHost, App):
             self._open_proto_debug, path, script
         )
         internal.start_capture = self._cap_start
-        internal.stop_capture = self._cap_stop
+        # /cap.stop is the one caller, and it answers with the line.
+        internal.stop_capture = lambda: self._cap_stop(announce=False)
         internal.delay_progress = self._delay_progress
         internal.directives = self.repl._directives
         # /find plugin calls this with a state snapshot to refresh the
@@ -1822,11 +1823,13 @@ class SerialTerminal(TerminalHost, App):
             self._connect()
 
     def _switch_ui(self, mode: str) -> CmdResult:
-        """``ctx.ui.switch_ui``: leave the TUI for ``mode``; the TUI itself is a no-op."""
+        """``ctx.ui.switch_ui``: leave the TUI for ``mode``; asked for the TUI, it says it is already here."""
         from termapy.defaults import UI_MODES
 
         if mode == "tui":
-            return CmdResult.ok(value="")
+            # Nothing to do, and the answer says so (registry noop-says-so).
+            self.ctx.io.result("Already in the TUI.")
+            return CmdResult.ok(value="tui")
         if mode == "cli":
             return self._switch_to_cli()
         if mode == "vt100":
@@ -3078,23 +3081,23 @@ class SerialTerminal(TerminalHost, App):
 
         return self._on_main(_cap_start, self, **kwargs)
 
-    def _cap_stop(self) -> None:
-        """Stop the capture on the main thread, as ``_cap_start`` starts it.
+    def _cap_stop(self, announce: bool = True) -> CaptureResult | None:
+        """Stop the capture on the main thread, as ``_cap_start`` starts it; the finished capture, or None.
 
         Wired onto ``internal.stop_capture``; the cap-stop button looks it up by name.
         """
         from termapy.capture_view import _cap_stop
 
-        self._on_main(_cap_stop, self)
+        return self._on_main(_cap_stop, self, announce)
 
-    def _stop_capture(self) -> None:
+    def _stop_capture(self, announce: bool = True) -> CaptureResult | None:
         """The host's capture stop, routed through ``_cap_stop``.
 
         Shared host code (``_feed_rx_consumers`` on a failed write) calls
         ``_stop_capture``; in the TUI a stop must also cancel the timer and
         tear down the progress overlay, which only ``_cap_stop`` does.
         """
-        self._cap_stop()
+        return self._cap_stop(announce)
 
     def _on_capture_complete(self, result: CaptureResult) -> None:
         """Report capture completion -- the single owner of the status line.

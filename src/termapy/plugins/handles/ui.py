@@ -162,8 +162,8 @@ class UIHandle:
         One command per mode, ``/app.tui``, ``/app.cli`` and ``/app.vt100``,
         each with one handler in every frontend (registry
         ``one-handler-per-command``); what the switch does is the host's,
-        wired here.  A host already in ``mode`` does nothing and succeeds,
-        so a script written for one frontend runs in the other.  Not gated
+        wired here.  A host already in ``mode`` says so and succeeds, so a
+        script written for one frontend runs in the other.  Not gated
         at the handle level: the commands declare the capabilities a switch
         needs (``console`` for a mode that takes over the terminal).
 

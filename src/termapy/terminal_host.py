@@ -49,7 +49,7 @@ from termapy.session_log import (
 from termapy.typed_lines import TypedLine
 
 if TYPE_CHECKING:
-    from termapy.capture import CaptureEngine
+    from termapy.capture import CaptureEngine, CaptureResult
     from termapy.repl import ReplEngine
     from termapy.serial_engine import SerialEngine
 
@@ -630,7 +630,8 @@ class TerminalHost:
             # dispatch before this is called, so the no-op default is fine.
             open_proto_debug=lambda path, script: None,
             start_capture=lambda **kw: self._start_capture(**kw),
-            stop_capture=lambda: self._stop_capture(),
+            # /cap.stop is the one caller, and it answers with the line.
+            stop_capture=lambda: self._stop_capture(announce=False),
             capture_active=lambda: self.capture.active,
             load_config=lambda name: self._load_config(name),
             xfer_cancel=getattr(self, "_xfer_cancel", None),
@@ -1227,17 +1228,22 @@ class TerminalHost:
         self.status(f"Capture started: {path} ({mode})")
         return True
 
-    def _stop_capture(self) -> None:
-        """Stop a capture session.
+    def _stop_capture(self, announce: bool = True) -> CaptureResult | None:
+        """Stop a capture session; the finished capture, or None when none was running.
 
         The completion message is reported by the CaptureEngine's
-        ``on_complete`` callback (fired inside ``stop()``) -- the single
-        owner across all frontends -- so here we only release the serial
-        claim.  Subclasses may override to add UI (timer cleanup, progress).
+        ``on_complete`` callback (fired inside ``stop()``) unless
+        ``announce`` is False, when the caller (``/cap.stop``) answers with
+        it; here we only release the serial claim.  Subclasses may override
+        to add UI (timer cleanup, progress).
+
+        Args:
+            announce: Whether the host prints the completion line.
         """
-        self.capture.stop()
+        result = self.capture.stop(announce=announce)
         # Unconditional: the capture owns its claim (see capture_view._cap_stop).
         self.engine.serial_claimed = False
+        return result
 
     # -- Help server ----------------------------------------------------------
 

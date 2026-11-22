@@ -853,14 +853,18 @@ class ReplEngine:
         wire = json_request(command, request_id, field) if field else command
 
         # Symmetric request-side echo: render the canonical post-unwrap
-        # form so TUI/CLI scrollback shows what was sent.  Routed
-        # through output_markup so it gates at normal+ (silent and
-        # quiet suppress it), and MCP's session default of "quiet"
-        # naturally keeps output_lines clean -- no FRONT_END gate
-        # needed for this one.
-        self._write_json(
-            _json.loads(wire) if field else {"cmd": command}, result=False, indent=False
-        )
+        # form so scrollback shows what was sent.  It is the protocol
+        # view, not the plain-text echo, so the echo flag does not govern
+        # it.  A one-shot's single command (-e) has no scrollback: its
+        # answer is the envelope alone (registry
+        # envelope-is-the-whole-answer); a script's transcript (--run,
+        # -e /run) keeps it.  Routed through output_markup so it gates at
+        # normal+ (silent and quiet suppress it), and MCP's session
+        # default of "quiet" keeps output_lines clean.
+        if self.in_script or not self.ctx.is_oneshot():
+            self._write_json(
+                _json.loads(wire) if field else {"cmd": command}, result=False, indent=False
+            )
 
         encoding = cfg_value(self.cfg, "encoding")
         timeout_ms = int(cfg_value(self.cfg, "default_response_timeout_ms"))

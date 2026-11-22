@@ -2,6 +2,13 @@
 
 Capture serial output to files without interrupting normal display or logging.
 
+`/cap.stop` ends a capture early. Every capture ends with one line naming the
+file, its size and, for text and structured captures, its lines:
+`Capture complete: cap/log.txt (1.2 KB, 40 lines in 3.0s)`. `/cap.stop`'s
+value is the bytes written, and its data the file, bytes, lines and seconds.
+The line is its answer, so `/cap.stop --json` holds it in `output_lines` and
+`--silent` prints nothing. With no capture running it says so.
+
 ## Text capture (timed)
 
 ```text

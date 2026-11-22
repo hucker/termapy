@@ -588,13 +588,22 @@ def _handler_poll(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_stop(ctx: PluginContext, args: str) -> CmdResult:
-    """Stop an active capture.
+    """Stop the capture; the value is the bytes it wrote, ``data`` its file, bytes, lines and seconds.
 
-    Side-effect only; ``ctx.internal.stop_capture`` returns no path, so
-    ``CmdResult.value`` is ``""`` rather than something synthetic.
+    The completion line (``Capture complete: ...``) is this command's
+    answer, so it obeys the level and ``--json`` like any other; a capture
+    that ends on its own (a timeout, its target) prints the same line on
+    the host's status.  With no capture running it says so (registry
+    ``noop-says-so``).
     """
-    ctx.internal.stop_capture()
-    return CmdResult.ok(value="")
+    result = ctx.internal.stop_capture()
+    if result is None:
+        ctx.io.result("No capture running.")
+        return CmdResult.ok(value=0)
+    if result.error:
+        return CmdResult.fail(msg=result.summary)
+    ctx.io.result_markup(f"[green]{escape_markup(result.summary)}[/]")
+    return CmdResult.ok(value=result.byte_count, data=result.to_record())
 
 
 # ── /cap.wire handler ────────────────────────────────────────────────────────
@@ -942,7 +951,7 @@ COMMAND = Command(
             ],
         ),
         "stop": Command(
-            help="Stop an active capture.",
+            help="Stop the capture and report the bytes and lines it wrote.",
             handler=_handler_stop,
         ),
         "wire": Command(

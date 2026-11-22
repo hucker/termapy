@@ -105,7 +105,7 @@ sends to the device) waits in the input line for Enter.
 | `/cap.bin <f> ...`        | Capture raw binary bytes to a file                                          |
 | `/cap.hex <f> ...`        | Capture hex text lines, decode with format spec to CSV                      |
 | `/cap.poll {count=N} {delay=<dur>} {file=<f>} cmd=<cmds>` | Poll commands on a schedule; print rows, optionally save CSV/JSONL |
-| `/cap.stop`               | Stop an active capture                                                      |
+| `/cap.stop`               | Stop the capture; report its bytes and lines                                |
 | `/cap.struct <f> ...`     | Capture binary data, decode with format spec to CSV                         |
 | `/cap.text <f> ...`       | Capture serial text to file for a timed duration                            |
 | `/cap.wire {wait_gap=<dur>} cmd=<command>` | Run a command and show TX/RX bytes inline as hex + repr (debug line endings) |

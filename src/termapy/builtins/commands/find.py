@@ -195,8 +195,13 @@ def on_config_load(ctx: PluginContext) -> None:
 
 
 def _handler_clear(ctx: PluginContext, args: str) -> CmdResult:
-    """``/find.clear`` -- close the find bar, drop the match list."""
+    """``/find.clear`` -- close the find bar, drop the match list; with no search open, say so."""
+    searching = ctx.ns(_FIND_NS).get("active") is not None
     dismiss(ctx)
+    if not searching:
+        # The bar's close button shows only during a search, so a
+        # click never lands here (registry noop-says-so).
+        ctx.io.result("No search to clear.")
     return CmdResult.ok(value="closed")
 
 

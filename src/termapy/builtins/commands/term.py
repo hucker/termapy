@@ -553,12 +553,16 @@ def _handler_log(ctx: PluginContext, args: str) -> CmdResult:
     events you want to see when reviewing the log later but don't
     want cluttering the screen while the session is running.
 
-    In CLI mode (no log file), this is a no-op -- the bridge's
-    ``ctx.log`` lambda absorbs the call silently.
+    A frontend with no session log (the CLI) writes nothing and says
+    so (registry ``noop-says-so``), still succeeding so a script runs
+    in every frontend.
     """
     text = args.strip()
     if not text:
         raise UsageError()
+    if ctx.internal.session_log_path() is None:
+        ctx.io.result("No session log here: nothing written.")
+        return CmdResult.ok(value="")
     ctx.io.log("#", text)
     # Return the logged text so scripts can confirm what was written.
     return CmdResult.ok(value=text)
@@ -1092,8 +1096,8 @@ COMMAND = Command(
                 "recording events, timestamps, and notes that are only\n"
                 "interesting when reviewing the log after the fact.\n"
                 "\n"
-                "CLI mode has no log file -- the command is a silent no-op\n"
-                "there (returns success, writes nothing)."
+                "The CLI keeps no session log: there it writes nothing, says\n"
+                "so and succeeds, so a script runs in every frontend."
             ),
             handler=_handler_log,
         ),

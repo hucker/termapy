@@ -662,6 +662,28 @@ class ReplEngine:
                 self.ctx._call_level = saved_level
         return replace(result, view=None)
 
+    @contextmanager
+    def _io_redirected(
+        self, write: Callable[..., None], write_markup: Callable[[str], None]
+    ) -> Generator[None]:
+        """Route the IO primitives to ``write`` and ``write_markup`` for one handler run.
+
+        The frontend's segments writer is withheld as well, so a line built
+        from clickable pieces (a help row, a table row) falls back to the two
+        primitives and lands where they do.  Found 2026-11-21: in the TUI,
+        ``/help --json`` printed its rows beside the envelope and listed only
+        the section headers in ``output_lines``, because the rows went through
+        ``_write_segments``, which the swap left alone (registry
+        ``envelope-is-the-whole-answer``).
+        """
+        io = self.ctx.io
+        saved = (io._write, io._write_markup, io._write_segments)
+        io._write, io._write_markup, io._write_segments = write, write_markup, None
+        try:
+            yield
+        finally:
+            io._write, io._write_markup, io._write_segments = saved
+
     def _emit_json_envelope(
         self,
         cmd_text: str,
@@ -2357,15 +2379,8 @@ class ReplEngine:
             try:
                 t0 = time.perf_counter()
                 if self.ctx.output_level == "silent":
-                    saved_write = self.ctx.io._write
-                    saved_write_markup = self.ctx.io._write_markup
-                    self.ctx.io._write = lambda text, color=None: None
-                    self.ctx.io._write_markup = lambda text: None
-                    try:
+                    with self._io_redirected(lambda text, color=None: None, lambda text: None):
                         result = handler(self.ctx, args)
-                    finally:
-                        self.ctx.io._write = saved_write
-                        self.ctx.io._write_markup = saved_write_markup
                 elif wants_json:
                     # JSON mode's collector: the envelope must BE the whole
                     # answer, so a handler's prose is captured into
@@ -2383,15 +2398,8 @@ class ReplEngine:
                     def _capture_markup(text: str) -> None:
                         captured_lines.append(markup_to_plain(str(text)))
 
-                    saved_write = self.ctx.io._write
-                    saved_write_markup = self.ctx.io._write_markup
-                    self.ctx.io._write = _capture_plain
-                    self.ctx.io._write_markup = _capture_markup
-                    try:
+                    with self._io_redirected(_capture_plain, _capture_markup):
                         result = handler(self.ctx, args)
-                    finally:
-                        self.ctx.io._write = saved_write
-                        self.ctx.io._write_markup = saved_write_markup
                     json_output_lines = captured_lines
                 else:
                     result = handler(self.ctx, args)

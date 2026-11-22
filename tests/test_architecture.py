@@ -3735,6 +3735,77 @@ def _widget_markup_sites(tree: ast.Module) -> list[tuple[int, str]]:
     return sorted(sites)
 
 
+def _text_area_language_sites(tree: ast.Module) -> list[tuple[int, str]]:
+    """``(line, call)`` for every TextArea or EditorTextArea built with ``language=``."""
+    return sorted(
+        (node.lineno, f"{_call_name(node)}(language={ast.unparse(keyword.value)})")
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and _call_name(node) in {"TextArea", "EditorTextArea"}
+        for keyword in node.keywords
+        if keyword.arg == "language"
+    )
+
+
+@pytest.mark.rule("editor-highlight-pygments")
+def test_text_areas_highlight_through_pygments_not_a_language():
+    """A TextArea in the UI layer takes highlighter=, never language=: its colors are Pygments', with no tree-sitter query."""
+    # Arrange / Act
+    violations = [
+        f"{rel.as_posix()}:{line}: {call}"
+        for path in sorted(SRC.rglob("*.py"))
+        if _is_ui_layer(rel := path.relative_to(SRC))
+        for line, call in _text_area_language_sites(ast.parse(path.read_text(encoding="utf-8")))
+    ]
+
+    # Assert
+    assert violations == [], (
+        "build an EditorTextArea(highlighter=...) instead; language= needs tree-sitter:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_text_area_language_guard_fires_on_a_probe():
+    """The guard flags language= on TextArea and EditorTextArea and passes highlighter=."""
+    # Arrange
+    source = """
+def compose(self):
+    yield TextArea(text, language="json")
+    yield EditorTextArea(text, language=lang, id="x")
+    yield EditorTextArea(text, highlighter="toml")
+    yield TextArea(text)
+"""
+
+    # Act
+    actual = [line for line, _ in _text_area_language_sites(ast.parse(source))]
+
+    # Assert
+    assert actual == [3, 4], "the two language= calls, and only those"
+
+
+@pytest.mark.rule("editor-highlight-pygments")
+def test_pyproject_names_no_tree_sitter():
+    """No dependency or extra in pyproject.toml is a tree-sitter package: the editors do not need one."""
+    import tomllib
+
+    # Arrange
+    project = tomllib.loads((SRC.parent.parent / "pyproject.toml").read_text(encoding="utf-8"))[
+        "project"
+    ]
+    declared = list(project["dependencies"]) + [
+        requirement
+        for extra in project.get("optional-dependencies", {}).values()
+        for requirement in extra
+    ]
+
+    # Act
+    actual = [
+        requirement for requirement in declared if requirement.lower().startswith("tree-sitter")
+    ]
+
+    # Assert
+    assert actual == [], f"tree-sitter is back in pyproject: {actual}"
+
+
 @pytest.mark.rule("widget-text-literal")
 def test_widget_text_is_never_parsed_as_markup():
     """A Static, Label, Button or notify built from text has markup=False or a Text."""

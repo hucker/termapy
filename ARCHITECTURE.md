@@ -173,6 +173,7 @@ src/termapy/
 ├── folders.py              #              Folder and file constants -- single source of truth
 ├── help_dynamic.py         #              Helpers for building dynamic `long_help` callables
 ├── help_tooltip.py         #              The Help-button tooltip: version status + open-source attributions
+├── highlighting.py         #              Syntax highlighting for the editors through Pygments: text and a lexer name become Textual's per-line highlight map, in UTF-8 byte offsets
 ├── history_nav.py          #              Command-history browsing cursor and file merge for the REPL input
 ├── idioms.py               #              The global idioms: what reads the same on every command, one row each
 ├── info_views.py           #              Read-only info views for the TUI
@@ -1039,6 +1040,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_help_state.py                  | A command declares that its bare form reports state, and /help shows the answer (registry state-read-immutable)                                                                     |
 | test_help_tooltip.py                | Tests for the Help-button tooltip renderable                                                                                                                                        |
 | test_hex_vocabulary.py              | Hex has one vocabulary: one reader for input, in any case; one case for output                                                                                                      |
+| test_highlighting.py                | The editors' highlight map comes from Pygments (`termapy.highlighting`), not a tree-sitter query                                                                                    |
 | test_history_nav.py                 | Unit tests for history_nav: the Up/Down cursor and the file merge                                                                                                                   |
 | test_hw_board.py                    | Real transfers and commands against an attached MicroPython board (registry `hw-board-never-on-github`)                                                                             |
 | test_hw_loopback.py                 | hw_loopback: tests that run only on the hardware loopback, the TX-RX-jumpered adapter                                                                                               |

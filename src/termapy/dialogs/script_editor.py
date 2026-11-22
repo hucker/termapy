@@ -23,10 +23,10 @@ from termapy.folders import FOLDER_EXTS, RUN, ensure_folder, new_file_name
 class ScriptEditor(ModalScreen[str | None]):
     """Modal editor for ``.run`` script files (termapy's scripting language).
 
-    The TextArea uses ``language="bash"`` purely for cosmetic syntax
-    highlighting (Textual ships no ``run`` lexer; bash is the closest
-    fit for ``#`` comments and ``/cmd`` lines).  The files themselves
-    are interpreted by termapy's REPL engine, not by bash.
+    The TextArea colors the file with ``termapy.highlighting``'s ``run``
+    lexer: comment lines, ``/cmd`` words, ``$(NAME)`` variables, the ``<-``
+    capture, quoted text and numbers; a device line stays plain.  Cosmetic
+    only: the files are interpreted by termapy's REPL engine.
     """
 
     BINDINGS = _DISMISS_BINDINGS
@@ -105,7 +105,7 @@ class ScriptEditor(ModalScreen[str | None]):
             yield Static(title, id="sed-title", markup=False)
             yield EditorTextArea(
                 content,
-                language="bash",
+                highlighter="run",
                 show_line_numbers=True,
                 id="sed-editor",
             )

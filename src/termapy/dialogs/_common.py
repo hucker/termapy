@@ -10,22 +10,54 @@ import os
 import sys
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from rich.default_styles import DEFAULT_STYLES
+from rich.style import Style
 from rich.text import Text
 from textual import events, on
 from textual.binding import Binding, BindingType
 from textual.containers import Horizontal
 from textual.widgets import Button, Input, Label, OptionList, Static, TextArea
 from textual.widgets.option_list import Option
-from textual.widgets.text_area import Selection
+from textual.widgets.text_area import Selection, TextAreaTheme
 
 from termapy.folder_ops import file_columns, format_file_header
+from termapy.highlighting import highlights
 
 if TYPE_CHECKING:
     from textual.app import ComposeResult
 
     from termapy.port_control import ChipFacts
+
+
+# The editors' theme, one palette with the output pane: a config reads the same
+# in the editor as ``/cfg.show`` prints it.  Every JSON name takes the style
+# Rich's console gives that token (``rich.json``), and the rest take Rich's
+# repr styles, which the pane prints Python values with.  Read from Rich's
+# table, never retyped, so the two cannot drift (registry
+# ``editor-highlight-pygments``).  The theme sets only syntax styles, so the
+# background, cursor and gutter follow the app theme as Textual's ``css``
+# theme does.
+EDITOR_THEME = TextAreaTheme(
+    name="termapy",
+    syntax_styles={
+        "json.label": DEFAULT_STYLES["json.key"],
+        "toml.type": DEFAULT_STYLES["json.key"],
+        "string": DEFAULT_STYLES["json.str"],
+        "number": DEFAULT_STYLES["json.number"],
+        "float": DEFAULT_STYLES["json.number"],
+        "toml.datetime": DEFAULT_STYLES["json.number"],
+        "boolean.true": DEFAULT_STYLES["json.bool_true"],
+        "boolean.false": DEFAULT_STYLES["json.bool_false"],
+        "json.null": DEFAULT_STYLES["json.null"],
+        "punctuation.bracket": DEFAULT_STYLES["json.brace"],
+        "keyword": DEFAULT_STYLES["json.brace"],
+        "function": DEFAULT_STYLES["repr.call"],
+        "variable": DEFAULT_STYLES["repr.attrib_name"],
+        "comment": Style(dim=True),
+    },
+)
 
 
 class EditorTextArea(TextArea):
@@ -40,9 +72,39 @@ class EditorTextArea(TextArea):
     on Home (its other default key), so nothing is lost.  Copy / cut /
     paste (Ctrl+C / X / V) are already bound by the base class; this adds
     only the missing select-all.
+
+    Its colors come from Pygments: ``highlighter`` names one of
+    ``termapy.highlighting``'s lexers (``json``, ``toml``, ``run``) and the
+    per-line highlight map Textual renders from is filled from it, in place
+    of the tree-sitter query a ``language`` would need (decision
+    2026-11-21).  ``language=`` is never passed (registry
+    ``editor-highlight-pygments``).  The theme is ``EDITOR_THEME``, Rich's
+    console palette, so the editor and the output pane agree.
     """
 
     BINDINGS = [Binding("ctrl+a", "select_all", "Select all", show=False)]
+
+    def __init__(self, text: str = "", *, highlighter: str | None = None, **kwargs: Any) -> None:
+        # Set before Textual builds the document: that build rebuilds the map.
+        self._highlighter = highlighter
+        super().__init__(text, **kwargs)
+        self.register_theme(EDITOR_THEME)
+        self.theme = EDITOR_THEME.name
+
+    def _build_highlight_map(self) -> None:
+        """Fill Textual's per-line highlight map from Pygments; Textual calls this on every edit.
+
+        Textual rebuilds the map through this method when the document is set
+        and after each edit; without a ``language`` its own would only clear
+        it.  The map is ``row -> [(byte start, byte end or None, name)]``.
+        """
+        self._line_cache.clear()
+        self._highlights.clear()
+        if self._highlighter is None:
+            return
+        text = "\n".join(self.document.lines)
+        for row, spans in highlights(text, self._highlighter).items():
+            self._highlights[row].extend(spans)
 
 
 # Shared CSS for modal dialog buttons.

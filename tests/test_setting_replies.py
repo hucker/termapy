@@ -55,7 +55,6 @@ SETTING_LINES = [
     "/cfg echo off",
     "/cfg max_lines",
     "/cfg max_lines 500",
-    "/cfg.auto max_lines 500",
     "/port.baud_rate",
     "/port.baud_rate 115200",
     "/port.baud_rate cycle",

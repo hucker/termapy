@@ -143,23 +143,23 @@ class TestPrefixDispatchShapes:
         assert "!" in actual, f"cfg didn't report the prefix value: {actual!r}"
 
     def test_dotted_subcommand_dispatches(self, tmp_path):
-        """The dot split runs after the prefix strip, so !cfg.auto reaches the subcommand."""
-        # Arrange -- `.auto` is a subcommand under /cfg; the dot-split
+        """The dot split runs after the prefix strip, so !term.echo reaches the subcommand."""
+        # Arrange -- `.echo` is a subcommand under /term; the dot-split
         # happens after the prefix strip, so this proves the subcommand
         # tree is reached even with a non-default prefix.
         result = _run_cli(
             tmp_path,
             cfg_overrides={"cmd_prefix": "!"},
             script_lines=[
-                "!cfg.auto echo false",
-                "!cfg echo",
+                "!term.echo off",
+                "!term.echo",
             ],
         )
 
         # Assert -- the set took effect (value reads back as off).
         actual = result.stdout
         assert result.returncode == 0, f"stderr: {result.stderr}"
-        assert "\n  off\n" in actual, f"!cfg.auto set didn't take effect: {actual!r}"
+        assert "\n  off\n" in actual, f"!term.echo set didn't take effect: {actual!r}"
 
     def test_device_command_unprefixed_still_reaches_serial(self, tmp_path):
         """A line with no prefix still falls through to the device and gets the demo OK."""
@@ -272,7 +272,7 @@ class TestPrefixOutputFlowThrough:
             )
 
     def test_help_detail_cross_references_use_live_prefix(self, tmp_path):
-        """Cross-references in the !help cfg prose say !cfg.auto, never a hardcoded /cfg.auto."""
+        """Cross-references in the !help cfg prose say !cfg.save, never a hardcoded /cfg.save."""
         # Arrange -- drill into a single command's help.  The help
         # text (right column / long_help) commonly cross-references
         # other commands.  Catch the case where those references
@@ -286,12 +286,12 @@ class TestPrefixOutputFlowThrough:
         # Assert
         actual = result.stdout
         assert result.returncode == 0, f"stderr: {result.stderr}"
-        # The help output for !cfg references !cfg.auto in its prose.
-        # If it reads `/cfg.auto` instead, the plugin author hardcoded
-        # the prefix in their help text.  We check for the smoking-gun
-        # phrase: whitespace + "/cfg.auto".
-        assert " /cfg.auto" not in actual, (
-            f"!help cfg contains a hardcoded '/cfg.auto' reference -- "
+        # The help output for !cfg references !cfg.save in its prose.
+        # If it reads `/cfg.save` instead, the plugin author hardcoded
+        # the prefix in their help text.
+        assert "!cfg.save" in actual, "the prose names the save with the live prefix"
+        assert " /cfg.save" not in actual, (
+            f"!help cfg contains a hardcoded '/cfg.save' reference -- "
             f"plugin help text should use the live prefix.  stdout: {actual!r}"
         )
 

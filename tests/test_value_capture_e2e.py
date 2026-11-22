@@ -66,7 +66,7 @@ EXPECTED_CAPTURES = [
     # only MYVAR contains "myvar"; $(env.MYVAR) reads the one value.
     ("env.list", "1"),
     ("cfg.get", "115200"),
-    ("cfg.auto", "9600"),
+    ("cfg.set", "9600"),
     ("cfg.get2", "9600"),
     ("port.set", "COM99"),
     # /port.disconnect snapshots cfg["port"] before tearing the

@@ -267,7 +267,7 @@ The most common ones:
 | `/port.cd`                           | Show CD state (read-only)                                                     |
 | `/port.break {ms}`                   | Send break signal (default 250ms)                                             |
 | `/cfg {key {value}}`                 | Open Cfg picker (bare TUI), list configs (bare CLI), or get/set with args     |
-| `/cfg.auto <key> <value>`            | Set an in-memory config key immediately (no confirmation)                     |
+| `/cfg.save`                          | Write the settings this session changed into the config file                  |
 | `/cfg.list`                          | List all config files                                                         |
 | `/cfg.load <name>`                   | Switch to a different config by name                                          |
 | `/cfg.loaded`                        | Show what the config load loaded: plugin files, symbols, device files         |
@@ -489,7 +489,7 @@ termapy --cfg-dir /path/to/configs
 
 ### Config validation
 
-Termapy checks every key the same way on load, in the config editor and at `/cfg`. A bad value (a parity that does not exist, `max_lines` of 0, a regex that does not compile) produces a yellow warning on load, turns red in the editor and blocks its Save, and is refused by `/cfg` and `/cfg.auto`. Unknown keys (typos) warn too. Non-standard baud rates are flagged but allowed, since some hardware uses custom rates.
+Termapy checks every key the same way on load, in the config editor and at `/cfg`. A bad value (a parity that does not exist, `max_lines` of 0, a regex that does not compile) produces a yellow warning on load, turns red in the editor and blocks its Save, and is refused by `/cfg`. Unknown keys (typos) warn too. Non-standard baud rates are flagged but allowed, since some hardware uses custom rates.
 
 To validate a config from the command line without launching the UI:
 

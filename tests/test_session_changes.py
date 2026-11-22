@@ -137,3 +137,118 @@ def test_a_quick_sessions_port_is_never_a_change(tmp_path):
 
     # Assert
     assert _paths(terminal) == ["timestamps"], "the port is the name; timestamps is a change"
+
+
+@pytest.mark.rule("on-connect-is-the-config")
+def test_what_the_configs_own_commands_set_is_no_change(cli):
+    """A setter an on-connect command runs, a config key, a port setting or a flag, is the config's: nothing is unsaved."""
+    # Act
+    with cli._config_owns_its_changes():
+        for line in ("/term.timestamps on", "/port.baud_rate 9600", "/term.echo on"):
+            assert cli.repl.dispatch_full(line).success, line
+
+    # Assert
+    assert cli.session_changes() == [], "the config's own commands moved the baseline with them"
+
+
+@pytest.mark.rule("on-connect-is-the-config")
+def test_a_change_before_or_after_the_on_connect_run_still_counts(cli):
+    """Only what the run moved is folded: a setting changed before it and one changed after it are both unsaved."""
+    # Arrange -- a flag the CLI has (/term.line_no is the TUI's alone)
+    assert cli.repl.dispatch_full("/term.echo on").success
+
+    # Act
+    with cli._config_owns_its_changes():
+        cli.repl.dispatch_full("/term.timestamps on")
+    cli.repl.dispatch_full("/term.hex on")
+
+    # Assert
+    assert sorted(_paths(cli)) == ["echo", "hex"], "the user's two changes, not the config's one"
+
+
+@pytest.mark.rule("on-connect-is-the-config")
+def test_two_on_connect_runs_in_a_row_leave_nothing_unsaved(cli):
+    """A reconnect runs the commands again: twice over, each run is folded and nothing is unsaved."""
+    seen = []
+    for _ in range(2):
+        with cli._config_owns_its_changes():
+            cli.repl.dispatch_full("/term.timestamps on")
+            cli.repl.dispatch_full("/term.echo on")
+        seen.append(_paths(cli))
+    assert seen == [[], []], "the second run moves nothing and folds nothing"
+
+
+@pytest.mark.rule("cfg-save-one-way")
+def test_cfg_save_writes_what_the_session_changed(cli):
+    """/cfg.save writes a config key and a flag key, answers how many with their values, and counting starts again."""
+    # Arrange
+    cli.repl.dispatch_full("/term.timestamps on")
+    cli.repl.dispatch_full("/term.echo on")
+
+    # Act
+    result = cli.repl.dispatch_full("/cfg.save")
+
+    # Assert
+    on_disk = json.loads(Path(cli.config_path).read_text(encoding="utf-8"))
+    assert (result.success, result.value) == (True, 2), result.error
+    assert result.data == [
+        {"key": "echo", "value": True},
+        {"key": "timestamps", "value": True},
+    ], "each saved key with its value, in CFG_KEYS order"
+    assert (on_disk["echo"], on_disk["timestamps"]) == (True, True), "both reached the file"
+    assert cli.session_changes() == [], "the file and the session agree again"
+
+
+@pytest.mark.rule("cfg-save-one-way")
+def test_cfg_save_twice_in_a_row_writes_once(cli, capsys):
+    """The second save in a row finds nothing: it answers 0 and says so."""
+    # Arrange
+    cli.repl.dispatch_full("/term.timestamps on")
+    first = cli.repl.dispatch_full("/cfg.save")
+    capsys.readouterr()
+
+    # Act
+    second = cli.repl.dispatch_full("/cfg.save")
+
+    # Assert
+    assert (first.value, second.value) == (1, 0), "the first saved one setting, the second none"
+    assert "Nothing to save." in capsys.readouterr().out
+
+
+@pytest.mark.rule("leave-asks-unsaved")
+def test_a_cli_load_asks_before_dropping_unsaved_settings(cli, capsys):
+    """At a terminal, /cfg.load with a setting unsaved asks first; under --yes the answer is yes and the load goes on."""
+    # Arrange -- someone at the terminal, answering yes as -y does
+    cli.can_ask = True
+    cli._assume_yes = True
+    cli.repl.dispatch_full("/term.timestamps on")
+    capsys.readouterr()
+
+    # Act
+    result = cli._switch_to_cfg_path(cli.config_path)
+
+    # Assert
+    out = capsys.readouterr().out
+    assert result.success, result.error
+    assert "Load without saving timestamps? (/cfg.save keeps them) [y/N] y (--yes)" in out, out
+    assert cli.session_changes() == [], "the load dropped the change, as answered"
+
+
+@pytest.mark.rule("leave-asks-unsaved")
+def test_a_cli_exit_asks_only_where_someone_can_answer(cli, capsys):
+    """/exit with a setting unsaved leaves without a word on a pipe, and asks at a terminal."""
+    # Arrange
+    cli.repl.dispatch_full("/term.timestamps on")
+    capsys.readouterr()
+
+    # Act -- a pipe first (the rig's stdin), then a terminal answering yes
+    cli.repl.dispatch_full("/exit")
+    piped = (capsys.readouterr().out, cli._exit_requested)
+    cli._exit_requested = False
+    cli.can_ask, cli._assume_yes = True, True
+    cli.repl.dispatch_full("/exit")
+    asked = (capsys.readouterr().out, cli._exit_requested)
+
+    # Assert
+    assert "without saving" not in piped[0] and piped[1], "no one to ask: it leaves"
+    assert "Exit without saving timestamps?" in asked[0] and asked[1], "asked, then left on yes"

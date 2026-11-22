@@ -46,6 +46,7 @@ from termapy.capture import (
 from termapy.config import (
     CONFIG_LOAD_ERRORS,
     CURRENT_CONFIG_VERSION,
+    SessionChange,
     cfg_data_dir,
     cfg_dir,
     cfg_history_path,
@@ -66,9 +67,8 @@ from termapy.config_resolve import (
     resolve_config as _resolve_config,
     resolve_proto_path,
 )
-from termapy.defaults import DEFAULT_CMD_PREFIX, cfg_slot, cfg_value, cmd_prefix, default_cfg
+from termapy.defaults import DEFAULT_CMD_PREFIX, cfg_value, cmd_prefix, default_cfg
 from termapy.dialogs import (
-    CfgConfirm,
     ConfigEditor,
     ConfigPicker,
     ConfirmDialog,
@@ -1190,7 +1190,6 @@ class SerialTerminal(TerminalHost, App):
         """Build PluginContext and InternalHandle, wire to REPL."""
         internal = self._build_internal_handle()
         # TUI-specific InternalHandle extensions
-        internal.confirm_save_cfg = self._hook_cfg_confirm
         internal.open_proto_debug = lambda path, script: self.call_later(
             self._open_proto_debug, path, script
         )
@@ -1239,7 +1238,7 @@ class SerialTerminal(TerminalHost, App):
 
         self.repl.set_context(ctx)
         # The refresh redraws the title, border and hardware buttons, and
-        # /cfg, /cfg.auto and the /term.* setters apply from a dispatch
+        # /cfg and the /term.* setters apply from a dispatch
         # worker (registry commands-off-main), so it runs on main.
         self.repl._after_cfg = lambda key, new_val: self._on_main(
             self._refresh_after_cfg, key, new_val
@@ -1308,13 +1307,15 @@ class SerialTerminal(TerminalHost, App):
     def _leave_on_request(self, by: int) -> None:
         """Another termapy asked this TUI to leave: exit as ``/exit`` does, and open no next mode.
 
-        On the stop watch's thread.  ``on_unmount`` saves the history, closes
-        the port and ends the session log, and the terminal is restored after
-        ``run()``; a question on screen answers no once ``_shutting_down`` is set.
+        On the stop watch's thread.  Unsaved settings are asked about first,
+        as Exit asks, so a session holding some stays until answered.
+        ``on_unmount`` saves the history, closes the port and ends the session
+        log, and the terminal is restored after ``run()``; a question on
+        screen answers no once ``_shutting_down`` is set.
         """
         self._log_line("#", f"Stop requested by termapy PID {by}")
         self.switch_to = None
-        self._on_main(self.exit)
+        self._on_main(self._ask_unsaved_then, "Exit", self._exit_now)
 
     def _connect(self, port: str | None = None, *, report: bool = True) -> bool:
         # Whether an open port means 'already connected' or a switch to the
@@ -1464,7 +1465,11 @@ class SerialTerminal(TerminalHost, App):
         """
         try:
             time.sleep(self._ON_CONNECT_DELAY_S)
-            self._send_lines(cmds)
+            # What the config's own commands set is the config's (registry
+            # on-connect-is-the-config), so no * appears for it.
+            with self._config_owns_its_changes():
+                self._send_lines(cmds)
+            self._on_main(self._refresh_setting_buttons)
         finally:
             with self._on_connect_lock:
                 self._on_connect_runs -= 1
@@ -1730,7 +1735,7 @@ class SerialTerminal(TerminalHost, App):
             cfg = load_config(config_path)
         except CONFIG_LOAD_ERRORS as e:
             return CmdResult.fail(msg=f"Cannot load config: {e}")
-        if not self._ask_unsaved_wait("Load"):
+        if not self._may_leave("Load"):
             return CmdResult.fail(msg="Canceled.")
         self._on_main(self._switch_config, cfg, config_path)
         self._on_main(self._show_config_info, config_path)
@@ -1829,7 +1834,10 @@ class SerialTerminal(TerminalHost, App):
         return CmdResult.fail(msg=f"Unknown UI mode: {mode} (use {'/'.join(UI_MODES)})")
 
     def _switch_to_cli(self) -> CmdResult:
-        """Switch to CLI mode - sets flag and exits TUI."""
+        """Switch to CLI mode - sets flag and exits TUI, asking first about unsaved settings."""
+        # The next mode loads the file, so unsaved settings would go.
+        if not self._may_leave("Switch"):
+            return CmdResult.fail(msg="Canceled.")
         self.switch_to = "cli"
         # Stash current config path so the mode loop can pass it to CLI
         self._switch_config_path = self.config_path
@@ -1850,6 +1858,9 @@ class SerialTerminal(TerminalHost, App):
                 widget-tour device instead of the currently loaded device.
                 The current config is still restored on return to the TUI.
         """
+        # The next mode loads the file, so unsaved settings would go.
+        if not self._may_leave("Switch"):
+            return CmdResult.fail(msg="Canceled.")
         self.switch_to = "vt100"
         self._switch_vt100_demo = demo
         self._switch_config_path = self.config_path
@@ -2724,6 +2735,16 @@ class SerialTerminal(TerminalHost, App):
             return True
         return choice == ("proceed",) or (choice == ("save",) and self._save_session_settings())
 
+    def _may_leave(self, verb: str) -> bool:
+        """The TUI asks in its dialog (``_ask_unsaved_wait``): save and go on, go on, or cancel."""
+        return self._ask_unsaved_wait(verb)
+
+    def save_session_changes(self) -> list[SessionChange]:
+        """The host's save, then the setting buttons lose their ``*``: ``/cfg.save`` and the question's Save alike."""
+        saved = super().save_session_changes()
+        self._on_main(self._refresh_setting_buttons)
+        return saved
+
     def _save_session_settings(self) -> bool:
         """Write the session's changed settings into its config file and say so.
 
@@ -2744,9 +2765,7 @@ class SerialTerminal(TerminalHost, App):
             return False
         finally:
             self._dispatch_guard.release()
-        names = ", ".join(change.path for change in saved)
-        self._status(f"Saved {names} to {self.config_path}", "green")
-        self._on_main(self._refresh_setting_buttons)
+        self._status(self.describe_saved(saved), "green")
         return True
 
     def _palette_load_config(self) -> None:
@@ -4138,22 +4157,6 @@ class SerialTerminal(TerminalHost, App):
             self._sync_custom_buttons()
         if key in port_control.SERIAL_KEYS and was_connected:
             self._connect()
-
-    def _hook_cfg_confirm(self, key: str, new_val: object) -> bool:
-        """``/cfg <key> <value>`` in the TUI: ask, wait for the answer, and apply on Yes.
-
-        Returns:
-            True when the change was applied; False on Cancel, and on a
-            call from the main thread, which cannot wait.
-        """
-        # The current value from wherever the key sits: a section (serial,
-        # json_fmt) or the top level, as /cfg found it.
-        slot = cfg_slot(self.cfg, key)
-        old_val = slot[0][slot[1]] if slot is not None else None
-        if not self._ask(CfgConfirm(key, old_val, new_val)):
-            return False
-        self.repl._apply_cfg(key, new_val)
-        return True
 
     def _on_script_picked(self, result: tuple | None) -> None:
         """Delegate to ``pickers.on_script_picked``."""

@@ -3240,15 +3240,15 @@ class TestCfgHandlerValues:
         assert result.value == "COM4", "/cfg <key> returns the current value as a string"
 
     def test_cfg_set_returns_new_value(self, repl_env):
-        """/cfg.auto sets without confirmation and returns the new value as a string."""
+        """/cfg sets without confirmation and returns the new value as a string."""
         # Arrange
         engine, _, _, _ = repl_env
 
-        # Act -- /cfg.auto changes without confirmation
-        result = engine.dispatch("cfg.auto baud_rate 9600")
+        # Act -- /cfg changes without confirmation
+        result = engine.dispatch("cfg baud_rate 9600")
 
         # Assert
-        assert result.value == 9600, "/cfg.auto returns the new value (mirrors echo/verbose)"
+        assert result.value == 9600, "/cfg returns the new value (mirrors echo/verbose)"
 
     def test_cfg_set_unchanged_returns_existing_value(self, repl_env):
         """Setting a key to its current value still returns that value, not None."""

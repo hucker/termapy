@@ -117,14 +117,14 @@ class TestMcpCatalog:
         # Arrange / Act
         eng, _ctx, _output = env
         parsed = json.loads(eng.dispatch("mcp.catalog").value)
-        entry = next(command for command in parsed["commands"] if command["name"] == "/cfg.auto")
+        entry = next(command for command in parsed["commands"] if command["name"] == "/delay")
         params = {param["name"]: param for param in entry["params"]}
 
         # Assert
-        assert (params["key"]["positional"], params["key"]["rest"]) == (True, False), (
+        assert (params["duration"]["positional"], params["duration"]["rest"]) == (True, False), (
             "given by place"
         )
-        assert (params["value"]["positional"], params["value"]["rest"]) == (True, True), (
+        assert (params["msg"]["positional"], params["msg"]["rest"]) == (False, True), (
             "runs to end of line"
         )
 

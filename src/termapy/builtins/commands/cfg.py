@@ -86,20 +86,19 @@ def _cfg_answer(val: object) -> CmdResult:
 
 
 def _handler(ctx: PluginContext, args: str) -> CmdResult:
-    """Show a single key, or set a key with confirmation.
+    """Show a single key, or set it for this session.
 
     Bare never arrives (the picker or ``/cfg.list`` runs).  With a key
-    only, prints that key's current value.  With key and value, validates the
-    type against the existing value, then asks the frontend to confirm
-    and answers after it does (Cancel fails), or applies directly where
-    the frontend has no dialog.  Every answer carries the key's value as
-    ``data``, with its JSON type.
+    only, prints that key's current value.  With key and value, validates
+    the type against the existing value and applies it for the session,
+    in every frontend alike; ``/cfg.save`` keeps it.  Every answer carries
+    the key's value as ``data``, with its JSON type.
 
     Args:
         ctx: Plugin context for config access and output.
         args: Optional ``"key"`` or ``"key value"`` string.
     """
-    # Hand-rolled (not declarative params, unlike the /cfg.auto sibling): this
+    # Hand-rolled (not declarative params): this
     # is a variable-arity mode dispatch -- bare /cfg opens the picker, `/cfg key`
     # queries, `/cfg key value` sets -- which params' fixed synopsis can't
     # express (see CLAUDE.md "Declarative Command Parameters").  /cfg.load is
@@ -120,22 +119,16 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         val = container[leaf]
         ctx.io.result(cfg_value_text(val))
         return _cfg_answer(val)
-    # /cfg key value - validate and delegate for confirmation
+    # /cfg key value - validate and apply for the session
     try:
         new_val = _typed_value(ctx, container, leaf, parts[1])
     except ValueError as e:
         return CmdResult.fail(msg=str(e))
-    old_val = container[leaf]
-    # The TUI asks first and answers only after the dialog does, so a
-    # script line after /cfg sees the outcome (review 2026-10-15, D7).
+    # A session change, as every setter's is: the * and the leave
+    # question guard it, and /cfg.save keeps it (review 2026-11-19, M5).
     # The answer is the value, set or already so (registry
     # setting-reply-is-value).
-    if new_val == old_val:
-        pass
-    elif ctx.internal.confirm_save_cfg:
-        if not ctx.internal.confirm_save_cfg(key, new_val):
-            return CmdResult.fail(msg="Canceled.")
-    else:
+    if new_val != container[leaf]:
         ctx.internal.apply_cfg(key, new_val)
     ctx.io.result(cfg_value_text(new_val))
     return _cfg_answer(new_val)
@@ -177,28 +170,31 @@ def _unknown_key(cfg: Mapping, key: str) -> CmdResult:
     return CmdResult.fail(msg=f"Unknown config key: {key}{did_you_mean(closest(key, keys))}")
 
 
-# ── /cfg.auto handler ─────────────────────────────────────────────────────────
+# ── /cfg.save handler ─────────────────────────────────────────────────────────
 
 
-def _handler_auto(ctx: PluginContext, args: str) -> CmdResult:
-    """Set a config key immediately without confirmation dialog.
+def _handler_save(ctx: PluginContext, args: str) -> CmdResult:
+    """Write the settings this session changed into the config file: the one way to keep a setting.
 
-    Parameters arrive via ``ctx.arg`` (see ``params``); ``value`` is a
-    positional-rest so a config value may contain spaces.
+    The same save as the TUI's unsaved question's Save
+    (``ctx.internal.save_session``): only the changed keys are written,
+    over the file as written.  The value is how many were saved; ``data``
+    names each with its value.
     """
-    key = ctx.arg("key")
-    value_str = ctx.arg("value")
-    slot = cfg_slot(ctx.cfg, key)
-    if slot is None:
-        return _unknown_key(ctx.cfg, key)
-    container, leaf = slot
+    if args.strip():
+        raise UsageError()
     try:
-        new_val = _typed_value(ctx, container, leaf, value_str)
-    except ValueError as e:
-        return CmdResult.fail(msg=str(e))
-    ctx.internal.apply_cfg(key, new_val)
-    ctx.io.result(cfg_value_text(new_val))
-    return _cfg_answer(new_val)
+        saved = ctx.internal.save_session()
+    except (OSError, ValueError) as e:
+        return CmdResult.fail(msg=f"Save error: {e}")
+    if not saved:
+        ctx.io.result("Nothing to save.")
+        return CmdResult.ok(value=0, data=[])
+    ctx.io.result(ctx.internal.describe_saved(saved), "green")
+    return CmdResult.ok(
+        value=len(saved),
+        data=[{"key": change.path, "value": change.session} for change in saved],
+    )
 
 
 # ── /cfg.list handler ─────────────────────────────────────────────────────────
@@ -762,11 +758,10 @@ The value is read as the key's type: a number, text, a boolean word
 (parity, json_fmt.indent, custom_buttons_side, ...).
 A key inside a section is named by its path (json_fmt.indent) or,
 when no other section has one, its own name (baud_rate).
-A change lasts for this session; to keep it, set it in the
-config editor.
+A change lasts for this session; {prefix}cfg.save keeps it in the
+config file.
 
-Use {prefix}cfg.dump to print every key/value pair as JSON.
-Use {prefix}cfg.auto to set values without confirmation (for scripts)."""
+Use {prefix}cfg.dump to print every key/value pair as JSON."""
 
 
 def _cfg_long_help(ctx: PluginContext) -> str:
@@ -791,21 +786,6 @@ COMMAND = Command(
     bare_sub="list",
     help_list="list",
     sub_commands={
-        "auto": Command(
-            help="Set immediately (no confirmation).",
-            handler=_handler_auto,
-            params=[
-                ParamSpec("key", "str", positional=True, required=True, help="config key to set"),
-                ParamSpec(
-                    "value",
-                    "str",
-                    positional=True,
-                    rest=True,
-                    required=True,
-                    help="new value (may contain spaces)",
-                ),
-            ],
-        ),
         "list": Command(
             help="List all config files.",
             handler=_handler_list,
@@ -875,6 +855,20 @@ COMMAND = Command(
             handler=_handler_delete,
             needs=CapabilitySet.INTERACTIVE,
             safety="destructive",
+        ),
+        "save": Command(
+            args="",
+            help="Write the settings this session changed into the config file.",
+            long_help=(
+                "A setter ({prefix}term.echo on), a setting button or {prefix}cfg <key> "
+                "<value> changes a setting for this session; {prefix}cfg.save writes "
+                "every one changed into the config file, and only those, over the "
+                "file as written.  The setting buttons' * marks what it would "
+                "write.  In the TUI, leaving with unsaved settings asks first; its "
+                "Save does the same."
+            ),
+            handler=_handler_save,
+            needs=CapabilitySet.CONFIG_LOADED,
         ),
         "rename": Command(
             args="<name> <new>",

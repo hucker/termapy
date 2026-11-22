@@ -555,10 +555,10 @@ class TestCfgMovesTheFlag:
             ("output_level", "quiet", "quiet"),
         ],
     )
-    def test_cfg_auto_moves_the_flag(self, cli, key, text, expected):
-        """/cfg.auto changes the session flag, not only the config dict."""
+    def test_cfg_moves_the_flag(self, cli, key, text, expected):
+        """/cfg changes the session flag, not only the config dict."""
         # Act
-        result = cli.repl.dispatch(f"cfg.auto {key} {text}", report=False)
+        result = cli.repl.dispatch(f"cfg {key} {text}", report=False)
 
         # Assert
         assert result.success, result.error
@@ -566,11 +566,11 @@ class TestCfgMovesTheFlag:
         assert cli.repl._cfg_data[key] == expected, "and the config agrees"
 
     @pytest.mark.rule("cfg-keys-start-flags")
-    def test_the_setter_answers_what_cfg_auto_set(self, cli):
-        """/term.echo reports the value /cfg.auto gave the key, twice over."""
+    def test_the_setter_answers_what_cfg_set(self, cli):
+        """/term.echo reports the value /cfg gave the key, twice over."""
         for text, expected in (("on", True), ("off", False)):
             # Act
-            cli.repl.dispatch(f"cfg.auto echo {text}", report=False)
+            cli.repl.dispatch(f"cfg echo {text}", report=False)
 
             # Assert
             assert cli.repl.dispatch("term.echo", report=False).value is expected

@@ -150,22 +150,22 @@ class TestMcpHostSandboxed:
             "fs handle snapshot reflects the sandbox"
         )
 
-    def test_cfg_auto_log_file_absolute_refused(self, tmp_path):
-        """An absolute log_file via cfg.auto is refused -- it was the arbitrary-read setup step."""
+    def test_cfg_log_file_absolute_refused(self, tmp_path):
+        """An absolute log_file via /cfg is refused -- it was the arbitrary-read setup step."""
         # Arrange -- the CRITICAL arbitrary-read setup step.
         host = _mcp_host(tmp_path)
         # Act
-        result = host.repl.dispatch(rf"cfg.auto log_file {tmp_path}\steal.txt")
+        result = host.repl.dispatch(rf"cfg log_file {tmp_path}\steal.txt")
         # Assert
         assert not result.success, "path-valued cfg key refused outside sandbox"
         assert "sandbox" in result.error, "refusal cites the sandbox"
 
     @pytest.mark.parametrize(
         "line",
-        ["cfg log_file", "cfg profile_path", "cfg file_xfer_root", "cfg.auto file_xfer_root"],
+        ["cfg log_file", "cfg profile_path", "cfg file_xfer_root"],
     )
     def test_every_path_key_is_held_to_the_sandbox_on_both_setters(self, tmp_path, line):
-        """A key of kind path is refused outside the sandbox through /cfg as through /cfg.auto: /cfg used to skip the check."""
+        """A key of kind path is refused outside the sandbox through /cfg."""
         # Arrange
         host = _mcp_host(tmp_path)
         # Act
@@ -174,12 +174,12 @@ class TestMcpHostSandboxed:
         assert not result.success, "path-valued cfg key refused outside sandbox"
         assert "sandbox" in result.error, "refusal cites the sandbox"
 
-    def test_cfg_auto_nonpath_key_still_works(self, tmp_path):
-        """Only path-valued cfg keys are gated; an ordinary cfg.auto edit still succeeds."""
+    def test_cfg_nonpath_key_still_works(self, tmp_path):
+        """Only path-valued cfg keys are gated; an ordinary /cfg edit still succeeds."""
         # Arrange -- a normal cfg edit must NOT be gated.
         host = _mcp_host(tmp_path)
         # Act
-        result = host.repl.dispatch("cfg.auto default_response_timeout_ms 5000")
+        result = host.repl.dispatch("cfg default_response_timeout_ms 5000")
         # Assert
         assert result.success, "non-path cfg keys are unaffected by the sandbox"
 
@@ -309,10 +309,10 @@ class TestMcpHostOptedIn:
             "fs handle snapshot reflects the opt-in"
         )
 
-    def test_optin_allows_absolute_cfg_auto(self, unconfined_host, tmp_path):
+    def test_optin_allows_absolute_cfg_path(self, unconfined_host, tmp_path):
         """The opt-in restores the absolute log_file edit that a sandboxed host refuses."""
         # Act -- the same call that was refused under the sandbox.
-        result = unconfined_host.repl.dispatch(rf"cfg.auto log_file {tmp_path}\ok.log")
+        result = unconfined_host.repl.dispatch(rf"cfg log_file {tmp_path}\ok.log")
         # Assert
         assert result.success, "opt-in restores host-wide path-valued cfg keys"
 

@@ -63,20 +63,21 @@ $(BAUD) <- /port.baud_rate
 /cfg cmd_prefix
 /cfg quiet_start
 
-# ── REPL: config auto-set (no confirmation dialog) ──────────────────────────
-/print === section: config auto-set ===
-/cfg.auto echo true
+# ── REPL: config set (for the session; /cfg.save keeps it) ─────────────────
+/print === section: config set ===
+/cfg.save
+/cfg echo true
 /cfg echo
-/cfg.auto echo false
+/cfg echo false
 /cfg echo
 /term.echo
-/cfg.auto echo true
+/cfg echo true
 # A key that starts a session flag moves it, and the setter reports it.
-/cfg.auto output_level quiet
+/cfg output_level quiet
 /term.output
-/cfg.auto output_level normal
+/cfg output_level normal
 /term.output
-/cfg.auto output_level loud
+/cfg output_level loud
 /help output_level
 # The words commands share have pages of their own.
 /help cycle
@@ -89,15 +90,15 @@ $(BAUD) <- /port.baud_rate
 # A page shows what is about the command; --verbose shows the rest.
 /help term.hex
 /help term.hex --verbose
-/cfg.auto custom_buttons_side Right
+/cfg custom_buttons_side Right
 /cfg custom_buttons_side
-/cfg.auto custom_buttons_side up
-/cfg.auto custom_buttons_side bottom
+/cfg custom_buttons_side up
+/cfg custom_buttons_side bottom
 # One validator: what a load warns about, /cfg refuses (registry cfg-schema-one-table)
-/cfg.auto max_lines 0
-/cfg.auto encoding nope
-/cfg.auto eol_rx nope
-/cfg.auto config_version 99
+/cfg max_lines 0
+/cfg encoding nope
+/cfg eol_rx nope
+/cfg config_version 99
 
 # ── REPL: config dump (full JSON) ───────────────────────────────────────────
 /print === section: config dump ===

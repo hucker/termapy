@@ -42,11 +42,11 @@
 /print --- cfg ---
 /var.capture v_cfg_get /cfg baud_rate
 /print cfg.get=$(v_cfg_get)
-/var.capture v_cfg_auto /cfg.auto baud_rate 9600
-/print cfg.auto=$(v_cfg_auto)
+/var.capture v_cfg_set /cfg baud_rate 9600
+/print cfg.set=$(v_cfg_set)
 /var.capture v_cfg_get2 /cfg baud_rate
 /print cfg.get2=$(v_cfg_get2)
-/cfg.auto baud_rate 115200
+/cfg baud_rate 115200
 
 /print --- port ---
 /var.capture v_port_set /port COM99

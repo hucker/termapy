@@ -76,7 +76,7 @@ setting and loads a config runs unattended. What you asked for at launch
 
 **One check.** A value is judged the same way wherever it comes from: a load
 warns about a bad one, the editor shows it red and its Save refuses, and `/cfg`
-and `/cfg.auto` refuse it (`Invalid max_lines: 0 (must be a positive integer)`).
+refuses it (`Invalid max_lines: 0 (must be a positive integer)`).
 `config_version` is termapy's to write, so `/cfg` refuses that too. A non-standard
 baud rate is flagged everywhere and allowed, since some hardware needs one.
 

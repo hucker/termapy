@@ -211,7 +211,7 @@ def _handler_traffic(ctx: PluginContext, args: str) -> CmdResult:
     return _bool_setting(ctx, args, "traffic")
 
 
-# ── Session cfg toggles (apply_cfg; only the editor's Save persists) ─────────
+# ── Session cfg toggles (apply_cfg; /cfg.save or the editor's Save keeps) ────
 
 
 def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
@@ -286,8 +286,8 @@ def _handler_eol(ctx: PluginContext, args: str) -> CmdResult:
     Bare invocation reports the current ending as a token; an argument
     (``cr`` / ``lf`` / ``crlf`` / ``none``) sets it for the session via
     ``apply_cfg`` -- the same in-memory path the other /term.* toggles
-    use, and the same session-only change ``/cfg eol`` makes.  Only the
-    config editor's Save (``/cfg.edit``) persists it.
+    use, and the same session-only change ``/cfg eol`` makes.  ``/cfg.save``
+    or the config editor's Save (``/cfg.edit``) keeps it.
     """
     arg = args.strip().lower()
     if not arg:

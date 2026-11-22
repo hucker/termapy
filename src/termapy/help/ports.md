@@ -179,7 +179,7 @@ command you did not type, such as `Unknown command: AT+VE`. Pace what
 termapy sends, as TeraTerm's transmit delay does:
 
 ```text
-/cfg.auto tx_char_delay_ms 1
+/cfg tx_char_delay_ms 1
 ```
 
 `tx_char_delay_ms` hands each character of a line to the driver on its
@@ -306,8 +306,8 @@ The same stream crossed the wire at the same rate either way, so what
 changed is how the adapter's driver handled the writes, not what the
 receiver could take.  A device sending into termapy writes its own way;
 whether a receive-only link loses anything at these rates is not measured
-here.  `tx_chunking` off (`/cfg tx_chunking off` for the session,
-`/cfg.auto` to keep it) sends each write whole, as before.
+here.  `tx_chunking` off (`/cfg tx_chunking off` for the session, then
+`/cfg.save` to keep it) sends each write whole, as before.
 
 **How it was measured.**  A USB adapter with TX jumpered to RX, so every
 byte sent comes back, and four layers each on a fresh connection: bare

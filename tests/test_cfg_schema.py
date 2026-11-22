@@ -171,7 +171,7 @@ class TestTheTable:
 class TestOneAnswer:
     @pytest.mark.parametrize(("key", "value", "typed"), BAD_VALUES)
     def test_the_same_bad_value_is_warned_red_and_refused(self, tmp_path, cli, key, value, typed):
-        """The file warns, the editor shows red and /cfg.auto refuses, all with the validator's one reason."""
+        """The file warns, the editor shows red and /cfg refuses, all with the validator's one reason."""
         # Arrange
         record = cfg_key(key)
         assert record is not None, f"{key} has a row"
@@ -184,13 +184,13 @@ class TestOneAnswer:
         # Act
         warnings = validate_config(in_file)
         status, error = _editor_answer(tmp_path, leaf, json.dumps(value))
-        result = cli.repl.dispatch(f"cfg.auto {leaf} {typed}")
+        result = cli.repl.dispatch(f"cfg {leaf} {typed}")
 
         # Assert
         assert any(warning.startswith(f"{record.path}: ") for warning in warnings), warnings
         assert status.startswith("[red]"), "red in the editor"
         assert finding.reason.split(":")[0] in error, "the editor gives the same reason"
-        assert not result.success, "/cfg.auto refuses it"
+        assert not result.success, "/cfg refuses it"
         assert f"Invalid {leaf}: {typed} (" in result.error
         assert cfg_value(cli.repl.cfg, record.path) == before, "the value is unchanged"
 
@@ -207,9 +207,9 @@ class TestOneAnswer:
         # Act
         warnings = validate_config({"serial": {"baud_rate": 250000}})
         status, _ = _editor_answer(tmp_path, "baud_rate", "250000")
-        refused = cli.repl.dispatch("cfg.auto baud_rate 250000")
-        cli.repl.dispatch("cfg.auto custom_baud true")
-        taken = cli.repl.dispatch("cfg.auto baud_rate 250000")
+        refused = cli.repl.dispatch("cfg baud_rate 250000")
+        cli.repl.dispatch("cfg custom_baud true")
+        taken = cli.repl.dispatch("cfg baud_rate 250000")
 
         # Assert
         expected = "not a standard rate: set custom_baud to true to allow it"
@@ -221,9 +221,9 @@ class TestOneAnswer:
 
 
 class TestSetting:
-    @pytest.mark.parametrize("line", ["cfg.auto config_version 99", "cfg config_version 99"])
+    @pytest.mark.parametrize("line", ["cfg config_version 99"])
     def test_a_managed_key_is_refused(self, cli, line):
-        """config_version is termapy's to write: /cfg and /cfg.auto refuse it by name and leave it."""
+        """config_version is termapy's to write: /cfg refuses it by name and leaves it."""
         before = cli.repl.cfg["config_version"]
         result = cli.repl.dispatch(line)
         assert result.error == "Managed key: config_version (termapy writes it)"
@@ -236,14 +236,14 @@ class TestSetting:
 
     def test_a_numeric_choice_takes_a_fraction_whatever_the_key_holds(self, cli):
         """/cfg stop_bits 1.5 used to fail: the type came from the 1 the key held, so 1.5 was not an int."""
-        result = cli.repl.dispatch("cfg.auto stop_bits 1.5")
+        result = cli.repl.dispatch("cfg stop_bits 1.5")
         assert result.success, result.error
         assert cli.repl.cfg["serial"]["stop_bits"] == 1.5
 
     def test_the_type_comes_from_the_table_not_the_file(self, cli):
         """A key the file holds as the wrong type can be put right with /cfg: its type is the row's."""
         cli.repl._cfg_data["max_lines"] = "lots"
-        result = cli.repl.dispatch("cfg.auto max_lines 500")
+        result = cli.repl.dispatch("cfg max_lines 500")
         assert result.success, result.error
         assert cli.repl.cfg["max_lines"] == 500
 
@@ -251,7 +251,7 @@ class TestSetting:
     def test_a_container_cannot_be_set_to_text(self, cli, key):
         """A list or section stays what it is: typed text used to replace it, and break what reads it."""
         before = cli.repl.cfg[key]
-        result = cli.repl.dispatch(f"cfg.auto {key} oops")
+        result = cli.repl.dispatch(f"cfg {key} oops")
         assert not result.success, "text is not a list or a section"
         assert cli.repl.cfg[key] == before
 
@@ -259,14 +259,14 @@ class TestSetting:
     def test_a_line_ending_typed_as_text_is_pointed_at_its_setter(self, cli, typed):
         """/cfg takes text as typed, so a backslash-r is two characters: refused, naming the command that sets it by name."""
         before = cli.repl.cfg["eol"]
-        result = cli.repl.dispatch(f"cfg.auto eol {typed}")
+        result = cli.repl.dispatch(f"cfg eol {typed}")
         assert not result.success, "two characters would go out after every line"
         assert "/term.eol sets it by name" in result.error
         assert cli.repl.cfg["eol"] == before
 
     def test_a_good_value_still_applies(self, cli):
         """The check refuses only what is wrong: an ordinary edit goes through."""
-        result = cli.repl.dispatch("cfg.auto max_lines 500")
+        result = cli.repl.dispatch("cfg max_lines 500")
         assert (result.success, cli.repl.cfg["max_lines"]) == (True, 500)
 
     @pytest.mark.rule("setting-reply-is-value")
@@ -276,7 +276,7 @@ class TestSetting:
         capsys.readouterr()
 
         # Act
-        cli.repl.dispatch("cfg.auto echo off")
+        cli.repl.dispatch("cfg echo off")
         changed = capsys.readouterr().out
         query = cli.repl.dispatch("cfg echo")
 

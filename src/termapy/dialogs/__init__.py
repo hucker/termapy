@@ -22,7 +22,6 @@ as before the split.
 
 from __future__ import annotations
 
-from termapy.dialogs.cfg_confirm import CfgConfirm
 from termapy.dialogs.config_editor import ConfigEditor
 from termapy.dialogs.config_picker import ConfigPicker
 from termapy.dialogs.confirm_dialog import ConfirmDialog
@@ -38,7 +37,6 @@ from termapy.dialogs.set_var_dialog import SetVarDialog
 from termapy.dialogs.update_available import UpdateAvailableDialog
 
 __all__ = [
-    "CfgConfirm",
     "ConfigEditor",
     "ConfigPicker",
     "ConfirmDialog",

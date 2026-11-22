@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 218: 203 registry rows (guarantees 168, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 214. Pinned by none: 4.
+Ids: 219: 204 registry rows (guarantees 169, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 215. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -619,6 +619,11 @@ Ids: 218: 203 registry rows (guarantees 168, assumptions 35), 15 spec sections i
 ### `network-port-named-exactly` (guarantee, data)
 
 - `test_port_allow.py`: `TestNetworkPorts` (10 functions)
+
+### `new-config-one-rule` (guarantee, contract)
+
+- `test_config_create.py`: `TestCreateConfig.test_a_new_config_connects_when_it_names_a_port` **guard**, `TestCreateConfig.test_a_new_config_starts_with_the_starter_buttons` **guard**
+- `test_pickers.py`: `test_the_dialog_makes_the_config_cfg_new_makes` **guard**
 
 ### `no-crash-to-trace` (assumption, requirement)
 

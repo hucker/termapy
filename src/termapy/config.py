@@ -398,6 +398,19 @@ def new_cfg_root() -> Path:
     return Path(_LOCAL_DIR_NAME)
 
 
+# The setting buttons every new config starts with, by command as the
+# defaults spell them, and where they go: the line ending, echo and color a
+# newcomer reaches for first, beside the output, as VS Code's Serial Monitor
+# offers them (Chuck 2026-11-18).  The defaults ship them off, so a config
+# written before keeps the buttons it had.
+STARTER_BUTTONS = (
+    "{prefix}term.eol cycle",
+    "{prefix}term.echo toggle",
+    "{prefix}term.color toggle",
+)
+STARTER_BUTTONS_SIDE = "right"
+
+
 def new_config(
     name: str,
     *,
@@ -407,14 +420,17 @@ def new_config(
     mode: tuple[str, int, float] | None = None,
     eol: str | None = None,
     echo: bool | None = None,
-    auto_connect: bool = False,
 ) -> dict:
     """A fresh config for ``name``: the defaults, titled ``name``, with these settings.
 
     The cfg half of making a config; ``create_config`` writes it.  Every
-    creator builds through here -- the QuickSetup wizard and ``termapy
-    --new`` -- so a new config is the same whichever frontend made it.  A
-    setting left ``None`` keeps its default.
+    creator builds through here -- the New Config dialog and its Advanced,
+    ``/cfg.new``, ``termapy --new``, a quick open and a board starter --
+    so a new config is the same whichever made it (registry
+    ``new-config-one-rule``): it connects when it loads if it names a
+    port, and it starts with the ``STARTER_BUTTONS`` on in the
+    ``STARTER_BUTTONS_SIDE`` column.  A setting left ``None`` keeps its
+    default.
 
     Args:
         name: The config name, which is also its title.
@@ -426,7 +442,6 @@ def new_config(
             returns it.
         eol: Line ending sent after each command.
         echo: Echo sent commands locally.
-        auto_connect: Open the port when the config loads.
 
     Returns:
         The new cfg dict.
@@ -441,7 +456,11 @@ def new_config(
         cfg, port=port, baud=baud, custom_baud=custom_baud, mode=mode, eol=eol, echo=echo
     )
     cfg["serial"]["custom_baud"] = custom_baud
-    cfg["auto_connect"] = auto_connect
+    cfg["auto_connect"] = bool(port)
+    for button in cfg["custom_buttons"]:
+        if button["command"] in STARTER_BUTTONS:
+            button["enabled"] = True
+    cfg["custom_buttons_side"] = STARTER_BUTTONS_SIDE
     return cfg
 
 
@@ -527,7 +546,6 @@ def new_config_from_args(name: str, settings: str, *, source: "PortSource | None
         mode=mode,
         eol=line_ending,
         echo=echo,
-        auto_connect=True,
     )
 
 
@@ -565,21 +583,13 @@ def is_quick_config(path: str | Path) -> bool:
     return Path(path).stem.startswith(QUICK_PREFIX)
 
 
-# The setting buttons a quick open turns on, by command as the defaults spell
-# them, and where they go: the line ending, echo and color a newcomer reaches
-# for first, beside the output, as VS Code's Serial Monitor offers them
-# (Chuck 2026-11-18).  A new config ships them off.
-QUICK_BUTTONS = ("{prefix}term.eol cycle", "{prefix}term.echo toggle", "{prefix}term.color toggle")
-QUICK_BUTTONS_SIDE = "right"
-
-
 def quick_config(port: str, settings: str) -> tuple[Path, str]:
     """The config ``termapy PORT [SETTING ...]`` opens, and what became of it: ``Created``, ``Updated`` or ``Using``.
 
     One config per port (``quick_config_path``), so sessions on two ports
     share nothing.  The first open creates it through ``new_config`` and
-    ``create_config``, connecting when it loads, with the ``QUICK_BUTTONS``
-    turned on in the ``QUICK_BUTTONS_SIDE`` column and the Proto button off
+    ``create_config``, a new config like any other (registry
+    ``new-config-one-rule``) with one difference: the Proto button is off
     (a session is a terminal; the rest waits until asked for).  A later open with
     settings lays them over it and saves it, so they are what the port
     opens with next time; one without settings leaves it as it is.  The
@@ -621,12 +631,7 @@ def quick_config(port: str, settings: str) -> tuple[Path, str]:
             mode=mode,
             eol=eol,
             echo=echo,
-            auto_connect=True,
         )
-        for button in cfg["custom_buttons"]:
-            if button["command"] in QUICK_BUTTONS:
-                button["enabled"] = True
-        cfg["custom_buttons_side"] = QUICK_BUTTONS_SIDE
         # A session is a terminal: protocol testing waits until asked for.
         cfg["proto_enabled"] = False
         return create_config(path, cfg), "Created"

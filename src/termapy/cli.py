@@ -854,7 +854,8 @@ def _run_cli_mode(args: argparse.Namespace) -> str | None:
     if args.demo:
         from termapy.config import setup_demo_config
 
-        config_path = str(setup_demo_config(cfg_dir(), force=True))
+        # The demo as the user left it, as /demo keeps it; /demo.force resets it.
+        config_path = str(setup_demo_config(cfg_dir()))
     elif run_script and not args.config:
         # Infer config from the .run file's location
         config_path = infer_config_from_run_file(run_script)

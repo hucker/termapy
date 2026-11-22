@@ -4509,7 +4509,8 @@ def _run_tui_mode(args: argparse.Namespace) -> str | None:
     if args.demo:
         from termapy.config import setup_demo_config
 
-        config_path = setup_demo_config(cfg_dir(), force=True)
+        # The demo as the user left it, as /demo keeps it; /demo.force resets it.
+        config_path = setup_demo_config(cfg_dir())
         try:
             cfg = load_config(str(config_path))
         except CONFIG_LOAD_ERRORS as e:

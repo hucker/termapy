@@ -76,6 +76,24 @@ def test_quick_setup_with_icon_dispatches_cfg_icon(_quick_setup_env):
     assert app.config_results, "cfg was loaded before dispatch"
 
 
+@pytest.mark.rule("new-config-one-rule")
+def test_the_dialog_makes_the_config_cfg_new_makes(_quick_setup_env):
+    """The New Config dialog's Connect writes what /cfg.new writes for the same port: it reconnects, with the starter buttons."""
+    from termapy.config import new_config_from_args
+
+    # Arrange
+    app = _StubApp()
+
+    # Act
+    pickers.on_quick_setup(app, ("connect", "bench", "COM9", 9600, False, False))  # ty: ignore[invalid-argument-type] -- a stub stands in for the app
+    written = json.loads((_quick_setup_env / "bench" / "bench.cfg").read_text(encoding="utf-8"))
+    expected = new_config_from_args("bench", "COM9 9600", source=lambda: [])
+
+    # Assert
+    assert written["auto_connect"] is True, "the next start reconnects, as Connect did"
+    assert written == json.loads(json.dumps(expected)), "the dialog and /cfg.new make one config"
+
+
 def test_quick_setup_without_icon_skips_dispatch(_quick_setup_env):
     """With the icon box left unticked, finishing the wizard dispatches no /cfg.icon."""
     # Arrange -- checkbox left off; tuple ends in add_icon=False.

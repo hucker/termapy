@@ -2,13 +2,14 @@
 
 Add custom buttons to the toolbar by configuring `custom_buttons`
 in your JSON config. Each button can send serial commands, run REPL commands,
-or execute scripts. A new config has five: **Info**, which runs `/cfg.info`, turned
-on, and one for each setting you change most, turned off until you enable it, each
-showing its value: **Baud** (`/port.baud_rate cycle`), **EOL** (`/term.eol cycle`),
-**Echo** (`/term.echo toggle`) and **Color** (`/term.color toggle`). A port opened by
-name (`termapy COM3`, see [Quick open](getting-started.md#quick-open-just-a-port))
-gets a config with EOL, Echo and Color turned on, in a column on the right of the
-output. Edit them, enable them, or add more entries.
+or execute scripts. The defaults have five: **Info**, which runs `/cfg.info`, and
+one for each setting you change most, each showing its value: **Baud**
+(`/port.baud_rate cycle`), **EOL** (`/term.eol cycle`), **Echo** (`/term.echo
+toggle`) and **Color** (`/term.color toggle`). A config termapy creates, from the
+New Config dialog, `/cfg.new`, `--new`, a board starter or a
+[quick open](getting-started.md#quick-open-just-a-port), turns on Info, EOL, Echo
+and Color, in a column on the right of the output, and leaves Baud off until you
+enable it. Edit them, enable them, or add more entries.
 
 Each button object has these fields:
 

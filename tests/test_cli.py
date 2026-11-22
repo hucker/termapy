@@ -2526,6 +2526,33 @@ class TestWatchPortWidth:
         assert actual == 50, "the chip column keeps the width it grew to"
 
 
+class TestDemoFlag:
+    """``termapy --demo`` keeps the demo as the user left it, as ``/demo`` and ``termapy demo`` do."""
+
+    def test_demo_keeps_a_change_to_the_demo_config(self, tmp_path):
+        """A title saved in the demo config is still there at the next --demo; only /demo.force resets it."""
+        # Arrange -- the first --demo writes the demo, then the user changes it
+        cfg_root = tmp_path / "cfg"
+        cfg_root.mkdir()
+        first = TestNewFlag._run(
+            tmp_path, "--cli", "--demo", "-e", "/print hi", env_cfg_dir=cfg_root
+        )
+        assert first.returncode == 0, f"the first --demo writes the demo: {first.stderr}"
+        demo_cfg = cfg_root / "demo" / "demo.cfg"
+        data = json.loads(demo_cfg.read_text(encoding="utf-8"))
+        data["title"] = "my bench"
+        demo_cfg.write_text(json.dumps(data), encoding="utf-8")
+
+        # Act
+        result = TestNewFlag._run(
+            tmp_path, "--cli", "--demo", "-e", "/cfg title", env_cfg_dir=cfg_root
+        )
+
+        # Assert
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == "my bench", "the second --demo kept the user's title"
+
+
 class TestNewFlag:
     """``termapy --new NAME PORT [SETTING ...]`` end to end, through main() in a subprocess.
 

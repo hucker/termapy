@@ -2319,3 +2319,25 @@ colors (keys blue, strings green), and the other two editors wore a third
 palette; Chuck asked why. **Where:** `highlighting.py`,
 `dialogs/_common.py`; the guard is `tests/test_architecture.py` (registry
 `editor-highlight-pygments`).
+
+## 2026-11-22 — No OS's reserved name is a name, and a quick config keeps its prefix
+
+Chuck asked whether `quick-<port>` follows prior art or is a termapy
+coinage. Tools that make a profile per thing name it for the thing and mark
+the generator in the data (Windows Terminal's `source`, NetworkManager's
+`id`), so a quick config named for its port alone, `COM3`, was weighed and
+dropped: `COM1` to `COM9` are Windows device names. Windows 10 refuses them
+as a folder or file name with any extension, and Windows 11, whose file
+APIs accept them, still refuses them in Explorer. The prefix is what makes
+the name legal, and the serial tool that names files after devices agrees:
+minicom's are `minirc.<device>`, a fixed prefix and the device. Decided:
+`quick-<port>` stays. Asked next whether a user may name a config `CON`,
+Chuck wanted one disallow list for every supported OS, case ignored, rather
+than a Windows rule (registry `names-portable`): a config travels in git,
+and a name made on Linux must check out on Windows. The list is the union
+of Microsoft's naming page and Python's `ntpath.isreserved`, which termapy
+cannot call while it supports Python 3.11. **Behavior changed:** `/cfg.new`,
+`--new`, the wizard, Save As, `/cfg.rename` and the data-file renames refuse
+those names; a config made before still opens. **Where:**
+`config.validate_file_stem`, `config.RESERVED_NAMES`,
+`config.RESERVED_CHARS`.

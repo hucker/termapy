@@ -305,12 +305,64 @@ def config_files(root: Path) -> list[Path]:
     return sorted(path for path in root.glob(CONFIG_GLOB) if is_config_file(path))
 
 
+#: Names no config or file may take on any OS termapy supports, case ignored
+#: and with or without an extension (``con.cfg`` is CON): Windows' device
+#: names, the union of Microsoft's "Naming Files, Paths, and Namespaces"
+#: and Python's ``ntpath.isreserved``.  A config travels in git, so a name
+#: one OS refuses is refused on all (registry ``names-portable``).  The set
+#: is the vendors', not termapy's, and changes only when theirs does.
+RESERVED_NAMES = frozenset(
+    {
+        "AUX",
+        "CON",
+        "CONIN$",
+        "CONOUT$",
+        "NUL",
+        "PRN",
+        "COM0",
+        "COM1",
+        "COM2",
+        "COM3",
+        "COM4",
+        "COM5",
+        "COM6",
+        "COM7",
+        "COM8",
+        "COM9",
+        "COM¹",
+        "COM²",
+        "COM³",
+        "LPT0",
+        "LPT1",
+        "LPT2",
+        "LPT3",
+        "LPT4",
+        "LPT5",
+        "LPT6",
+        "LPT7",
+        "LPT8",
+        "LPT9",
+        "LPT¹",
+        "LPT²",
+        "LPT³",
+    }
+)
+
+#: Characters no config or file name may hold, from the same two sources:
+#: Windows refuses each, and macOS's Finder shows ``:`` as a separator.
+#: The path separators and whitespace have their own messages.
+RESERVED_CHARS = '<>:"|?*'
+
+
 def validate_file_stem(name: str) -> str | None:
     """Why ``name`` cannot be a file or config name, or ``None`` if it can.
 
-    One rule for every rename: a bare name, no path separators (so it
-    cannot escape its folder), no whitespace (command arguments split on
-    it), nothing hidden.
+    One rule for every creation and rename: a bare name, no path
+    separators (so it cannot escape its folder), no whitespace (command
+    arguments split on it), nothing hidden, and nothing an OS termapy
+    supports refuses (``RESERVED_NAMES``, ``RESERVED_CHARS``, a trailing
+    dot), so a config made anywhere checks out
+    everywhere.  A load never asks, so a config made before still opens.
     """
     if not name:
         return "Name is required"
@@ -322,6 +374,13 @@ def validate_file_stem(name: str) -> str | None:
         return f"Name may not start with a dot: {name}"
     if name in (".", ".."):
         return f"Invalid name: {name}"
+    if name.endswith("."):
+        return f"Name may not end with a dot: {name}"
+    for char in name:
+        if char in RESERVED_CHARS:
+            return f"Name may not contain '{char}': {name}"
+    if name.partition(".")[0].upper() in RESERVED_NAMES:
+        return f"Name is reserved, a device name on Windows: {name}"
     return None
 
 

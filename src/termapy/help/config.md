@@ -24,6 +24,14 @@ a quick-setup dialog where you pick a name, a serial port, and a baud
 rate.  Hit **Connect** to save and connect, or **Advanced** to drop into
 the full JSON editor for fine-grained control.
 
+A config's name is its folder's and its file's, and a config travels in
+git, so termapy refuses a name any OS it supports cannot hold, on every
+OS: Windows' device names in any case and with any extension (`CON`,
+`NUL`, `AUX`, `PRN`, `COM0` to `COM9`, `LPT0` to `LPT9`), the characters
+`< > : " | ? *`, and a name ending in a dot.  This holds for a rename
+too, and for a file renamed in a data folder.  A config made before
+still opens.
+
 ![New config quick-setup dialog](img/doc_30_new_cfg.png)
 
 ## JSON config file

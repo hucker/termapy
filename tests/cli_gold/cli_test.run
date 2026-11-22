@@ -112,7 +112,9 @@ $(BAUD) <- /port.baud_rate
 /print === section: config new ===
 /cfg.new gold_new loop:// 9600 E71
 /cfg.new gold_bad 115200 8N1
+/cfg.new con loop://
 /cfg.new
+/cfg.rename gold_new NUL.old
 /cfg.rename gold_new gold_renamed
 /cfg.rename demo gold_other
 /cfg.delete demo

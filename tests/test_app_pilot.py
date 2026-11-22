@@ -2892,6 +2892,31 @@ class TestScreenshots:
 class TestPortBanners:
     """A quiet command's connection banner stays off the pane and in the session log."""
 
+    @pytest.mark.rule("connect-switches-ports")
+    @pytest.mark.sw_loopback
+    def test_a_named_port_switches_in_the_tui(self, app_factory):
+        """/port.connect loop:// beside an open DEMO closes DEMO, opens loop:// and shows both banners."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange
+                assert app._connect() is True, "DEMO port should connect"
+                await pilot.pause()
+
+                # Act
+                result = app._dispatch_single("/port.connect loop://")
+                await until(pilot, lambda: app.engine.open_device == "loop://")
+
+                # Assert
+                assert result.success is True, result.error
+                assert app.cfg["serial"]["port"] == "loop://", "the session cfg follows the switch"
+                text = app._get_screen_text()
+                assert "Disconnected: DEMO" in text and "Connected: loop://" in text, text
+
+        _run(scenario)
+
     def test_a_quiet_disconnect_is_logged_not_shown(self, app_factory):
         """/port.disconnect --quiet puts no banner in the pane; the session log still records it."""
 

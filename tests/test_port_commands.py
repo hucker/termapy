@@ -534,6 +534,49 @@ class TestConnect:
         assert "Duplicate baud rate" in result.error
         assert cli.cfg["serial"]["baud_rate"] == 115200, "nothing applied on a refused line"
 
+    @pytest.mark.rule("connect-switches-ports")
+    @pytest.mark.sw_loopback
+    def test_a_different_name_switches_ports(self, cli, capsys):
+        """/port.connect loop:// beside an open DEMO closes DEMO and opens loop://, banner and all."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/port.connect loop://")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert result.success, result.error
+        assert cli.engine.is_connected is True, "the switch ends connected"
+        assert cli.engine.open_device == "loop://", "to the port that was named"
+        assert cli.cfg["serial"]["port"] == "loop://", "the session cfg follows"
+        assert "Disconnected: DEMO" in out and "Connected: loop://" in out, out
+
+    @pytest.mark.rule("connect-switches-ports")
+    def test_the_open_ports_own_name_only_reapplies_settings(self, cli, capsys):
+        """/port.connect DEMO 9600 on an open DEMO applies the baud and closes nothing."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/port.connect demo 9600")
+        out = capsys.readouterr().out
+
+        # Assert
+        assert result.success, result.error
+        assert cli.cfg["serial"]["baud_rate"] == 9600, "the setting on the line is applied"
+        assert "Disconnected" not in out, "the open port was not closed for its own name"
+        assert cli.engine.is_connected is True
+
+    @pytest.mark.rule("connect-switches-ports")
+    def test_a_switch_to_a_port_that_will_not_open_fails_closed(self, cli):
+        """/port.connect DEMO_FAIL beside an open DEMO fails with the reason and leaves no port open."""
+        result = cli.repl.dispatch_full("/port.connect DEMO_FAIL")
+        assert result.success is False and result.error.startswith("Cannot open DEMO_FAIL"), (
+            result.error
+        )
+        assert cli.engine.is_connected is False, "the old port closed before the open was tried"
+
     @pytest.mark.rule("failure-reported-once")
     def test_a_port_that_does_not_open_fails_with_its_reason(self, cli, capsys):
         """An open that fails answers with why, in error and printed once.

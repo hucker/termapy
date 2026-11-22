@@ -362,6 +362,12 @@ class TerminalHost:
         success.  Subclasses override ``_on_connected()`` and
         ``_on_connect_failed()`` for UI updates.
 
+        A name that is not the open port's switches to it: the open port
+        closes first, so the banner, the title bar and the on-connect
+        commands follow the new one (registry ``connect-switches-ports``).
+        Found 2026-11-21: ``/port.connect COM4`` beside an open port did
+        nothing and said so only at verbose.
+
         Args:
             port: Port to set before opening; None keeps the cfg's.
             report: Show why an open failed on the status line.  False
@@ -369,8 +375,10 @@ class TerminalHost:
                 (``ctx.serial.connect``), so it is shown once.
         """
         if self.engine.is_connected:
-            self.status("Already connected", "yellow")
-            return False
+            if not port or self._names_open_port(port):
+                self.status("Already connected", "yellow")
+                return False
+            self._disconnect()
         if port:
             self.repl._cfg_data["serial"]["port"] = port
         if not self.engine.connect():
@@ -380,6 +388,14 @@ class TerminalHost:
             return False
         self._finish_connect()
         return True
+
+    def _names_open_port(self, port: str) -> bool:
+        """Whether ``port`` names the open port: the config's spec or the device it resolved to."""
+        from termapy.port_control import same_port
+
+        spec = self.cfg["serial"]["port"] or ""
+        actual = self.engine.open_device or ""
+        return same_port(port, spec) or same_port(port, actual)
 
     def _open_error(self) -> str:
         """Why the last open of the cfg's port failed, as the user reads it."""

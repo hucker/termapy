@@ -2925,6 +2925,33 @@ class TestWaitWords:
         _run(scenario)
 
 
+class TestTerminalTitle:
+    """The TUI titles its terminal from the session, and /term.title overrides it."""
+
+    @pytest.mark.rule("terminal-title-follows-the-session")
+    def test_the_tui_titles_its_terminal(self, app_factory):
+        """At start the title is the config's name; connected, the name with the port; /term.title bench replaces it for the session."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                fresh = app.terminal_title
+                assert app._connect() is True, "DEMO port should connect"
+                await pilot.pause()
+                connected = app.terminal_title
+
+                # Act
+                result = app._dispatch_single("/term.title bench")
+                await pilot.pause()
+
+                # Assert
+                assert fresh and connected == f"{fresh} DEMO 115200 8N1", (fresh, connected)
+                assert result.value == "bench" and app.terminal_title == "bench"
+
+        _run(scenario)
+
+
 class TestPortBanners:
     """A quiet command's connection banner stays off the pane and in the session log."""
 

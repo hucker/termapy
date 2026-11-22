@@ -451,6 +451,10 @@ MEM.R 0x1000 2 --json
 /term.hex
 /proto.hex
 /term.json_fmt
+/term.title
+/term.title bench-A
+/term.title
+/term.title auto
 /term.output
 /term.send_bare_enter
 /term.control_keys

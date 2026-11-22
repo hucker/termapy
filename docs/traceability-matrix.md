@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 216: 201 registry rows (guarantees 166, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 212. Pinned by none: 4.
+Ids: 217: 202 registry rows (guarantees 167, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 213. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -959,6 +959,11 @@ Ids: 216: 201 registry rows (guarantees 166, assumptions 35), 15 spec sections i
 - `test_builtins.py`: `TestPortHandlerValues.test_port_list_counts_the_ports`
 - `test_help_state.py`: `TestThePage.test_an_empty_table_is_its_own_empty_line`
 - `test_views.py`: `test_a_tables_value_is_its_row_count` **guard**
+
+### `terminal-title-follows-the-session` (guarantee, contract)
+
+- `test_app_pilot.py`: `TestTerminalTitle.test_the_tui_titles_its_terminal` **guard**
+- `test_term_title.py`: the module (6 functions)
 
 ### `test-headers` (guarantee, repository)
 

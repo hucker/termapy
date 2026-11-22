@@ -332,6 +332,21 @@ def _handler_eol_rx(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=arg)
 
 
+def _handler_title(ctx: PluginContext, args: str) -> CmdResult:
+    """Show or set the terminal's title: text keeps for the session, ``auto`` is the config's own, bare shows it."""
+    text = args.strip()
+    flags = ctx.ns("flags")
+    if text == "auto":
+        flags.pop("terminal_title", None)
+        ctx.internal.set_terminal_title("")
+    elif text:
+        flags["terminal_title"] = text
+        ctx.internal.set_terminal_title(text)
+    title = ctx.internal.terminal_title()
+    ctx.io.result(value_text(title))
+    return CmdResult.ok(value=title)
+
+
 def _handler_json_fmt(ctx: PluginContext, args: str) -> CmdResult:
     """``/term.json_fmt``: how JSON shows on screen, its highlighting and its indent, as a record.
 
@@ -620,6 +635,25 @@ COMMAND = Command(
     ),
     handler=_handler_root,
     sub_commands={
+        "title": Command(
+            args="{text|auto}",
+            help="Show or set the terminal's title: the tab in VS Code, Windows Terminal or iTerm.",
+            long_help=(
+                "The terminal's title is the config's title, then the port and its\n"
+                "settings while connected.  Text keeps your own for the session; auto\n"
+                "returns to the config's; a config load resets it as it resets every\n"
+                "session setting.  A one-shot (-e, --run) is a command in your shell\n"
+                "and leaves its title alone.\n"
+                "\n"
+                "Windows Terminal and iTerm show it as they are.  VS Code shows it\n"
+                "once its tab title is the title a program sets: Ctrl+click (Cmd on\n"
+                "a Mac) vscode://settings/terminal.integrated.tabs.title and enter\n"
+                "${sequence} (its default shows the process name instead).\n"
+            ),
+            handler=_handler_title,
+            needs=CapabilitySet(console=True),
+            state=True,
+        ),
         "echo": Command(
             args="{on|off|toggle}",
             help="Local echo of device commands sent to the wire (cfg echo).",

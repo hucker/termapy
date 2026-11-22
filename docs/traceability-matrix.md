@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 214: 199 registry rows (guarantees 164, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 210. Pinned by none: 4.
+Ids: 215: 200 registry rows (guarantees 165, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 211. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -213,6 +213,11 @@ Ids: 214: 199 registry rows (guarantees 164, assumptions 35), 15 spec sections i
 ### `confirm-off-main` (guarantee, concurrency)
 
 - `test_app_pilot.py`: `TestCfgWaitsForConfirm.test_an_escape_pressed_at_idle_does_not_cancel_a_later_dialog` **guard**, `TestConfirmIsStopAware.test_a_script_stop_releases_a_waiting_confirm` **guard**
+
+### `connect-switches-ports` (guarantee, contract)
+
+- `test_app_pilot.py`: `TestPortBanners.test_a_named_port_switches_in_the_tui` **guard**
+- `test_port_commands.py`: `TestConnect.test_a_different_name_switches_ports` **guard**, `TestConnect.test_a_switch_to_a_port_that_will_not_open_fails_closed` **guard**, `TestConnect.test_the_open_ports_own_name_only_reapplies_settings` **guard**
 
 ### `converter-magic-first` (guarantee, contract)
 

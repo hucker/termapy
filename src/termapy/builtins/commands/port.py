@@ -599,6 +599,8 @@ COMMAND = Command(
                 "\n"
                 "  name         Port device or USB serial number. A bare name\n"
                 '               MUST come first. Falls back to cfg["port"].\n'
+                "               Naming another port while one is open switches\n"
+                "               to it: the open port closes first.\n"
                 "  port=name    Explicit port; may go anywhere. Use it for a\n"
                 "               purely-numeric serial number (e.g. port=0001),\n"
                 "               which a bare token would read as a baud rate.\n"

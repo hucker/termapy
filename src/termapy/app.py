@@ -1311,8 +1311,9 @@ class SerialTerminal(TerminalHost, App):
         self._on_main(self.exit)
 
     def _connect(self, port: str | None = None, *, report: bool = True) -> bool:
-        if self.is_connected:
-            return False
+        # Whether an open port means 'already connected' or a switch to the
+        # named one is the host's decision (registry connect-switches-ports);
+        # a copy of it here kept /port.connect COM4 from doing anything.
         # The engine joins any prior reader before it opens a new handle.
         connected = super()._connect(port, report=report)
         if connected:

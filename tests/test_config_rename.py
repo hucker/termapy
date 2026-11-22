@@ -101,7 +101,7 @@ class TestRenameConfig:
         with pytest.raises(FileNotFoundError):
             rename_config(str(tmp_path / "nope" / "nope.cfg"), "lab")
 
-    @pytest.mark.parametrize("bad", ["", "a b", "a/b", "a\\b", ".hidden", ".."])
+    @pytest.mark.parametrize("bad", ["", "a b", "a/b", "a\\b", ".hidden", "..", "nul", "a:b"])
     def test_refuses_names_that_cannot_be_a_stem(self, tmp_path, bad):
         """Empty, spaced, path-separated or dot-led names are refused before any move."""
         old = _make_cfg(tmp_path, "bench")
@@ -130,6 +130,51 @@ class TestValidateFileStem:
         """Each kind of bad stem returns a reason naming the specific problem."""
         reason = validate_file_stem(bad)
         assert reason is not None and fragment in reason
+
+    @pytest.mark.rule("names-portable")
+    @pytest.mark.parametrize(
+        "name", ["con", "CON", "Nul", "aux.cfg", "com3", "COM9.old", "lpt\u00b9", "conin$"]
+    )
+    def test_a_device_name_is_refused_in_any_case_and_with_any_extension(self, name):
+        """Windows' device names are refused on every OS, case ignored, and with an extension too: con.cfg is CON."""
+        reason = validate_file_stem(name)
+        assert reason == f"Name is reserved, a device name on Windows: {name}", reason
+
+    @pytest.mark.rule("names-portable")
+    @pytest.mark.parametrize(
+        "name, expected",
+        [
+            ("a:b", "Name may not contain ':': a:b"),
+            ("a|b", "Name may not contain '|': a|b"),
+            ("what?", "Name may not contain '?': what?"),
+            ("a*", "Name may not contain '*': a*"),
+            ('say"hi', "Name may not contain '\"': say\"hi"),
+            ("a<b>", "Name may not contain '<': a<b>"),
+            ("bench.", "Name may not end with a dot: bench."),
+        ],
+    )
+    def test_a_character_some_os_refuses_is_refused_everywhere(self, name, expected):
+        """Windows' reserved characters and a trailing dot are refused, each named."""
+        assert validate_file_stem(name) == expected
+
+    @pytest.mark.rule("names-portable")
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "com10",
+            "console",
+            "conf",
+            "auxiliary",
+            "lpt",
+            "nul_test",
+            "com3_bench",
+            "quick-COM3",
+            "v1.2",
+        ],
+    )
+    def test_a_name_that_only_resembles_a_device_is_fine(self, name):
+        """Only the device name itself, before any extension, is reserved: com10, console and quick-COM3 pass."""
+        assert validate_file_stem(name) is None
 
 
 class TestRenameCarriesEverySidecar:

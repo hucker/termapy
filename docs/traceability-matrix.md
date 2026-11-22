@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 216: 201 registry rows (guarantees 166, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 212. Pinned by none: 4.
+Ids: 217: 202 registry rows (guarantees 167, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 213. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -610,6 +610,11 @@ Ids: 216: 201 registry rows (guarantees 166, assumptions 35), 15 spec sections i
 - `test_proto_crc_list.py`: `test_a_glob_is_anchored`, `test_a_pattern_matching_nothing_is_an_empty_answer`, `test_plain_text_is_contained`
 - `test_sym_commands.py`: `TestDevLib.test_a_filter_matching_nothing_is_an_empty_answer`, `TestDevRegs.test_a_pattern_matches_register_or_peripheral`
 - `test_symbols_table.py`: `TestSymbolTableSearch.test_a_bracket_is_a_glob_class`, `TestSymbolTableSearch.test_a_regex_is_plain_text`
+
+### `names-portable` (guarantee, contract)
+
+- `test_config_create.py`: `TestCreateConfig.test_a_device_name_is_refused_before_anything_is_written` **guard**
+- `test_config_rename.py`: `TestValidateFileStem.test_a_character_some_os_refuses_is_refused_everywhere` **guard**, `TestValidateFileStem.test_a_device_name_is_refused_in_any_case_and_with_any_extension` **guard**, `TestValidateFileStem.test_a_name_that_only_resembles_a_device_is_fine` **guard**
 
 ### `network-port-named-exactly` (guarantee, data)
 

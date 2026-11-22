@@ -225,6 +225,16 @@ class TestCreateConfig:
         # Assert
         assert not (tmp_path / "my dev").exists(), "nothing is created"
 
+    @pytest.mark.rule("names-portable")
+    def test_a_device_name_is_refused_before_anything_is_written(self, tmp_path):
+        """The one writer refuses aux on every OS, so no folder Windows cannot hold is ever made."""
+        # Act
+        with pytest.raises(ValueError, match="device name on Windows"):
+            create_config(tmp_path / "aux" / "aux.cfg", new_config("aux"))
+
+        # Assert
+        assert list(tmp_path.iterdir()) == [], "nothing is created"
+
     def test_the_question_names_the_folder_and_keeps_the_rest(self, tmp_path):
         """The one overwrite question, word for word, as every frontend shows it."""
         # Arrange

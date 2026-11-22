@@ -484,8 +484,12 @@ demo> /cfg.new gold_new loop:// 9600 E71
   Created config gold_new.
 demo> /cfg.new gold_bad 115200 8N1
   Error: A port is required
+demo> /cfg.new con loop://
+  Error: Name is reserved, a device name on Windows: con
 demo> /cfg.new
   Error: Usage: /cfg.new <name> <port> {baud} {mode}
+demo> /cfg.rename gold_new NUL.old
+  Error: Rename failed: Name is reserved, a device name on Windows: NUL.old
 demo> /cfg.rename gold_new gold_renamed
   Renamed config: gold_new -> gold_renamed
 demo> /cfg.rename demo gold_other

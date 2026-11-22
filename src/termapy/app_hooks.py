@@ -13,11 +13,6 @@ Pattern: each ``_hook_X`` is a free function ``(app, ctx, args)``.
 a ``(ctx, args)`` handler that keeps the hook's docstring, so
 ``/help.dev`` shows it (registry ``handler-docstring``); a bare lambda
 has none.
-
-The cfg-confirm callback (``_hook_cfg_confirm``) is NOT here -- it
-isn't a REPL hook but an ``internal.confirm_save_cfg`` callback; it
-stays on ``SerialTerminal`` next to the other internal-handle wiring
-in ``_build_context``.
 """
 
 from __future__ import annotations

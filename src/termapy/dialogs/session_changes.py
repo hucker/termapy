@@ -26,6 +26,7 @@ _LOSS = {
     "Edit": "The editor starts from the file, and its Save ends the session's changes.",
     "Exit": "Exiting ends the session's changes.",
     "Load": "Loading a config ends the session's changes.",
+    "Switch": "The next mode loads the config file, so the session's changes end.",
 }
 
 
@@ -43,7 +44,7 @@ class SessionChanges(ModalScreen[tuple]):
     Args:
         changes: What the session changed, in ``CFG_KEYS`` order.
         file_name: The config file's name, for the question.
-        verb: What going on does, on the buttons: ``Edit``, ``Exit`` or ``Load``.
+        verb: What going on does, on the buttons: ``Edit``, ``Exit``, ``Load`` or ``Switch``.
     """
 
     BINDINGS = _DISMISS_BINDINGS

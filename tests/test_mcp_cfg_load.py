@@ -207,9 +207,9 @@ class TestCfgLoadIdentity:
     Pre-fix bug: ``_switch_to_cfg_path`` rebound ``self.cfg`` to the dict
     freshly loaded from disk while ``replace_cfg`` refreshed the engine's
     original dict in place.  From then on every session write
-    (``_apply_cfg``: /cfg.auto, /term.request, port changes) landed in
+    (``_apply_cfg``: /cfg, /term.request, port changes) landed in
     the engine's dict while ctx.cfg -- rebuilt from host.cfg -- served a
-    stale snapshot.  Symptom: ``/cfg.auto default_response_timeout_ms
+    stale snapshot.  Symptom: ``/cfg default_response_timeout_ms
     5000`` printed ``(session)`` but ``/cfg default_response_timeout_ms``
     still answered 1000.
     """
@@ -225,12 +225,12 @@ class TestCfgLoadIdentity:
         )
 
     def test_session_set_visible_to_cfg_query_after_load(self, host):
-        """A /cfg.auto set after a load reads back through /cfg, not a stale value."""
+        """A /cfg set after a load reads back through /cfg, not a stale value."""
         # Arrange
         host._load_config("beta")
 
-        # Act -- the user-facing sequence: /cfg.auto then /cfg <key>
-        set_result = host.repl.dispatch("cfg.auto default_response_timeout_ms 5000")
+        # Act -- the user-facing sequence: /cfg then /cfg <key>
+        set_result = host.repl.dispatch("cfg default_response_timeout_ms 5000")
         query = host.repl.dispatch("cfg default_response_timeout_ms")
 
         # Assert

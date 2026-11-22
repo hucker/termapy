@@ -113,6 +113,10 @@ class CLITerminal(TerminalHost):
         # -y / --yes: every question this session asks is answered yes.
         self._assume_yes = assume_yes
         self.switch_to: str | None = None
+        # Whether a leave can ask about unsaved settings: someone at a terminal,
+        # reading the question and typing the answer.  Both ends, since Windows
+        # calls the NUL device a terminal and redirected output hides a question.
+        self.can_ask = sys.stdin.isatty() and sys.stdout.isatty()
         # The interactive prompt, once _run_interactive builds it; None in
         # the one-shot modes and on the plain input() path.
         self._session: PromptSession | None = None
@@ -264,7 +268,7 @@ class CLITerminal(TerminalHost):
         self.ctx.io.width = self._output_width
         self.ctx.io.notify = lambda text, **kw: self.write(f"[notice] {text}")
         self.ctx.io.clear_screen = lambda: self._raw("\x1b[2J\x1b[H", end="")
-        self.ctx.ui._exit_app_impl = self._request_exit
+        self.ctx.ui._exit_app_impl = self._exit_from_command
         self.ctx.ui._switch_ui_impl = self._switch_ui
         self.ctx.internal.apply_cfg = self._apply_cfg
         self.ctx.ui._get_screen_text_impl = lambda: ""
@@ -330,6 +334,24 @@ class CLITerminal(TerminalHost):
             self.switch_to = switch_to
         self.repl._script_stop.set()
 
+    def _exit_from_command(self) -> None:
+        """``/exit`` (``ctx.ui.exit_app``): leave, asking first when unsaved settings would go."""
+        if self._may_leave("Exit"):
+            self._request_exit(None)
+
+    def _may_leave(self, verb: str) -> bool:
+        """Ask at the prompt before ``verb`` drops unsaved settings; a yes goes on, ``/cfg.save`` keeps them.
+
+        Asked only where someone can answer: a terminal, outside a script
+        and a one-shot.  A stop request from ``--kill`` does not ask: it
+        arrives while the prompt owns the terminal.
+        """
+        changes = self.session_changes()
+        if not changes or not self.can_ask or self.is_oneshot or self.repl.in_script:
+            return True
+        names = ", ".join(change.path for change in changes)
+        return self._confirm(f"{verb} without saving {names}? ({self.prefix}cfg.save keeps them)")
+
     def _leave_on_request(self, by: int) -> None:
         """Another termapy asked this session to leave: as ``/exit`` does, from the stop watch's thread.
 
@@ -364,6 +386,9 @@ class CLITerminal(TerminalHost):
         if mode == "cli":
             return CmdResult.ok(value="")
         if mode == "tui":
+            # The TUI loads the file, so unsaved settings would go.
+            if not self._may_leave("Switch"):
+                return CmdResult.fail(msg="Canceled.")
             self._request_exit("tui")
             # SPECIAL CASE: the session ends after this returns; no caller
             # reads the value.
@@ -751,10 +776,13 @@ class CLITerminal(TerminalHost):
         # the CLI-only cli_on_connect_cmd for any extras specific to
         # the plain-text frontend.
         if not self.is_oneshot:
-            for _, cmd in on_connect_commands(self.cfg, "cli_on_connect_cmd", profile=True):
-                self._dispatch(cmd)
-                if self.engine.is_connected and self.engine.serial_port:
-                    self.engine.serial_port.wait_for_idle()
+            # What the config's own commands set is the config's (registry
+            # on-connect-is-the-config).
+            with self._config_owns_its_changes():
+                for _, cmd in on_connect_commands(self.cfg, "cli_on_connect_cmd", profile=True):
+                    self._dispatch(cmd)
+                    if self.engine.is_connected and self.engine.serial_port:
+                        self.engine.serial_port.wait_for_idle()
 
         if self.run_script:
             self._run_script_mode(self.run_script)

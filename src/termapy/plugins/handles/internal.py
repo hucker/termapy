@@ -144,10 +144,12 @@ class InternalHandle:
     # no-op everywhere else; ctx.ui is the clean general TUI API and
     # shouldn't collect one-off methods.
 
-    # confirm_save_cfg(key, val) -> bool: ask the frontend to confirm (TUI
-    # modal), wait for the answer, and apply on Yes; True when applied.
-    # None in CLI/MCP -> caller applies directly via apply_cfg (above).
-    confirm_save_cfg: Callable | None = None
+    # save_session() -> list[SessionChange]: write the settings this session
+    # changed into its config file (TerminalHost.save_session_changes), the
+    # one save /cfg.save and the TUI's unsaved question share.
+    save_session: Callable[[], list] = lambda: []
+    # describe_saved(saved) -> str: the line a save answers with.
+    describe_saved: Callable[[list], str] = lambda saved: ""
 
     # load_config(name): resolve name, disconnect + reconnect; -> CmdResult.
     # Stays here (not on ctx.serial): it's a config-switch orchestration

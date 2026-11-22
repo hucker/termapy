@@ -90,29 +90,31 @@ demo> /cfg cmd_prefix
   /
 demo> /cfg quiet_start
   on
-demo> /print === section: config auto-set ===
-  === section: config auto-set ===
-demo> /cfg.auto echo true
+demo> /print === section: config set ===
+  === section: config set ===
+demo> /cfg.save
+  Nothing to save.
+demo> /cfg echo true
   on
 demo> /cfg echo
   on
-demo> /cfg.auto echo false
+demo> /cfg echo false
   off
 demo> /cfg echo
   off
 demo> /term.echo
   off
-demo> /cfg.auto echo true
+demo> /cfg echo true
   on
-demo> /cfg.auto output_level quiet
+demo> /cfg output_level quiet
   quiet
 demo> /term.output
   quiet
-demo> /cfg.auto output_level normal
+demo> /cfg output_level normal
   normal
 demo> /term.output
   normal
-demo> /cfg.auto output_level loud
+demo> /cfg output_level loud
   Error: Invalid output_level: loud (use normal/quiet/silent/verbose)
 demo> /help output_level
 NAME
@@ -323,21 +325,21 @@ AVAILABLE
 
 SEE ALSO
   /term.color, /term.completion, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.info, /term.json_fmt, /term.line_no, /term.log, /term.output, /term.raw, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.title, /term.traffic, /term.usb_db, /term
-demo> /cfg.auto custom_buttons_side Right
+demo> /cfg custom_buttons_side Right
   right
 demo> /cfg custom_buttons_side
   right
-demo> /cfg.auto custom_buttons_side up
+demo> /cfg custom_buttons_side up
   Error: Invalid custom_buttons_side: up (use bottom/left/right)
-demo> /cfg.auto custom_buttons_side bottom
+demo> /cfg custom_buttons_side bottom
   bottom
-demo> /cfg.auto max_lines 0
+demo> /cfg max_lines 0
   Error: Invalid max_lines: 0 (must be a positive integer)
-demo> /cfg.auto encoding nope
+demo> /cfg encoding nope
   Error: Invalid encoding: nope (must name a codec Python knows)
-demo> /cfg.auto eol_rx nope
+demo> /cfg eol_rx nope
   Error: Invalid eol_rx: nope (use auto/cr/crlf/lf)
-demo> /cfg.auto config_version 99
+demo> /cfg config_version 99
   Error: Managed key: config_version (termapy writes it)
 demo> /print === section: config dump ===
   === section: config dump ===
@@ -1039,14 +1041,12 @@ DESCRIPTION
   (parity, json_fmt.indent, custom_buttons_side, ...).
   A key inside a section is named by its path (json_fmt.indent) or,
   when no other section has one, its own name (baud_rate).
-  A change lasts for this session; to keep it, set it in the
-  config editor.
+  A change lasts for this session; /cfg.save keeps it in the
+  config file.
 
   Use /cfg.dump to print every key/value pair as JSON.
-  Use /cfg.auto to set values without confirmation (for scripts).
 
 SUBCOMMANDS
-  /cfg.auto       Set immediately (no confirmation).
   /cfg.delete     Delete a config and its whole folder (asks first).
   /cfg.dump       Print the config in memory as JSON to the terminal.
   /cfg.edit       Edit the current config file.
@@ -1060,6 +1060,7 @@ SUBCOMMANDS
   /cfg.loaded     Show what the config load loaded: plugins, symbols, devices.
   /cfg.new        Create a config for a port; /cfg.load <name> switches to it.
   /cfg.rename     Rename a config, folder and file together.
+  /cfg.save       Write the settings this session changed into the config file.
   /cfg.show       Open the current config file in the system viewer.
 
   /help cfg --verbose shows the rest: status, where it runs, see also.

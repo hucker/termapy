@@ -110,7 +110,7 @@ sends to the device) waits in the input line for Enter.
 | `/cap.text <f> ...`       | Capture serial text to file for a timed duration                            |
 | `/cap.wire {wait_gap=<dur>} cmd=<command>` | Run a command and show TX/RX bytes inline as hex + repr (debug line endings) |
 | `/cfg {key {value}}`      | TUI bare: open the Cfg picker. CLI bare: list configs. With args: get/set.  |
-| `/cfg.auto <key> <val>`   | Set a config key without confirmation                                       |
+| `/cfg.save`               | Write the settings this session changed into the config file                |
 | `/cfg.delete <name>`      | Delete a config and its whole folder after asking (MCP: `confirm=true`); never the active one |
 | `/cfg.dump`               | Print the config in memory as JSON                                          |
 | `/cfg.edit`               | Edit the current config file (same as `/edit.cfg`)                          |

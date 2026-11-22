@@ -147,7 +147,7 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
     picked = _session_log(ctx, name)
     if isinstance(picked, CmdResult):
         return picked
-    # Sandbox: cfg["log_file"] can be pointed at any file (via /cfg.auto),
+    # Sandbox: cfg["log_file"] can be pointed at any file (via /cfg),
     # turning /log.dump into an arbitrary-file read.  Under the MCP host,
     # refuse a log path outside the config directory.  Reading the cfg's
     # own in-sandbox logs stays fine.

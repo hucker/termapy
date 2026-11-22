@@ -285,6 +285,8 @@ read.  A narrow terminal drops STARTED BY first.
 `--kill` stops them, after a yes; bare, it lists them as `--alive` does.
 Each session is asked to leave and leaves as `/exit` does: its terminal
 restored, its port closed, its history saved, its session log ended.
+A TUI holding unsaved settings asks about them first, as its Exit does,
+so it may still be running when the timeout is up; answer it there.
 termapy never ends a session itself.  One still running when `timeout=`
 is up (3 s unless you give one), hung, partway through a firmware write,
 or started by an older termapy, keeps running, and the reply names the

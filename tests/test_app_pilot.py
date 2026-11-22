@@ -494,8 +494,8 @@ class TestCustomButtons:
                 await until(pilot, lambda: _button_regions(app) == ["custom-side", "custom-side"])
 
                 async def move_to(side: str) -> tuple[list[str | None], bool]:
-                    """Set the side as /cfg.auto does, then report where the buttons landed."""
-                    app._dispatch_single(f"/cfg.auto custom_buttons_side {side}")
+                    """Set the side as /cfg does, then report where the buttons landed."""
+                    app._dispatch_single(f"/cfg custom_buttons_side {side}")
                     region = "custom-bar" if side == "bottom" else "custom-side"
                     await until(
                         pilot,
@@ -3362,29 +3362,12 @@ class TestDemoCommand:
         _run(scenario)
 
 
-class TestCfgWaitsForConfirm:
-    """``/cfg <key> <value>`` in the TUI answers after its confirm dialog does.
+class TestCfgAppliesAtOnce:
+    """``/cfg <key> <value>`` in the TUI applies for the session at once, as in every frontend: no dialog."""
 
-    Until 2026-10-16 it returned the new value with the dialog still open,
-    so a script holding that value went on although Cancel never applied it
-    (review 2026-10-15, D7; decision 7: wait, Yes returns the value, Cancel
-    fails).
-    """
-
-    @staticmethod
-    async def _answer(pilot, app, line: str, key: str) -> CmdResult:
-        """Run ``line`` on a worker, answer its dialog with ``key``, and return the result."""
-        from termapy.dialogs import CfgConfirm
-
-        worker, outcome = _start_on_worker(app, line)
-        await _await_until(lambda: isinstance(app.screen, CfgConfirm), "the dialog opened")
-        assert worker.is_alive(), "the command waits while the dialog is up"
-        await pilot.press(key)
-        await _await_until(lambda: not worker.is_alive(), f"{line} finished")
-        return outcome["result"]
-
-    def test_yes_applies_before_the_command_returns(self, app_factory):
-        """Yes applies the change, and the command's value is the new setting."""
+    @pytest.mark.rule("leave-asks-unsaved")
+    def test_cfg_applies_with_no_dialog_and_counts_as_unsaved(self, app_factory):
+        """The value is the answer and the setting is a session change, which the leave question guards."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -3392,51 +3375,14 @@ class TestCfgWaitsForConfirm:
                 await pilot.pause()
 
                 # Act
-                result = await self._answer(pilot, app, "/cfg eol_rx lf", "enter")
+                result, _ = await _dispatch_on_worker(pilot, app, "/cfg eol_rx lf")
 
                 # Assert
                 assert (result.success, result.value) == (True, "lf"), result.error
                 assert app.cfg["eol_rx"] == "lf", "applied when the command returned"
-
-        _run(scenario)
-
-    @pytest.mark.rule("confirm-off-main")
-    def test_an_escape_pressed_at_idle_does_not_cancel_a_later_dialog(self, app_factory):
-        """A stop set outside a script stays set until a script starts; /cfg still waits for its own answer."""
-
-        async def scenario():
-            app, _, _ = app_factory()
-            async with app.run_test() as pilot:
-                await pilot.pause()
-                # Arrange -- Escape at idle sets the script stop event
-                app.action_stop_script()
-
-                # Act
-                result = await self._answer(pilot, app, "/cfg eol_rx lf", "enter")
-
-                # Assert
-                assert (result.success, result.value) == (True, "lf"), result.error
-
-        _run(scenario)
-
-    def test_a_second_change_canceled_fails_and_keeps_the_first(self, app_factory):
-        """Twice in a row: the second /cfg waits for its own dialog, and Escape fails it as Canceled."""
-
-        async def scenario():
-            app, _, _ = app_factory()
-            async with app.run_test() as pilot:
-                await pilot.pause()
-
-                # Act
-                first = await self._answer(pilot, app, "/cfg eol_rx lf", "enter")
-                second = await self._answer(pilot, app, "/cfg eol_rx cr", "escape")
-
-                # Assert
-                assert first.success, first.error
-                assert (second.success, second.error) == (False, "Canceled."), (
-                    "Cancel fails the command"
+                assert "eol_rx" in {change.path for change in app.session_changes()}, (
+                    "a session change: the * and the leave question see it"
                 )
-                assert app.cfg["eol_rx"] == "lf", "the canceled change was not applied"
 
         _run(scenario)
 
@@ -4235,6 +4181,104 @@ class TestUnsavedSettings:
                 on_disk = json.loads(Path(path).read_text(encoding="utf-8"))
                 actual = (asked, app._shutting_down, on_disk["timestamps"])
                 assert actual == (True, leaving, False), "(asked, leaving, file's timestamps)"
+
+        _run(scenario)
+
+    @pytest.mark.rule("leave-asks-unsaved")
+    def test_a_mode_switch_asks_and_cancel_stays(self, app_factory):
+        """/app.cli with a setting unsaved asks first; Cancel fails the switch and the TUI stays."""
+        app, _, _ = app_factory()
+
+        async def scenario():
+            from termapy.dialogs import SessionChanges
+
+            async with app.run_test(size=(120, 40)) as pilot:
+                # Arrange
+                await self._change_a_setting(app, pilot)
+                results: list[CmdResult] = []
+                app.repl.add_post_dispatch_observer(lambda _text, result: results.append(result))
+
+                # Act
+                app._dispatch_on_thread_interactive(app._repl_line("app.cli"))
+                await until(pilot, lambda: _showing(app, SessionChanges, "#changes-cancel"))
+                await pilot.click("#changes-cancel")
+                await app.workers.wait_for_complete()
+
+                # Assert
+                actual = ([(result.success, result.error) for result in results], app.switch_to)
+                assert actual == ([(False, "Canceled.")], None), "refused, and no next mode"
+
+        _run(scenario)
+
+    @pytest.mark.rule("confirm-off-main")
+    def test_an_escape_pressed_at_idle_does_not_cancel_a_later_question(self, app_factory):
+        """A stop set outside a script stays set until a script starts; the unsaved question still waits for its answer."""
+        app, _, path = app_factory()
+
+        async def scenario():
+            from termapy.dialogs import SessionChanges
+
+            async with app.run_test(size=(120, 40)) as pilot:
+                # Arrange -- a setting unsaved, then Escape at idle sets the script stop event
+                await self._change_a_setting(app, pilot)
+                app.action_stop_script()
+
+                # Act
+                worker, outcome = _start_on_worker(app, f"/cfg.load {path}")
+                await until(pilot, lambda: _showing(app, SessionChanges, "#changes-cancel"))
+                assert worker.is_alive(), "the load waits while the question is up"
+                await pilot.click("#changes-cancel")
+                await _await_until(lambda: not worker.is_alive(), "the load finished")
+
+                # Assert
+                result = outcome["result"]
+                assert (result.success, result.error) == (False, "Canceled."), (
+                    "the answer came from the question, not the stale stop"
+                )
+
+        _run(scenario)
+
+    @pytest.mark.rule("leave-asks-unsaved")
+    def test_a_kill_request_asks_before_leaving(self, app_factory):
+        """Another termapy's stop request meets the Exit question when a setting is unsaved; the TUI stays until it is answered."""
+        app, _, _ = app_factory()
+
+        async def scenario():
+            from termapy.dialogs import SessionChanges
+
+            async with app.run_test(size=(120, 40)) as pilot:
+                # Arrange
+                await self._change_a_setting(app, pilot)
+
+                # Act
+                app._leave_on_request(4242)
+                await until(pilot, lambda: _showing(app, SessionChanges, "#changes-cancel"))
+
+                # Assert
+                assert isinstance(app.screen, SessionChanges), "asked before leaving"
+                assert app._shutting_down is False, "still running until answered"
+
+        _run(scenario)
+
+    @pytest.mark.rule("on-connect-is-the-config")
+    def test_on_connect_setters_leave_nothing_unsaved(self, app_factory):
+        """A config whose on-connect turns timestamps on connects with nothing unsaved, so no * and no question."""
+        app, _, _ = app_factory(on_connect_cmd="/term.timestamps on")
+
+        async def scenario():
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+
+                # Act
+                assert app._connect() is True, "DEMO port should connect"
+                await until(
+                    pilot,
+                    lambda: app._on_connect_runs == 0 and app.cfg["timestamps"] is True,
+                )
+
+                # Assert
+                assert app.cfg["timestamps"] is True, "the on-connect command ran"
+                assert app.session_changes() == [], "what the config set is the config's"
 
         _run(scenario)
 

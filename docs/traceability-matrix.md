@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 218: 203 registry rows (guarantees 168, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 214. Pinned by none: 4.
+Ids: 221: 206 registry rows (guarantees 171, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 217. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -144,6 +144,10 @@ Ids: 218: 203 registry rows (guarantees 168, assumptions 35), 15 spec sections i
 - `test_architecture.py`: `test_cfg_get_allowlist_has_no_stale_entries` **guard**, `test_cfg_value_guard_fires_on_a_probe` **probe**, `test_core_reads_cfg_values_through_cfg_value` **guard**
 - `test_defaults.py`: `TestCfgKeyPaths.test_a_container_default_comes_back_as_a_copy`
 
+### `cfg-save-one-way` (guarantee, contract)
+
+- `test_session_changes.py`: `test_cfg_save_twice_in_a_row_writes_once` **guard**, `test_cfg_save_writes_what_the_session_changed` **guard**
+
 ### `cfg-schema-one-table` (guarantee, structure)
 
 - `test_architecture.py`: `test_every_surface_checks_through_the_one_validator` **guard**, `test_one_validator_guard_fires_on_a_probe` **probe**
@@ -212,7 +216,7 @@ Ids: 218: 203 registry rows (guarantees 168, assumptions 35), 15 spec sections i
 
 ### `confirm-off-main` (guarantee, concurrency)
 
-- `test_app_pilot.py`: `TestCfgWaitsForConfirm.test_an_escape_pressed_at_idle_does_not_cancel_a_later_dialog` **guard**, `TestConfirmIsStopAware.test_a_script_stop_releases_a_waiting_confirm` **guard**
+- `test_app_pilot.py`: `TestConfirmIsStopAware.test_a_script_stop_releases_a_waiting_confirm` **guard**, `TestUnsavedSettings.test_an_escape_pressed_at_idle_does_not_cancel_a_later_question` **guard**
 
 ### `connect-switches-ports` (guarantee, contract)
 
@@ -517,6 +521,11 @@ Ids: 218: 203 registry rows (guarantees 168, assumptions 35), 15 spec sections i
 
 - `test_port_commands.py`: `TestChip.test_display_labels_are_title_case`
 
+### `leave-asks-unsaved` (guarantee, requirement)
+
+- `test_app_pilot.py`: `TestCfgAppliesAtOnce.test_cfg_applies_with_no_dialog_and_counts_as_unsaved` **guard**, `TestUnsavedSettings.test_a_kill_request_asks_before_leaving` **guard**, `TestUnsavedSettings.test_a_mode_switch_asks_and_cancel_stays` **guard**
+- `test_session_changes.py`: `test_a_cli_exit_asks_only_where_someone_can_answer` **guard**, `test_a_cli_load_asks_before_dropping_unsaved_settings` **guard**
+
 ### `link-explains-itself` (guarantee, requirement)
 
 - `test_help_capabilities.py`: the module (13 functions)
@@ -634,6 +643,11 @@ Ids: 218: 203 registry rows (guarantees 168, assumptions 35), 15 spec sections i
 ### `number-vocabularies` (assumption, data)
 
 - `test_symbols_address.py`: `TestParseNumber` (1 functions), `TestParseAddressSymbols.test_bare_hex_is_a_name`
+
+### `on-connect-is-the-config` (guarantee, contract)
+
+- `test_app_pilot.py`: `TestUnsavedSettings.test_on_connect_setters_leave_nothing_unsaved` **guard**
+- `test_session_changes.py`: `test_a_change_before_or_after_the_on_connect_run_still_counts` **guard**, `test_two_on_connect_runs_in_a_row_leave_nothing_unsaved` **guard**, `test_what_the_configs_own_commands_set_is_no_change` **guard**
 
 ### `one-handler-per-command` (guarantee, structure)
 
@@ -866,7 +880,7 @@ Ids: 218: 203 registry rows (guarantees 168, assumptions 35), 15 spec sections i
 
 - `test_app_pilot.py`: `TestUnsavedSettings.test_a_script_load_never_asks` **guard**, `TestUnsavedSettings.test_a_typed_load_asks_and_cancel_keeps_the_session`, `TestUnsavedSettings.test_ctrl_q_asks_too`, `TestUnsavedSettings.test_exit_asks_about_unsaved_settings` **guard**, `TestUnsavedSettings.test_the_editor_asks_about_unsaved_settings`, `TestUnsavedSettings.test_the_mark_goes_when_the_settings_are_saved`, `TestUnsavedSettings.test_with_nothing_changed_exit_leaves_at_once`, `TestUnsavedSettings.test_with_nothing_changed_the_editor_opens_at_once`
 - `test_architecture.py`: `test_editor_opener_guard_fires_on_a_probe` **guard**, `test_the_config_editor_has_one_opener` **guard**
-- `test_session_changes.py`: the module (8 functions)
+- `test_session_changes.py`: the module (15 functions)
 
 ### `session-log-one-owner` (guarantee, structure)
 

@@ -82,7 +82,6 @@ src/termapy/
 │       └── svd.py          #     CMSIS-SVD converter -- ARM's System View Description into a device document
 ├── dialogs/                # (3457 lines) Modal dialog screens for termapy
 │   ├── _common.py          #   Shared constants and helpers for the dialog submodules
-│   ├── cfg_confirm.py      #   CfgConfirm -- confirms a config value change (/cfg <key> <value> in the TUI)
 │   ├── config_editor.py    #   ConfigEditor -- edit a config's JSON, validated before it is saved
 │   ├── config_picker.py    #   ConfigPicker -- pick a config to load or edit, or create a new one
 │   ├── confirm_dialog.py   #   ConfirmDialog -- the generic Yes/Cancel prompt (/confirm, delete confirmations)
@@ -244,7 +243,7 @@ COMMAND = Command(
     help="Show or change config values.",
     handler=_handler,
     sub_commands={
-        "auto": Command(args="<key> <value>", help="Set immediately.", handler=_handler_auto),
+        "save": Command(help="Write the session's changed settings.", handler=_handler_save),
         "list": Command(help="List all config files.", handler=_handler_list),
         "icon": Command(
             help="Create a desktop launcher.",
@@ -258,7 +257,7 @@ COMMAND = Command(
 )
 ```
 
-The subcommand tree is flattened at registration into dotted names (`cfg.auto`, `cfg.icon.remove`) that the dispatch system looks up directly. The `/help` command walks the tree to show hierarchical output.
+The subcommand tree is flattened at registration into dotted names (`cfg.save`, `cfg.icon.remove`) that the dispatch system looks up directly. The `/help` command walks the tree to show hierarchical output.
 
 ### Hooks
 
@@ -286,14 +285,14 @@ The remaining members (`ctx.cfg`, `ctx.config_path`, `ctx.prefix`, `ctx.dispatch
 
 Every plugin has first-class access to the whole context, `ctx.internal` included: the built-ins are the working examples a plugin author copies, and they use nothing an external plugin cannot. `ctx.internal` serves **two jobs**:
 
-1. **Frontend escape hatch** — slots that genuinely need Textual or threads. `confirm_save_cfg`, for instance, pops a TUI confirm modal — and is `None` in CLI/MCP, so the same `/cfg key value` falls back to `apply_cfg` and applies directly. Capture, proto-debug, the picker screens, and threaded script runs are here too.
+1. **Frontend escape hatch** — slots that genuinely need Textual or threads. `delay_progress`, for instance, draws a wait in the TUI's ghost text and bar, prints a bar in the CLI and does nothing under MCP, so one `/delay` handler serves all three. Capture, proto-debug, the picker screens, and threaded script runs are here too.
 2. **Engine forwarders** — slots like `dispatch` / `apply_cfg` / `in_script` that just reach the live `ReplEngine`. They're *injected rather than imported* because `repl.py` imports the plugins package, so a plugin importing `repl` would be circular — there's no other way for a Textual-free, repl-free plugin to reach the running engine.
 
-The genuinely pure work (e.g. the JSON config write behind `confirm_save_cfg`) stays in pure modules like `config.py`; only the frontend-coupled and engine-reachable orchestration lives on the handle.
+The genuinely pure work (e.g. the JSON config write behind `save_session`) stays in pure modules like `config.py`; only the frontend-coupled and engine-reachable orchestration lives on the handle.
 
 **What a plugin may import.** Core's published functions are a plugin's library — `scripting`, `folders`, `folder_ops`, `matching`, `protocol`, `symbols`, `help_dynamic`, `config`, `usb` — and a plugin imports them the way the built-ins do. A leading-underscore name is never imported, and a plugin never imports another plugin: two commands talk through `ctx.internal.dispatch` (`/run.help` runs `help run`), so the load-order override reaches every command, and a helper two plugins share is core (`edit_command` in `folder_ops`, `find_matches` in `scripting`). Registry `plugins-import-published-only`, the mirror of `core-imports-published-only`; both are `ast` walks in `tests/test_architecture.py`.
 
-What remains on `ctx.internal` is the irreducible core, not the dregs of an unfinished cleanup. Members that had a real home already left: pure data (`prefix` → the `ctx.prefix` property, config-value coercion → `scripting`) and serial lifecycle (`connect` / `disconnect` / `update_port` / `apply_port_effects` / `rx_queue` → `ctx.serial`). The escape-hatch slots that stay are *per-command TUI screens* — `confirm_save_cfg` (the `CfgConfirm` old→new dialog), `open_proto_debug`, `open_picker`, `update_find_bar`. Each is used by a single command and is a no-op outside the TUI; promoting them to `ctx.ui` would clutter that clean, general API with one-off methods, so they live on `internal`, the one handle that is not a domain, instead. The engine forwarders likewise can't move without breaking the `plugins ↔ repl` import cycle — the most they could become is one typed engine reference, which is a larger change than the cleanup warranted.
+What remains on `ctx.internal` is the irreducible core, not the dregs of an unfinished cleanup. Members that had a real home already left: pure data (`prefix` → the `ctx.prefix` property, config-value coercion → `scripting`) and serial lifecycle (`connect` / `disconnect` / `update_port` / `apply_port_effects` / `rx_queue` → `ctx.serial`). The escape-hatch slots that stay are *per-command TUI screens* — `open_proto_debug`, `open_picker`, `update_find_bar`. Each is used by a single command and is a no-op outside the TUI; promoting them to `ctx.ui` would clutter that clean, general API with one-off methods, so they live on `internal`, the one handle that is not a domain, instead. The engine forwarders likewise can't move without breaking the `plugins ↔ repl` import cycle — the most they could become is one typed engine reference, which is a larger change than the cleanup warranted.
 
 #### Namespaces (`ctx.ns()`)
 
@@ -1109,7 +1108,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_protocol_word_fields.py        | Word-relative bit fields: `NAME:B.<bits>` binds to a register word, not to packet bytes                                                                                             |
 | test_python_versions.py             | The supported-Python list must agree everywhere it is written down                                                                                                                  |
 | test_quick_open.py                  | Quick open: `termapy PORT [SETTING ...]` opens the port's own config, made at first use and kept                                                                                    |
-| test_repl_cfg.py                    | Tests for the /cfg and /cfg.auto REPL commands                                                                                                                                      |
+| test_repl_cfg.py                    | Tests for the /cfg REPL command: show a key, or set it for the session                                                                                                              |
 | test_repl_coverage.py               | repl.py corners the engine tests miss -- covering suggest_command, edit_distance, ScriptCtx, directive dispatch paths, and script special commands                                  |
 | test_request_response.py            | Tests for `termapy.request_response.request_response`                                                                                                                               |
 | test_resolve_config.py              | Tests for resolve_config - command-line config resolution chain                                                                                                                     |

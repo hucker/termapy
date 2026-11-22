@@ -190,8 +190,9 @@ All other paths relative to `src/termapy/`.
     the config editor's help line and the MCP
     catalog read the same declarations. So no long_help says what a key
     does to a command or claims a setter persists: every setter and
-    `/cfg <key> <value>` are session-only, and the editor's Save writes
-    the file (decision 2026-11-01). **Enforced by
+    `/cfg <key> <value>` are session-only, and `/cfg.save` or the
+    editor's Save writes them to the file (decisions 2026-11-01,
+    2026-11-22). **Enforced by
     `tests/test_architecture.py` (registry `cfg-declared`)**: every
     literal config read in a plugin module, or in a `_helper` module it
     imports, is a key a command in that module declares, probe-proven;

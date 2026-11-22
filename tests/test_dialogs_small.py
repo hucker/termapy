@@ -20,7 +20,6 @@ from textual.widgets import Button, Input, OptionList, Static, TextArea
 
 from termapy.defaults import PROTO_TEMPLATE, SCRIPT_TEMPLATE
 from termapy.dialogs import (
-    CfgConfirm,
     PortPicker,
     ProtoEditor,
     ProtoPicker,
@@ -462,42 +461,6 @@ class TestUpdateAvailableDialog:
                 await pilot.press("escape")
                 await pilot.pause()
                 assert (results, results_escape) == (["ok"], ["ok"])
-
-        _run(scenario)
-
-
-# ── CfgConfirm ───────────────────────────────────────────────────────────────
-
-
-class TestCfgConfirm:
-    def test_shows_the_change_and_yes_confirms(self, tmp_path):
-        """The message reads key: old -> new; Yes dismisses True."""
-
-        async def scenario():
-            app = _Host()
-            async with app.run_test(size=_SIZE) as pilot:
-                results = await _push(app, pilot, CfgConfirm("baud_rate", 9600, 115200))
-                message = _plain(app.screen.query_one("#cfg-confirm-msg", Static))
-                await pilot.click("#cfg-yes")
-                await pilot.pause()
-                assert message == "baud_rate: 9600 -> 115200"
-                assert results == [True]
-
-        _run(scenario)
-
-    def test_no_and_escape_both_refuse(self, tmp_path):
-        """No and Escape dismiss False, so the change is not applied."""
-
-        async def scenario():
-            app = _Host()
-            async with app.run_test(size=_SIZE) as pilot:
-                results = await _push(app, pilot, CfgConfirm("eol", "\r", "\n"))
-                await pilot.click("#cfg-no")
-                await pilot.pause()
-                results_escape = await _push(app, pilot, CfgConfirm("eol", "\r", "\n"))
-                await pilot.press("escape")
-                await pilot.pause()
-                assert (results, results_escape) == ([False], [False])
 
         _run(scenario)
 

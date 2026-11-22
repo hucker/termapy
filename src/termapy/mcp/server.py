@@ -520,7 +520,10 @@ class MCPHost(TerminalHost):
         """
         super()._on_connected(message)
         self._on_connect_auto_load_profile(self.ctx)
-        self._on_connect_run_commands(self.ctx)
+        # What the config's own commands set is the config's (registry
+        # on-connect-is-the-config).
+        with self._config_owns_its_changes():
+            self._on_connect_run_commands(self.ctx)
         self._on_connect_banner_watch(self.ctx)
 
     def _clear_device_state(self) -> None:

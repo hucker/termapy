@@ -340,7 +340,7 @@ class TestNoCodeWritten:
         assert not (_folder(host) / "plugin").exists(), "and the folder was not created"
 
     @pytest.mark.rule("spy-log-in-cap")
-    @pytest.mark.parametrize("route", ["/port {}", "/cfg.auto port {}"])
+    @pytest.mark.parametrize("route", ["/port {}", "/cfg port {}"])
     def test_a_spy_log_cannot_leave_cap(self, host, route):
         """A spy:// port can reach neither a code folder nor anywhere else, by any route."""
         # Arrange

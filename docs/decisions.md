@@ -2341,3 +2341,27 @@ cannot call while it supports Python 3.11. **Behavior changed:** `/cfg.new`,
 those names; a config made before still opens. **Where:**
 `config.validate_file_stem`, `config.RESERVED_NAMES`,
 `config.RESERVED_CHARS`.
+
+## 2026-11-22 — A setting is kept by /cfg.save, and every leave asks
+
+The 2026-11-19 review found three ways to change a setting that differed
+only in whether they asked, none in the CLI to keep one, and leaves that did
+not ask (M3, M5, M6), and the `*` lighting up for what the config itself set
+(H3). Decided, as the review recommended: a setting is changed for the
+session by a setter, a button or `/cfg <key> <value>` alike, and kept by
+`/cfg.save`, in every frontend, writing through the same method as the TUI
+question's Save (registry `cfg-save-one-way`); every leave that would drop
+unsaved settings asks where someone can answer (registry
+`leave-asks-unsaved`); and what a config's own on-connect commands set is
+the config's (registry `on-connect-is-the-config`), folded into the baseline
+by measuring what the run moved, so a change the user made before connecting
+is not swallowed with it. A stop request asks too, in the TUI: a session
+with unsaved settings may outlast `--kill`'s grace period rather than lose
+them. The CLI asks at the prompt, only when stdin is a terminal, and not on a
+stop request, which arrives while the prompt owns the terminal. **Behavior
+removed:** `/cfg.auto`, and the TUI's Yes/No dialog on `/cfg <key> <value>`
+(`CfgConfirm`): `/cfg` applies at once in every frontend, as `/cfg.auto` did.
+**Behavior changed:** `/app.cli`, `/app.vt100` and a stop request ask in the
+TUI; `/exit`, `/app.tui` and `/cfg.load` ask in an interactive CLI.
+**Where:** `TerminalHost._config_owns_its_changes`, `_may_leave`,
+`describe_saved`; `cfg.py` `_handler_save`.

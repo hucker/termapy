@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import copy
 import threading
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -634,6 +636,8 @@ class TerminalHost:
             xfer_cancel=getattr(self, "_xfer_cancel", None),
             script_stop_event=self.repl._script_stop,
             set_terminal_title=self.set_terminal_title,
+            save_session=self.save_session_changes,
+            describe_saved=self.describe_saved,
             terminal_title=lambda: self.terminal_title,
             # /run's built-in handler reaches script-running via these
             # two callbacks.  ``start_script`` is host-agnostic;
@@ -895,6 +899,52 @@ class TerminalHost:
         self._note_loaded()
         return changes
 
+    def describe_saved(self, saved: list[SessionChange]) -> str:
+        """The line a save answers with, in every frontend: what was written, and where."""
+        return f"Saved {', '.join(change.path for change in saved)} to {self.config_path}"
+
+    @contextmanager
+    def _config_owns_its_changes(self) -> Generator[None, None, None]:
+        """While the config's own on-connect commands run, what they set is the config's.
+
+        A setter an on-connect command runs (``/term.timestamps on``) is the
+        config speaking, not the user, so each setting the run moved is
+        folded into the baseline ``session_changes`` counts from: the
+        buttons show no ``*`` and leaving does not ask (registry
+        ``on-connect-is-the-config``).  Only what the run moved is folded,
+        so a change the user made before or makes after still counts.
+        """
+        flags = self.ctx.ns("flags")
+        before = {
+            key: copy.deepcopy(value)
+            for key, value in self.repl.cfg.items()
+            if not key.startswith("_")
+        }
+        flags_before = {key: flags[key] for key in SESSION_FLAG_KEYS if key in flags}
+        try:
+            yield
+        finally:
+            moved = session_changes(before, self.repl.cfg, flags, flags_before)
+            seeded = dict(self._seeded_flags)
+            for change in moved:
+                leaf = change.path.rpartition(".")[2]
+                if leaf in SESSION_FLAG_KEYS:
+                    seeded[leaf] = change.session
+                    continue
+                # A key path is a top-level key or one section deep (serial.baud_rate).
+                section, _, key = change.path.rpartition(".")
+                target = self._loaded_cfg.setdefault(section, {}) if section else self._loaded_cfg
+                target[key] = copy.deepcopy(change.session)
+            self._seeded_flags = seeded
+
+    def _may_leave(self, verb: str) -> bool:
+        """Whether to go on with ``verb`` (``Exit``, ``Load``, ``Switch``) when it would drop unsaved settings.
+
+        Each frontend answers in its own way: the TUI asks in a dialog, the
+        CLI at its prompt; the base, MCP, has no one to ask and goes on.
+        """
+        return True
+
     def _reset_session(self) -> None:
         """Back to what a fresh start on the loaded config has.
 
@@ -1123,6 +1173,8 @@ class TerminalHost:
             cfg = load_config(config_path)
         except (OSError, ValueError) as e:
             return CmdResult.fail(msg=f"Cannot load config: {e}")
+        if not self._may_leave("Load"):
+            return CmdResult.fail(msg="Canceled.")
 
         if self.capture.active:
             self._stop_capture()
@@ -1134,7 +1186,7 @@ class TerminalHost:
         # One cfg object, three views: replace_cfg refreshed the engine's
         # dict in place, so rebind to THAT dict -- not the transient
         # ``cfg`` loaded from disk.  Binding ``cfg`` here forks identity:
-        # session writes (``_apply_cfg``: /cfg.auto, /term.request, port
+        # session writes (``_apply_cfg``: /cfg, /term.request, port
         # changes) land in the engine's dict while ctx.cfg reads a stale
         # snapshot forever after.
         self.cfg = self.repl._cfg_data

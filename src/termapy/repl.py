@@ -2489,8 +2489,9 @@ class ReplEngine:
     def _apply_cfg(self, key: str, new_val: object) -> None:
         """Apply a config change for this session (not saved to disk).
 
-        The config editor is the only path that persists changes to disk.
-        This keeps $(env.NAME) templates in the JSON file intact.  Prints
+        ``/cfg.save`` and the config editor's Save write changes to disk,
+        each over the file as written, which keeps $(env.NAME) templates in
+        it intact.  Prints
         nothing: the command that applied the change answers with the value
         (registry ``setting-reply-is-value``).
         """

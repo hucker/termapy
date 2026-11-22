@@ -327,7 +327,7 @@ def _handler_kill(ctx: PluginContext, args: str) -> CmdResult:
     running after the grace period keeps running, and the failure names the
     command that ends it (registry ``kill-asks-first``).  ``others`` is every session but this one (tmux's
     ``kill-session -a``); ``me`` is this session alone, and is ``/exit``, which
-    asks nothing;
+    asks only about unsaved settings;
     ``all`` and any target that picks this session include it.  This
     session is never killed: it goes last, through ``exit``, so it saves
     its history and ends its log like any exit.  If another session would

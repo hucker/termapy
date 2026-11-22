@@ -35,7 +35,11 @@ does (`termapy --new my_device COM4 250000 custom=true`). Naming a config that a
 asks before its `.cfg` is replaced; the scripts and data in its folder are
 kept. Inside a session, `/cfg.new my_device COM4 115200 8N1` creates the
 same config where `/cfg.list` looks, and `/cfg.load my_device` switches to
-it. The dialog, the flag and the command make the same files.
+it. The dialog, the flag and the command make the same config: it connects
+when it loads, and EOL, Echo and Color buttons sit beside the output, each
+showing its setting. Only the place can differ: `--new` starts a
+`termapy_cfg/` in the current folder when there is none, a project of its
+own, while the dialog and `/cfg.new` write where `/cfg.list` looks.
 
 ## Quick open: just a port
 
@@ -65,9 +69,9 @@ termapy opens that port's config, made on the spot if it is new, so
 COM number it gets. A bare `termapy` never opens a quick config; type the
 port. When a port earns a name, rename its config (`/cfg.rename quick-COM3
 pico`, or the picker's Rename): the log, history and settings come along, and
-it is an ordinary config from then on. The config puts EOL, Echo and Color buttons beside the output, each
+it is an ordinary config from then on. Like every new config it puts EOL, Echo and Color buttons beside the output, each
 showing its setting; a click steps it
-([Custom buttons](custom-buttons.md#showing-a-setting)). The Proto button is
+([Custom buttons](custom-buttons.md#showing-a-setting)). The one difference is the Proto button, which is
 off: a session is a terminal, and the rest waits until asked for.
 
 A config wins the name: with a config called `COM3`, `termapy COM3` loads

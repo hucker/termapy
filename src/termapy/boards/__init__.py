@@ -363,7 +363,7 @@ def board_config(board: Board, name: str, port: str) -> dict:
     Its ``profile_path`` names the profile beside it, so every frontend
     loads the board's commands at connect.
     """
-    cfg = new_config(name, port=port, auto_connect=True)
+    cfg = new_config(name, port=port)
     cfg.update(json.loads((_package(board) / "config.json").read_text(encoding="utf-8")))
     cfg["profile_path"] = profile_name(name)
     return cfg

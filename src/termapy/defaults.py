@@ -689,8 +689,8 @@ CFG_KEYS: tuple[CfgKey, ...] = (
                 "tooltip": "Project info",
             },
             # The settings a newcomer changes most, each showing its value
-            # (help: custom-buttons, "Showing a setting").  Off here; a quick
-            # open turns some on (config.QUICK_BUTTONS).
+            # (help: custom-buttons, "Showing a setting").  Off here; every
+            # new config turns some on (config.STARTER_BUTTONS).
             {
                 "enabled": False,
                 "name": "Baud {value}",

@@ -57,7 +57,6 @@ class TestNewConfig:
             mode=("E", 7, 1.0),
             eol="\r\n",
             echo=True,
-            auto_connect=True,
         )
 
         # Assert
@@ -75,16 +74,23 @@ class TestNewConfig:
         assert cfg["auto_connect"] is True
 
     def test_unset_settings_keep_their_defaults(self):
-        """Only the title differs from the defaults when nothing else is given."""
+        """Only the title and the starter buttons differ from the defaults when nothing else is given."""
+        from termapy.config import STARTER_BUTTONS, STARTER_BUTTONS_SIDE
+
         # Arrange
         expected = default_cfg()
         expected["title"] = "mydev"
+        for button in expected["custom_buttons"]:
+            button["enabled"] = button["enabled"] or button["command"] in STARTER_BUTTONS
+        expected["custom_buttons_side"] = STARTER_BUTTONS_SIDE
 
         # Act
         actual = new_config("mydev")
 
         # Assert
-        assert actual == expected, "a bare new config is the defaults plus its title"
+        assert actual == expected, (
+            "a bare new config is the defaults, its title and the starter buttons"
+        )
 
     @pytest.mark.rule("baud-standard-unless-custom")
     def test_a_non_standard_rate_must_be_asked_for(self):
@@ -215,6 +221,23 @@ class TestCreateConfig:
 
         # Assert
         assert cfg_path.is_file(), "an existing folder of another name does not block the file"
+
+    @pytest.mark.rule("new-config-one-rule")
+    def test_a_new_config_connects_when_it_names_a_port(self):
+        """A port makes a config that connects on load; with none there is nothing to open, so it waits."""
+        with_port = new_config("bench", port="COM9")["auto_connect"]
+        without_port = new_config("bench")["auto_connect"]
+        assert (with_port, without_port) == (True, False), "auto_connect follows the port"
+
+    @pytest.mark.rule("new-config-one-rule")
+    def test_a_new_config_starts_with_the_starter_buttons(self):
+        """Every new config shows EOL, Echo and Color beside the output, and keeps Baud off."""
+        from termapy.config import STARTER_BUTTONS_SIDE
+
+        cfg = new_config("bench", port="COM9")
+        enabled = [button["name"] for button in cfg["custom_buttons"] if button["enabled"]]
+        assert enabled == ["Info", "EOL {value}", "Echo {value}", "Color {value}"]
+        assert cfg["custom_buttons_side"] == STARTER_BUTTONS_SIDE, "a column beside the output"
 
     def test_a_bad_name_is_refused_before_anything_is_written(self, tmp_path):
         """A name with a space fails validate_file_stem and no folder appears."""

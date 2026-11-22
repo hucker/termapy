@@ -14,6 +14,10 @@ Or from within termapy:
 - `/demo`: switch to the demo config (creates it if needed)
 - `/demo.force`: reset demo to defaults and switch to it
 
+`--demo` and `/demo` keep the demo as you left it: a setting you saved, or a
+script you edited, is still there next time. A file the demo ships and you
+removed comes back. `/demo.force` puts every shipped file back as it was.
+
 ## VT100 demo (interactive ANSI UI)
 
 ```sh

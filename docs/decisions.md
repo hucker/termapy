@@ -2341,3 +2341,30 @@ cannot call while it supports Python 3.11. **Behavior changed:** `/cfg.new`,
 those names; a config made before still opens. **Where:**
 `config.validate_file_stem`, `config.RESERVED_NAMES`,
 `config.RESERVED_CHARS`.
+
+## 2026-11-22 — A new config is made one way, and --demo keeps the demo
+
+The 2026-11-19 review found the creators of a config disagreeing while the
+docs and the registry said they made the same files (H2): the New Config
+dialog wrote `auto_connect: false`, so a config made with its Connect sat
+disconnected at the next start, while `/cfg.new`, `--new` and a quick open
+wrote `true`; and only a quick open turned on the EOL, Echo and Color
+buttons that README's first minute teaches (M9). Decided: the rule is
+`config.new_config`'s, not each caller's (registry `new-config-one-rule`).
+A config connects when it loads if it names a port, the one case where
+there is something to open, and starts with the starter buttons
+(`STARTER_BUTTONS`, renamed from `QUICK_BUTTONS`). A quick open keeps one
+difference, the Proto button off, since a session is a terminal. Where a
+config lands stays two answers, now documented: `--new` from a shell starts
+a project folder, every other creator writes where `/cfg.list` looks.
+
+`--demo` rewrote the demo config and every shipped file at each launch
+(`force=True` in the TUI and the CLI), while `/demo` and `termapy demo`
+kept them, so a setting saved in a `--demo` session was gone next time
+(M12). Now `--demo` keeps the demo too, and `/demo.force` is the one reset.
+The cost: after an upgrade a demo script edited before keeps its old text;
+a shipped file the user never had still arrives. **Behavior changed:** the
+New Config dialog's configs reconnect at the next start; every new config
+shows the EOL, Echo and Color buttons (a config written before keeps its
+own); `--demo` no longer resets the demo. **Where:** `config.new_config`,
+`config.STARTER_BUTTONS`, `app.py` and `cli.py` at `--demo`.

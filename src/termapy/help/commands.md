@@ -265,6 +265,7 @@ sends to the device) waits in the input line for Enter.
 | `/term.json_fmt`          | Show how JSON prints on screen: its highlighting and its indent             |
 | `/term.json_fmt.highlight {on\|off\|toggle}` | Highlight JSON on screen (shows only when color is on)       |
 | `/term.json_fmt.indent {0\|2\|4\|cycle}` | Spaces per level for JSON on screen; 0 is one line               |
+| `/term.title {text\|auto}` | Show or set the terminal's title (the tab in Windows Terminal, iTerm, and VS Code once `vscode://settings/terminal.integrated.tabs.title` is `${sequence}`); bare shows it, `auto` is the config's own; a one-shot (`-e`, `--run`) leaves the shell's title alone |
 | `/term.eol.markers {on\|off\|toggle}` | Toggle visible `\r` `\n` markers in serial output                       |
 | `/term.line_no {on\|off\|toggle}` | Toggle line numbers in serial output (TUI only)                             |
 | `/term.log <text>`        | Append a line to the session log without echoing to screen                  |

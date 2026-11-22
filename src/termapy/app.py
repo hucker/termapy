@@ -1086,6 +1086,8 @@ class SerialTerminal(TerminalHost, App):
             "VS Code detected: F-keys and Ctrl+P/S/T are captured by VS Code.",
             "Top buttons: Ctrl+Shift+1=Help, 2=Cfg, 3=Run, 4=Proto, 5=Open Config.",
             "Other:       Alt+P=palette, Alt+S=SVG, Alt+T=text screenshot.",
+            "Tab title:   Ctrl+click vscode://settings/terminal.integrated.tabs.title",
+            "             (Cmd on a Mac) and enter ${sequence}; the tab then follows the title.",
             rule,
         ):
             self._pane_write(Text(line, style="bold green"))
@@ -4018,6 +4020,20 @@ class SerialTerminal(TerminalHost, App):
         self._watch_custom_settings(entries)
 
     # -- REPL hook implementations (app-coupled commands) ----------------------
+
+    def _write_terminal_title(self, title: str) -> None:
+        """The terminal tab's title, through Textual's driver on main; nothing before the app runs or headless."""
+        self._on_main(self._write_title_sequence, title)
+
+    def _write_title_sequence(self, title: str) -> None:
+        """Main thread: the OSC 0 title sequence every terminal reads (VS Code with tabs.title = ${sequence})."""
+        driver = self._driver
+        # Before application mode the driver is None; after it the writer is
+        # gone and a write would assert, so a title set on the way out is dropped.
+        if driver is None or driver.is_headless or self._shutting_down:
+            return
+        driver.write(f"\x1b]0;{title}\x07")
+        driver.flush()
 
     def _delay_progress(self, elapsed: float, total: float, done: bool, label: str = "") -> None:
         """Draw a wait's progress: on the script overlay while a script runs, else the bottom bar.

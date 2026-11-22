@@ -322,7 +322,7 @@ AVAILABLE
   TUI: yes   WEB: yes   CLI: yes (current)   MCP: yes
 
 SEE ALSO
-  /term.color, /term.completion, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.info, /term.json_fmt, /term.line_no, /term.log, /term.output, /term.raw, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.traffic, /term.usb_db, /term
+  /term.color, /term.completion, /term.control_keys, /term.ctrl, /term.echo, /term.echo_repl, /term.encoding, /term.eol, /term.info, /term.json_fmt, /term.line_no, /term.log, /term.output, /term.raw, /term.request, /term.send, /term.send_bare_enter, /term.timestamps, /term.title, /term.traffic, /term.usb_db, /term
 demo> /cfg.auto custom_buttons_side Right
   right
 demo> /cfg custom_buttons_side
@@ -1990,6 +1990,14 @@ demo> /proto.hex
 demo> /term.json_fmt
   highlight: on
   indent   : 2
+demo> /term.title
+  Demo Device DEMO 115200 8N1
+demo> /term.title bench-A
+  bench-A
+demo> /term.title
+  bench-A
+demo> /term.title auto
+  Demo Device DEMO 115200 8N1
 demo> /term.output
   normal
 demo> /term.send_bare_enter

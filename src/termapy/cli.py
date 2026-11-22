@@ -386,6 +386,13 @@ class CLITerminal(TerminalHost):
 
     _DELAY_BAR_WIDTH = 30
 
+    def _write_terminal_title(self, title: str) -> None:
+        """The terminal's title through Rich, to a terminal only; a one-shot leaves the shell's title alone."""
+        # -e and --run borrow the user's shell for one command: its tab is the shell's.
+        if self.is_oneshot:
+            return
+        self.console.set_window_title(title)
+
     def _delay_progress(self, elapsed: float, total: float, done: bool, label: str = "") -> None:
         """Draw a wait's progress as a bar redrawn in place, and erase it when done.
 

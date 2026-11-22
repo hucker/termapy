@@ -175,6 +175,14 @@ class InternalHandle:
     # per-frontend part of it.
     delay_progress: Callable | None = None
 
+    # set_terminal_title(text) / terminal_title() -> str: the title of the
+    # terminal this frontend runs in (the tab in VS Code, Windows Terminal,
+    # iTerm).  The host sets it on connect, disconnect and load, /term.title
+    # for the session; an empty text asks for the host's own again.  Where
+    # there is no terminal (MCP) the host records it and writes nowhere.
+    set_terminal_title: Callable[[str], None] = lambda text: None
+    terminal_title: Callable[[], str] = lambda: ""
+
     # session_log_path() -> Path | None: the file THIS frontend writes its
     # session log to (TUI <cfg>.log or log_file, MCP <cfg>.mcp.log), or
     # None where it keeps none (CLI).  The one answer to "which log": every

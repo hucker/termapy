@@ -397,6 +397,42 @@ class TerminalHost:
         actual = self.engine.open_device or ""
         return same_port(port, spec) or same_port(port, actual)
 
+    # -- Terminal title -------------------------------------------------------
+    # The title of the terminal this process runs in: the tab in VS Code,
+    # Windows Terminal or iTerm.  Set by the host at start (``_init_flags``),
+    # on connect, disconnect and load, in every frontend that has a terminal
+    # (registry terminal-title-follows-the-session).
+
+    terminal_title: str = ""
+
+    def set_terminal_title(self, text: str) -> None:
+        """Set the terminal's title to ``text``, or back to the session's own when empty."""
+        if not text:
+            self._refresh_terminal_title()
+            return
+        self.terminal_title = text
+        self._write_terminal_title(text)
+
+    def _refresh_terminal_title(self) -> None:
+        """The session's title: a /term.title override while one stands, else the config's own."""
+        override = self.repl.ctx.ns("flags").get("terminal_title")
+        self.terminal_title = str(override) if override else self.default_terminal_title()
+        self._write_terminal_title(self.terminal_title)
+
+    def default_terminal_title(self) -> str:
+        """The config's title (its name without one), then the port and settings while connected."""
+        from termapy.config import connection_string
+
+        title = cfg_value(self.cfg, "title") or (
+            Path(self.config_path).stem if self.config_path else "termapy"
+        )
+        if not self.engine.is_connected:
+            return str(title)
+        return f"{title} {connection_string(self.cfg, 'short', self.engine.open_device)}"
+
+    def _write_terminal_title(self, title: str) -> None:
+        """Hand ``title`` to the terminal; the base has none (MCP) and writes nowhere."""
+
     def _open_error(self) -> str:
         """Why the last open of the cfg's port failed, as the user reads it."""
         port_name = self.cfg["serial"]["port"] or "?"
@@ -461,6 +497,7 @@ class TerminalHost:
         self.repl.fire_lifecycle("on_connect")
         self._start_reader()
         self._on_connected(full)
+        self._refresh_terminal_title()
         self._leave_breadcrumb()
 
     def _on_connected(self, message: str) -> None:
@@ -489,6 +526,7 @@ class TerminalHost:
         self._clear_device_state()
         msg = f"Disconnected: {actual}" if actual else "Disconnected."
         self._port_banner(msg, "red")
+        self._refresh_terminal_title()
         self._on_disconnected()
         self._leave_breadcrumb()
 
@@ -595,6 +633,8 @@ class TerminalHost:
             load_config=lambda name: self._load_config(name),
             xfer_cancel=getattr(self, "_xfer_cancel", None),
             script_stop_event=self.repl._script_stop,
+            set_terminal_title=self.set_terminal_title,
+            terminal_title=lambda: self.terminal_title,
             # /run's built-in handler reaches script-running via these
             # two callbacks.  ``start_script`` is host-agnostic;
             # ``run_script`` differs by host -- CLI / MCP inherit the
@@ -732,7 +772,8 @@ class TerminalHost:
         the arguments it was first given: what the user asked for at launch
         (``--no-color``, ``--quiet``) and what a host requires (MCP's JSON
         stays uncolored) outlast any config, and everything else is the
-        config's.
+        config's.  It ends by titling the terminal from them, so the title
+        is one more thing a fresh start and a load agree on.
 
         There are two independent local echoes, gated by two flags:
 
@@ -796,6 +837,9 @@ class TerminalHost:
         # the TUI (strip before render when off) and CLI (strip in on_lines).
         flags.setdefault("color", cfg_value(self.cfg, "color") if color is None else color)
         self._note_loaded()
+        # The title reads the flags and the config just seeded, so a fresh start
+        # and a load title the terminal alike (registry config-load-deterministic).
+        self._refresh_terminal_title()
 
     def _note_loaded(self) -> None:
         """Hold the config and the session-flag seeds as they stand: where ``session_changes`` starts.

@@ -48,8 +48,8 @@ class Credit:
             extra; ``vendored`` = shipped under ``src/termapy/vendor/``;
             ``reference`` = data, not code (the reveng catalog);
             ``tooling`` = build/docs only.
-        covers: Further distribution names this record accounts for (the
-            tree-sitter grammars ride with ``tree-sitter``).
+        covers: Further distribution names this record accounts for (a
+            family of packages credited as one).
         extra: For ``optional``, the extra's name in ``pyproject.toml``.
         in_tooltip: Show in the Help tooltip's "Built on open source" grid.
         label: Tooltip display name when it differs from ``package``.
@@ -116,16 +116,8 @@ CREDITS: tuple[Credit, ...] = (
         "Georg Brandl and the Pygments team",
         "https://pygments.org/",
         note="syntax highlighting for the in-app TextArea editors (config JSON, "
-        "proto TOML, script bash).",
-    ),
-    Credit(
-        "tree-sitter",
-        "editor parsers",
-        "Max Brunsfeld; grammars community-maintained",
-        "https://tree-sitter.github.io/",
-        note="plus the JSON / TOML / bash grammars: the incremental parsers powering "
-        "the same editors.",
-        covers=("tree-sitter-json", "tree-sitter-toml", "tree-sitter-bash"),
+        "proto TOML, run scripts) through termapy.highlighting, and the code blocks "
+        "Rich renders.",
     ),
     Credit(
         "packaging",

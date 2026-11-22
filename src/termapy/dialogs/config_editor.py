@@ -138,8 +138,7 @@ class ConfigEditor(ModalScreen[tuple | None]):
             yield Static(f"JSON: {self.config_path}", id="config-title", markup=False)
             editor = EditorTextArea(
                 json.dumps(self._disk_cfg, indent=4),
-                language="json",
-                theme="monokai",
+                highlighter="json",
                 show_line_numbers=True,
                 id="config-editor",
             )

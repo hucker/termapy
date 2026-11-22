@@ -136,7 +136,7 @@ because they share the stdlib-only / fail-loud convention.
 - `check_dep_updates.py` - query PyPI for the latest release of
   every direct dependency and flag which ones have moved past
   our upper bound.  Run before a release (or whenever you want)
-  to see if `tree-sitter`, `textual`, etc. have new minors
+  to see if `textual`, `crcglot`, etc. have new minors
   worth testing.  Output is a sorted table with `BUMP AVAILABLE`
   rows at the top.  It complements the release's `uv lock
   --upgrade`, which moves everything the manifest allows: a

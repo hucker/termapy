@@ -99,7 +99,7 @@ class ProtoEditor(ModalScreen[str | None]):
             yield Static(title, id="ped-title", markup=False)
             yield EditorTextArea(
                 content,
-                language="toml",
+                highlighter="toml",
                 show_line_numbers=True,
                 id="ped-editor",
             )

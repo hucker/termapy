@@ -2291,3 +2291,31 @@ and `-e /port.chip.list --json` gives the records, which now carry `vid`
 and `pid` as ints as the flag's JSON did. The flag was typed by nobody
 before a config existed, which is the one thing a flag buys. **Where:**
 `entry.FLAG_TWINS`, `cli_flags.py` (the runner gone), `help/cli.md`.
+
+## 2026-11-21 — The editors highlight with Pygments, and tree-sitter is gone
+
+The config, proto and script editors color their text through
+`termapy.highlighting`, a Textual-free module that turns the document and a
+lexer name (`json`, `toml`, `run`) into Textual's per-line highlight map in
+UTF-8 byte offsets; `EditorTextArea` fills that map in place of the
+tree-sitter query a `language=` would need. The four tree-sitter pins
+(`tree-sitter`, `-json`, `-toml`, `-bash`) leave `pyproject.toml`; Pygments,
+already a dependency (Rich requires it), does the work.
+
+**Why:** tree-sitter was the only compiled dependency left in core termapy,
+there for the cosmetics of three editors, and it cost more than it gave:
+0.26.1 crashed the process on Windows while a TextArea loaded its query
+(decision 2026-11-10 pinned it out), its binding ships no free-threaded wheel
+and re-enables the GIL when loaded (py-tree-sitter #458, help wanted since
+May 2026), and each release meant checking four pre-1.0 caps by hand. With
+it gone, core termapy installs anywhere Python runs, the free-threaded build
+included. The `run` lexer is termapy's own small grammar (comment lines,
+`/command`, `$(NAME)`, `<-`, quoted text, numbers), which colors a script
+better than the bash grammar that stood in for it. The same day the three
+editors took one theme, `EDITOR_THEME`, whose JSON styles are read from
+Rich's console table: until then the config editor wore Monokai (keys
+pink, strings yellow) while `/cfg.show` printed the same file in Rich's
+colors (keys blue, strings green), and the other two editors wore a third
+palette; Chuck asked why. **Where:** `highlighting.py`,
+`dialogs/_common.py`; the guard is `tests/test_architecture.py` (registry
+`editor-highlight-pygments`).

@@ -91,10 +91,8 @@ Each one below is a direct runtime dependency declared in
 
 <!-- deps:start (generated from src/termapy/credits_data.py by scripts/sync_acknowledgments.py; edit the registry, not this block) -->
 - [**pygments**](https://pygments.org/) -- syntax highlighting for the
-  in-app TextArea editors (config JSON, proto TOML, script bash).
-- [**tree-sitter**](https://tree-sitter.github.io/) -- plus the JSON /
-  TOML / bash grammars: the incremental parsers powering the same
-  editors.
+  in-app TextArea editors (config JSON, proto TOML, run scripts)
+  through termapy.highlighting, and the code blocks Rich renders.
 - [**packaging**](https://packaging.pypa.io/) -- PEP 440 version
   comparison for the update check, which compares the installed
   termapy against the latest PyPI release.

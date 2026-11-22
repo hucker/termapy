@@ -658,6 +658,25 @@ class TestFileEditors:
 
         _run(scenario)
 
+    @pytest.mark.rule("editor-highlight-pygments")
+    @pytest.mark.parametrize(("editor_cls", "prefix", "ext", "title", "template"), _EDITORS)
+    def test_the_template_is_colored_through_pygments(
+        self, tmp_path, editor_cls, prefix, ext, title, template
+    ):
+        """The new file's template carries highlight spans: TOML and run scripts color through Pygments, with no tree-sitter."""
+
+        async def scenario():
+            app = _Host()
+            async with app.run_test(size=_SIZE) as pilot:
+                await _push(app, pilot, editor_cls(tmp_path / "folder"))
+                editor = app.screen.query_one(f"#{prefix}-editor", TextArea)
+                # Textual's own per-line map, which EditorTextArea fills from Pygments.
+                assert any(editor._highlights.values()), (
+                    "the template shows no highlight span at all"
+                )
+
+        _run(scenario)
+
     @pytest.mark.parametrize(("editor_cls", "prefix", "ext", "title", "template"), _EDITORS)
     def test_save_needs_a_name_then_writes_it_with_the_extension(
         self, tmp_path, editor_cls, prefix, ext, title, template

@@ -81,6 +81,36 @@ class TestWhatItShows:
 
         _run(scenario)
 
+    @pytest.mark.rule("editor-highlight-pygments")
+    def test_the_json_is_colored_through_pygments(self, tmp_path):
+        """The editor's lines carry highlight spans and its theme is Rich's console palette, so a config reads as /cfg.show prints it."""
+        from rich.default_styles import DEFAULT_STYLES
+
+        from termapy.dialogs._common import EDITOR_THEME
+
+        async def scenario():
+            cfg, path = _write_cfg(tmp_path)
+            app = _Host()
+            async with app.run_test() as pilot:
+                screen, _ = await _open(app, pilot, cfg, path)
+                editor = screen.query_one("#config-editor", TextArea)
+                # Textual's own per-line map, which EditorTextArea fills from Pygments.
+                names = {name for spans in editor._highlights.values() for _, _, name in spans}
+                assert {"json.label", "string"} <= names, (
+                    f"the config's keys and values are colored: {names}"
+                )
+                assert editor.theme == "termapy", "the editor wears the termapy theme"
+                styles = EDITOR_THEME.syntax_styles
+                assert styles["json.label"] == DEFAULT_STYLES["json.key"], (
+                    "keys as Rich prints them"
+                )
+                assert styles["string"] == DEFAULT_STYLES["json.str"], "strings as Rich prints them"
+                assert styles["boolean.false"] == DEFAULT_STYLES["json.bool_false"], (
+                    "false as Rich prints it"
+                )
+
+        _run(scenario)
+
     def test_highlight_key_puts_the_cursor_on_that_line(self, tmp_path):
         """Opened for a key, the cursor sits on that key's line so the help describes it at once."""
 

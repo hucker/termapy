@@ -131,8 +131,8 @@ def refresh_uv_lock() -> None:
     transitive tree as well as the direct floors -- so each release ships
     the current fixes rather than whatever was resolved the last time a
     direct dependency changed (a plain ``uv lock`` re-resolves only what
-    the manifest changed).  Exact pins (ruff, ty) and the tree-sitter caps
-    are constraints, so they hold.  The suite, tox, ruff and ty all run
+    the manifest changed).  Exact pins (ruff, ty) are constraints, so they
+    hold.  The suite, tox, ruff and ty all run
     after this step and abort the release if a bump broke something; the
     audit right after it checks the pins that will actually ship.
     """

@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 212: 197 registry rows (guarantees 162, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 208. Pinned by none: 4.
+Ids: 213: 198 registry rows (guarantees 163, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 209. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -304,6 +304,13 @@ Ids: 212: 197 registry rows (guarantees 162, assumptions 35), 15 spec sections i
 ### `doc-shots-current` (guarantee, repository)
 
 - `test_doc_shots.py`: `test_a_shot_carries_no_ones_home_folder` **guard**, `test_a_shot_shows_the_current_toolbar` **guard**, `test_shots_exist` **guard**
+
+### `editor-highlight-pygments` (guarantee, data)
+
+- `test_architecture.py`: `test_pyproject_names_no_tree_sitter` **guard**, `test_text_areas_highlight_through_pygments_not_a_language` **guard**
+- `test_dialogs_config_editor.py`: `TestWhatItShows.test_the_json_is_colored_through_pygments` **guard**
+- `test_dialogs_small.py`: `TestFileEditors.test_the_template_is_colored_through_pygments`
+- `test_highlighting.py`: the module (12 functions)
 
 ### `elf-types-or-none` (guarantee, data)
 

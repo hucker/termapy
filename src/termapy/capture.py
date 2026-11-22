@@ -45,27 +45,45 @@ class CaptureResult:
     raw: bool
     error: str = ""  # non-empty if the capture aborted on a write failure
     elapsed_s: float = 0.0  # wall time from start() to stop()
+    # Lines written to the file: text lines, or a struct capture's CSV
+    # rows with its header; None for raw bytes, which have no lines.
+    lines: int | None = None
 
     @property
     def size_label(self) -> str:
         """Humanized byte count (``'12.5 KB'``) via the shared size formatter."""
         return format_size(self.byte_count)
 
+    @property
+    def summary(self) -> str:
+        """The line a capture ends with: ``Capture complete: ...`` or ``Capture aborted: ...``."""
+        if self.error:
+            return f"Capture aborted: {self.error} ({self.path})"
+        count = self.lines
+        lines = "" if count is None else f", {count} line{'' if count == 1 else 's'}"
+        return (
+            f"Capture complete: {self.path} "
+            f"({self.size_label}{lines} in {format_duration(self.elapsed_s)})"
+        )
+
+    def to_record(self) -> dict[str, Any]:
+        """The capture as JSON: its file, the bytes and lines written, and how long it ran."""
+        return {
+            "path": str(self.path),
+            "bytes": self.byte_count,
+            "lines": self.lines,
+            "elapsed_s": round(self.elapsed_s, 3),
+        }
+
 
 def format_capture_result(result: CaptureResult) -> tuple[str, str]:
     """Return the ``(status text, color)`` for a finished capture.
 
-    Single owner for the "Capture complete/aborted" status line so the
-    four frontends (TUI ``status``, ``capture_view``, CLI, MCP) render it
-    identically.  Callers whose output sink takes no color use ``[0]``.
+    The text is ``CaptureResult.summary``, so a host's status line and
+    ``/cap.stop``'s answer read the same.  Callers whose output sink takes
+    no color use ``[0]``.
     """
-    if result.error:
-        return f"Capture aborted: {result.error} ({result.path})", "red"
-    return (
-        f"Capture complete: {result.path} "
-        f"({result.size_label} in {format_duration(result.elapsed_s)})",
-        "green",
-    )
+    return result.summary, "red" if result.error else "green"
 
 
 class CaptureEngine:
@@ -100,6 +118,7 @@ class CaptureEngine:
         self._mode: str = ""
         self._raw: bool = False
         self._bytes: int = 0
+        self._lines: int = 0  # lines written: text lines or CSV rows
         self._target: int = 0
         # Latches when the byte target is hit.  The host stops the capture
         # asynchronously (the reader posts "capdone" rather than blocking on
@@ -198,6 +217,7 @@ class CaptureEngine:
         self._mode = mode
         self._raw = not columns
         self._bytes = 0
+        self._lines = 0
         self._write_error = ""
         self._columns = columns or []
         self._record_size = record_size
@@ -220,8 +240,14 @@ class CaptureEngine:
 
         return True
 
-    def stop(self) -> CaptureResult | None:
+    def stop(self, announce: bool = True) -> CaptureResult | None:
         """End the capture: flush, close file, return result.
+
+        Args:
+            announce: Fire ``on_complete``, the host's completion line.
+                False when the caller answers with the result itself, as
+                ``/cap.stop`` does, so the line is its answer and obeys
+                its level and ``--json``.
 
         Returns:
             CaptureResult if a capture was active, None otherwise.
@@ -241,6 +267,8 @@ class CaptureEngine:
 
             path = self._path or Path("unknown")
             byte_count = self._bytes
+            # Raw bytes have no lines; text and a struct's rows do.
+            lines = None if self._mode == "bin" and self._raw else self._lines
             raw = self._raw
             error = self._write_error
             elapsed_s = time.monotonic() - self._started
@@ -253,9 +281,14 @@ class CaptureEngine:
             self._reset()
 
         result = CaptureResult(
-            path=path, byte_count=byte_count, raw=raw, error=error, elapsed_s=elapsed_s
+            path=path,
+            byte_count=byte_count,
+            raw=raw,
+            error=error,
+            elapsed_s=elapsed_s,
+            lines=lines,
         )
-        if self._on_complete:
+        if announce and self._on_complete:
             self._on_complete(result)
         return result
 
@@ -327,6 +360,7 @@ class CaptureEngine:
                 self._bytes += len(written.encode("utf-8")) + written.count("\n") * (
                     len(os.linesep) - 1
                 )
+                self._lines += 1
             fh.flush()
         except (OSError, ValueError) as e:
             self._record_write_error(fh, e)
@@ -422,6 +456,7 @@ class CaptureEngine:
                     try:
                         fh.write(text)
                         self._bytes += usable
+                        self._lines += len(lines)
                     except (OSError, ValueError) as e:
                         self._record_write_error(fh, e)
                     if self._echo and self._on_echo:

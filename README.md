@@ -309,7 +309,7 @@ The most common ones:
 | `/cap.bin <f> ...`                   | Capture raw binary bytes to a file                                            |
 | `/cap.struct <f> ...`                | Capture binary data, decode with format spec to CSV                           |
 | `/cap.hex <f> ...`                   | Capture hex text lines, decode with format spec to CSV                        |
-| `/cap.stop`                          | Stop an active capture                                                        |
+| `/cap.stop`                          | Stop the capture; report its bytes and lines                                  |
 | `/term.raw <text>`                        | Send text exactly as typed: no line ending, expansion or transforms           |
 | `/exit`                              | Exit termapy                                                                  |
 

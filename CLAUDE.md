@@ -87,6 +87,10 @@ All other paths relative to `src/termapy/`.
   returns, never `key = value`, prose or a note, so a person reads what
   `$(X) <- cmd` captures (registry `setting-reply-is-value`, Chuck
   2026-11-14). `ctx.internal.apply_cfg` prints nothing; the command does.
+- **A command with nothing to do says so** (registry `noop-says-so`): one
+  line on `result` (`No capture running.`, `Already in the TUI.`), and it
+  still succeeds, so a script for another frontend runs; never a blank
+  success.
 - **A bare command does what its button does, and says so by declaration.**
   Bare `/cfg` `/run` `/proto` `/port` (and the edit/run twins) open their
   picker: `Command(picker="run")`, which the dispatcher honors in the TUI;

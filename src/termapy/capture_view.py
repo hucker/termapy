@@ -37,6 +37,7 @@ SHUTDOWN_RACE: tuple[type[BaseException], ...] = (NoMatches, RuntimeError)
 
 if TYPE_CHECKING:
     from termapy.app import SerialTerminal
+    from termapy.capture import CaptureResult
 
 
 def _cap_start(
@@ -94,12 +95,18 @@ def _cap_start(
     return True
 
 
-def _cap_stop(app: SerialTerminal) -> None:
-    """End file capture: delegate to engine, restore UI."""
-    if not app._capture.active:
-        return
+def _cap_stop(app: SerialTerminal, announce: bool = True) -> CaptureResult | None:
+    """End file capture: delegate to engine, restore UI; the finished capture, or None.
 
-    result = app._capture.stop()
+    Args:
+        app: The running TUI.
+        announce: Whether the engine's ``on_complete`` prints the
+            completion line; False when ``/cap.stop`` answers with it.
+    """
+    if not app._capture.active:
+        return None
+
+    result = app._capture.stop(announce=announce)
 
     # The capture owns its claim, start to stop.  The ``in_script`` guard
     # that used to sit here was written for a script-wide proto mode and
@@ -116,14 +123,15 @@ def _cap_stop(app: SerialTerminal) -> None:
     _cap_hide_progress(app)
 
     if result:
-        # The status line is printed by _on_capture_complete (the
+        # The completion line is printed by _on_capture_complete (the
         # CaptureEngine on_complete callback fired inside stop() above),
-        # the single owner across frontends; here we only write the log.
+        # or by /cap.stop when it asked; here we only write the log.
         if result.error:
             app._log_line("#", f"capture aborted: {result.path} ({result.error})")
         else:
             app._log_line("#", f"capture end: {result.path} ({result.size_label})")
     app._sync_cap_button()
+    return result
 
 
 def _cap_show_progress(app: SerialTerminal) -> None:

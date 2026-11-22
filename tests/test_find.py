@@ -207,6 +207,9 @@ class TestClear:
         eng.dispatch("find AT")
         payloads.clear()
 
+        said: list[str] = []
+        eng.ctx.io._write = lambda text, color=None: said.append(text)
+
         # Act
         result = eng.dispatch("find.clear")
 
@@ -214,16 +217,24 @@ class TestClear:
         assert result.success, "clear succeeds"
         assert _search(eng) is None, "state gone"
         assert payloads == [None], "UI told to hide"
+        assert said == [], (
+            "a clear that closed a search says nothing: the bar closing is the answer"
+        )
 
-    def test_clear_on_idle_is_silent_success(self, env):
-        """/find.clear with nothing open still succeeds and still sends the hide."""
-        # Arrange / Act -- clear with no active search.
+    @pytest.mark.rule("noop-says-so")
+    def test_clear_on_idle_says_there_is_no_search(self, env):
+        """/find.clear with nothing open says so, still succeeds and still sends the hide."""
+        # Arrange
         eng, payloads, _ = env
+        said: list[str] = []
+        eng.ctx.io._write = lambda text, color=None: said.append(text)
+
+        # Act -- clear with no active search
         result = eng.dispatch("find.clear")
 
-        # Assert -- silent success; UI is still told to hide (idempotent).
+        # Assert -- a success that says nothing happened; the UI is still told to hide
         assert result.success, "clear is idempotent"
-        assert _search(eng) is None, "still cleared"
+        assert said == ["No search to clear."], "the one line says there was nothing"
         assert payloads == [None], "UI told to hide (idempotent)"
 
 

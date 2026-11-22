@@ -3387,6 +3387,63 @@ class TestCfgAppliesAtOnce:
         _run(scenario)
 
 
+class TestNoOpSaysSo:
+    """A TUI command with nothing to do says so and still succeeds (registry noop-says-so)."""
+
+    @pytest.mark.rule("noop-says-so")
+    def test_app_tui_in_the_tui_says_it_is_already_there(self, app_factory):
+        """/app.tui answers with the mode and a line saying so, rather than a blank success."""
+
+        async def scenario():
+            from textual.widgets import RichLog
+
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+
+                # Act
+                result, _ = await _dispatch_on_worker(pilot, app, "/app.tui")
+                await pilot.pause()
+
+                # Assert
+                assert (result.success, result.value) == (True, "tui"), result.error
+                shown = [strip.text.rstrip() for strip in app.query_one("#output", RichLog).lines]
+                assert any("Already in the TUI." in line for line in shown), shown
+
+        _run(scenario)
+
+    @pytest.mark.rule("noop-says-so")
+    def test_cap_stop_answers_with_what_the_capture_wrote(self, app_factory, tmp_path):
+        """/cap.stop on a worker gets back the capture the main thread stopped; stopped again, it finds none."""
+
+        async def scenario():
+            from textual.widgets import RichLog
+
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                cap_path = tmp_path / "cap.txt"
+                started = app._cap_start(path=cap_path, file_mode="w", mode="text", duration=30.0)
+                assert started, "a text capture started"
+                app._capture.feed_text(["one", "two"])
+
+                # Act
+                first, _ = await _dispatch_on_worker(pilot, app, "/cap.stop")
+                second, _ = await _dispatch_on_worker(pilot, app, "/cap.stop")
+
+                # Assert
+                assert first.value == cap_path.stat().st_size, "the value is the bytes on disk"
+                assert first.data["lines"] == 2, "the two lines written"
+                shown = [strip.text for strip in app.query_one("#output", RichLog).lines]
+                actual = sum("Capture complete" in line for line in shown)
+                assert actual == 1, f"the answer once, no status line beside it: {shown}"
+                assert (second.success, second.value) == (True, 0), (
+                    "a second stop finds none running"
+                )
+
+        _run(scenario)
+
+
 class TestDelayHook:
     """``/delay`` in the TUI is the builtin, drawn on the bottom bar.
 

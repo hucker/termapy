@@ -1955,6 +1955,44 @@ class TestJsonFlag:
         # Assert
         assert leaked == [] and output == [], "silent means silent on every channel"
 
+    @pytest.mark.rule("json-is-a-shape")
+    @pytest.mark.parametrize(
+        ("level", "lines"),
+        [
+            ("normal", ["the answer", "the detail"]),
+            ("quiet", ["the answer"]),
+            ("silent", []),
+        ],
+    )
+    def test_the_level_decides_how_much_and_json_the_shape(self, engine, level, lines):
+        """The lines a level prints as text are the lines the envelope carries; --silent prints no envelope either."""
+        # Arrange -- a command with an answer and a detail line
+        eng, output = engine
+
+        def _handler(ctx, args):
+            """Answer with a detail line beside it."""
+            ctx.io.result("the answer")
+            ctx.io.output("the detail")
+            return CmdResult.ok(value="the answer")
+
+        eng.register_hook("shape_probe", "", "Answer with a detail line.", _handler)
+        output.clear()
+
+        # Act
+        eng.dispatch(f"shape_probe --{level}")
+        as_text = [text for text, _ in output]
+        output.clear()
+        eng.dispatch(f"shape_probe --{level} --json")
+        envelopes = [json.loads(text) for text, _ in output]
+
+        # Assert
+        assert as_text == lines, "the level decides which lines print as text"
+        if level == "silent":
+            assert envelopes == [], "silent prints no envelope"
+        else:
+            carried = [(envelope["value"], envelope["output_lines"]) for envelope in envelopes]
+            assert carried == [("the answer", lines)], "one envelope carrying the same lines"
+
     def test_converted_command_envelope(self, engine):
         """A data-producing command gives the fixed seven-key envelope with data, no prose."""
         # Arrange

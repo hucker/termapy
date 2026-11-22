@@ -237,15 +237,18 @@ For everything else it
 is `null` and the command's rendered answer arrives in `output_lines` (markup
 flattened to plain text) -- `/help --json` is one envelope containing the
 help text, nothing printed outside it.  Errors arrive in the `error` field
-rather than as a separate red line.  Composes with the level flags -- the
-envelope rides the result channel, so `--json --quiet` prints just the
-envelope and `--json --silent` prints nothing (scripts still read `value`).
+rather than as a separate red line.  The level flags decide how much, the
+flag only the shape: `--json --quiet` prints the envelope with only the
+answer's lines in `output_lines`, and `--json --silent` prints nothing
+(scripts still read `value`).
 From a shell, `termapy -e "/port.list --json"` pipes cleanly to `jq`.
 
 On a bare device line, `--json` is the one-call form of the request/response
 dial: `MEM.R 0x1000 2 --json` sends the line, waits for the reply, and returns
 it in `value` -- exactly what `/term.request on` does for every line.  Without
 the flag a bare line is a plain send, and the reply arrives in the scrollback.
+In the TUI and a script's transcript the request shows above the envelope as
+`{"cmd": ...}`; a `termapy -e` one-shot prints the envelope alone.
 
 For plugin authors: `ctx.result()` is the answer, `ctx.output()` is bulk
 data, `ctx.status()` is progress chatter. Each gates on the active level.

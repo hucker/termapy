@@ -108,7 +108,9 @@ A .json suffix on a command's name says the same thing.
   AT+INFO --json
 
 {prefix}term.request on does the same for the whole session, and {prefix}term.json_fmt sets
-how the JSON prints. The flag is taken off the line wherever it appears, so a
+how the JSON prints. The level flags decide how much of it there is, as they
+do for text: with --quiet output_lines holds only the answer, and --silent
+prints nothing. The flag is taken off the line wherever it appears, so a
 command's text cannot carry it. Typed as {prefix}help --json it means help as JSON,
 which is why this page is {prefix}help json.""",
     ),

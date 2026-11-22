@@ -2541,7 +2541,6 @@ KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset(
         "edit.proto.list",
         "edit.run.list",
         "help.target",
-        "term.log",
         "xfer.ymodem.send",
     }
 )

@@ -2872,3 +2872,98 @@ class TestOutputWidth:
 
         terminal = CLITerminal(default_cfg(), "", no_color=True, zero_config=True)
         assert terminal.ctx.io.width() is None
+
+
+class TestNoOpSaysSo:
+    """A CLI command with nothing to do says so and still succeeds, so a script for another frontend runs."""
+
+    @pytest.mark.rule("noop-says-so")
+    @pytest.mark.parametrize(
+        ("line", "said", "value"),
+        [
+            ("/app.cli", "Already in the CLI.", "cli"),
+            ("/cap.stop", "No capture running.", 0),
+            ("/find.clear", "No search to clear.", "closed"),
+            ("/term.log a note", "No session log here: nothing written.", ""),
+        ],
+    )
+    def test_a_no_op_says_so_and_succeeds(self, cli, capsys, line, said, value):
+        """Each answers with one line saying nothing happened, never a blank success."""
+        # Act
+        result = cli.repl.dispatch_full(line)
+
+        # Assert
+        assert (result.success, result.value) == (True, value), result.error
+        assert said in capsys.readouterr().out, "the line says nothing happened"
+
+    @pytest.mark.rule("noop-says-so")
+    def test_cap_stop_answers_with_what_the_capture_wrote(self, cli, tmp_path, capsys):
+        """/cap.stop's value is the bytes written and its data the file and lines; stopped again, it says none runs."""
+        # Arrange -- a text capture of two lines
+        cap_path = tmp_path / "cap.txt"
+        assert cli._start_capture(path=cap_path, file_mode="w", mode="text", duration=5.0)
+        cli.capture.feed_text(["one", "two"])
+
+        # Act
+        first = cli.repl.dispatch_full("/cap.stop")
+        capsys.readouterr()
+        second = cli.repl.dispatch_full("/cap.stop")
+
+        # Assert
+        assert first.value == cap_path.stat().st_size, "the value is the bytes on disk"
+        assert (first.data["path"], first.data["lines"]) == (str(cap_path), 2), (
+            "the file and its lines"
+        )
+        assert (second.success, second.value) == (True, 0), "a second stop finds none running"
+        assert "No capture running." in capsys.readouterr().out, "and says so"
+
+    @pytest.mark.rule("json-is-a-shape")
+    def test_cap_stop_prints_its_line_once_as_its_answer(self, cli, tmp_path, capsys):
+        """/cap.stop prints the completion line once, as its answer, not a second time on the host's status."""
+        # Arrange
+        cap_path = tmp_path / "cap.txt"
+        assert cli._start_capture(path=cap_path, file_mode="w", mode="text", duration=5.0)
+        cli.capture.feed_text(["one"])
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/cap.stop")
+
+        # Assert
+        actual = capsys.readouterr().out.count("Capture complete")
+        assert actual == 1, "the command's answer, and no host line beside it"
+
+    @pytest.mark.rule("json-is-a-shape")
+    def test_cap_stop_json_holds_its_line_in_the_envelope(self, cli, tmp_path, capsys):
+        """Under --json the completion line is in output_lines and nothing prints outside the envelope."""
+        # Arrange
+        cap_path = tmp_path / "cap.txt"
+        assert cli._start_capture(path=cap_path, file_mode="w", mode="text", duration=5.0)
+        cli.capture.feed_text(["one"])
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/cap.stop --json")
+
+        # Assert -- the whole of stdout parses as the one object
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["value"] == cap_path.stat().st_size, "the value is the bytes"
+        assert any("Capture complete" in line for line in envelope["output_lines"]), (
+            "the completion line rides inside the envelope"
+        )
+
+    @pytest.mark.rule("json-is-a-shape")
+    def test_cap_stop_silent_prints_nothing(self, cli, tmp_path, capsys):
+        """--silent stops the capture and prints nothing, the completion line included."""
+        # Arrange
+        cap_path = tmp_path / "cap.txt"
+        assert cli._start_capture(path=cap_path, file_mode="w", mode="text", duration=5.0)
+        cli.capture.feed_text(["one"])
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/cap.stop --silent")
+
+        # Assert
+        assert (result.success, cli.capture.active) == (True, False), "the capture stopped"
+        assert capsys.readouterr().out == "", "the level silences the answer"

@@ -586,6 +586,24 @@ class TestFormatCaptureResult:
         assert text == "Capture complete: out.csv (2.0 KB in 3.2s)", "size and wall time"
         assert color == "green", "complete is green"
 
+    def test_complete_names_the_lines(self):
+        """A capture with lines names them between the size and the time, singular for one."""
+        # Arrange
+        many = CaptureResult(
+            path=Path("out.txt"), byte_count=2048, raw=True, elapsed_s=3.2, lines=3
+        )
+        one = CaptureResult(path=Path("out.txt"), byte_count=2048, raw=True, elapsed_s=3.2, lines=1)
+
+        # Act
+        actual = [format_capture_result(result)[0] for result in (many, one)]
+
+        # Assert
+        expected = [
+            "Capture complete: out.txt (2.0 KB, 3 lines in 3.2s)",
+            "Capture complete: out.txt (2.0 KB, 1 line in 3.2s)",
+        ]
+        assert actual == expected
+
     def test_aborted_is_red(self):
         """A result with an error reads as aborted, shows the error not the size, in red."""
         # Arrange -- a non-empty error marks an aborted capture
@@ -933,3 +951,83 @@ class TestStopSerializesWithTheReaderFlush:
         assert path.read_bytes() == b"\x01" * 4096, (
             "one block, written once (two flushes wrote it twice)"
         )
+
+
+class TestLineCount:
+    """A capture counts the lines it wrote: text lines, a struct's CSV rows, none for raw bytes."""
+
+    def _stop(self, engine: CaptureEngine) -> CaptureResult:
+        """Stop the running capture and return its result."""
+        result = engine.stop()
+        assert result is not None, "a capture was running"
+        return result
+
+    def test_text_lines_are_counted_capture_after_capture(self, tmp_path):
+        """Each capture counts its own lines from zero, across batches, so the second does not carry the first's."""
+        # Arrange
+        engine = CaptureEngine()
+        path = tmp_path / "out.txt"
+
+        # Act -- two batches in the first capture, one line in the second
+        engine.start(path=path, file_mode="w", mode="text", duration=5.0)
+        engine.feed_text(["one", "two"])
+        engine.feed_text(["three"])
+        first = self._stop(engine)
+        engine.start(path=path, file_mode="a", mode="text", duration=5.0)
+        engine.feed_text(["four"])
+        second = self._stop(engine)
+
+        # Assert
+        assert (first.lines, second.lines) == (3, 1), "the count starts over at each capture"
+
+    def test_a_struct_capture_counts_its_csv_rows(self, tmp_path):
+        """A struct capture's lines are the rows in its file, the header among them."""
+        # Arrange
+        engine = CaptureEngine()
+        path = tmp_path / "out.csv"
+        engine.start(
+            path=path,
+            file_mode="w",
+            mode="bin",
+            target_bytes=8,
+            columns=parse_format_spec("A:U1-2 B:U3-4"),
+            record_size=4,
+        )
+
+        # Act
+        engine.feed_bytes(struct.pack(">HHHH", 100, 200, 300, 400))
+        result = self._stop(engine)
+
+        # Assert
+        actual = result.lines
+        expected = len(path.read_text().splitlines())
+        assert (actual, expected) == (3, 3), "the header and two rows, as the file holds them"
+
+    def test_raw_bytes_have_no_lines(self, tmp_path):
+        """A raw binary capture reports bytes alone: no line count, and its completion line names none."""
+        # Arrange
+        engine = CaptureEngine()
+        engine.start(path=tmp_path / "out.bin", file_mode="wb", mode="bin", target_bytes=4)
+
+        # Act
+        engine.feed_bytes(b"\x0a\x02\x0a\x04")
+        result = self._stop(engine)
+
+        # Assert
+        assert result.lines is None, "raw bytes have no lines, even with newline bytes among them"
+        detail = format_capture_result(result)[0].rpartition(" (")[2]
+        assert detail.startswith("4 B in "), f"the line names the size alone: {detail}"
+
+    def test_the_record_is_the_file_bytes_lines_and_seconds(self):
+        """to_record is what /cap.stop hands a script or an agent as data."""
+        # Arrange
+        result = CaptureResult(
+            path=Path("out.txt"), byte_count=12, raw=True, elapsed_s=1.23456, lines=2
+        )
+
+        # Act
+        actual = result.to_record()
+
+        # Assert
+        expected = {"path": "out.txt", "bytes": 12, "lines": 2, "elapsed_s": 1.235}
+        assert actual == expected

@@ -980,6 +980,37 @@ class TestRequestEnvelopeEcho:
         # Assert -- still exactly one request echo, not two
         assert len(markup) == 1, "echo_input=True does not double the request"
 
+    @pytest.mark.rule("envelope-is-the-whole-answer")
+    def test_a_one_shot_prints_no_request_echo(self, repl_env):
+        """A -e one-shot has no scrollback to show what was sent, so its envelope is the whole answer."""
+        # Arrange -- the one command of a one-shot, not a script
+        engine, ctx, _, output, markup = repl_env
+        ctx.is_oneshot = lambda: True
+        _wire_fake_serial(ctx, _FakeSerial(response=b"5.5"))
+
+        # Act
+        engine._exec_request_mode("get_voltage")
+
+        # Assert
+        assert markup == [], "no request echo beside the envelope"
+        assert _rendered_envelope(output)["value"] == "5.5", "the envelope still answers"
+
+    def test_a_scripts_transcript_keeps_the_request_echo(self, repl_env):
+        """A one-shot running a script (--run) keeps the protocol view in its transcript."""
+        # Arrange -- a one-shot, inside a script
+        engine, ctx, _, _, markup = repl_env
+        ctx.is_oneshot = lambda: True
+        engine._script_depth = 1
+        _wire_fake_serial(ctx, _FakeSerial(response=b"5.5"))
+
+        # Act
+        engine._exec_request_mode("get_voltage")
+
+        # Assert
+        assert [json.loads(line) for line in markup] == [{"cmd": "get_voltage"}], (
+            "the request shows"
+        )
+
     def test_request_envelope_reflects_unwrapped_cmd_not_raw_input(self, repl_env):
         """The request echo shows only the unwrapped cmd, dropping extra JSON input fields."""
         # Arrange -- JSON input gets unwrapped; the echo should show

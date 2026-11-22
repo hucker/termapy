@@ -399,12 +399,12 @@ _KILL_LONG_HELP = (
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
 def _handler_tui(ctx: PluginContext, args: str) -> CmdResult:
-    """Switch to the TUI, the frontend's own act (``ctx.ui.switch_ui``); already there, nothing happens."""
+    """Switch to the TUI, the frontend's own act (``ctx.ui.switch_ui``); already there, it says so."""
     return ctx.ui.switch_ui("tui")
 
 
 def _handler_cli(ctx: PluginContext, args: str) -> CmdResult:
-    """Switch to the plain-text CLI on this terminal (``ctx.ui.switch_ui``); already there, nothing happens."""
+    """Switch to the plain-text CLI on this terminal (``ctx.ui.switch_ui``); already there, it says so."""
     return ctx.ui.switch_ui("cli")
 
 
@@ -426,21 +426,22 @@ COMMAND = Command(
     handler=None,
     sub_commands={
         "tui": Command(
-            help="Switch to the TUI; already there, nothing happens.",
+            help="Switch to the TUI; already there, it says so.",
             long_help=(
                 "The frontends are peers on one config: the serial connection and the "
-                "config carry over, only the interface changes.  In the TUI this does "
-                "nothing and succeeds, so a script written for the CLI runs unchanged."
+                "config carry over, only the interface changes.  In the TUI it says it "
+                "is already there and succeeds, so a script written for the CLI runs "
+                "unchanged."
             ),
             handler=_handler_tui,
             needs=CapabilitySet.INTERACTIVE,
         ),
         "cli": Command(
-            help="Switch to the plain-text CLI on this terminal; already there, nothing happens.",
+            help="Switch to the plain-text CLI on this terminal; already there, it says so.",
             long_help=(
                 "The CLI takes over the terminal the TUI runs in, so a TUI served in a "
-                "browser tab cannot offer it.  In the CLI this does nothing and succeeds, "
-                "so a script written for the TUI runs unchanged."
+                "browser tab cannot offer it.  In the CLI it says it is already there and "
+                "succeeds, so a script written for the TUI runs unchanged."
             ),
             handler=_handler_cli,
             # The CLI takes over this terminal; a browser tab has none.

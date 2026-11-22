@@ -382,9 +382,11 @@ class CLITerminal(TerminalHost):
             app.exit(exception=EOFError)
 
     def _switch_ui(self, mode: str) -> CmdResult:
-        """``ctx.ui.switch_ui``: leave the CLI for the TUI on the current config; the CLI itself is a no-op."""
+        """``ctx.ui.switch_ui``: leave the CLI for the TUI on the current config; asked for the CLI, it says it is already here."""
         if mode == "cli":
-            return CmdResult.ok(value="")
+            # Nothing to do, and the answer says so (registry noop-says-so).
+            self.ctx.io.result("Already in the CLI.")
+            return CmdResult.ok(value="cli")
         if mode == "tui":
             # The TUI loads the file, so unsaved settings would go.
             if not self._may_leave("Switch"):

@@ -1019,6 +1019,33 @@ class TestSessionLogFollowsConfig:
         asyncio.run(scenario())
 
 
+class TestJsonEnvelopeInThePane:
+    """A --json command answers in the TUI with its envelope alone (registry envelope-is-the-whole-answer)."""
+
+    @pytest.mark.rule("envelope-is-the-whole-answer")
+    def test_help_json_prints_no_row_beside_the_envelope(self, app_factory):
+        """/help --json: the command rows reach output_lines, and no row is printed as a pane line of its own."""
+
+        async def scenario():
+            app, _, _ = app_factory(quiet_start=True)
+            async with app.run_test(size=(140, 60)) as pilot:
+                await pilot.pause()
+
+                # Act
+                await _submit(pilot, "/help --json")
+                await until(pilot, lambda: any('"output_lines"' in line for line in _screen(app)))
+                lines = _screen(app)
+
+                # Assert -- a row printed as prose starts the line; inside the envelope it is a quoted string
+                prose_rows = [line for line in lines if line.startswith("  /help ")]
+                assert prose_rows == [], f"help rows printed beside the envelope: {prose_rows}"
+                assert any('"' in line and "/help " in line for line in lines), (
+                    "the rows are inside the envelope"
+                )
+
+        asyncio.run(scenario())
+
+
 class TestLogStartStop:
     """/log.stop closes the session log until /log.start, and a delete leaves it stopped.
 

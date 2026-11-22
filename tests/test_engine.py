@@ -1921,6 +1921,40 @@ class TestJsonFlag:
         text, _color = output[-1]
         return json.loads(text)
 
+    @pytest.mark.rule("envelope-is-the-whole-answer")
+    def test_a_clicking_frontend_sends_its_linked_lines_into_the_envelope(self, engine):
+        """With a segments writer installed, as the TUI has, /help --json puts its linked lines in output_lines and prints none beside the envelope."""
+        # Arrange -- a frontend that can click: a linked line would land here
+        eng, output = engine
+        leaked: list = []
+        eng.ctx.io._write_segments = lambda segments, color=None: leaked.append(segments)
+
+        # Act
+        eng.dispatch("help --json")
+
+        # Assert
+        envelope = self._last_envelope(output)
+        assert leaked == [], "no linked line printed beside the envelope"
+        captured = envelope["output_lines"]
+        assert any(line.startswith("/help.idioms") for line in captured), (
+            f"the linked idioms line is captured, not printed: {captured}"
+        )
+
+    @pytest.mark.rule("envelope-is-the-whole-answer")
+    def test_silent_withholds_linked_lines_too(self, engine):
+        """--silent prints nothing at all, a clickable row included."""
+        # Arrange
+        eng, output = engine
+        leaked: list = []
+        eng.ctx.io._write_segments = lambda segments, color=None: leaked.append(segments)
+        output.clear()
+
+        # Act
+        eng.dispatch("help --silent")
+
+        # Assert
+        assert leaked == [] and output == [], "silent means silent on every channel"
+
     def test_converted_command_envelope(self, engine):
         """A data-producing command gives the fixed seven-key envelope with data, no prose."""
         # Arrange

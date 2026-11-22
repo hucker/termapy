@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 213: 198 registry rows (guarantees 163, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 209. Pinned by none: 4.
+Ids: 214: 199 registry rows (guarantees 164, assumptions 35), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 210. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -323,6 +323,11 @@ Ids: 213: 198 registry rows (guarantees 163, assumptions 35), 15 spec sections i
 ### `engine-transport-agnostic` (guarantee, structure)
 
 - `test_architecture.py`: `test_engine_modules_have_no_serial_dependency` **guard**
+
+### `envelope-is-the-whole-answer` (guarantee, contract)
+
+- `test_app_pilot_targets.py`: `TestJsonEnvelopeInThePane.test_help_json_prints_no_row_beside_the_envelope` **guard**
+- `test_engine.py`: `TestJsonFlag.test_a_clicking_frontend_sends_its_linked_lines_into_the_envelope` **guard**, `TestJsonFlag.test_silent_withholds_linked_lines_too` **guard**
 
 ### `error-message-style` (assumption, contract)
 

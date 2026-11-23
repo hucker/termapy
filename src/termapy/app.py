@@ -1624,6 +1624,15 @@ class SerialTerminal(TerminalHost, App):
 
             self.push_screen(screen, callback=_on_result)
 
+        # A stop already set outside a script is stale and ignored: the
+        # event is cleared only when a script starts, so it can still hold
+        # an Escape pressed long ago, which would cancel an interactive /cfg
+        # before the user saw the dialog.  Stale means set before the
+        # question was asked, so it is judged here, before the dialog is
+        # posted: judged after, a stop pressed while a busy main thread had
+        # yet to show it read as stale, and the wait never ended.
+        stop = self.repl._script_stop
+        stale_stop = not self.repl.in_script and stop.is_set()
         try:
             self.call_from_thread(_show)
         except RuntimeError:
@@ -1632,15 +1641,10 @@ class SerialTerminal(TerminalHost, App):
         # dismissing action, so the normal path always sets the event -- but
         # a /stop or an app shutdown while the modal is up would otherwise
         # park this worker forever, and teardown joins the threads a worker
-        # like this one runs on.  A stop already set outside a script is
-        # stale and ignored: the event is cleared only when a script starts,
-        # so it can still hold an Escape pressed long ago, which would
-        # cancel an interactive /cfg before the user saw the dialog.  The
-        # dialog is deliberately left on screen: dismissing a modal from
-        # here would race the user's own click, and answering it after the
-        # abort simply sets an event nobody is waiting on any more.
-        stop = self.repl._script_stop
-        stale_stop = not self.repl.in_script and stop.is_set()
+        # like this one runs on.  The dialog is deliberately left on screen:
+        # dismissing a modal from here would race the user's own click, and
+        # answering it after the abort simply sets an event nobody is
+        # waiting on any more.
         while not event.wait(timeout=0.25):
             if self._shutting_down or (stop.is_set() and not stale_stop):
                 return False

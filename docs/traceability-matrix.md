@@ -220,7 +220,7 @@ Ids: 226: 211 registry rows (guarantees 175, assumptions 36), 15 spec sections i
 
 ### `confirm-off-main` (guarantee, concurrency)
 
-- `test_app_pilot.py`: `TestConfirmIsStopAware.test_a_script_stop_releases_a_waiting_confirm` **guard**, `TestUnsavedSettings.test_an_escape_pressed_at_idle_does_not_cancel_a_later_question` **guard**
+- `test_app_pilot.py`: `TestConfirmIsStopAware.test_a_script_stop_releases_a_waiting_confirm` **guard**, `TestConfirmIsStopAware.test_a_stop_before_the_dialog_shows_releases_the_confirm` **guard**, `TestUnsavedSettings.test_an_escape_pressed_at_idle_does_not_cancel_a_later_question` **guard**
 
 ### `connect-switches-ports` (guarantee, contract)
 

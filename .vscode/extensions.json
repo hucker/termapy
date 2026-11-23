@@ -1,0 +1,19 @@
+{
+  // Astral tooling only (CLAUDE.md, Development): ruff lints and formats,
+  // ty type-checks and serves the language.  The unwanted ones read their
+  // own defaults, not pyproject.toml, and report what the gate does not hold.
+  "recommendations": [
+    "charliermarsh.ruff",
+    "astral-sh.ty",
+    "ms-python.python",
+    "ms-python.debugpy"
+  ],
+  "unwantedRecommendations": [
+    "ms-python.pylint",
+    "ms-python.black-formatter",
+    "ms-python.isort",
+    "ms-python.mypy-type-checker",
+    "ms-python.flake8",
+    "ms-python.vscode-pylance"
+  ]
+}

@@ -7,10 +7,15 @@ Pull requests are welcome! Plugins especially.
 ```sh
 git clone https://github.com/hucker/termapy
 cd termapy
-uv sync
+uv sync --all-extras
+git config core.hooksPath .githooks   # format + ruff + ty on every commit
 uv run termapy --demo     # verify it works
 uv run pytest              # run tests
 ```
+
+## Tooling
+
+termapy uses [Astral](https://astral.sh)'s tools and nothing else for Python: **uv** (Python versions, environments, dependencies), **ruff** (lint, format, import order) and **ty** (type checking, and the editor's language server). Please don't add pylint, black, isort, mypy, flake8 or Pylance: they read their own defaults instead of `pyproject.toml` and report problems the project doesn't hold. In VS Code, accept the recommended extensions (`.vscode/extensions.json`); `CLAUDE.md` (Development) has the editor settings.
 
 ## Writing plugins
 

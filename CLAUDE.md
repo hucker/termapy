@@ -379,11 +379,25 @@ the script (main); it compares any two commits by name. `git fblame` is
 `blame.ignoreRevsFile` on purpose: git 2.43 makes blame fatal when that
 file is missing, as it is on every checkout older than it.
 
+**The toolchain is Astral's, end to end** (decision 2026-11-23): `uv` for
+Python versions, environments and dependencies; `ruff` for lint, format and
+import order; `ty` for type checking and as the editor's language server.
+Nothing else checks or formats Python here: not pylint, black, isort, mypy,
+flake8 or Pylance. Each reads its own defaults rather than `pyproject.toml`,
+so it reports what the gate does not hold (a fresh Mac with pylint and
+Pylance showed 423 problems on a file ruff and ty scored 0) and formats
+what ruff would undo. One config, one verdict: the editor shows what the
+gate enforces, no more and no less.
+
 VS Code formats on save. `.vscode/` is gitignored (it holds personal
-settings), so a new machine installs the ruff and ty extensions
-(`charliermarsh.ruff`, `astral-sh.ty`) and adds to `.vscode/settings.json`:
+settings) except `.vscode/extensions.json`, which recommends the ruff and
+ty extensions (`charliermarsh.ruff`, `astral-sh.ty`) and flags the others
+as unwanted, so VS Code offers the right set on a new machine. Remove or
+disable pylint, black, isort, mypy and flake8 extensions for the
+workspace, and add to `.vscode/settings.json`:
 
 ```json
+"python.languageServer": "None",
 "[python]": {
   "editor.defaultFormatter": "charliermarsh.ruff",
   "editor.formatOnSave": true,
@@ -393,6 +407,10 @@ settings), so a new machine installs the ruff and ty extensions
   }
 }
 ```
+
+`"python.languageServer": "None"` turns Pylance off, so ty is the one
+language server; the Python extension stays for the debugger and the
+interpreter picker.
 
 Never `ty check --add-ignore` or `ruff check --add-noqa`: they suppress in
 bulk, and a suppression needs its rule code and a reason.

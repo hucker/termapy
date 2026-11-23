@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pilot_wait import dispatch_on_worker
 from textual.widgets import Button, Input, RichLog, Static
 
 from termapy.defaults import DEFAULT_CFG
@@ -69,7 +70,7 @@ async def _open_debug_screen(pilot, script: Path) -> ProtoDebugScreen:
     await pilot.pause()
     assert pilot.app._connect() is True, "DEMO port should connect"
     await pilot.pause()
-    result = pilot.app._dispatch_single(f"/proto.debug {script}")
+    result, _ = await dispatch_on_worker(pilot, pilot.app, f"/proto.debug {script}")
     assert result.success is True, result.error
     await pilot.pause(0.5)
     screen = pilot.app.screen
@@ -289,10 +290,10 @@ class TestArguments:
                 await pilot.pause()
 
                 # Act
-                bare = pilot.app._dispatch_single("/proto.debug")
-                missing = pilot.app._dispatch_single("/proto.debug nope")
-                not_toml = pilot.app._dispatch_single(f"/proto.debug {flat}")
-                no_tests = pilot.app._dispatch_single(f"/proto.debug {none}")
+                bare, _ = await dispatch_on_worker(pilot, pilot.app, "/proto.debug")
+                missing, _ = await dispatch_on_worker(pilot, pilot.app, "/proto.debug nope")
+                not_toml, _ = await dispatch_on_worker(pilot, pilot.app, f"/proto.debug {flat}")
+                no_tests, _ = await dispatch_on_worker(pilot, pilot.app, f"/proto.debug {none}")
                 await pilot.pause()
 
                 # Assert

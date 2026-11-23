@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 
 import pytest
-from pilot_wait import until
+from pilot_wait import dispatch_on_worker, until
 from textual.widgets import Input, OptionList, Static
 
 from termapy import info_views
@@ -160,11 +160,11 @@ class TestCaptureOverlay:
             async with app.run_test(size=_SIZE) as pilot:
                 await pilot.pause()
                 assert app._connect() is True, "DEMO port should connect"
-                first = app._dispatch_single("/cap.text a.txt timeout=5s")
+                first, _ = await dispatch_on_worker(pilot, app, "/cap.text a.txt timeout=5s")
                 await pilot.pause()
 
                 # Act
-                second = app._dispatch_single("/cap.text b.txt timeout=5s")
+                second, _ = await dispatch_on_worker(pilot, app, "/cap.text b.txt timeout=5s")
                 await pilot.pause()
 
                 # Assert
@@ -173,14 +173,14 @@ class TestCaptureOverlay:
                     False,
                     state_message("capture_idle", app.repl.prefix),
                 ), "the gate's reason is the one failure, not 'Capture not started.'"
-                app._dispatch_single("/cap.stop")
+                await dispatch_on_worker(pilot, app, "/cap.stop")
                 await pilot.pause()
-                third = app._dispatch_single("/cap.text c.txt timeout=5s")
+                third, _ = await dispatch_on_worker(pilot, app, "/cap.text c.txt timeout=5s")
                 await pilot.pause()
                 assert third.success is True, (
                     f"a stopped capture frees the next start: {third.error}"
                 )
-                app._dispatch_single("/cap.stop")
+                await dispatch_on_worker(pilot, app, "/cap.stop")
                 await pilot.pause()
 
         _run(scenario)
@@ -299,7 +299,7 @@ class TestConfigInfo:
             app, _, path = app_factory()
             async with app.run_test(size=_SIZE) as pilot:
                 await pilot.pause()
-                app._dispatch_single("/term.output verbose")
+                await dispatch_on_worker(pilot, app, "/term.output verbose")
                 await pilot.pause()
 
                 # Act
@@ -326,7 +326,7 @@ class TestConfigInfo:
             app, _, path = app_factory(file_xfer_root=str(root))
             async with app.run_test(size=_SIZE) as pilot:
                 await pilot.pause()
-                app._dispatch_single("/term.output verbose")
+                await dispatch_on_worker(pilot, app, "/term.output verbose")
                 await pilot.pause()
                 app._show_config_info(path)
                 await pilot.pause()

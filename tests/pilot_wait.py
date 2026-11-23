@@ -4,10 +4,20 @@ A single ``pilot.pause()`` lets the event loop run once, which is enough on
 an idle machine and not always under a loaded full suite: a RichLog, for
 one, renders only after layout has given it a size.  Poll the state the
 test is about, then assert it, so a slow run waits instead of failing.
+
+A command is dispatched the same way it runs in the app, on a worker
+(``dispatch_on_worker``): typed input, buttons and the palette never
+dispatch on the main thread, which never waits for the dispatch guard
+(registry dispatch-guard-main-never-parks).  A worker holds that guard
+after every connect, disconnect and config load, while the setting buttons
+read their values, so a test dispatching on main then was refused with
+"Busy".
 """
 
 from __future__ import annotations
 
+import threading
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -50,3 +60,31 @@ def has_link(app: Any, command: str) -> bool:
     wants to read or click: wait on this, not on the text.
     """
     return any(link.command == command for link in app._links.values())
+
+
+def start_on_worker(app: Any, line: str) -> tuple[threading.Thread, dict]:
+    """Start dispatching ``line`` on a worker, as typed input runs; ``outcome`` fills when it ends."""
+    outcome: dict = {}
+
+    def run() -> None:
+        t0 = time.monotonic()
+        outcome["result"] = app._dispatch_single(line)
+        outcome["seconds"] = time.monotonic() - t0
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    return worker, outcome
+
+
+async def dispatch_on_worker(
+    pilot: Any, app: Any, line: str, seconds: float = 5.0
+) -> tuple[Any, float]:
+    """Dispatch ``line`` on a worker, as typed input runs; return its result and the seconds it took.
+
+    The loop keeps serving the main thread meanwhile, so a command that
+    marshals to it (a dialog, a widget update) runs as it does for a user.
+    """
+    worker, outcome = start_on_worker(app, line)
+    await until(pilot, lambda: not worker.is_alive(), seconds)
+    assert not worker.is_alive(), f"{line} finished within {seconds} s"
+    return outcome["result"], outcome["seconds"]

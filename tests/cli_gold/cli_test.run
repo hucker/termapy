@@ -196,6 +196,11 @@ $(BAUD) <- /port.baud_rate
 /proto.crc.calc crc16-modbus 01 03 00 00 00 0A
 /proto.crc.calc crc8-maxim 48 65 6C 6C 6F
 /proto.crc.calc crc32 01 02 03 04
+# The demo's fixed packets (registry demo-deterministic): find names one
+# algorithm, the same on every run.  /proto.crc.reverse stays out: its note
+# is crcglot's prose (tests/test_proto_crc_reverse.py pins the poly).
+/proto.crc.find cmd=AT+PKT
+AT+PKT.CUSTOM.REVEAL
 
 # ── REPL: symbols (demo.symbols.json auto-loads with the demo config) ───────
 # No real /sym.import here: the file it writes carries a wall-clock timestamp.

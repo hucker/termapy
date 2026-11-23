@@ -11,13 +11,13 @@ accordingly so the fast suite skips them.
 
 Covers:
 
-* ``/proto.crc.find cmd=AT+RND`` resolves to one of the curated
-  catalog algorithms the demo emits.  cmd= sends the bare trigger
+* ``/proto.crc.find cmd=AT+PKT`` names crc16-xmodem, the one algorithm
+  the demo's fixed packets carry.  cmd= sends the bare trigger
   verbatim -- the configured line ending is auto-appended -- so there
   is no quoting and no explicit ``\\r``.
-* ``/proto.crc.reverse cmd=AT+RND.CUSTOM count=13 crc_bytes=2``
+* ``/proto.crc.reverse cmd=AT+PKT.CUSTOM count=13 crc_bytes=2``
   recovers a polynomial that matches the demo's
-  ``AT+RND.CUSTOM.REVEAL`` output, and lists every equivalent
+  ``AT+PKT.CUSTOM.REVEAL`` output, and lists every equivalent
   (init, xorout) labeling.
 * ``$(rev) <- /proto.crc.reverse ...`` capture pipeline -- the
   returned value drops straight into a subsequent
@@ -71,26 +71,36 @@ def _run_cli(tmp_path: Path, script_lines: list[str]) -> subprocess.CompletedPro
 class TestFindCmdMode:
     """``cmd=`` mode on /proto.crc.find captures + identifies."""
 
-    def test_cmd_at_rnd_resolves_to_curated_algorithm(self, tmp_path):
-        """A live AT+RND capture identifies as one of the six algorithms the demo picks from."""
-        # Act
-        result = _run_cli(tmp_path, ["/proto.crc.find cmd=AT+RND"])
+    @pytest.mark.rule("demo-deterministic")
+    def test_every_packet_names_the_demo_algorithm(self, tmp_path):
+        """Each of the demo's four AT+PKT packets, captured live, is named crc16-xmodem and nothing else."""
+        # Arrange -- one capture per packet in the demo's cycle
+        lines = [f"$(c{i}) <- /proto.crc.find cmd=AT+PKT" for i in range(4)]
 
-        # Assert -- one of the curated algorithms appears.  Don't pin
-        # which one (the demo picks randomly).
+        # Act
+        result = _run_cli(tmp_path, lines)
+
+        # Assert
         assert result.returncode == 0, (
             f"/proto.crc.find cmd= must exit 0, got {result.returncode}. stderr: {result.stderr!r}"
         )
-        curated = (
-            "crc8",
-            "crc8-maxim",
-            "crc16-modbus",
-            "crc16-xmodem",
-            "crc32",
-            "crc32-bzip2",
+        actual = [f"$(c{i}) = crc16-xmodem" in result.stdout for i in range(4)]
+        assert actual == [True] * 4, (
+            f"a single name is the value, so no packet is ambiguous; stdout: {result.stdout!r}"
         )
-        assert any(name in result.stdout for name in curated), (
-            f"/proto.crc.find cmd=AT+RND should report one of {curated}; stdout: {result.stdout!r}"
+
+    @pytest.mark.rule("request-drains-first")
+    def test_a_typed_command_before_find_is_not_read_as_the_packet(self, tmp_path):
+        """find after typed device commands still names the algorithm: their replies are drained, not captured."""
+        # Arrange -- two typed commands whose replies reach the queue first
+        lines = ["AT+NAME?", "mem 0x1000 32", "$(crc) <- /proto.crc.find cmd=AT+PKT"]
+
+        # Act
+        result = _run_cli(tmp_path, lines)
+
+        # Assert
+        assert "$(crc) = crc16-xmodem" in result.stdout, (
+            f"the captured frame is the packet alone; stdout: {result.stdout!r}"
         )
 
 
@@ -100,14 +110,14 @@ class TestReverseCmdMode:
 
     def test_count_13_recovers_secret_polynomial(self, tmp_path):
         """13 live packets recover the demo's secret poly 0x1A2B and every equivalent labeling."""
-        # Arrange -- 13 packets at deterministic length cycle is enough
-        # for crcglot.reverse_packets to recover the secret polynomial
-        # (0x1A2B) reliably; the REVEAL'd init/xorout may differ from
+        # Arrange -- the demo's 13 fixed packets are enough for
+        # crcglot.reverse_packets to recover the secret polynomial
+        # (0x1A2B) every time; the REVEAL'd init/xorout may differ from
         # the recovered ones (equivalent (init, xorout) labeling) but
         # the polynomial is uniquely determined.
         lines = [
-            "/proto.crc.reverse cmd=AT+RND.CUSTOM count=13 crc_bytes=2",
-            "AT+RND.CUSTOM.REVEAL",
+            "/proto.crc.reverse cmd=AT+PKT.CUSTOM count=13 crc_bytes=2",
+            "AT+PKT.CUSTOM.REVEAL",
         ]
 
         # Act
@@ -138,6 +148,20 @@ class TestReverseCmdMode:
             f"REVEAL should print the demo's secret poly; stdout: {result.stdout!r}"
         )
 
+    @pytest.mark.rule("request-drains-first")
+    def test_a_typed_command_before_reverse_is_not_read_as_a_packet(self, tmp_path):
+        """reverse after a typed device command still recovers the poly: the reply is drained, not captured."""
+        # Arrange
+        lines = ["AT+NAME?", "$(rev) <- /proto.crc.reverse cmd=AT+PKT.CUSTOM count=13 crc_bytes=2"]
+
+        # Act
+        result = _run_cli(tmp_path, lines)
+
+        # Assert
+        assert "$(rev) = width=16 poly=0x1A2B" in result.stdout, (
+            f"thirteen clean frames recover the secret poly; stdout: {result.stdout!r}"
+        )
+
     def test_reverse_value_pipes_into_codegen(self, tmp_path):
         """A reverse result captured in $(rev) is valid input to /proto.crc.c codegen as is."""
         # Arrange -- the headline pipeline: capture recovered params via
@@ -146,7 +170,7 @@ class TestReverseCmdMode:
         # depending on how crcglot renders the table) -- check for the
         # secret poly value either way.
         lines = [
-            "$(rev) <- /proto.crc.reverse cmd=AT+RND.CUSTOM count=13 crc_bytes=2",
+            "$(rev) <- /proto.crc.reverse cmd=AT+PKT.CUSTOM count=13 crc_bytes=2",
             "/proto.crc.c $(rev)",
         ]
 

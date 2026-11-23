@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 226: 211 registry rows (guarantees 175, assumptions 36), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 222. Pinned by none: 4.
+Ids: 228: 213 registry rows (guarantees 176, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 224. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -268,6 +268,12 @@ Ids: 226: 211 registry rows (guarantees 175, assumptions 36), 15 spec sections i
 
 - `test_config_reference_sync.py`: `TestConfigReferenceSync.test_reference_table_in_sync`
 - `test_help_images.py`: `TestHelpConfigExamples.test_config_example_keys`
+
+### `demo-deterministic` (guarantee, structure)
+
+- `test_architecture.py`: `test_demo_random_guard_fires_on_a_probe` **probe**, `test_the_demo_device_draws_no_random_number` **guard**
+- `test_demo_packet.py`: `TestAtPkt.test_every_packet_names_one_algorithm` **guard**, `TestAtPkt.test_the_packets_cycle_through_a_fixed_set` **guard**, `TestAtPktCustom.test_length_cycle_matches_documented_pattern`, `TestAtPktCustom.test_the_packets_are_the_same_on_every_run`, `TestReadingsThatChange.test_free_memory_is_fixed`, `TestReadingsThatChange.test_temperature_changes_and_is_the_same_on_every_run`
+- `test_proto_crc_reverse.py`: `TestFindCmdMode.test_every_packet_names_the_demo_algorithm`
 
 ### `demo-scripts-run-clean` (guarantee, repository)
 
@@ -851,6 +857,10 @@ Ids: 226: 211 registry rows (guarantees 175, assumptions 36), 15 spec sections i
 ### `register-spec-word-form` (guarantee, data)
 
 - `test_protocol_word_fields.py`: the module (11 functions) **guard**
+
+### `request-drains-first` (assumption, contract)
+
+- `test_proto_crc_reverse.py`: `TestFindCmdMode.test_a_typed_command_before_find_is_not_read_as_the_packet`, `TestReverseCmdMode.test_a_typed_command_before_reverse_is_not_read_as_a_packet`
 
 ### `ruff-clean` (guarantee, hygiene)
 

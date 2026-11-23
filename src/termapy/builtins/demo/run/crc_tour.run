@@ -5,9 +5,9 @@
 #   * Tool-use (calc / verify / codegen / send-with-CRC) -- the daily
 #     value, replaces having to write CRC code in your application.
 #   * Discovery (find) -- identify a CRC in bytes you didn't produce.
-#     Demonstrated via the demo's AT+RND random-packet emitter.
+#     Demonstrated via the demo's AT+PKT sample packets.
 #   * Reverse -- recover unknown CRC parameters algebraically.
-#     Demonstrated via AT+RND.CUSTOM (the demo emits packets using a
+#     Demonstrated via AT+PKT.CUSTOM (the demo emits packets using a
 #     secret non-catalogue polynomial).
 #
 # All three end with codegen so you walk away with working source.
@@ -37,8 +37,8 @@
 /proto.crc.verify crc16-modbus endian=le 01 03 00 00 00 0A C5 CD
 
 /print
-/print [6] Discover: identify a random catalogue CRC from AT+RND
-$(crc) <- /proto.crc.find cmd=AT+RND
+/print [6] Discover: name the CRC the demo's AT+PKT packets carry
+$(crc) <- /proto.crc.find cmd=AT+PKT
 /print Detected algorithm: $(crc)
 
 /print
@@ -46,10 +46,10 @@ $(crc) <- /proto.crc.find cmd=AT+RND
 /proto.crc.c $(crc) --small
 
 /print
-/print [8] Reverse: recover a non-catalogue CRC from AT+RND.CUSTOM
+/print [8] Reverse: recover a non-catalogue CRC from AT+PKT.CUSTOM
 /print     (the demo emits 13 packets using a secret polynomial;
 /print      crcglot.reverse_packets recovers it algebraically)
-$(rev) <- /proto.crc.reverse cmd=AT+RND.CUSTOM count=13 crc_bytes=2
+$(rev) <- /proto.crc.reverse cmd=AT+PKT.CUSTOM count=13 crc_bytes=2
 
 /print
 /print [9] Codegen: generate C source for the recovered (custom) CRC
@@ -59,7 +59,7 @@ $(rev) <- /proto.crc.reverse cmd=AT+RND.CUSTOM count=13 crc_bytes=2
 /print [10] Confirm: the demo's secret matches what reverse recovered
 /print     (the poly is the one to compare; init and xorout may come back
 /print      as a different pair that gives the same CRC for every message)
-AT+RND.CUSTOM.REVEAL
+AT+PKT.CUSTOM.REVEAL
 
 /print
 /print === tour complete ===

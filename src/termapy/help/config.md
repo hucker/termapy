@@ -29,7 +29,9 @@ git, so termapy refuses a name any OS it supports cannot hold, on every
 OS: Windows' device names in any case and with any extension (`CON`,
 `NUL`, `AUX`, `PRN`, `COM0` to `COM9`, `LPT0` to `LPT9`), the characters
 `< > : " | ? *`, and a name ending in a dot.  This holds for a rename
-too, and for a file renamed in a data folder.  A config made before
+too, and for a file renamed in a data folder.  A device name is no
+config on any OS: termapy neither lists nor opens one, so `termapy COM7`
+is always the port.  A config made before with one of the characters
 still opens.
 
 ![New config quick-setup dialog](img/doc_30_new_cfg.png)

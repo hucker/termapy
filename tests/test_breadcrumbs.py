@@ -1279,6 +1279,77 @@ class TestAppCommands:
             assert cli_demo._exit_requested is False, "others left this session running"
 
 
+def _held_error() -> Exception:
+    """An open that failed because another process holds the port, as pyserial chains it."""
+    outer = Exception("could not open port")
+    outer.__cause__ = PermissionError("Access is denied")
+    return outer
+
+
+@pytest.mark.rule("busy-port-names-session")
+class TestBusyPortNamesItsSession:
+    """A port another termapy holds is reported as held by that session, with what stops it (review 2026-11-19, M8)."""
+
+    @pytest.mark.slow  # a child session
+    def test_the_holder_is_named_with_its_pid_config_and_how_to_stop_it(self, state_dir):
+        """The message names the session's frontend, PID and config, and both commands that ask it to leave."""
+        from termapy.serial_engine import _classify_serial_error
+
+        with _child_session(state_dir, config="rig.cfg", open_port="COM9") as (_child, crumb):
+            # Act
+            actual = _classify_serial_error(_held_error(), "COM9")
+
+        # Assert
+        expected = (
+            f"in use by termapy cli, PID {crumb.pid}, config rig -- stop it with "
+            f"/app.kill {crumb.pid}, or termapy --kill {crumb.pid} from a shell"
+        )
+        assert actual == expected, "the session, and how to free the port"
+
+    @pytest.mark.slow  # a child session
+    def test_a_serial_number_is_matched_as_the_port_it_names(self, state_dir):
+        """A config naming its port by USB serial number finds the session holding that physical port."""
+        from termapy.port_control import _build_demo_fleet
+        from termapy.serial_engine import _classify_serial_error
+
+        # Arrange -- in the demo fleet serial A1B2C3D4 is COM3
+        with _child_session(state_dir, open_port="COM3") as (_child, crumb):
+            # Act
+            actual = _classify_serial_error(_held_error(), "A1B2C3D4", source=_build_demo_fleet)
+
+        # Assert
+        assert actual.startswith(f"COM3 is in use by termapy cli, PID {crumb.pid}"), (
+            f"the alias resolves to the physical port its holder names: {actual}"
+        )
+
+    def test_this_sessions_own_hold_suggests_nothing(self, state_dir):
+        """A port this process holds reads as this session, with no command to stop itself."""
+        from termapy.serial_engine import _classify_serial_error
+
+        # Arrange
+        crumb = Breadcrumb()
+        crumb.write("cli", open_port="COM9")
+        try:
+            # Act
+            actual = _classify_serial_error(_held_error(), "COM9")
+        finally:
+            crumb.remove()
+
+        # Assert
+        assert actual == "in use by this session", "no kill suggested for oneself"
+
+    def test_a_port_no_session_holds_keeps_the_general_answer(self, state_dir):
+        """With no breadcrumb naming the port, the answer is the general one, never a guessed session."""
+        from termapy.serial_engine import _classify_serial_error
+
+        # Act
+        actual = _classify_serial_error(_held_error(), "COM9")
+
+        # Assert
+        assert "termapy" not in actual, f"no session is named: {actual}"
+        assert actual.startswith("Permission denied"), "the general in-use answer"
+
+
 @pytest.fixture
 def cli_demo(tmp_path):
     """A CLI session on the DEMO simulator, its config on disk."""

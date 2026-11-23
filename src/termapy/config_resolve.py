@@ -114,6 +114,14 @@ def choose_mcp_configs(root: Path) -> tuple[list[Path], str]:
 def resolve_config(name: str) -> str | None:
     """Resolve a config name, path, or directory to a ``.cfg`` file.
 
+    A device name (``COM7``, ``con.cfg``: ``config.RESERVED_NAMES``) names
+    no config on any OS, and the file system is not asked (registry
+    ``device-name-never-a-config``).  Config names are cross-platform, so
+    one rule holds everywhere; on Windows the name is the device itself, a
+    busy port answers ``is_file()`` True and reading it opens the port,
+    which made ``termapy COM7`` report "failed to load config" while
+    another program held COM7 (review 2026-11-19, M8).
+
     Resolution chain (first match wins):
 
     1. Exact file -- path exists and is a file.
@@ -124,9 +132,11 @@ def resolve_config(name: str) -> str | None:
 
     Returns ``None`` if nothing matched.
     """
-    from termapy.config import cfg_dir
+    from termapy.config import cfg_dir, is_reserved_name
 
     p = Path(name)
+    if is_reserved_name(p.name):
+        return None
     # 1. Exact file.
     if p.is_file():
         return str(p)

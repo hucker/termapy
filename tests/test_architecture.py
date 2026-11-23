@@ -4936,6 +4936,7 @@ RAW_NAME_HOMES: dict[str, frozenset[str]] = {
             "builtins/commands/app.py",  # /app.alive, /app.kill (host_info), /app.list's count
             "cli_flags.py",  # --alive, --kill: the operator at the command line
             "port_control.py",  # which session holds a port, behind env_flags.port_policy
+            "serial_engine.py",  # which session holds a port a connect found busy, as its lsof does
         }
     ),
 }

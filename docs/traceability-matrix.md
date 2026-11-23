@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 224: 209 registry rows (guarantees 173, assumptions 36), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 220. Pinned by none: 4.
+Ids: 226: 211 registry rows (guarantees 175, assumptions 36), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 222. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -99,6 +99,10 @@ Ids: 224: 209 registry rows (guarantees 173, assumptions 36), 15 spec sections i
 
 - `test_architecture.py`: `test_broad_catch_finder_sees_each_shape` **guard**, `test_every_broad_catch_records_its_exception` **guard**, `test_silent_broad_catch_allowlist_has_no_stale_entries`
 - `test_diag_log.py`: `test_a_raising_command_names_its_exception_and_logs_its_traceback`
+
+### `busy-port-names-session` (guarantee, contract)
+
+- `test_breadcrumbs.py`: `TestBusyPortNamesItsSession` (4 functions)
 
 ### `byte-refs-one-based` (guarantee, data)
 
@@ -283,6 +287,10 @@ Ids: 224: 209 registry rows (guarantees 173, assumptions 36), 15 spec sections i
 ### `device-files-not-build` (assumption, data)
 
 - `test_devices.py`: `TestMerge` (2 functions)
+
+### `device-name-never-a-config` (guarantee, contract)
+
+- `test_resolve_config.py`: `TestDeviceNameNamesNoConfig` (3 functions)
 
 ### `diag-log-folder` (guarantee, contract)
 

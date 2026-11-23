@@ -2717,6 +2717,46 @@ class TestConfirmIsStopAware:
 
         _run(scenario)
 
+    @pytest.mark.timing
+    @pytest.mark.rule("confirm-off-main")
+    def test_a_stop_before_the_dialog_shows_releases_the_confirm(self, app_factory):
+        """A stop that lands after the question is asked but before its dialog shows still releases it.
+
+        The main thread is held with a blocking sleep, standing in for a loaded
+        machine, so the worker is parked in ``call_from_thread`` when the stop
+        is set.  Until 2026-11-22 ``_ask`` judged staleness after that call,
+        read this stop as one left from before, and never returned.  Marked
+        ``timing``: it assumes the worker reaches ``_ask`` within the sleep.
+        """
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                # Arrange -- the worker asks while main cannot show the dialog yet
+                box: list = []
+                asked = threading.Event()
+
+                def ask() -> None:
+                    asked.set()
+                    box.append(app._confirm("Proceed?"))
+
+                worker = threading.Thread(target=ask, daemon=True)
+                worker.start()
+                assert asked.wait(5), "the worker started"
+                time.sleep(0.2)  # main held: the worker waits in call_from_thread
+
+                # Act -- the stop lands before the dialog does
+                app.repl._script_stop.set()
+                await _await_until(lambda: bool(box), "the confirm returned")
+                worker.join(2)
+
+                # Assert
+                assert box == [False], "a stop after the question is asked releases it, closed"
+                app.repl._script_stop.clear()
+
+        _run(scenario)
+
 
 class TestBatchedOutputIsEquivalent:
     """E1-E3 traded per-line work for per-batch work.

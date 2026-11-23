@@ -102,7 +102,7 @@ Ids: 226: 211 registry rows (guarantees 175, assumptions 36), 15 spec sections i
 
 ### `busy-port-names-session` (guarantee, contract)
 
-- `test_breadcrumbs.py`: `TestBusyPortNamesItsSession` (4 functions)
+- `test_breadcrumbs.py`: `TestBusyPortNamesItsSession` (7 functions)
 
 ### `byte-refs-one-based` (guarantee, data)
 

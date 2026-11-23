@@ -180,6 +180,10 @@ def _find_port_holder(port_name: str) -> str | None:
     return None
 
 
+# The answer for a port whose exclusive lock another process holds.
+_LOCKED = "In use by another program (it holds the port's lock)"
+
+
 def _classify_serial_error(
     exc: Exception,
     port_name: str = "",
@@ -226,7 +230,9 @@ def _classify_serial_error(
         elif isinstance(exc, FileNotFoundError):
             cause = exc
 
-    def _in_use() -> str:
+    def _in_use(
+        base: str = "Permission denied -- port may be in use by another application",
+    ) -> str:
         # A termapy session holding the port is known for certain, on every
         # OS; another program only by lsof, on Linux and macOS.
         session = (
@@ -234,7 +240,6 @@ def _classify_serial_error(
         )
         if session:
             return session
-        base = "Permission denied -- port may be in use by another application"
         holder = _find_port_holder(port_name) if port_name else None
         return f"{base}: held by {shown_holder(holder)}" if holder else base
 
@@ -276,6 +281,12 @@ def _classify_serial_error(
     # Preferred path: chained exception exposes the underlying cause.
     if isinstance(cause, PermissionError):
         return _in_use()
+    # On POSIX the open itself succeeds and pyserial's exclusive lock is
+    # refused (EAGAIN / EWOULDBLOCK, registry port-open-exclusive): another
+    # process has the port, for certain, which is how a second termapy
+    # meets one already holding it on macOS and Linux.
+    if isinstance(cause, BlockingIOError):
+        return _in_use(_LOCKED)
     if isinstance(cause, FileNotFoundError):
         return _not_found()
     if isinstance(cause, OSError):
@@ -290,6 +301,8 @@ def _classify_serial_error(
     # Matches both the exception class name (pyserial's repr-based wrap)
     # and common OS phrasings.
     lowered = msg.lower()
+    if "could not exclusively lock" in lowered:
+        return _in_use(_LOCKED)
     if (
         "permissionerror" in lowered
         or "access is denied" in lowered

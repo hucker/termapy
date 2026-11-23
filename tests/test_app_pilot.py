@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 import serial
-from pilot_wait import until
+from pilot_wait import dispatch_on_worker, start_on_worker, until
 from textual.widgets import Button
 
 from termapy.defaults import DEFAULT_CFG
@@ -495,7 +495,7 @@ class TestCustomButtons:
 
                 async def move_to(side: str) -> tuple[list[str | None], bool]:
                     """Set the side as /cfg does, then report where the buttons landed."""
-                    app._dispatch_single(f"/cfg custom_buttons_side {side}")
+                    await dispatch_on_worker(pilot, app, f"/cfg custom_buttons_side {side}")
                     region = "custom-bar" if side == "bottom" else "custom-side"
                     await until(
                         pilot,
@@ -2080,7 +2080,7 @@ class TestSharedStateRaces:
                 app._engine._serial_port = port
 
                 # Act -- the command every typed line is rewritten to
-                result = app._dispatch_single("/term.send AT")
+                result, _ = await dispatch_on_worker(pilot, app, "/term.send AT")
                 await pilot.pause()
 
                 # Assert
@@ -2110,7 +2110,7 @@ class TestSharedStateRaces:
                 app._open_log()
 
                 # Act
-                result = app._dispatch_single("/term.send AT")
+                result, _ = await dispatch_on_worker(pilot, app, "/term.send AT")
                 await pilot.pause()
 
                 # Assert
@@ -2661,7 +2661,7 @@ class TestRawEcho:
                 app.repl.ctx.ns("flags")["echo_repl"] = True
 
                 # Act -- not connected, so the line is echoed and refused, never sent
-                app._dispatch_single("/term.raw AT[ok]")
+                await dispatch_on_worker(pilot, app, "/term.raw AT[ok]")
                 await pilot.pause()
 
                 # Assert
@@ -2916,8 +2916,8 @@ class TestScreenshots:
                 folder = Path(app.repl.ss_dir)
 
                 # Act
-                first = app._dispatch_single("/ss.svg twice")
-                second = app._dispatch_single("/ss.svg.silent twice")
+                first, _ = await dispatch_on_worker(pilot, app, "/ss.svg twice")
+                second, _ = await dispatch_on_worker(pilot, app, "/ss.svg.silent twice")
                 await pilot.pause()
 
                 # Assert
@@ -2982,7 +2982,7 @@ class TestTerminalTitle:
                 connected = app.terminal_title
 
                 # Act
-                result = app._dispatch_single("/term.title bench")
+                result, _ = await dispatch_on_worker(pilot, app, "/term.title bench")
                 await pilot.pause()
 
                 # Assert
@@ -3009,7 +3009,7 @@ class TestPortBanners:
                 await pilot.pause()
 
                 # Act
-                result = app._dispatch_single("/port.connect loop://")
+                result, _ = await dispatch_on_worker(pilot, app, "/port.connect loop://")
                 await until(pilot, lambda: app.engine.open_device == "loop://")
 
                 # Assert
@@ -3033,7 +3033,7 @@ class TestPortBanners:
                 await pilot.pause()
 
                 # Act
-                result = app._dispatch_single("/port.disconnect --quiet")
+                result, _ = await dispatch_on_worker(pilot, app, "/port.disconnect --quiet")
                 await pilot.pause()
 
                 # Assert
@@ -3171,7 +3171,7 @@ class TestFailureReportedOnce:
                 assert app._connect() is True, "DEMO port should connect"
 
                 # Act
-                result = app._dispatch_single("$(B) <- /port.baud_rate fast")
+                result, _ = await dispatch_on_worker(pilot, app, "$(B) <- /port.baud_rate fast")
                 await pilot.pause()
 
                 # Assert
@@ -3187,33 +3187,12 @@ class TestFailureReportedOnce:
         _run(scenario)
 
 
-def _start_on_worker(app, line: str) -> tuple[threading.Thread, dict]:
-    """Start dispatching ``line`` on a worker, as typed input runs; ``outcome`` fills when it ends."""
-    outcome: dict = {}
-
-    def run() -> None:
-        t0 = time.monotonic()
-        outcome["result"] = app._dispatch_single(line)
-        outcome["seconds"] = time.monotonic() - t0
-
-    worker = threading.Thread(target=run, daemon=True)
-    worker.start()
-    return worker, outcome
-
-
 async def _await_until(condition, what: str) -> None:
     """Keep the event loop serving ``_on_main`` until ``condition()`` holds; fail after 5 s."""
     deadline = time.monotonic() + 5.0
     while not condition() and time.monotonic() < deadline:
         await asyncio.sleep(0.05)
     assert condition(), f"{what} within the deadline"
-
-
-async def _dispatch_on_worker(pilot, app, line: str) -> tuple[CmdResult, float]:
-    """Dispatch ``line`` on a worker, as typed input runs; return its result and seconds taken."""
-    worker, outcome = _start_on_worker(app, line)
-    await _await_until(lambda: not worker.is_alive(), f"{line} finished")
-    return outcome["result"], outcome["seconds"]
 
 
 class TestLineNumbers:
@@ -3234,8 +3213,8 @@ class TestLineNumbers:
                 await pilot.pause()
 
                 # Act
-                result, _ = await _dispatch_on_worker(pilot, app, "/term.line_no on")
-                info, _ = await _dispatch_on_worker(pilot, app, "/term.info")
+                result, _ = await dispatch_on_worker(pilot, app, "/term.line_no on")
+                info, _ = await dispatch_on_worker(pilot, app, "/term.info")
                 app._write_batch(["numbered line"])
                 await pilot.pause()
 
@@ -3297,8 +3276,8 @@ class TestTrafficCounts:
                     return f"TX {format_size(tx)}  RX {format_size(rx)}"
 
                 # Act
-                on, _ = await _dispatch_on_worker(pilot, app, "/term.traffic on")
-                await _dispatch_on_worker(pilot, app, "AT")
+                on, _ = await dispatch_on_worker(pilot, app, "/term.traffic on")
+                await dispatch_on_worker(pilot, app, "AT")
                 await _await_until(
                     lambda: (
                         app._engine.byte_counts()[1] > 0
@@ -3307,7 +3286,7 @@ class TestTrafficCounts:
                     "the bar shows the engine's counts after the reply",
                 )
                 tx, rx = app._engine.byte_counts()
-                off, _ = await _dispatch_on_worker(pilot, app, "/term.traffic off")
+                off, _ = await dispatch_on_worker(pilot, app, "/term.traffic off")
                 await _await_until(lambda: not bar.has_class("visible"), "the bar hid")
                 app._disconnect()
 
@@ -3371,7 +3350,7 @@ class TestDemoCommand:
                 monkeypatch.setenv("TERMAPY_CFG_DIR", str(cfg_root))
 
                 # Act
-                result, _ = await _dispatch_on_worker(pilot, app, "/demo")
+                result, _ = await dispatch_on_worker(pilot, app, "/demo")
                 switched_to = app.config_path
                 app._disconnect()
 
@@ -3393,7 +3372,7 @@ class TestDemoCommand:
                 await pilot.pause()
 
                 # Act
-                result, _ = await _dispatch_on_worker(pilot, app, "/demo --force")
+                result, _ = await dispatch_on_worker(pilot, app, "/demo --force")
 
                 # Assert
                 assert result.error.startswith("Usage:"), result.error
@@ -3415,7 +3394,7 @@ class TestCfgAppliesAtOnce:
                 await pilot.pause()
 
                 # Act
-                result, _ = await _dispatch_on_worker(pilot, app, "/cfg eol_rx lf")
+                result, _ = await dispatch_on_worker(pilot, app, "/cfg eol_rx lf")
 
                 # Assert
                 assert (result.success, result.value) == (True, "lf"), result.error
@@ -3442,7 +3421,7 @@ class TestNoOpSaysSo:
                 await pilot.pause()
 
                 # Act
-                result, _ = await _dispatch_on_worker(pilot, app, "/app.tui")
+                result, _ = await dispatch_on_worker(pilot, app, "/app.tui")
                 await pilot.pause()
 
                 # Assert
@@ -3468,8 +3447,8 @@ class TestNoOpSaysSo:
                 app._capture.feed_text(["one", "two"])
 
                 # Act
-                first, _ = await _dispatch_on_worker(pilot, app, "/cap.stop")
-                second, _ = await _dispatch_on_worker(pilot, app, "/cap.stop")
+                first, _ = await dispatch_on_worker(pilot, app, "/cap.stop")
+                second, _ = await dispatch_on_worker(pilot, app, "/cap.stop")
 
                 # Assert
                 assert first.value == cap_path.stat().st_size, "the value is the bytes on disk"
@@ -3504,7 +3483,7 @@ class TestDelayHook:
                 await pilot.pause()
 
                 # Act
-                result, _ = await _dispatch_on_worker(pilot, app, "/delay 1s")
+                result, _ = await dispatch_on_worker(pilot, app, "/delay 1s")
                 await pilot.pause()
 
                 # Assert
@@ -3524,7 +3503,7 @@ class TestDelayHook:
                 await pilot.pause()
 
                 # Act
-                result, seconds = await _dispatch_on_worker(pilot, app, "/delay.silent 300ms")
+                result, seconds = await dispatch_on_worker(pilot, app, "/delay.silent 300ms")
                 await pilot.pause()
 
                 # Assert
@@ -4321,7 +4300,7 @@ class TestUnsavedSettings:
                 app.action_stop_script()
 
                 # Act
-                worker, outcome = _start_on_worker(app, f"/cfg.load {path}")
+                worker, outcome = start_on_worker(app, f"/cfg.load {path}")
                 await until(pilot, lambda: _showing(app, SessionChanges, "#changes-cancel"))
                 assert worker.is_alive(), "the load waits while the question is up"
                 await pilot.click("#changes-cancel")

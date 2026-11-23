@@ -1483,11 +1483,12 @@ class TestHelpFlag:
         positions = [out.index(f"\n{title}:") for title in titles]
 
         # Assert
-        assert positions == sorted(positions), "the four groups, in this order"
+        assert positions == sorted(positions), "the five groups, in this order"
         under = {}
         for flag in ("--demo", "--run", "--quiet", "--ports", "--kill"):
             # The flag's own row starts a line, short form first when it has one; the name also appears inside other rows' text.
-            match = re.search(rf"^  (?:-\w, )?{re.escape(flag)}\b", out, re.MULTILINE)
+            # argparse writes a short form's metavar before Python 3.13 (`-r RUN, --run RUN`), not from 3.13 (`-r, --run RUN`).
+            match = re.search(rf"^  (?:-\w[^,\n]*, )?{re.escape(flag)}\b", out, re.MULTILINE)
             assert match is not None, f"{flag} has a row"
             # The nearest title above the row, by position.
             under[flag] = max(

@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from pilot_wait import has_link, steady, until
+from pilot_wait import dispatch_on_worker, has_link, steady, until
 from textual.widgets import Button, Input, OptionList, RichLog, Static
 
 from termapy.defaults import DEFAULT_CFG
@@ -187,7 +187,7 @@ class TestOnKey:
                 await pilot.pause()
                 assert app._connect() is True, "DEMO port should connect"
                 await pilot.pause()
-                result = app._dispatch_single("/cap.bin t.bin bytes=100000")
+                result, _ = await dispatch_on_worker(pilot, app, "/cap.bin t.bin bytes=100000")
                 assert result.success is True, result.error
                 await pilot.pause()
                 assert app._engine.serial_claimed is True, "the capture claims the port"
@@ -198,7 +198,7 @@ class TestOnKey:
 
                 # Assert
                 assert app._xfer_cancel.is_set(), "Escape asks the transfer to stop"
-                app._dispatch_single("/cap.stop")
+                await dispatch_on_worker(pilot, app, "/cap.stop")
                 await pilot.pause()
 
         _run(scenario)

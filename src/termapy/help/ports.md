@@ -407,6 +407,17 @@ necessarily free.  An MCP client gets the same fact as data, `session` on
 each port record, naming the other session only as `another termapy
 session` unless the server has `TERMAPY_MCP_HOST_INFO=1`.
 
+A connect that fails because another termapy session holds the port says
+which session, from the same breadcrumbs, and how to free the port:
+
+```text
+Cannot open COM7: in use by termapy tui, PID 21552, config quick-COM7 -- stop it with /app.kill 21552, or termapy --kill 21552 from a shell
+```
+
+A config that names its port by USB serial number is matched as the port
+the number names.  Under MCP the holder is `another termapy session` and
+nothing is suggested, unless the server has `TERMAPY_MCP_HOST_INFO=1`.
+
 `/port.info` and `/port.chip.in_use` report whether another process has
 the port open.  Termapy's own connection counts as "in use," so if you
 see `yes` while termapy is connected, that's expected.  This is handy

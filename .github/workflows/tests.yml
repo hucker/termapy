@@ -7,19 +7,35 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       # A flaky Pilot test on one version must not cancel the others.
       fail-fast: false
       matrix:
+        # Every version on Linux; the oldest and newest on macOS and Windows,
+        # where version breaks show at the ends and platform breaks show at
+        # all.  macOS is not just another Unix: /dev/cu.* short names, a
+        # case-insensitive file system, its own lsof.  Added 2026-11-23 after
+        # a branch tested only on Windows failed four tests on a Mac.
+        os: [ubuntu-latest]
         python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+        include:
+          - { os: macos-latest, python-version: "3.11" }
+          - { os: macos-latest, python-version: "3.15" }
+          - { os: windows-latest, python-version: "3.11" }
+          - { os: windows-latest, python-version: "3.15" }
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
       - name: Install lrzsz
         # The ZMODEM interop tests (tests/test_zmodem.py) run termapy against
-        # the reference sz and rz; without them those tests skip.
+        # the reference sz and rz; without them those tests skip.  Windows
+        # has no package for them, so there they skip, as on a dev PC.
+        if: runner.os == 'Linux'
         run: sudo apt-get install -y lrzsz
+      - name: Install lrzsz (macOS)
+        if: runner.os == 'macOS'
+        run: brew install lrzsz
       - name: Run tests
         # CRC code-gen execution tests (which needed gcc/rustc/ghdl on
         # PATH) moved out to the standalone crcglot package in 2026-05;
@@ -37,7 +53,9 @@ jobs:
       - name: Run the timing tests alone
         # Their result depends on wall-clock time, so they run after the
         # parallel pass with nothing beside them (registry
-        # timing-tests-run-alone).
+        # timing-tests-run-alone).  Linux only: hosted macOS and Windows
+        # runners are slower and noisier, so a miss there is the machine.
+        if: runner.os == 'Linux'
         run: uv run --python ${{ matrix.python-version }} --all-extras pytest -m timing -n 0
 
   coverage:

@@ -1279,6 +1279,142 @@ class TestAppCommands:
             assert cli_demo._exit_requested is False, "others left this session running"
 
 
+def _held_error() -> Exception:
+    """An open that failed because another process holds the port, as pyserial chains it."""
+    outer = Exception("could not open port")
+    outer.__cause__ = PermissionError("Access is denied")
+    return outer
+
+
+def _locked_error() -> Exception:
+    """A POSIX open whose exclusive lock another process holds, as pyserial raises it inside its except."""
+    import errno
+
+    from serial import SerialException
+
+    outer = SerialException(errno.EAGAIN, "Could not exclusively lock port COM9: busy")
+    outer.__context__ = BlockingIOError(errno.EAGAIN, "Resource temporarily unavailable")
+    return outer
+
+
+@pytest.mark.rule("busy-port-names-session")
+class TestBusyPortNamesItsSession:
+    """A port another termapy holds is reported as held by that session, with what stops it (review 2026-11-19, M8)."""
+
+    @pytest.mark.slow  # a child session
+    def test_the_holder_is_named_with_its_pid_config_and_how_to_stop_it(self, state_dir):
+        """The message names the session's frontend, PID and config, and both commands that ask it to leave."""
+        from termapy.serial_engine import _classify_serial_error
+
+        with _child_session(state_dir, config="rig.cfg", open_port="COM9") as (_child, crumb):
+            # Act
+            actual = _classify_serial_error(_held_error(), "COM9")
+
+        # Assert
+        expected = (
+            f"in use by termapy cli, PID {crumb.pid}, config rig -- stop it with "
+            f"/app.kill {crumb.pid}, or termapy --kill {crumb.pid} from a shell"
+        )
+        assert actual == expected, "the session, and how to free the port"
+
+    @pytest.mark.slow  # a child session
+    def test_a_serial_number_is_matched_as_the_port_it_names(self, state_dir):
+        """A config naming its port by USB serial number finds the session holding that physical port."""
+        from termapy.port_control import _build_demo_fleet
+        from termapy.serial_engine import _classify_serial_error
+
+        # Arrange -- in the demo fleet serial A1B2C3D4 is COM3
+        with _child_session(state_dir, open_port="COM3") as (_child, crumb):
+            # Act
+            actual = _classify_serial_error(_held_error(), "A1B2C3D4", source=_build_demo_fleet)
+
+        # Assert
+        assert actual.startswith(f"COM3 is in use by termapy cli, PID {crumb.pid}"), (
+            f"the alias resolves to the physical port its holder names: {actual}"
+        )
+
+    @pytest.mark.slow  # a child session
+    def test_a_refused_lock_names_the_holder_too(self, state_dir):
+        """On macOS and Linux a second termapy meets the first's lock, not a refused open: the session is named all the same."""
+        from termapy.serial_engine import _classify_serial_error
+
+        with _child_session(state_dir, open_port="COM9") as (_child, crumb):
+            # Act
+            actual = _classify_serial_error(_locked_error(), "COM9")
+
+        # Assert
+        assert actual.startswith(f"in use by termapy cli, PID {crumb.pid}"), (
+            f"a refused lock is a busy port: {actual}"
+        )
+
+    def test_a_real_refused_lock_reads_as_in_use(self, state_dir):
+        """pyserial's own error for a pty another open_serial holds reads as in use, not as an errno."""
+        import serial
+
+        from termapy.config import open_serial
+        from termapy.defaults import DEFAULT_CFG
+        from termapy.serial_engine import _classify_serial_error
+
+        if sys.platform == "win32":
+            pytest.skip("Windows refuses the open itself; the lock is POSIX's")
+
+        # Arrange -- one open holds the pty's exclusive lock
+        master, slave = os.openpty()
+        port = os.ttyname(slave)
+        cfg = {"serial": {**DEFAULT_CFG["serial"], "port": port}}
+        first = open_serial(cfg)
+        try:
+            with pytest.raises(serial.SerialException) as refused:
+                open_serial(cfg)
+        finally:
+            first.close()
+            os.close(slave)
+            os.close(master)
+
+        # Act
+        actual = _classify_serial_error(refused.value, port)
+
+        # Assert
+        assert actual.startswith("In use by another program"), actual
+
+    def test_a_refused_lock_no_session_holds_says_another_program(self, state_dir):
+        """A lock refused with no termapy holding the port reads as in use, never as a raw errno."""
+        from termapy.serial_engine import _classify_serial_error
+
+        # Act
+        actual = _classify_serial_error(_locked_error(), "COM9")
+
+        # Assert
+        assert actual.startswith("In use by another program"), actual
+
+    def test_this_sessions_own_hold_suggests_nothing(self, state_dir):
+        """A port this process holds reads as this session, with no command to stop itself."""
+        from termapy.serial_engine import _classify_serial_error
+
+        # Arrange
+        crumb = Breadcrumb()
+        crumb.write("cli", open_port="COM9")
+        try:
+            # Act
+            actual = _classify_serial_error(_held_error(), "COM9")
+        finally:
+            crumb.remove()
+
+        # Assert
+        assert actual == "in use by this session", "no kill suggested for oneself"
+
+    def test_a_port_no_session_holds_keeps_the_general_answer(self, state_dir):
+        """With no breadcrumb naming the port, the answer is the general one, never a guessed session."""
+        from termapy.serial_engine import _classify_serial_error
+
+        # Act
+        actual = _classify_serial_error(_held_error(), "COM9")
+
+        # Assert
+        assert "termapy" not in actual, f"no session is named: {actual}"
+        assert actual.startswith("Permission denied"), "the general in-use answer"
+
+
 @pytest.fixture
 def cli_demo(tmp_path):
     """A CLI session on the DEMO simulator, its config on disk."""

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
 
+from termapy.config import config_files, is_config_file
 from termapy.config_resolve import (
     find_config,
     proto_dir_for,
@@ -270,6 +272,46 @@ class TestResolveConfigNotFound:
 
         # Assert
         assert actual is None, "rule 2 looks for demo.cfg, not other.cfg"
+
+
+@pytest.mark.rule("device-name-never-a-config")
+class TestDeviceNameNamesNoConfig:
+    """A device name is no config on any OS: config names are cross-platform."""
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="Windows refuses a file named COM7")
+    def test_a_file_named_for_a_device_is_not_resolved(self, tmp_path):
+        """A file named COM7 resolves to nothing, as it must on Windows, where a busy COM7 answers is_file() True."""
+        # Arrange -- a file of that name, which only a POSIX file system can hold
+        path = tmp_path / "COM7"
+        path.write_text("{}", encoding="utf-8")
+
+        # Act
+        actual = _resolve_config(str(path))
+
+        # Assert
+        assert actual is None, "the name is a port, never a config file"
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="Windows refuses a folder named con")
+    def test_a_config_named_for_a_device_is_not_listed(self, tmp_path):
+        """A <name>/<name>.cfg named for a device is no config to a listing, beside one that is."""
+        # Arrange
+        _make_cfg(tmp_path, "con")
+        _make_cfg(tmp_path, "rig")
+
+        # Act
+        actual = [path.stem for path in config_files(tmp_path)]
+
+        # Assert
+        assert actual == ["rig"], "the listing and the resolver agree: con is no config"
+
+    @pytest.mark.parametrize("stem", ["COM7", "com3", "nul", "LPT1"])
+    def test_a_device_stem_is_no_config_file(self, stem):
+        """is_config_file refuses a device name in any case, on every OS, without touching the disk."""
+        # Act
+        actual = is_config_file(Path("termapy_cfg") / stem / f"{stem}.cfg")
+
+        # Assert
+        assert actual is False, "a device name never counts as a config"
 
 
 class TestResolveConfigPriority:

@@ -4679,3 +4679,106 @@ class TestHardwareButtons:
                 assert str(button.label) == "Break", "an action shows no value"
 
         _run(scenario)
+
+
+class TestTitleBarFits:
+    """A long port name keeps its button whole: the config title gives way.
+
+    Found 2026-11-23 on macOS: ``usbserial-D20jsv68`` is 14 columns wider
+    than ``COM4``, the title bar ran past the window, and the port button
+    read ``usbserial-D2`` with the connection button off the edge.
+    """
+
+    LONG_PORT = "/dev/cu.usbserial-D20jsv68"
+
+    def _make(self, app_factory):
+        serial = {**DEFAULT_CFG["serial"], "port": self.LONG_PORT}  # type: ignore[dict-item]
+        app, _, _ = app_factory(serial=serial)
+        return app
+
+    @staticmethod
+    def _right_edges(app) -> tuple[int, int, int]:
+        """The port and connection buttons' right edges, and the screen width."""
+        port_btn = app.query_one("#title-left", Button)
+        conn_btn = app.query_one("#title-right", Button)
+        return port_btn.region.right, conn_btn.region.right, app.screen.size.width
+
+    def test_a_long_port_name_fits_a_narrow_window(self, app_factory):
+        """At 105 columns the title shrinks and both right-hand buttons are whole."""
+        # Arrange
+        app = self._make(app_factory)
+
+        async def scenario():
+            async with app.run_test(size=(105, 30)) as pilot:
+                await pilot.pause()
+                await pilot.pause()
+
+                # Act
+                port_right, conn_right, width = self._right_edges(app)
+                center = app.query_one("#title-center", Button)
+
+                # Assert
+                assert port_right <= width, "the port button ends inside the window"
+                assert conn_right <= width, "the connection button ends inside the window"
+                assert center.region.width < 24, "the config title is what gave way"
+
+        _run(scenario)
+
+    def test_the_title_refits_when_the_window_narrows(self, app_factory):
+        """Shrinking a wide window shrinks the title; widening it gives the title back."""
+        # Arrange
+        from termapy.title_bar import TITLE_CENTER_MAX
+
+        app = self._make(app_factory)
+
+        async def scenario():
+            async with app.run_test(size=(160, 30)) as pilot:
+                await pilot.pause()
+                center = app.query_one("#title-center", Button)
+                assert center.region.width == TITLE_CENTER_MAX, "full width when there is room"
+
+                # Act
+                await pilot.resize_terminal(105, 30)
+                await pilot.pause()
+                await pilot.pause()
+                port_right, conn_right, width = self._right_edges(app)
+                narrow = center.region.width
+                await pilot.resize_terminal(160, 30)
+                await pilot.pause()
+                await pilot.pause()
+
+                # Assert
+                assert port_right <= width and conn_right <= width, "both whole after the resize"
+                assert narrow < TITLE_CENTER_MAX, "the title shrank"
+                assert center.region.width == TITLE_CENTER_MAX, "and came back"
+
+        _run(scenario)
+
+    def test_the_port_button_grows_when_its_label_does(self, app_factory, monkeypatch):
+        """A port that resolves to a longer name widens its button, not clips its label."""
+        # Arrange -- opened as DEMO (15 columns of label), then the displayed
+        # device becomes a macOS-length name, as a connect makes it.
+        from termapy import title_bar
+
+        app, _, _ = app_factory()
+
+        async def scenario():
+            async with app.run_test(size=(160, 30)) as pilot:
+                await pilot.pause()
+                port_btn = app.query_one("#title-left", Button)
+                monkeypatch.setattr(
+                    title_bar, "displayed_port", lambda _app: (self.LONG_PORT, None)
+                )
+
+                # Act
+                app._update_title()
+                await pilot.pause()
+                await pilot.pause()
+
+                # Assert
+                label = str(port_btn.label)
+                assert port_btn.region.width >= len(label) + 2, (
+                    f"button {port_btn.region.width} wide for {label!r}"
+                )
+
+        _run(scenario)

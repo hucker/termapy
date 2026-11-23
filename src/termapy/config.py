@@ -3,6 +3,8 @@
 Pure functions with no UI dependency. Used by app.py and tests.
 """
 
+from __future__ import annotations
+
 import codecs
 import copy
 import json
@@ -295,9 +297,11 @@ def is_config_file(path: Path) -> bool:
     A folder can hold another ``.cfg``: ``demo/.target_menu.cfg`` made one
     config count as two, so a lone config never loaded by itself (registry
     ``config-files-one-reader``).  Case is ignored, as the file systems
-    that hold most configs ignore it.
+    that hold most configs ignore it.  A device name (``RESERVED_NAMES``)
+    is no config on any OS, as ``resolve_config`` refuses it too (registry
+    ``device-name-never-a-config``): config names are cross-platform.
     """
-    return path.stem.casefold() == path.parent.name.casefold()
+    return path.stem.casefold() == path.parent.name.casefold() and not is_reserved_name(path.stem)
 
 
 def config_files(root: Path) -> list[Path]:
@@ -354,6 +358,11 @@ RESERVED_NAMES = frozenset(
 RESERVED_CHARS = '<>:"|?*'
 
 
+def is_reserved_name(name: str) -> bool:
+    """Whether ``name`` is a Windows device name (``COM7``, ``con.cfg``): case ignored, with or without an extension."""
+    return name.partition(".")[0].upper() in RESERVED_NAMES
+
+
 def validate_file_stem(name: str) -> str | None:
     """Why ``name`` cannot be a file or config name, or ``None`` if it can.
 
@@ -362,7 +371,9 @@ def validate_file_stem(name: str) -> str | None:
     arguments split on it), nothing hidden, and nothing an OS termapy
     supports refuses (``RESERVED_NAMES``, ``RESERVED_CHARS``, a trailing
     dot), so a config made anywhere checks out
-    everywhere.  A load never asks, so a config made before still opens.
+    everywhere.  A load does not ask about the characters, so a config made
+    before with one still opens; a device name is no config anywhere
+    (``is_config_file``, ``resolve_config``).
     """
     if not name:
         return "Name is required"
@@ -379,7 +390,7 @@ def validate_file_stem(name: str) -> str | None:
     for char in name:
         if char in RESERVED_CHARS:
             return f"Name may not contain '{char}': {name}"
-    if name.partition(".")[0].upper() in RESERVED_NAMES:
+    if is_reserved_name(name):
         return f"Name is reserved, a device name on Windows: {name}"
     return None
 
@@ -503,7 +514,7 @@ def apply_open_settings(
         cfg["echo"] = echo
 
 
-def new_config_from_args(name: str, settings: str, *, source: "PortSource | None" = None) -> dict:
+def new_config_from_args(name: str, settings: str, *, source: PortSource | None = None) -> dict:
     """``NAME PORT [SETTING ...]`` as a new config: what ``--new`` and ``/cfg.new`` read.
 
     One reading for the flag and the command.  The settings are
@@ -1378,7 +1389,7 @@ def _value_as_written(cfg: Mapping, path: str) -> Any:
     return node
 
 
-def _finding_text(path: str, value: object, finding: "CfgFinding") -> str:
+def _finding_text(path: str, value: object, finding: CfgFinding) -> str:
     """A finding as a load warning: the key, what it must be, and what it holds, kept short."""
     shown = json.dumps(value, default=str)
     if value == "" or "\n" in str(value):

@@ -287,12 +287,21 @@ class SerialTerminal(TerminalHost, App):
     #title-left {
         min-width: 20;
     }
+    /* The config title is the one title-bar item that gives way when the
+       window is narrow: title_bar.fit_title_center sets its width to the
+       room left, so the port and connection buttons are never pushed off
+       the edge.  Found 2026-11-23 on macOS, where usbserial-D20jsv68 is
+       14 columns wider than COM4: at ~85 columns the port read
+       usbserial-D2 and the connection button was gone. */
     #title-spacer-l, #title-spacer-r {
         width: 1fr;
+        min-width: 0;
     }
     #title-bar #title-center {
         width: 24;
         text-align: center;
+        text-wrap: nowrap;
+        text-overflow: ellipsis;
     }
     #title-right {
         min-width: 14;
@@ -803,7 +812,9 @@ class SerialTerminal(TerminalHost, App):
     def compose(self) -> ComposeResult:
         title = cfg_value(self.cfg, "title") or self.config_path
         port_info = self._port_info_str()
-        with Horizontal(id="title-bar"):
+        from termapy.title_bar import TitleBar
+
+        with TitleBar(id="title-bar"):
             from importlib.metadata import (
                 PackageNotFoundError,
                 version as _get_version,

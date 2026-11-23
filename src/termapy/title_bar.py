@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 from rich.text import Text
 from textual.color import Color, ColorParseError, rgb_to_lab
+from textual.containers import Horizontal
 from textual.css.query import NoMatches
 from textual.widgets import Button
 
@@ -291,6 +292,64 @@ def format_title_tooltip(title: str, kv_pairs: list[tuple[str, object]], action:
     return "\n".join(lines)
 
 
+TITLE_CENTER_MAX = 24
+"""The config-title button's width when the title bar has room for it."""
+
+TITLE_CENTER_MIN = 5
+"""The narrowest the config-title button gets: an ellipsis and a few letters."""
+
+_TITLE_SPACERS = ("title-spacer-l", "title-spacer-r")
+
+
+def fit_title_center(app: SerialTerminal) -> None:
+    """Size the config-title button to the room the title bar has left.
+
+    The title is the one item that gives way in a narrow window: every
+    other button keeps its full label, and the title takes what is left,
+    from ``TITLE_CENTER_MAX`` down to ``TITLE_CENTER_MIN`` (its label ends
+    in an ellipsis).  A port name like ``usbserial-D20jsv68`` is 14 columns
+    wider than ``COM4``, and without this the row ran off the right edge,
+    cutting the port button and hiding the connection button.
+
+    Computed here, not with ``fr`` units: Textual sizes ``fr`` from the whole
+    row once it is overfull, so the title grew back exactly when it most
+    needed to shrink.  Reads the other buttons' laid-out widths, so call it
+    after a refresh (``call_after_refresh``) once a label has changed.
+
+    Args:
+        app: The SerialTerminal instance.
+    """
+    try:
+        bar = app.query_one("#title-bar")
+        center = app.query_one("#title-center", Button)
+    except SHUTDOWN_RACE:
+        return
+    used = 0
+    for widget in bar.children:
+        if widget is center or widget.id in _TITLE_SPACERS or not widget.display:
+            continue
+        margin = widget.styles.margin
+        used += widget.outer_size.width + margin.left + margin.right
+    center_margin = center.styles.margin
+    room = bar.size.width - used - center_margin.left - center_margin.right - len(_TITLE_SPACERS)
+    width = max(TITLE_CENTER_MIN, min(TITLE_CENTER_MAX, room))
+    if center.styles.width is None or center.styles.width.value != width:
+        center.styles.width = width
+
+
+class TitleBar(Horizontal):
+    """The title-bar row: refits its config title whenever its own width changes.
+
+    Its own ``Resize`` is the signal, not the app's: Textual debounces a
+    terminal resize and hands it to the screen, so the app hears of it
+    before the bar has its new width.
+    """
+
+    def on_resize(self) -> None:
+        """Refit the config title to the bar's new width."""
+        self.call_after_refresh(fit_title_center, self.app)
+
+
 def update_title(app: SerialTerminal) -> None:
     """Refresh all three title-bar buttons with the current cfg/connection state.
 
@@ -359,6 +418,11 @@ def update_title(app: SerialTerminal) -> None:
     try:
         port_btn = app.query_one("#title-left", Button)
         port_btn.label = Text(app._port_info_str(device))
+        # A Button's label repaints but does not re-measure: without this the
+        # button keeps its first label's width.  Found 2026-11-23 on macOS:
+        # opened as a short name, connected as usbserial-D20jsv68, it read
+        # usbserial-D2 with the baud cut off.
+        port_btn.refresh(layout=True)
         port_btn.tooltip = Text(
             format_title_tooltip(
                 device or "(none)", port_tooltip_pairs(facts), "select serial port"
@@ -369,6 +433,8 @@ def update_title(app: SerialTerminal) -> None:
 
     # Connection status button (right) tooltip
     app._update_conn_tooltip(display=(device, facts))
+    # The port label may have changed width: refit the title once it is laid out.
+    app.call_after_refresh(fit_title_center, app)
 
 
 def update_conn_tooltip(

@@ -17,7 +17,8 @@ __pycache__/
 *.egg-info/
 .venv/
 .tox/
-.vscode/
+.vscode/*
+!.vscode/extensions.json
 termapy_cfg/
 junk/
 .coverage

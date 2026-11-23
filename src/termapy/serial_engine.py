@@ -77,6 +77,57 @@ def shown_holder(holder: str, *, hides_host: bool | None = None) -> str:
     return "another program" if hides_host else holder
 
 
+def _session_holding_port(
+    port_name: str, *, source: PortSource | None = None, prefix: str = DEFAULT_CMD_PREFIX
+) -> str | None:
+    """Which termapy session holds ``port_name``, and how to stop it; None when none does.
+
+    Read from the breadcrumbs every running termapy leaves, so it works on
+    every OS and opens nothing.  The spec is resolved first, so a USB
+    serial number or a chain is matched as the physical port it names.
+    Another session is named with its PID and config and the command that
+    asks it to leave (``/app.kill``, or ``termapy --kill`` from a shell);
+    under MCP without ``TERMAPY_MCP_HOST_INFO`` it stays unnamed and
+    nothing is suggested (decision 2026-11-12).
+
+    Args:
+        port_name: The config's port spec.
+        source: A substitute port list, as ``resolve_port`` takes it.
+        prefix: The REPL prefix the suggestion is spelled with.
+    """
+    import os
+
+    from termapy import breadcrumbs
+    from termapy.env_flags import port_policy
+    from termapy.port_control import (
+        AmbiguousSerialNumberError,
+        crumb_holding,
+        resolve_port,
+        same_port,
+        session_holding,
+    )
+
+    try:
+        device = resolve_port(port_name, source=source)
+    except AmbiguousSerialNumberError:
+        return None
+    crumbs = breadcrumbs.read_running()
+    holder = session_holding(device, crumbs, os.getpid())
+    if holder is None:
+        return None
+    text = (
+        f"in use by {holder}" if same_port(device, port_name) else f"{device} is in use by {holder}"
+    )
+    crumb = crumb_holding(device, crumbs)
+    if crumb is None or crumb.pid == os.getpid() or port_policy().hides_host:
+        return text
+    config = f", config {crumb.config_name}" if crumb.config_name else ""
+    return (
+        f"{text}{config} -- stop it with {prefix}app.kill {crumb.pid}, "
+        f"or termapy --kill {crumb.pid} from a shell"
+    )
+
+
 def _find_port_holder(port_name: str) -> str | None:
     """Return the process holding ``port_name``, or None if unavailable.
 
@@ -129,6 +180,10 @@ def _find_port_holder(port_name: str) -> str | None:
     return None
 
 
+# The answer for a port whose exclusive lock another process holds.
+_LOCKED = "In use by another program (it holds the port's lock)"
+
+
 def _classify_serial_error(
     exc: Exception,
     port_name: str = "",
@@ -139,9 +194,10 @@ def _classify_serial_error(
     """Turn a serial open exception into a user-friendly message.
 
     If a ``port_name`` is provided and the error looks like "port in
-    use" (PermissionError / EACCES), also try to identify the holder
-    process on Linux/macOS.  The holder lookup is best-effort and
-    silent on failure.
+    use" (PermissionError / EACCES), also name the holder: a termapy
+    session from its breadcrumb on every OS, with the command that stops
+    it (``_session_holding_port``), else another process by ``lsof`` on
+    Linux/macOS.  The holder lookup is best-effort and silent on failure.
 
     For "port not found" errors with a multi-candidate spec (pipe
     fallback chain), also walks ``resolve_port_trace()`` to show
@@ -174,8 +230,16 @@ def _classify_serial_error(
         elif isinstance(exc, FileNotFoundError):
             cause = exc
 
-    def _in_use() -> str:
-        base = "Permission denied -- port may be in use by another application"
+    def _in_use(
+        base: str = "Permission denied -- port may be in use by another application",
+    ) -> str:
+        # A termapy session holding the port is known for certain, on every
+        # OS; another program only by lsof, on Linux and macOS.
+        session = (
+            _session_holding_port(port_name, source=source, prefix=prefix) if port_name else None
+        )
+        if session:
+            return session
         holder = _find_port_holder(port_name) if port_name else None
         return f"{base}: held by {shown_holder(holder)}" if holder else base
 
@@ -217,6 +281,12 @@ def _classify_serial_error(
     # Preferred path: chained exception exposes the underlying cause.
     if isinstance(cause, PermissionError):
         return _in_use()
+    # On POSIX the open itself succeeds and pyserial's exclusive lock is
+    # refused (EAGAIN / EWOULDBLOCK, registry port-open-exclusive): another
+    # process has the port, for certain, which is how a second termapy
+    # meets one already holding it on macOS and Linux.
+    if isinstance(cause, BlockingIOError):
+        return _in_use(_LOCKED)
     if isinstance(cause, FileNotFoundError):
         return _not_found()
     if isinstance(cause, OSError):
@@ -231,6 +301,8 @@ def _classify_serial_error(
     # Matches both the exception class name (pyserial's repr-based wrap)
     # and common OS phrasings.
     lowered = msg.lower()
+    if "could not exclusively lock" in lowered:
+        return _in_use(_LOCKED)
     if (
         "permissionerror" in lowered
         or "access is denied" in lowered

@@ -1280,6 +1280,23 @@ def port_state_style(session: str | None) -> str:
     return "green" if session == THIS_SESSION else "yellow"
 
 
+def crumb_holding(device: str, crumbs: list[Any]) -> Any | None:
+    """The breadcrumb of the termapy session holding ``device``; None when none does.
+
+    The one match of a port to its session.  A breadcrumb names the
+    physical port its session has open, so ``device`` is a device name:
+    an alias (a USB serial number, a fallback chain) is resolved first.
+
+    Args:
+        device: The port, as the system lists it.
+        crumbs: The running termapys (``breadcrumbs.read_running``).
+    """
+    return next(
+        (crumb for crumb in crumbs if crumb.open_port and same_port(crumb.open_port, device)),
+        None,
+    )
+
+
 def session_holding(
     device: str, crumbs: list[Any], own_pid: int, *, hides_host: bool | None = None
 ) -> str | None:
@@ -1297,19 +1314,14 @@ def session_holding(
         own_pid: This process's id.
         hides_host: Leave another session unnamed; None asks this process's policy.
     """
-    for crumb in crumbs:
-        if not crumb.open_port or not same_port(crumb.open_port, device):
-            continue
-        if crumb.pid == own_pid:
-            return THIS_SESSION
-        if hides_host is None:
-            hides_host = env_flags.port_policy().hides_host
-        return (
-            "another termapy session"
-            if hides_host
-            else f"termapy {crumb.frontend}, PID {crumb.pid}"
-        )
-    return None
+    crumb = crumb_holding(device, crumbs)
+    if crumb is None:
+        return None
+    if crumb.pid == own_pid:
+        return THIS_SESSION
+    if hides_host is None:
+        hides_host = env_flags.port_policy().hides_host
+    return "another termapy session" if hides_host else f"termapy {crumb.frontend}, PID {crumb.pid}"
 
 
 def fill_sessions(facts_list: list[ChipFacts]) -> None:
@@ -1898,8 +1910,13 @@ def _port_key(name: str) -> str:
     and macOS names are case-sensitive, a short name is its ``/dev`` device
     (``port_path``), and a symlink such as ``/dev/serial/by-id/usb-FTDI_...``
     names the device it points to, so an absolute name is resolved with
-    ``os.path.realpath``.
+    ``os.path.realpath``.  A reserved name (``DEMO``, ``LOOPBACK``, ...)
+    ignores case on every platform, as ``_match_candidate`` reads it: found
+    2026-11-22 on macOS, ``/port.connect demo`` beside an open ``DEMO`` closed
+    and reopened it.
     """
+    if name.upper() in _RESERVED_PORTS:
+        return name.upper()
     if os.name == "nt":
         if name.startswith(_WIN32_DEVICE_PREFIX):
             name = name[len(_WIN32_DEVICE_PREFIX) :]

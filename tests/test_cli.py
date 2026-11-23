@@ -2419,7 +2419,12 @@ class TestWatchPortWidth:
         # "closed"), but the alignment claim is about position, so anchor
         # on the vid_pid column value, unique per row and present in all.
         out = capsys.readouterr().out
-        rows = [line for line in out.splitlines() if "/dev/cu." in line]
+        # Match on the shown name: macOS shows ``usbserial-...`` for
+        # ``/dev/cu.usbserial-...`` (port_short_name), Windows the path as is.
+        from termapy.port_control import port_short_name
+
+        shown = [port_short_name(f.device) for f in fleet]
+        rows = [line for line in out.splitlines() if any(name in line for name in shown)]
         assert len(rows) == 3, "one state row per fleet port"
         vid_offsets = {
             row.find("0403:6001") if "0403:6001" in row else row.find("0000:0000") for row in rows

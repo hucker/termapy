@@ -11,7 +11,6 @@ perfect substitute.  Use real hardware for testing real projects.
 from __future__ import annotations
 
 import json
-import random
 import struct
 import threading
 import time
@@ -74,10 +73,10 @@ class FakeSerial:
         self._gps_fix: bool = True
         self._gps_sats: int = 9
 
-        # AT+RND.CUSTOM call counter -- drives the deterministic
-        # payload-length cycle that satisfies crcglot.reverse_packets'
-        # "2+ same-length + 1+ different-length" requirement.
-        self._rnd_custom_n: int = 0
+        # How many times each changing reply has been asked for: a reading
+        # steps through a fixed cycle (_cycle_index), so the device answers the
+        # same on every run and a test can pin it.
+        self._cycle_counts: dict[str, int] = {}
 
         # Virtual filesystem (flat, in-memory)
         self._vfs: dict[str, bytes] = dict(self._DEFAULT_VFS)
@@ -440,13 +439,13 @@ class FakeSerial:
 
         if upper == "AT+INFO":
             uptime = self._uptime_str()
-            free_mem = random.randint(28000, 32000)
+            free_mem = 29135
             return (
                 f"Bassomatic v77 v1.0\r\nUptime: {uptime}\r\nFree memory: {free_mem} bytes\r\n"
             ).encode()
 
         if upper == "AT+TEMP":
-            temp = round(random.uniform(22.0, 25.0), 1)
+            temp = self._TEMPS[self._cycle_index("temp", len(self._TEMPS))]
             return f"+TEMP: {temp}C\r\n".encode()
 
         if upper == "AT+RAMP":
@@ -547,8 +546,8 @@ class FakeSerial:
         if upper.startswith("AT+ZMODEM"):
             return self._handle_zmodem_cmd(cmd, upper)
 
-        if upper.startswith("AT+RND"):
-            return self._handle_rnd(upper)
+        if upper.startswith("AT+PKT"):
+            return self._handle_pkt(upper)
 
         return f"ERROR: Unknown command '{cmd}'\r\n".encode()
 
@@ -1224,8 +1223,8 @@ class FakeSerial:
         utc = self._nmea_time()
         date = self._nmea_date()
         sats = self._gps_sats
-        # Add slight jitter to altitude
-        alt = round(4.5 + random.uniform(-0.3, 0.3), 1)
+        # A slight drift in altitude, as a real fix shows
+        alt = self._GPS_ALTS[self._cycle_index("alt", len(self._GPS_ALTS))]
 
         if upper == "$GPGGA":
             # GGA - Global Positioning System Fix Data
@@ -1239,8 +1238,7 @@ class FakeSerial:
         if upper == "$GPRMC":
             # RMC - Recommended Minimum Navigation Information
             status = "A" if self._gps_fix else "V"
-            speed = round(random.uniform(0.0, 0.2), 1)
-            course = round(random.uniform(0, 360), 1)
+            speed, course = self._GPS_MOTION[self._cycle_index("rmc", len(self._GPS_MOTION))]
             body = (
                 f"GPRMC,{utc},{status},{lat},{lat_dir},{lon},{lon_dir},{speed},{course},{date},,,A"
             )
@@ -1272,7 +1270,7 @@ class FakeSerial:
                     prn = 3 + idx
                     elev = 20 + idx * 7
                     azim = (45 + idx * 40) % 360
-                    snr = random.randint(30, 45)
+                    snr = 30 + (prn * 7) % 16
                     parts.append(f"{prn:02d},{elev},{azim:03d},{snr:02d}")
                 body = ",".join(parts)
                 lines.append(self._nmea_sentence(body))
@@ -1305,27 +1303,47 @@ class FakeSerial:
         body = f"PMTK001,{cmd_id},3"
         return self._nmea_sentence(body)
 
-    # -- Random packet emitter ----------------------------------------------
-    # Drives the CRC-tour walkthrough: AT+RND emits one packet using a
-    # randomly chosen catalog algorithm (so /proto.crc.find can identify
-    # it), AT+RND.CUSTOM emits a packet using a deliberately non-catalog
-    # secret polynomial (so /proto.crc.reverse can recover it), and
-    # AT+RND.CUSTOM.REVEAL prints the secret so the user can confirm.
-
-    # Curated catalog set for AT+RND -- spans widths and endians.
-    _RND_ALGOS: tuple[str, ...] = (
-        "crc8",
-        "crc8-maxim",
-        "crc16-modbus",
-        "crc16-xmodem",
-        "crc32",
-        "crc32-bzip2",
+    # -- Readings that change ------------------------------------------------
+    # AT+TEMP and the GPS fix change from one reply to the next, as a real
+    # sensor's do, by stepping through these fixed cycles: never random, so
+    # a session answers the same on every run.
+    _TEMPS: tuple[float, ...] = (22.4, 22.9, 23.5, 24.1, 24.6, 24.2, 23.6, 23.0)
+    _GPS_ALTS: tuple[float, ...] = (4.3, 4.5, 4.7, 4.6, 4.4)
+    # (speed in knots, course in degrees): standing still, as the fix's drift shows it
+    _GPS_MOTION: tuple[tuple[float, float], ...] = (
+        (0.0, 87.4),
+        (0.1, 91.0),
+        (0.2, 88.6),
+        (0.1, 90.2),
     )
 
-    # Secret custom Rocksoft polynomial for AT+RND.CUSTOM.  Chosen NOT to
+    def _cycle_index(self, name: str, period: int) -> int:
+        """The next index of ``name``'s cycle, 0 to ``period - 1``, wrapping."""
+        count = self._cycle_counts.get(name, 0)
+        self._cycle_counts[name] = count + 1
+        return count % period
+
+    # -- Sample packet emitter ---------------------------------------------
+    # Drives the CRC-tour walkthrough: AT+PKT emits one packet under a
+    # catalog algorithm the tour does not name (so /proto.crc.find can
+    # identify it), AT+PKT.CUSTOM emits one under a deliberately non-catalog
+    # secret polynomial (so /proto.crc.reverse can recover it), and
+    # AT+PKT.CUSTOM.REVEAL prints the secret so the user can confirm.
+    # Nothing is random: each command cycles through a fixed set of packets,
+    # so the tour and the tests get the same answer on every run, and a test
+    # pins that every packet in the set gives the answer the tour shows.
+
+    # AT+PKT's algorithm: 16 bits, not the crc16-modbus the tour shows
+    # before it, so the find step discovers something new.
+    _PKT_ALGO = "crc16-xmodem"
+
+    # AT+PKT's payload lengths, one packet per entry.
+    _PKT_LENGTHS: tuple[int, ...] = (12, 20, 8, 28)
+
+    # Secret custom Rocksoft polynomial for AT+PKT.CUSTOM.  Chosen NOT to
     # match any catalog entry so reverse_packets has to recover it
     # algebraically rather than via the catalog tier.
-    _RND_CUSTOM_PARAMS: dict[str, int | bool] = {
+    _PKT_CUSTOM_PARAMS: dict[str, int | bool] = {
         "width": 16,
         "poly": 0x1A2B,
         "init": 0xABCD,
@@ -1334,10 +1352,11 @@ class FakeSerial:
         "xorout": 0x0000,
     }
 
-    # Payload-length cycle for AT+RND.CUSTOM.  Two lengths repeat so
-    # crcglot.reverse_packets has the "2+ same-length frames" it needs to
-    # pin the polynomial; 24 appears third so init/xorout get separated.
-    _RND_CUSTOM_LENGTHS: tuple[int, ...] = (8, 16, 8, 16, 24)
+    # AT+PKT.CUSTOM's payload lengths: 13 packets, the count the tour's
+    # reverse captures, so any 13 in a row are the whole set.  Lengths
+    # repeat so crcglot.reverse_packets has the "2+ same-length frames" it
+    # needs to pin the polynomial; 24 separates init from xorout.
+    _PKT_CUSTOM_LENGTHS: tuple[int, ...] = (8, 16, 8, 16, 24, 8, 16, 8, 16, 24, 8, 16, 8)
 
     def _custom_crc(self) -> Crc:
         """Build the secret Crc value object from the params dict.
@@ -1356,16 +1375,23 @@ class FakeSerial:
             xorout=0x0000,
         )
 
-    def _handle_rnd(self, upper: str) -> bytes:
-        """Dispatch AT+RND family commands.
+    @staticmethod
+    def _pkt_payload(kind: str, index: int, length: int) -> bytes:
+        """Packet ``index``'s payload: bytes that look like data and are the same on every run."""
+        import hashlib
 
-        The dispatcher already matched ``upper.startswith("AT+RND")``;
+        return hashlib.sha256(f"{kind}:{index}".encode()).digest()[:length]
+
+    def _handle_pkt(self, upper: str) -> bytes:
+        """Dispatch the AT+PKT family.
+
+        The dispatcher already matched ``upper.startswith("AT+PKT")``;
         this method splits on the suffix.
         """
-        from crcglot import compute, generic_crc
+        from crcglot import ALGORITHMS, compute, generic_crc
 
-        if upper == "AT+RND.CUSTOM.REVEAL":
-            p = self._RND_CUSTOM_PARAMS
+        if upper == "AT+PKT.CUSTOM.REVEAL":
+            p = self._PKT_CUSTOM_PARAMS
             body = (
                 f"width={p['width']} poly=0x{p['poly']:04X} "
                 f"init=0x{p['init']:04X} refin={str(p['refin']).lower()} "
@@ -1374,30 +1400,23 @@ class FakeSerial:
             )
             return body.encode() + b"\r\n"
 
-        if upper == "AT+RND.CUSTOM":
-            length = self._RND_CUSTOM_LENGTHS[self._rnd_custom_n % len(self._RND_CUSTOM_LENGTHS)]
-            self._rnd_custom_n += 1
-            payload = bytes(random.randint(0, 255) for _ in range(length))
+        if upper == "AT+PKT.CUSTOM":
+            index = self._cycle_index("pkt.custom", len(self._PKT_CUSTOM_LENGTHS))
+            payload = self._pkt_payload("custom", index, self._PKT_CUSTOM_LENGTHS[index])
             crc_int = generic_crc(payload, self._custom_crc())
-            crc_bytes = crc_int.to_bytes(2, "big")
-            return payload + crc_bytes + b"\r\n"
+            return payload + crc_int.to_bytes(2, "big") + b"\r\n"
 
-        if upper == "AT+RND":
-            algo_name = random.choice(self._RND_ALGOS)
-            length = random.randint(8, 32)
-            payload = bytes(random.randint(0, 255) for _ in range(length))
-            crc_int = compute(payload, algo_name)
-            # Catalog algorithms vary in width; ceil-div to bytes.
-            from crcglot import ALGORITHMS
+        if upper == "AT+PKT":
+            index = self._cycle_index("pkt", len(self._PKT_LENGTHS))
+            payload = self._pkt_payload("pkt", index, self._PKT_LENGTHS[index])
+            algo = ALGORITHMS[self._PKT_ALGO]
+            crc_int = compute(payload, self._PKT_ALGO)
+            # The algorithm's natural wire order: little-endian when it
+            # reflects its output, big-endian otherwise.
+            endian = "little" if algo.refout else "big"
+            return payload + crc_int.to_bytes((algo.width + 7) // 8, endian) + b"\r\n"
 
-            width_bytes = (ALGORITHMS[algo_name].width + 7) // 8
-            # Endian: emit big-endian for refout=False, little-endian for
-            # refout=True (the algorithm's natural wire order).
-            endian = "little" if ALGORITHMS[algo_name].refout else "big"
-            crc_bytes = crc_int.to_bytes(width_bytes, endian)
-            return payload + crc_bytes + b"\r\n"
-
-        return f"ERROR: Unknown AT+RND command '{upper}'\r\n".encode()
+        return f"ERROR: Unknown AT+PKT command '{upper}'\r\n".encode()
 
     # -- Virtual filesystem commands ----------------------------------------
 

@@ -100,9 +100,8 @@ class TestOneShotConnectsOnNeed:
     @pytest.mark.rule("uses-port-declared")
     def test_a_one_shot_connects_for_a_command_that_may_use_the_port(self, tmp_path):
         """A command declaring uses_port gets the port opened first, so its own check never answers Not connected."""
-        # Act -- the demo answers AT+RND with a random catalogue CRC; whether
-        # detection names it is the demo's business, the connect is ours
-        result = _run("-e", "/proto.crc.find", "cmd=AT+RND", cfg_dir=str(tmp_path))
+        # Act -- what detection names is the demo's business, the connect is ours
+        result = _run("-e", "/proto.crc.find", "cmd=AT+PKT", cfg_dir=str(tmp_path))
 
         # Assert
         assert STATE_MESSAGES["serial_connected"] not in result.stdout + result.stderr, (

@@ -1099,6 +1099,73 @@ def test_matcher_guard_fires_on_a_probe():
     assert len(found) == 2, "both fnmatch imports flagged; the matcher import is not"
 
 
+# The demo device answers the same on every run (registry demo-deterministic):
+# a reply that changes steps through a fixed cycle, never a random draw, so the
+# CRC tour, the tests and the gold see the same bytes.  Until 2026-11-23 AT+RND
+# drew its algorithm and payload at random, and the tour failed one run in four.
+_RANDOM_MODULES = {"random", "secrets"}
+
+
+def _random_draws(tree: ast.AST, rel: str) -> list[str]:
+    """Every import of a random-number module, and every ``os.urandom``, in ``rel``."""
+    return [
+        f"{rel}:{node.lineno}  {ast.unparse(node)}"
+        for node in ast.walk(tree)
+        if (
+            isinstance(node, ast.Import)
+            and any(alias.name.partition(".")[0] in _RANDOM_MODULES for alias in node.names)
+        )
+        or (
+            isinstance(node, ast.ImportFrom)
+            and (node.module or "").partition(".")[0] in _RANDOM_MODULES
+        )
+        or (isinstance(node, ast.Attribute) and node.attr == "urandom")
+    ]
+
+
+@pytest.mark.rule("demo-deterministic")
+def test_the_demo_device_draws_no_random_number():
+    """No demo device module imports random or secrets or calls os.urandom."""
+    # Arrange
+    modules = sorted(SRC.glob("demo*.py"))
+    assert len(modules) >= 4, "the demo device's modules are found"
+
+    # Act
+    violations = [
+        line
+        for path in modules
+        for line in _random_draws(
+            ast.parse(path.read_text(encoding="utf-8")), path.relative_to(SRC.parent).as_posix()
+        )
+    ]
+
+    # Assert
+    assert violations == [], (
+        "the demo device answers the same on every run:\n  "
+        + "\n  ".join(violations)
+        + "\n\nStep a changing reply through a fixed cycle (FakeSerial._cycle_index) instead."
+    )
+
+
+@pytest.mark.rule("demo-deterministic")
+def test_demo_random_guard_fires_on_a_probe():
+    """The guard flags each way to draw a random number and passes a fixed cycle."""
+    # Arrange
+    probe = (
+        "import random\n"
+        "from secrets import token_bytes\n"
+        "import os\n"
+        "noise = os.urandom(4)\n"
+        "reading = TEMPS[self._cycle_index('temp', len(TEMPS))]\n"
+    )
+
+    # Act
+    found = _random_draws(ast.parse(probe), "probe")
+
+    # Assert
+    assert len(found) == 3, f"random, secrets and os.urandom are flagged, the cycle is not: {found}"
+
+
 # ── Whether a path stays in a folder has one check ──────────────────────────
 #
 # ``folders.inside`` (a name under a folder) and ``folders.is_inside`` (a path
@@ -2719,7 +2786,6 @@ NOT_IN_GOLD: dict[str, str] = {
     "profile.info": _PATH,
     "proto.crc.c": _CRCGLOT,
     "proto.crc.detect": _CRCGLOT,
-    "proto.crc.find": _CRCGLOT,
     "proto.crc.list": _CRCGLOT,
     "proto.crc.reverse": _CRCGLOT,
     "proto.help": "prints the same page as /help proto, which the help section already pins",

@@ -1735,7 +1735,7 @@ def _handler_crc_find(ctx: PluginContext, args: str) -> CmdResult:
     if mode == "cmd":
         # Send a trigger, capture the response, detect on it.  Useful
         # when the device responds to a plain trigger (the demo's
-        # AT+RND, NMEA talkers, debug consoles, test equipment).  NOT
+        # AT+PKT, NMEA talkers, debug consoles, test equipment).  NOT
         # useful against a strict CRC-validating slave where the
         # trigger itself needs a valid CRC -- you'd already know the
         # algorithm in that case.  Revived from commit c06476a.
@@ -1794,7 +1794,7 @@ def _encode_device_cmd(ctx: PluginContext, text: str) -> bytes:
 
     The trigger goes out exactly as if typed at the prompt: the configured line
     ending is appended when it isn't already present.  That is why ``cmd=`` takes
-    a bare command (``cmd=AT+RND.CUSTOM``) with no quoting and no explicit ``\\r``.
+    a bare command (``cmd=AT+PKT.CUSTOM``) with no quoting and no explicit ``\\r``.
     """
     line_ending = cfg_value(ctx.cfg, "eol")
     if not text.endswith(line_ending):
@@ -1820,6 +1820,10 @@ def _send_and_capture(
     import time
 
     with ctx.serial.io():
+        # Stale input first, as every request/response path does (registry
+        # request-drains-first): a reply a typed command left in the queue
+        # would otherwise lead the frame, and no CRC fits it.
+        ctx.serial.drain()
         for segment in segments:
             if isinstance(segment, float):
                 time.sleep(segment)
@@ -1832,7 +1836,7 @@ def _send_and_capture(
 def _strip_common_terminator(frames: list[bytes]) -> list[bytes]:
     """Strip the line ending every frame ends with, CRLF or LF, and only then.
 
-    A text device (AT, NMEA, the demo's AT+RND) ends each reply with a
+    A text device (AT, NMEA, the demo's AT+PKT) ends each reply with a
     line ending that is not part of the CRC'd data.  One frame cannot
     tell that terminator from a CRC whose last byte is 0x0A, which a
     strip of every trailing LF ate one frame in 256 -- a failed
@@ -2584,7 +2588,7 @@ COMMAND = Command(
                         "cmd=<trigger> - send a trigger to the device, capture the\n"
                         "                response, detect on it.  Useful with\n"
                         "                devices that respond to a plain trigger\n"
-                        "                (the demo's AT+RND, NMEA talkers, debug\n"
+                        "                (the demo's AT+PKT, NMEA talkers, debug\n"
                         "                consoles); NOT useful for strict CRC-\n"
                         "                validating slaves where the trigger\n"
                         "                itself needs a valid CRC.\n"
@@ -2600,7 +2604,7 @@ COMMAND = Command(
                         "  {prefix}proto.crc.find bin=01 03 00 00 00 0A C5 CD\n"
                         "  {prefix}proto.crc.find asc=123456789 width=16\n"
                         "  {prefix}proto.crc.find form=crclink bin=7B 22 74 22 3A 31 32 33 34 ...\n"
-                        "  {prefix}proto.crc.find cmd=AT+RND\n"
+                        "  {prefix}proto.crc.find cmd=AT+PKT\n"
                     ),
                     handler=_handler_crc_find,
                     uses_port=True,  # cmd= sends; bin= does not
@@ -2665,14 +2669,14 @@ COMMAND = Command(
                         "\n"
                         "  Capture mode -- send a trigger N times against a\n"
                         "  connected device and reverse on the responses.  The\n"
-                        "  demo's AT+RND.CUSTOM is designed for this: it emits\n"
-                        "  packets at a deterministic length pattern so count=13\n"
-                        "  reliably recovers the secret polynomial.\n"
+                        "  demo's AT+PKT.CUSTOM is designed for this: it cycles\n"
+                        "  through 13 fixed packets, so count=13 recovers the\n"
+                        "  secret polynomial every time.\n"
                         "\n"
                         "On success, returns the recovered params as a kv string\n"
                         "via CmdResult.value, so it pipes straight into codegen:\n"
                         "\n"
-                        "  $(rev) <- {prefix}proto.crc.reverse cmd=AT+RND.CUSTOM count=13 crc_bytes=2\n"
+                        "  $(rev) <- {prefix}proto.crc.reverse cmd=AT+PKT.CUSTOM count=13 crc_bytes=2\n"
                         "  {prefix}proto.crc.c $(rev)\n"
                         "\n"
                         "Example (explicit):\n"

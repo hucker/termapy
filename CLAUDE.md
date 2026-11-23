@@ -314,7 +314,7 @@ for any multi-arg command.
 - **A keyword value with spaces followed by more keywords** — `cap.struct`/`cap.hex`
   `fmt=Temp:U1-2 Pressure:F3-6 records=5` (the spec syntax is space-separated by
   definition, shared via `protocol.parse_format_spec`); and `proto.crc.reverse`,
-  whose documented `cmd=AT+RND.CUSTOM count=13 crc_bytes=2` puts keywords AFTER
+  whose documented `cmd=AT+PKT.CUSTOM count=13 crc_bytes=2` puts keywords AFTER
   a to-end-of-line `cmd=`. `parse_keywords` would swallow them into the trigger
   text, so the hand-rolled parser (which recovers them) is load-bearing, not
   legacy. This is a PERMANENT holdout — do not "migrate" it.

@@ -714,6 +714,10 @@ demo> /proto.crc.calc crc32 01 02 03 04
     CRC:       0xB63CFBCD
     Bytes LE:  CD FB 3C B6
     Bytes BE:  B6 3C FB CD
+demo> /proto.crc.find cmd=AT+PKT
+  crc16-xmodem  width=16  field=last2  endian=big  data=12 bytes
+demo> AT+PKT.CUSTOM.REVEAL
+width=16 poly=0x1A2B init=0xABCD refin=false refout=false xorout=0x0000
 demo> /print === section: symbols ===
   === section: symbols ===
 demo> /sym.info
@@ -1614,7 +1618,7 @@ CURRENT STATE
   send_bare_enter: off
   control_keys   : on
   encoding       : utf-8
-  tx_bytes       : 858
+  tx_bytes       : 886
   rx_bytes       : <N>
 
 CONFIG
@@ -2039,7 +2043,7 @@ demo> /term.info
   send_bare_enter: off
   control_keys   : on
   encoding       : utf-8
-  tx_bytes       : 920
+  tx_bytes       : 948
   rx_bytes       : <N>
 demo> /term.log a line for the session log, not the screen
   No session log here: nothing written.

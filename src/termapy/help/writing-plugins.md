@@ -745,7 +745,7 @@ command cannot disagree.
 
 The gate answers `Not connected.` for a command whose `needs` say
 `serial_connected`, so a handler never checks the port itself -- except
-when the need depends on its arguments: `/proto.crc.find cmd=AT+RND`
+when the need depends on its arguments: `/proto.crc.find cmd=AT+PKT`
 sends, `/proto.crc.find bin=...` does not.  Such a command declares
 `uses_port=True`, checks `ctx.serial.is_connected()` in the handler and
 returns `STATE_MESSAGES["serial_connected"]` when the arguments need the

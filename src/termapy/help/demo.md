@@ -72,9 +72,9 @@ The simulated device supports three protocols:
 | `AT+RAMP`                  | Deterministic saw-wave readings         |
 | `AT+FS.LIST` / `AT+FS.INFO` / `AT+FS.DELETE <file>` | Simulated file system (see [File transfer](file-transfer.md)) |
 | `AT+XMODEM=RECV\|SEND`, `AT+YMODEM=RECV\|SEND` | Start a transfer (see [File transfer](file-transfer.md)) |
-| `AT+RND`                   | Emit one random catalog-CRC packet (not listed in `AT+HELP`) |
-| `AT+RND.CUSTOM`            | Emit one packet with a secret poly (not listed in `AT+HELP`) |
-| `AT+RND.CUSTOM.REVEAL`     | Print the secret poly's Rocksoft params (not listed in `AT+HELP`) |
+| `AT+PKT`                   | Emit the next of four fixed packets under a catalog CRC, for `/proto.crc.find` to name (not listed in `AT+HELP`) |
+| `AT+PKT.CUSTOM`            | Emit the next of 13 fixed packets under a secret poly, for `/proto.crc.reverse` (not listed in `AT+HELP`) |
+| `AT+PKT.CUSTOM.REVEAL`     | Print the secret poly's Rocksoft params (not listed in `AT+HELP`) |
 | `mem <addr> [len]`         | Hex memory dump                         |
 
 ### GPS / NMEA

@@ -1910,8 +1910,13 @@ def _port_key(name: str) -> str:
     and macOS names are case-sensitive, a short name is its ``/dev`` device
     (``port_path``), and a symlink such as ``/dev/serial/by-id/usb-FTDI_...``
     names the device it points to, so an absolute name is resolved with
-    ``os.path.realpath``.
+    ``os.path.realpath``.  A reserved name (``DEMO``, ``LOOPBACK``, ...)
+    ignores case on every platform, as ``_match_candidate`` reads it: found
+    2026-11-22 on macOS, ``/port.connect demo`` beside an open ``DEMO`` closed
+    and reopened it.
     """
+    if name.upper() in _RESERVED_PORTS:
+        return name.upper()
     if os.name == "nt":
         if name.startswith(_WIN32_DEVICE_PREFIX):
             name = name[len(_WIN32_DEVICE_PREFIX) :]

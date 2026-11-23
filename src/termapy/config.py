@@ -3,6 +3,8 @@
 Pure functions with no UI dependency. Used by app.py and tests.
 """
 
+from __future__ import annotations
+
 import codecs
 import copy
 import json
@@ -512,7 +514,7 @@ def apply_open_settings(
         cfg["echo"] = echo
 
 
-def new_config_from_args(name: str, settings: str, *, source: "PortSource | None" = None) -> dict:
+def new_config_from_args(name: str, settings: str, *, source: PortSource | None = None) -> dict:
     """``NAME PORT [SETTING ...]`` as a new config: what ``--new`` and ``/cfg.new`` read.
 
     One reading for the flag and the command.  The settings are
@@ -1387,7 +1389,7 @@ def _value_as_written(cfg: Mapping, path: str) -> Any:
     return node
 
 
-def _finding_text(path: str, value: object, finding: "CfgFinding") -> str:
+def _finding_text(path: str, value: object, finding: CfgFinding) -> str:
     """A finding as a load warning: the key, what it must be, and what it holds, kept short."""
     shown = json.dumps(value, default=str)
     if value == "" or "\n" in str(value):

@@ -778,17 +778,14 @@ class TestSeq:
         assert "_start_perf" in seq, "and the clock behind {elapsed}"
 
     def test_seq_show_empty(self, repl_env):
-        """With no counters, /seq prints a notice and returns '' so captures never see None."""
+        """With no counters, /seq prints a notice and answers a count of zero."""
         engine, _, _, output = repl_env
         result = engine.dispatch("seq")
         assert any("No counters" in t for t, _ in output), "empty state message"
-        assert result.value == "", (
-            "empty seq returns an empty string value so $(X)=/seq.quiet "
-            "doesn't crash on a None reference"
-        )
+        assert result.value == 0, "no counters, so the count is zero"
 
     def test_seq_show_with_counters(self, repl_env):
-        """The counters are a record of numbers, and the value one seqN=V line for scripts."""
+        """The counters are a record of numbers, and the value how many there are."""
         # Arrange
         engine, _, _, _output = repl_env
         seq = engine.ctx.ns("seq")
@@ -800,7 +797,7 @@ class TestSeq:
 
         # Assert
         assert result.data == {"seq1": 3, "seq2": 7}, "the counters as numbers, in counter order"
-        assert result.value == "seq1=3, seq2=7", "scripting captures one seqN=V line"
+        assert result.value == 2, "the value counts the counters, as a list answers its count"
 
     def test_seq_reset(self, repl_env):
         """/seq.reset drops every numeric counter and returns the stable token 'reset'."""
@@ -3914,6 +3911,18 @@ class TestTermInfo:
             "hex is a boolean that follows /term.hex"
         )
         assert before["eol"] == "crlf", "the line ending is its token, not the raw characters"
+
+    @pytest.mark.rule("value-is-scalar")
+    def test_info_has_no_value(self, repl_env):
+        """/term.info's settings are independent, so none is its value: a script reads one through its own command."""
+        # Arrange
+        engine, _cfg, _path, _output = repl_env
+
+        # Act
+        result = engine.dispatch("term.info")
+
+        # Assert
+        assert result.value is None, "no key=value summary of the data"
 
 
 class TestTermEolRx:

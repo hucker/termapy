@@ -24,15 +24,27 @@ Or use the REPL command:
 
 ## Capturing command output
 
-Use `<-` to run a command and store its result in a variable. The
-right-hand side is executed - as a REPL command (if it starts with
-`/`) or as a device command (sent to the serial port) - and the
-response is captured.
+Use `<-` to run a command and store its answer in a variable. A
+termapy command (one that starts with `/`) runs without printing; a
+device command is sent to the serial port and its reply is stored.
 
 ```text
-$(BAUD) <- /port.baud_rate    # captures REPL command output
-$(TEMP) <- AT+TEMP            # captures device response
+$(BAUD) <- /port.baud_rate    # its value: 115200
+$(TEMP) <- AT+TEMP            # the device's reply
 ```
+
+What a termapy command leaves in the variable:
+
+| Line | The variable holds |
+| --- | --- |
+| `$(B) <- /port.baud_rate` | its value, `115200` |
+| `$(T) <- /term.info` | no one value, so the page it shows at quiet |
+| `$(E) <- /port.baud_rate --json` | its JSON envelope, one line |
+
+The line is `/var.capture NAME cmd=<line>`: like any `cmd=` line it keeps
+its own flags and its text as written, and a flag for the capture itself
+goes before `cmd=`. A line that fails leaves the variable as it was.
+`/help capture` shows this in the app.
 
 ## Using variables
 
@@ -258,7 +270,7 @@ from app start when typed interactively.
 | `/var` (or `/var.list`)     | List every variable as a table: name, kind, value |
 | `/var NAME`                 | Show one variable                           |
 | `/var.set <NAME> <v>`       | Set a variable to a literal value           |
-| `/var.capture <NAME> <cmd>` | Run cmd and store its result as NAME        |
+| `/var.capture <NAME> cmd=<cmd>` | Run cmd and store its answer as NAME |
 | `/var.clear`                | Clear all user variables                    |
 
 ## Escaping

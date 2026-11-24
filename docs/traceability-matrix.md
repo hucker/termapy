@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 231: 216 registry rows (guarantees 179, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 227. Pinned by none: 4.
+Ids: 232: 217 registry rows (guarantees 180, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 228. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -121,6 +121,10 @@ Ids: 231: 216 registry rows (guarantees 179, assumptions 37), 15 spec sections i
 
 - `test_capture_claim.py`: `TestCaptureOwnsItsClaim.test_claim_outlives_the_script_while_the_capture_runs` **guard**, `TestCaptureOwnsItsClaim.test_scripted_stop_releases_the_claim` **guard**
 
+### `capture-reads-the-flag` (guarantee, requirement)
+
+- `test_var.py`: `TestCaptureKeeps` (6 functions)
+
 ### `cfg-colors-drawable` (guarantee, requirement)
 
 - `test_app_pilot.py`: `TestTitleBarColors.test_a_css_name_draws_as_itself`, `TestTitleBarColors.test_an_unknown_border_color_warns_and_draws_blue` **guard**
@@ -178,6 +182,8 @@ Ids: 231: 216 registry rows (guarantees 179, assumptions 37), 15 spec sections i
 ### `command-arg-keeps-its-flags` (guarantee, contract)
 
 - `test_cap_out.py`: `TestCapOut.test_a_flag_after_cmd_is_not_the_commands` **guard**, `TestCapOut.test_silent_quiets_only_its_own_reply` **guard**, `TestRedirect.test_json_appends_one_envelope_a_line`
+- `test_scripting.py`: `TestSplitRest.test_the_head_is_normalized_and_the_line_kept`
+- `test_var.py`: `TestCaptureKeeps.test_json_keeps_the_envelope`, `TestCaptureKeeps.test_the_line_is_kept_as_written`
 
 ### `command-has-test` (guarantee, repository)
 
@@ -867,7 +873,7 @@ Ids: 231: 216 registry rows (guarantees 179, assumptions 37), 15 spec sections i
 
 ### `redirect-is-cap-out` (guarantee, requirement)
 
-- `test_cap_out.py`: `TestRedirect.test_a_device_line_keeps_its_operator`, `TestRedirect.test_a_failing_command_leaves_the_file`, `TestRedirect.test_a_quoted_operator_is_text`, `TestRedirect.test_a_raw_args_command_keeps_its_operator`, `TestRedirect.test_a_redirect_writes_the_output_to_cap` **guard**, `TestRedirect.test_a_script_line_redirects`, `TestRedirect.test_a_second_redirect_replaces_the_first`, `TestRedirect.test_append_adds_after_what_is_there`, `TestRedirect.test_json_appends_one_envelope_a_line` **guard**, `TestSplitRedirect.test_a_trailing_operator_is_a_redirect` **guard**, `TestSplitRedirect.test_an_operator_that_is_text_is_no_redirect` **guard**, `TestUnderMcp.test_an_agent_gets_the_person_view`
+- `test_cap_out.py`: `TestRedirect.test_a_device_line_keeps_its_operator`, `TestRedirect.test_a_failing_command_leaves_the_file`, `TestRedirect.test_a_page_lands_flush_and_help_keeps_its_indents` **guard**, `TestRedirect.test_a_quoted_operator_is_text`, `TestRedirect.test_a_raw_args_command_keeps_its_operator`, `TestRedirect.test_a_redirect_writes_the_output_to_cap` **guard**, `TestRedirect.test_a_script_line_redirects`, `TestRedirect.test_a_second_redirect_replaces_the_first`, `TestRedirect.test_append_adds_after_what_is_there`, `TestRedirect.test_json_appends_one_envelope_a_line` **guard**, `TestSplitRedirect.test_a_trailing_operator_is_a_redirect` **guard**, `TestSplitRedirect.test_an_operator_that_is_text_is_no_redirect` **guard**, `TestUnderMcp.test_an_agent_gets_the_person_view`
 
 ### `register-spec-word-form` (guarantee, data)
 
@@ -1114,7 +1120,9 @@ Ids: 231: 216 registry rows (guarantees 179, assumptions 37), 15 spec sections i
 
 ### `value-is-scalar` (guarantee, structure)
 
-- `test_architecture.py`: `test_a_value_is_a_scalar` **guard**
+- `test_architecture.py`: `test_a_status_page_value_is_no_summary` **guard**, `test_a_value_is_a_scalar` **guard**
+- `test_builtins.py`: `TestTermInfo.test_info_has_no_value`
+- `test_proto_commands.py`: `TestInfo.test_info_reports_hex_mode_and_the_connection`
 
 ### `value-scriptable` (assumption, contract)
 

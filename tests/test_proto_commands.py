@@ -159,12 +159,13 @@ class TestHex:
 
 
 class TestInfo:
+    @pytest.mark.rule("value-is-scalar")
     def test_info_reports_hex_mode_and_the_connection(self, cli, capsys):
-        """/proto.info prints the hex flag and the connection, returns both as booleans in data and as one key=value string."""
+        """/proto.info prints the hex flag and the connection and returns both as booleans in data, with no value."""
         capsys.readouterr()
         result = cli.repl.dispatch_full("/proto.info")
         out = capsys.readouterr().out
-        assert result.value == "hex=off, connected=yes"
+        assert result.value is None, "two independent facts, so none is the value"
         assert result.data == {"hex": False, "connected": True}, (
             "the record a script or agent reads"
         )
@@ -173,10 +174,10 @@ class TestInfo:
         )
 
     def test_info_tracks_the_flag_and_a_disconnect(self, cli):
-        """The value follows /proto.hex and the port: on after hex on, no after a disconnect."""
+        """The data follows /proto.hex and the port: hex on after hex on, not connected after a disconnect."""
         cli.repl.dispatch_full("/proto.hex on")
         cli._disconnect()
-        assert cli.repl.dispatch_full("/proto.info").value == "hex=on, connected=no"
+        assert cli.repl.dispatch_full("/proto.info").data == {"hex": True, "connected": False}
 
 
 # ── /proto.send on the open port ────────────────────────────────────────────

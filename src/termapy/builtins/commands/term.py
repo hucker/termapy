@@ -352,7 +352,8 @@ def _handler_json_fmt(ctx: PluginContext, args: str) -> CmdResult:
 
     The two settings are the subcommands, and the space form reaches them
     (``/term.json_fmt indent 4`` is ``/term.json_fmt.indent 4``); a word that names
-    neither is a usage error.
+    neither is a usage error.  The value is None: each setting's subcommand
+    answers it (registry ``value-is-scalar``).
     """
     words = args.split(None, 1)
     if words:
@@ -367,7 +368,7 @@ def _handler_json_fmt(ctx: PluginContext, args: str) -> CmdResult:
         ("highlight", "on" if data["highlight"] else "off"),
         ("indent", str(data["indent"])),
     ]
-    return CmdResult.record(data, rows, value=" ".join(f"{key}={text}" for key, text in rows))
+    return CmdResult.record(data, rows, value=None)
 
 
 def _handler_json_fmt_highlight(ctx: PluginContext, args: str) -> CmdResult:
@@ -576,7 +577,9 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
     A record answer (registry ``record-one-format``): the toggles are
     ``data`` as booleans, and read on/off in the prose; the byte counts
-    are ``data`` as integers, shown exact.
+    are ``data`` as integers, shown exact.  The value is None: the facts are
+    independent and none leads, so a script reads one through its own
+    command (registry ``value-is-scalar``).
     """
     flags = ctx.ns("flags")
     eol = cfg_value(ctx.cfg, "eol")
@@ -603,10 +606,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         (key, ("on" if value else "off") if isinstance(value, bool) else str(value))
         for key, value in data.items()
     ]
-    # The value is the snapshot as newline-joined "key=value" so scripts
-    # can grep / parse it.
-    snapshot = "\n".join(f"{key}={text}" for key, text in rows)
-    return CmdResult.record(data, rows, value=snapshot)
+    return CmdResult.record(data, rows, value=None)
 
 
 # ── /term root handler: list subcommands when called bare ───────────────────

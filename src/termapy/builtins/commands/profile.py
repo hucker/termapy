@@ -371,7 +371,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
             f"{STATE_MESSAGES['profile_loaded']}  {ctx.prefix}profile.load <path> to load one.",
             "yellow",
         )
-        return CmdResult.ok(value="", data={"loaded": False})
+        return CmdResult.ok(value=None, data={"loaded": False})
 
     source_path = ns.get("__source_path", "")
     source_cmd = ns.get("__source_cmd", "")

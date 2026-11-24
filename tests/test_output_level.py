@@ -622,9 +622,9 @@ class TestTheAnswerShowsAtQuiet:
         assert result.success is True, result.error
         assert expected in capsys.readouterr().out, f"{command}.quiet shows what was asked for"
 
-    @pytest.mark.parametrize("command", ["/term.json_fmt", "/var"], ids=["status-page", "table"])
+    @pytest.mark.parametrize("command", ["/port.info", "/var"], ids=["status-page", "table"])
     def test_silent_prints_nothing(self, cli, capsys, command):
-        """At silent neither prints, and the value is still the answer a script reads."""
+        """At silent neither prints, and the value (the port's name, the row count) is still the answer a script reads."""
         # Arrange
         capsys.readouterr()
 

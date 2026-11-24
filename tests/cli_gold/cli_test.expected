@@ -55,10 +55,16 @@ demo> /var DEVICE
   $(DEVICE) = updated_value
 demo> $(BAUD) <- /port.baud_rate
   $(BAUD) = 115200
+demo> $(JF) <- /term.json_fmt
+  $(JF) =
+    highlight: on
+    indent   : 2
+demo> $(BE) <- /port.baud_rate --json
+  $(BE) = {"cmd": "/port.baud_rate", "success": true, "error": "", "value": 115200, "data": {"baud": 115200, "custom": false}, "output_lines": ["115200"], "elapsed_s": 0}
 demo> /var BAUD
   $(BAUD) = 115200
 demo> /var.clear
-  Cleared 3 variable(s).
+  Cleared 5 variable(s).
 demo> /var DEVICE
   Error: Unknown variable: $(DEVICE)
 demo> /print $(CFG.FIRMWAR_DIR)
@@ -176,7 +182,7 @@ DESCRIPTION
 SEE ALSO
   /help.idioms
 demo> /help.idioms
-  idioms - 8 idioms
+  idioms - 9 idioms
   NAME        MEANING
   -- --
   boolean     A yes or no, in any of these words: on/off/true/false/yes/no/1/0/y/n/t/f.
@@ -185,6 +191,7 @@ demo> /help.idioms
   bare        A setting with no argument shows its value and changes nothing.
   json        Answer this one call as a JSON object, for a script or an agent.
   redirect    End a termapy line with > file or >> file to write what it prints to cap/.
+  capture     $(X) <- line stores a command's answer in a variable; --json stores its JSON.
   level       How much one call prints, from nothing to all its detail.
   capability  What a command needs from where it runs; a frontend that lacks it refuses the command.
 demo> /help.more
@@ -682,6 +689,8 @@ demo> /print seq1={seq1+} seq2={seq2}
 demo> /seq
   seq1: 2
   seq2: 0
+demo> /seq --json
+  {"cmd": "/seq", "success": true, "error": "", "value": 2, "data": {"seq1": 2, "seq2": 0}, "output_lines": [], "elapsed_s": 0}
 demo> /seq.reset
   Sequence counters reset.
 demo> /seq
@@ -964,6 +973,8 @@ demo> MEM.INFO
 OK
 demo> /term.json_fmt indent 2
   2
+demo> /term.json_fmt --json
+  {"cmd": "/term.json_fmt", "success": true, "error": "", "value": null, "data": {"highlight": true, "indent": 2}, "output_lines": [], "elapsed_s": 0}
 demo> /print === section: help ===
   === section: help ===
 demo> /help echo
@@ -1096,8 +1107,9 @@ DESCRIPTION
 
   Setting variables (no / prefix needed):
     $(PORT) = COM7                - store literal value
-    $(BAUD) <- /port.baud_rate    - capture REPL command output
+    $(BAUD) <- /port.baud_rate    - capture a command's answer
     $(TEMP) <- AT+TEMP            - capture device response
+    (/help capture: --json stores the JSON envelope)
 
   Using variables in commands:
     /print $(PORT)
@@ -1108,7 +1120,7 @@ DESCRIPTION
     /var PORT              - show one variable (bare name or $(PORT))
     /var.list              - list all variables (alias of bare /var)
     /var.set PORT val      - set a variable (literal string)
-    /var.capture NAME cmd  - run cmd and store its result as NAME
+    /var.capture X cmd=C   - store C's answer as X
     /var.clear             - clear all variables
 
   Dynamic variables (current clock at point of use):
@@ -1174,7 +1186,7 @@ DESCRIPTION
   Use /var.clear to reset manually.
 
 SUBCOMMANDS
-  /var.capture    Capture command output into a user variable.
+  /var.capture    Store a command's answer in a user variable.
   /var.clear      Clear all user variables.
   /var.list       List the variables; the same as bare /var.
   /var.set        Set a user variable to a literal value.
@@ -2093,6 +2105,8 @@ demo> /proto
 demo> /proto.info
   Hex Mode : off
   Connected: yes
+demo> /proto.info --json
+  {"cmd": "/proto.info", "success": true, "error": "", "value": null, "data": {"hex": false, "connected": true}, "output_lines": [], "elapsed_s": 0}
 demo> /cfg.file demo_legacy.profile.json
   {
     "profile_version": 2,
@@ -2233,7 +2247,7 @@ demo> /mem.and gFlags 0xFFFFFF00
   AND 0xFFFFFF00 at 0x00001008  gFlags
 demo> /mem.dump gFlags 4
   00 00 00 00                                      |....|  gFlags
-demo> /var.capture NAME AT+NAME?
+demo> /var.capture NAME cmd=AT+NAME?
   $(NAME) = +NAME:Bassomatic v77
 demo> /var NAME
   $(NAME) = +NAME:Bassomatic v77

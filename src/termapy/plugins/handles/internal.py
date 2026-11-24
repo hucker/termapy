@@ -108,6 +108,11 @@ class InternalHandle:
     # test fake.
     dispatch_to: Callable | None = None
 
+    # capture(line) -> (CmdResult, str): run a termapy line for $(X) <- line,
+    # and the text the variable keeps (registry capture-reads-the-flag).
+    # None on a bare test fake.
+    capture: Callable | None = None
+
     apply_cfg: Callable = lambda key, val: None  # set cfg in-memory, no dialog
     in_script: Callable = lambda: False
     # effective_capabilities() -> CapabilitySet: the engine's "what can a

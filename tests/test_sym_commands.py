@@ -1691,7 +1691,7 @@ class TestSymInfo:
 
         # Assert
         assert result.success, result.error
-        assert result.value == "", "no table = empty value, not an error"
+        assert result.value is None, "no table: no value, and no error"
         assert result.data == {"loaded": False}, "an agent reads the state, not the prose"
         assert (
             f"{STATE_MESSAGES['symbols_loaded']}  /sym.import <map> or /sym.load {{path}} to load one.",

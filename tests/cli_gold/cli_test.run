@@ -42,6 +42,8 @@ $(PORT_NUM) = 42
 /var.set DEVICE updated_value
 /var DEVICE
 $(BAUD) <- /port.baud_rate
+$(JF) <- /term.json_fmt
+$(BE) <- /port.baud_rate --json
 /var BAUD
 /var.clear
 /var DEVICE
@@ -187,6 +189,7 @@ $(BAUD) <- /port.baud_rate
 /print seq1={seq1+} seq2={seq2+}
 /print seq1={seq1+} seq2={seq2}
 /seq
+/seq --json
 /seq.reset
 /seq
 
@@ -309,6 +312,7 @@ MEM.M 0x1000 F0 05 --json
 /term.json_fmt.indent 4
 MEM.INFO
 /term.json_fmt indent 2
+/term.json_fmt --json
 
 # ── REPL: help for specific commands ────────────────────────────────────────
 /print === section: help ===
@@ -485,6 +489,7 @@ MEM.R 0x1000 2 --json
 /run.dump status_check
 /proto
 /proto.info
+/proto.info --json
 /cfg.file demo_legacy.profile.json
 /dev.list
 /dev.regs demo_uart
@@ -513,7 +518,7 @@ MEM.R 0x1000 2 --json
 /print === section: coverage: memory and variables ===
 /mem.and gFlags 0xFFFFFF00
 /mem.dump gFlags 4
-/var.capture NAME AT+NAME?
+/var.capture NAME cmd=AT+NAME?
 /var NAME
 /print.r [bold]plain in the gold[/]
 /print === section: coverage: answered by the CLI's capabilities ===

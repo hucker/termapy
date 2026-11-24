@@ -29,8 +29,8 @@ from termapy.plugins import (
     escape_markup,
 )
 from termapy.plugins.capabilities import STATE_MESSAGES
+from termapy.plugins.params import ParamSpec
 from termapy.port_control import PORT_SETTINGS, SIGNAL_LINES, UNPROBED_CHIP_FIELDS
-from termapy.scripting import value_text
 from termapy.variables import (
     clear_vars,
     context_vars,
@@ -90,11 +90,11 @@ def rewrite_assignment(line: str) -> str | None:
 
 
 def rewrite_capture(line: str) -> str | None:
-    """Rewrite ``$(VAR) <- command`` into ``var.capture VAR command``.
+    """Rewrite ``$(VAR) <- command`` into ``var.capture VAR cmd=command``.
 
     The command may be a REPL command (starts with ``/``) or a device
-    command (sent to serial).  The captured result becomes the variable's
-    value.
+    command (sent to serial), and it keeps its own flags, as any ``cmd=``
+    line does (registry ``command-arg-keeps-its-flags``).
 
     Args:
         line: Raw input line.
@@ -104,7 +104,7 @@ def rewrite_capture(line: str) -> str | None:
     """
     m = _VAR_CAPTURE_RE.match(line)
     if m:
-        return f"var.capture {m.group(1)} {m.group(2)}"
+        return f"var.capture {m.group(1)} cmd={m.group(2)}"
     return None
 
 
@@ -128,8 +128,12 @@ def check_bare_dollar(line: str) -> str | None:
 
 
 def _var_line_markup(name: str, value: object) -> str:
-    """One variable's line, ``$(NAME) = value``, escaped."""
-    return f"  [cyan]$({escape_markup(name)})[/] = [green]{escape_markup(value)}[/]"
+    """One variable's line, ``$(NAME) = value``, escaped; a value of several lines goes below it."""
+    text = str(value)
+    if "\n" in text:
+        body_markup = textwrap.indent(escape_markup(text), "    ")
+        return f"  [cyan]$({escape_markup(name)})[/] =\n[green]{body_markup}[/]"
+    return f"  [cyan]$({escape_markup(name)})[/] = [green]{escape_markup(text)}[/]"
 
 
 # ── Handlers ─────────────────────────────────────────────────────────────────
@@ -231,42 +235,25 @@ def _handler_set(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_capture(ctx: PluginContext, args: str) -> CmdResult:
-    """Capture command output into a user variable.
+    """``/var.capture <NAME> cmd=<command>``: store a command's answer as text in a variable.
 
-    If the command starts with the REPL prefix (e.g. ``/port.baud_rate``),
-    dispatch it and use ``CmdResult.value``.  Otherwise treat it as a
-    device command: send to serial and capture the response.
-
-    Args:
-        ctx: Plugin context.
-        args: ``"NAME command"`` string.
+    A termapy line runs through ``ctx.internal.capture``, whose rule says
+    what the variable keeps (registry ``capture-reads-the-flag``): its value,
+    or the page when it has none, or the envelope ``--json`` asks for.  Nothing it prints reaches the screen, and
+    a failure is this capture's answer, printed once at its exit, the
+    variable left unassigned.  A device line is sent and its reply kept.
     """
-    parts = args.strip().split(None, 1)
-    if len(parts) < 2:
-        raise UsageError()
-    m = _STRIP_WRAPPER_RE.match(parts[0])
-    name = m.group(1) if m else parts[0]
+    m = _STRIP_WRAPPER_RE.match(ctx.arg("name"))
+    name = m.group(1) if m else ctx.arg("name")
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
         return CmdResult.fail(msg="Variable names must be letters, digits, or underscore")
-    cmd = parts[1]
-    prefix = ctx.prefix
-    if cmd.startswith(prefix):
-        # REPL command: dispatch with .silent suffix to suppress terminal
-        # output, then use CmdResult.value.  The user doesn't want to see
-        # the inner command's output -- only the variable assignment.
-        parts_cmd = cmd.split(None, 1)
-        silent_cmd = parts_cmd[0] + ".silent"
-        if len(parts_cmd) > 1:
-            silent_cmd += " " + parts_cmd[1]
-        # report=False: the inner failure is this capture's answer, printed
-        # once at its exit and kept in ``error`` for an agent or script;
-        # the variable is left unassigned.
-        result = ctx.dispatch(silent_cmd, report=False)
+    cmd = ctx.arg("cmd")
+    if cmd.startswith(ctx.prefix):
+        if ctx.internal.capture is None:
+            return CmdResult.fail(msg="No engine to run the command.")
+        result, value = ctx.internal.capture(cmd)
         if not result.success:
             return result
-        # A variable is text: a typed value (a count, a switch) is spelled
-        # here, at the REPL's boundary (registry value-typed).
-        value = value_text(result.value)
     else:
         # Device command: send to serial and capture response
         if not ctx.serial.is_connected():
@@ -346,8 +333,9 @@ User-defined variables use $(NAME) syntax (case-sensitive).
 
 Setting variables (no {prefix} prefix needed):
   $(PORT) = COM7                - store literal value
-  $(BAUD) <- {prefix}port.baud_rate    - capture REPL command output
+  $(BAUD) <- {prefix}port.baud_rate    - capture a command's answer
   $(TEMP) <- AT+TEMP            - capture device response
+  ({prefix}help capture: --json stores the JSON envelope)
 
 Using variables in commands:
   {prefix}print $(PORT)
@@ -358,7 +346,7 @@ Commands:
   {prefix}var PORT              - show one variable (bare name or $(PORT))
   {prefix}var.list              - list all variables (alias of bare {prefix}var)
   {prefix}var.set PORT val      - set a variable (literal string)
-  {prefix}var.capture NAME cmd  - run cmd and store its result as NAME
+  {prefix}var.capture X cmd=C   - store C's answer as X
   {prefix}var.clear             - clear all variables
 
 Dynamic variables (current clock at point of use):
@@ -466,8 +454,11 @@ COMMAND = Command(
             raw_args=True,
         ),
         "capture": Command(
-            args="<NAME> <command>",
-            help="Capture command output into a user variable.",
+            help="Store a command's answer in a user variable.",
+            params=[
+                ParamSpec("name", required=True, positional=True, help="variable name"),
+                ParamSpec("cmd", "command", required=True, rest=True, help="command to run"),
+            ],
             long_help=_var_state_line,
             handler=_handler_capture,
             uses_port=True,  # a device line is sent; a command is dispatched

@@ -2404,15 +2404,16 @@ class Report:
         data: The record, or a list of records for every port; None with
             a problem.
         items: The page for ``views.RecordView``: rows, headings, blank lines.
-        value: The scriptable scalar: the port name, or the device names
-            newline-joined for every port.
+        value: The scriptable scalar: the port name, or the number of
+            ports for every port, as a list answers its count; None with a
+            problem.
         problem: The message shown instead of a page (``No port matching
             ...``), or None.
     """
 
     data: Any = None
     items: tuple[Item, ...] = ()
-    value: str = ""
+    value: str | int | None = None
     problem: Msg | None = None
 
 
@@ -2450,8 +2451,7 @@ def chip_info(
             if index:
                 items.append(None)
             items.extend(_chip_page(facts))
-        devices = "\n".join(facts.device or "?" for facts in all_facts)
-        return Report([chip_record(facts) for facts in all_facts], tuple(items), devices)
+        return Report([chip_record(facts) for facts in all_facts], tuple(items), len(all_facts))
 
     # Specific port name (or current port if arg is empty)
     target = arg or current_port

@@ -173,6 +173,21 @@ class TestRedirect:
         assert capsys.readouterr().out.count("Unknown command: nosuch") == 1
 
     @pytest.mark.rule("redirect-is-cap-out")
+    def test_a_page_lands_flush_and_help_keeps_its_indents(self, cli):
+        """The file is the text less termapy's screen gutter: a status page's rows flush, a help page's body indented under its headings."""
+        # Act
+        cli.repl.dispatch_full("/term.json_fmt > page.txt")
+        cli.repl.dispatch_full("/help capture > help.txt")
+
+        # Assert
+        page = (_cap(cli) / "page.txt").read_text(encoding="utf-8").splitlines()
+        help_lines = (_cap(cli) / "help.txt").read_text(encoding="utf-8").splitlines()
+        assert [row.split(":")[0] for row in page] == ["highlight", "indent   "], "rows flush"
+        assert help_lines[:2] == ["NAME", help_lines[1]] and help_lines[1].startswith(
+            "  capture"
+        ), "the heading flush, its body two spaces in, as on screen"
+
+    @pytest.mark.rule("redirect-is-cap-out")
     def test_a_script_line_redirects(self, cli):
         """A .run line is a typed line, so its redirect writes the file too."""
         # Arrange

@@ -9,6 +9,7 @@ etc.) and exposes it through PluginContext lambdas.
 """
 
 import re
+import textwrap
 import threading
 import time
 from collections.abc import Callable, Generator
@@ -727,43 +728,84 @@ class ReplEngine:
         mode = "append" if append else "new"
         return f"{REDIRECT_COMMAND} {file_name} mode={mode} cmd={self.prefix}{line}"
 
-    def dispatch_to(self, line: str, write: Callable[[str], None]) -> CmdResult:
+    def dispatch_to(
+        self, line: str, write: Callable[[str], None], level: str | None = None
+    ) -> CmdResult:
         """Run a command line as if typed at the prompt, each line it prints handed to ``write``.
 
         ``/cap.out``'s door, and so the ``> file`` and ``>> file`` door.  The line
         answers as it would typed: its own ``--json`` prints its envelope though
         it runs inside another command, a person's view rather than an agent's
         data under MCP, and JSON is laid out as for a file, one line per value.
-        Each line arrives as plain text, markup flattened, at the session's
-        level, so the caller's ``--silent`` quiets only its own reply.  A
-        failure is not printed: the caller answers with it (registry
-        ``failure-reported-once``).
+        It runs at its own level, else ``level``, else the session's, so the
+        caller's ``--silent`` quiets only its own reply.  The lines arrive when
+        it is done, as plain text, markup flattened, laid out as a terminal
+        shows them less termapy's two-space gutter: a frontend gives a plain
+        line the gutter and a markup line carries it in its text, so a page's
+        rows come flush and a help page keeps its indents.  A failure is not
+        printed: the caller answers with it (registry ``failure-reported-once``).
 
         Args:
             line: The command line, prefix included.
             write: Takes each line the command prints.
+            level: The level the line runs at when it names none; None for
+                the session's.
 
         Returns:
             The command's result.
         """
 
+        printed: list[str] = []
+
         def _plain(text: str, color: str | None = None) -> None:
-            write(str(text))
+            printed.append(textwrap.indent(str(text), "  "))
 
         def _marked(text: str) -> None:
-            write(markup_to_plain(str(text)))
+            printed.append(markup_to_plain(str(text)))
 
         ctx = self.ctx
         saved = (self._envelope_depth, self.screen_json, ctx.wants_data, ctx._call_level)
         self._envelope_depth = self._handler_depth
         self.screen_json = False
         ctx.wants_data = False
-        ctx._call_level = None
+        ctx._call_level = level
         try:
             with self._io_redirected(_plain, _marked):
-                return self.dispatch(line.removeprefix(self.prefix), report=False)
+                result = self.dispatch(line.removeprefix(self.prefix), report=False)
         finally:
             self._envelope_depth, self.screen_json, ctx.wants_data, ctx._call_level = saved
+        if printed:
+            for row in textwrap.dedent("\n".join(printed)).split("\n"):
+                write(row)
+        return result
+
+    def capture(self, line: str) -> tuple[CmdResult, str]:
+        """Run a termapy line for ``$(X) <- line``: its result, and the text the variable keeps.
+
+        Registry ``capture-reads-the-flag``: with ``--json`` the line keeps its
+        envelope, one line; without, it runs at quiet, unless it names a level,
+        and keeps its value as a person reads it (``value_text``), or, when it
+        has none, what it printed: a status page whose facts have no one that
+        leads.  The line runs through ``dispatch_to``, as a ``> file`` line does.
+
+        Args:
+            line: The command line, prefix included.
+
+        Returns:
+            The command's result, and the text; ``""`` on a failure.
+        """
+        word, _, args = line.removeprefix(self.prefix).strip().partition(" ")
+        name, _, suffix_json = self.split_suffixes(word)
+        head, _ = _split_command_arg(self._plugins.get(name), args)
+        _, flag_json = _strip_json_flag(head)
+        wants_json = suffix_json or flag_json
+        lines: list[str] = []
+        result = self.dispatch_to(line, lines.append, level=None if wants_json else "quiet")
+        if not result.success:
+            return result, ""
+        if wants_json or result.value is None:
+            return result, "\n".join(lines)
+        return result, value_text(result.value)
 
     def _emit_json_envelope(
         self,

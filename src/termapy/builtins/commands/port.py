@@ -79,7 +79,7 @@ def _answer(ctx: PluginContext, result: port_control.Result, value: object) -> C
 
 
 def _page(ctx: PluginContext, report: port_control.Report) -> CmdResult:
-    """A port page as a record answer, or its problem line and an empty value.
+    """A port page as a record answer, or its problem line and no value.
 
     ``data`` is the record and ``value`` the port name (registry
     ``record-one-format``): the page itself rides once, as data or as the
@@ -88,7 +88,7 @@ def _page(ctx: PluginContext, report: port_control.Report) -> CmdResult:
     if report.problem is not None:
         text, color = report.problem
         ctx.io.output(text, color or "")
-        return CmdResult.ok(value="")
+        return CmdResult.ok(value=None)
     return CmdResult.record(report.data, report.items, value=report.value)
 
 

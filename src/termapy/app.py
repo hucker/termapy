@@ -4472,10 +4472,12 @@ def _run_web_mode(args: argparse.Namespace) -> None:
 
     host, port = args.web
     # The TUI this serves reads the address to know whether its browser is
-    # on this machine (registry web-is-an-environment): on a loopback
-    # address the desktop it runs on is the viewer's, so a file can open in
-    # the local editor; on a network address it cannot.  The child inherits
-    # the environment, and the banner below reads the same row.
+    # on this machine (registries web-is-an-environment, web-network-confined):
+    # on a loopback address the desktop it runs on is the viewer's, so a file
+    # can open in the local editor and a path may leave the config folder; on
+    # a network address it cannot, and the session is confined as MCP is.
+    # The child inherits the environment, and the banner below reads the
+    # same row.
     os.environ[env_flags.WEB_HOST_VARIABLE] = host
     print("=" * 60)
     print("  EXPERIMENTAL: Web mode via textual-serve")

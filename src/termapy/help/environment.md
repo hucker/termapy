@@ -254,9 +254,13 @@ the desktop the TUI runs on, so `/help.open`, the `.show` and `.explore`
 commands and the pickers' folder links open things here as on a terminal.
 Served on a network address (`--web 192.168.1.50`), a remote viewer cannot
 see this desktop, so those are disabled as over SSH; `TERMAPY_GUI=1` in the
-server's shell says the viewer is sitting at it after all.  `/help
-<command>` says so under AVAILABLE, in a WEB column, for a command that
-needs either.
+server's shell says the viewer is sitting at it after all.  A remote viewer
+also reaches the port with no login, so the session keeps its files inside
+the config folder as an MCP server does: an absolute path or `..` in a
+capture, a redirect or a load is refused, and `TERMAPY_WEB_FS_UNCONFINED=1`
+in the server's shell lifts that.  The banner `--web` prints lists what the
+session lacks, and `/help <command>` says so under AVAILABLE, in a WEB
+column, for a command that needs any of it.
 
 ### WSL (Windows Subsystem for Linux)
 

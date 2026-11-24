@@ -36,7 +36,7 @@ from termapy.defaults import cfg_value
 from termapy.folder_ops import dump_text_slice, file_table
 from termapy.folders import LOG_SUFFIX, default_file_name, inside, is_inside
 from termapy.matching import closest, did_you_mean
-from termapy.plugins import CapabilitySet, CmdResult, Command
+from termapy.plugins import CapabilitySet, CmdResult, Command, confined_text
 from termapy.scripting import parse_count_arg
 
 if TYPE_CHECKING:
@@ -148,18 +148,12 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
     if isinstance(picked, CmdResult):
         return picked
     # Sandbox: cfg["log_file"] can be pointed at any file (via /cfg),
-    # turning /log.dump into an arbitrary-file read.  Under the MCP host,
-    # refuse a log path outside the config directory.  Reading the cfg's
-    # own in-sandbox logs stays fine.
+    # turning /log.dump into an arbitrary-file read.  In a confined session
+    # (MCP, --web on the network), refuse a log path outside the config
+    # directory.  Reading the cfg's own in-sandbox logs stays fine.
     if not ctx.capabilities.filesystem_unconfined and ctx.config_path:
         if not is_inside(picked, Path(ctx.config_path).parent):
-            return CmdResult.fail(
-                msg=(
-                    "Log file is outside the config sandbox; refusing to read "
-                    "it under the MCP host. Set TERMAPY_MCP_FS_UNCONFINED=1 in "
-                    "the server's shell to allow host-wide paths."
-                )
-            )
+            return CmdResult.fail(msg=f"Log file is outside the config sandbox. {confined_text()}")
     if not picked.exists():
         return CmdResult.fail(msg=f"Log file not found: {picked}")
 

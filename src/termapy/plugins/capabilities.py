@@ -333,10 +333,14 @@ class CapabilitySet:
     #        absent, ``ctx.fs.resolve`` contains names to the folder and
     #        refuses escapes.  Confines an automated peer to the config
     #        sandbox without touching device control.
-    # Where: CLI, TUI (the operator IS the caller, on their own machine).
-    #        MCP only when ``TERMAPY_MCP_FS_UNCONFINED`` is set.
+    # Where: CLI, TUI (the operator IS the caller, on their own machine),
+    #        and the TUI served in a browser on this machine (a loopback
+    #        address).  Served to the network only when
+    #        ``TERMAPY_WEB_FS_UNCONFINED`` is set, MCP only when
+    #        ``TERMAPY_MCP_FS_UNCONFINED`` is (registry web-network-confined).
     filesystem_unconfined: bool = _restricted(
-        "host-wide file access (TERMAPY_MCP_FS_UNCONFINED=1 under MCP)",
+        "host-wide file access (TERMAPY_MCP_FS_UNCONFINED=1 under MCP, "
+        "TERMAPY_WEB_FS_UNCONFINED=1 for --web on the network)",
     )
 
     # What:  Handler may open a NETWORK connection -- pyserial
@@ -563,6 +567,21 @@ def refusal_text(command: str, missing: list[str], prefix: str) -> str:
     )
 
 
+def confined_text() -> str:
+    """What a refusal says when a path leaves the config folder and the session may not follow it.
+
+    One sentence for every confinement refusal (``ctx.fs.resolve``,
+    ``ctx.fs.guard_external_path``, ``/log.dump``), built from the
+    ``filesystem_unconfined`` field's hint so it names the opt-in of every
+    confined host (MCP, ``--web`` on the network) and never one host alone
+    (registries ``capability-declared-once``, ``web-network-confined``).
+    """
+    return (
+        "This session is confined to the config folder; it lacks "
+        f"{REQUIREMENT_HINTS['filesystem_unconfined']}."
+    )
+
+
 def state_message(need: str, prefix: str) -> str:
     """``STATE_MESSAGES[need]`` with the REPL prefix filled in.
 
@@ -655,6 +674,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
         MCP_FS_UNCONFINED,
         MCP_HOST_INFO,
         MCP_NET_EGRESS,
+        WEB_FS_UNCONFINED,
         web_served_locally,
     )
 
@@ -676,19 +696,27 @@ def _build_environments() -> dict[str, CapabilitySet]:
         network_egress=True,
         host_info=True,
     )
+    # Whether a --web session's browser is on this machine: served on a
+    # loopback address it is, so the viewer is the operator at this desktop;
+    # served to the network (or not served at all, as /help's column in any
+    # other frontend) it is not.
+    local = web_served_locally() is True
     return {
         "TUI": tui,
         # The same TUI served in a browser (--web; Textual's App.is_web):
         # the screen is a web page, so there is no terminal to hand to
-        # /app.cli or /app.vt100.  Served on a loopback address the browser is on this
-        # machine, so the desktop the TUI runs on is the viewer's and the
-        # detection applies; served to the network (or not served at all,
-        # as /help's column in any other frontend) the desktop is not the
-        # viewer's, and only an explicit TERMAPY_GUI=1 says otherwise.
+        # /app.cli or /app.vt100.  Served on this machine the desktop the TUI
+        # runs on is the viewer's, so the GUI detection applies and a path
+        # may leave the config folder, as at a terminal; served to the
+        # network the viewer is a remote browser with no login, so the
+        # session is confined to the config folder as MCP is (registry
+        # web-network-confined), and only an explicit TERMAPY_GUI=1 or
+        # TERMAPY_WEB_FS_UNCONFINED=1 in the server's shell says otherwise.
         "WEB": replace(
             tui,
             console=False,
-            gui_apps=gui if web_served_locally() else GUI_OVERRIDE is True,
+            gui_apps=gui if local else GUI_OVERRIDE is True,
+            filesystem_unconfined=local or WEB_FS_UNCONFINED,
         ),
         # CLI (interactive REPL or --run script): interactive but no Textual UI.
         # Its confirmation is the y/n prompt on stdin; its only file editor

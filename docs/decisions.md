@@ -2511,3 +2511,18 @@ always did. **Behavior changed:** at quiet those commands print their text and t
 `/print` and the dumps keep their dim color; a bare `$X = 5` fails, so a script shows it as an
 error where a yellow warning stood, and runs on; a redirect at a quiet or silent session writes what the line
 prints at normal.
+
+## 2026-11-24 — A list answers its count, wherever it is not a table
+
+The status-page entry above left nine answers that joined a list into `value`, one name per line:
+`/search`, `/help`'s candidate list, `/help.target`, `/firmware.copy`, `/board.firmware`,
+`/proto.crc.<lang> file=`, `/app.explore`, `/app.kill` and MCP's profile dispatch when a silent
+command answers; the widened guard found two more through a local name, `/ymodem.send` and
+`/zmodem.send`, which joined their file names with commas. Each now answers its count, its names in `data`, as a table does (registry
+`value-is-scalar`, whose guard now flags any value built by a join, followed through a local name,
+probe-proven; an f-string only on a record, since elsewhere it is often one fact a command accepts
+back); `/proto.crc.c`'s generated source, one document its join lays out, is the allowlisted
+exception. `/proto.crc.<lang>` prints its source, and its `file=` reply naming what it wrote, on
+the result channel, as `/firmware.copy` does (registry `answer-text-on-result`). **Behavior changed**, for a script and an agent: `$(N) <- /search kettle` is a count, `0`
+with no match, where it was the names or empty; the same for the others; `--json` and MCP read the
+names in `data`.

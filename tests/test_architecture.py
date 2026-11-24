@@ -4267,10 +4267,12 @@ def handler(ctx, args):
 
 
 def _summary_values(tree: ast.Module) -> list[tuple[str, int]]:
-    """``(qualname, line)`` of every ``CmdResult.record`` whose ``value`` is an f-string or a ``join``.
+    """``(qualname, line)`` of every ``CmdResult`` whose ``value`` is a ``join``, or a record's that is an f-string.
 
     Followed through a local name, so ``snapshot = "...".join(...)`` then
-    ``value=snapshot`` is the same site: a summary of the page's facts.
+    ``value=snapshot`` is the same site: a list, or a page's facts, packed
+    into text.  An f-string elsewhere is often one fact (a spec a command
+    accepts back), so only a record's is flagged.
     """
     sites: list[tuple[str, int]] = []
     for qualname, function in _scoped_nodes(tree):
@@ -4284,14 +4286,17 @@ def _summary_values(tree: ast.Module) -> list[tuple[str, int]]:
             if isinstance(target, ast.Name)
         }
         for node in ast.walk(function):
-            if not (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and node.func.attr == "record"
-                and isinstance(node.func.value, ast.Name)
-                and node.func.value.id == "CmdResult"
-            ):
+            if not isinstance(node, ast.Call):
                 continue
+            func = node.func
+            builds = (isinstance(func, ast.Name) and func.id == "CmdResult") or (
+                isinstance(func, ast.Attribute)
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "CmdResult"
+            )
+            if not builds:
+                continue
+            record = isinstance(func, ast.Attribute) and func.attr == "record"
             value = next(
                 (keyword.value for keyword in node.keywords if keyword.arg == "value"), None
             )
@@ -4302,7 +4307,7 @@ def _summary_values(tree: ast.Module) -> list[tuple[str, int]]:
                 and isinstance(value.func, ast.Attribute)
                 and value.func.attr == "join"
             )
-            if isinstance(value, ast.JoinedStr) or joined:
+            if joined or (record and isinstance(value, ast.JoinedStr)):
                 sites.append((qualname, node.lineno))
     return sites
 
@@ -4376,21 +4381,40 @@ def handler(ctx, args):
     assert actual == [4, 7], "the answered name on output; result() and other text pass"
 
 
+# A value a join builds that is one document, not a list or a page's facts.
+SUMMARY_VALUE_ALLOWED: dict[tuple[str, str], str] = {
+    ("builtins/commands/proto.py", "_crc_codegen"): (
+        "the generated C source is one document; the join lays out its header and body"
+    ),
+}
+
+
 @pytest.mark.rule("value-is-scalar")
 def test_a_status_page_value_is_no_summary():
-    """No record answer packs its facts into value as text; the facts are data, value the one that leads or None."""
+    """No answer packs a list into value, and no record its facts; they are data, value the count, the one that leads or None."""
     # Arrange / Act
-    violations, _ = _unallowed(_summary_values, {})
+    violations, _ = _unallowed(_summary_values, SUMMARY_VALUE_ALLOWED)
 
     # Assert
     assert violations == [], (
-        "a record's facts are its data= with real types; value= is the one fact that "
-        "leads (a name, a count) or None, never a key=value summary:\n  " + "\n  ".join(violations)
+        "a list or a record's facts are data= with real types; value= is the count, the "
+        "one fact that leads, or None, never a joined summary:\n  " + "\n  ".join(violations)
     )
 
 
+@pytest.mark.rule("value-is-scalar")
+def test_summary_value_allowlist_is_not_stale():
+    """Every SUMMARY_VALUE_ALLOWED entry still joins a value, so the list only shrinks."""
+    # Arrange / Act
+    _, used = _unallowed(_summary_values, SUMMARY_VALUE_ALLOWED)
+
+    # Assert
+    stale = sorted(set(SUMMARY_VALUE_ALLOWED) - used)
+    assert stale == [], f"drop these from SUMMARY_VALUE_ALLOWED: {stale}"
+
+
 def test_summary_value_guard_fires_on_a_probe():
-    """The summary guard flags an f-string, a join and a join through a local name, and passes a fact."""
+    """The guard flags a record's f-string, any join and a join through a local name, and passes a fact."""
     # Arrange -- each forbidden shape, then the correct forms
     source = """
 def handler(ctx, args):
@@ -4402,6 +4426,10 @@ def handler(ctx, args):
     if c:
         return CmdResult.record(data, rows, value=snapshot)
     if d:
+        return CmdResult.ok(value=", ".join(names), data=names)
+    if e:
+        return CmdResult.ok(value=f"{width} bits")
+    if f:
         return CmdResult.record(data, rows, value=len(table))
     return CmdResult.record(data, rows, value=None)
 """
@@ -4411,7 +4439,11 @@ def handler(ctx, args):
     actual = [line for _, line in _summary_values(tree)]
 
     # Assert
-    assert actual == [4, 6, 9], "an f-string, a join and a joined local; a count and None pass"
+    expected = [4, 6, 9, 11]
+    assert actual == expected, (
+        "a record's f-string, a record's join, a joined local, an ok() join; "
+        "an ok() f-string, a count and None pass"
+    )
 
 
 def test_failure_printers_has_no_stale_entries():

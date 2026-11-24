@@ -1363,7 +1363,7 @@ def _dispatch_via_profile(
             extra = f" (+{len(meaningful) - 1} more line(s))" if len(meaningful) > 1 else ""
             result = CmdResult.fail(
                 msg=(f"Expected no response from {name!r}, got: {preview!r}{extra}"),
-                value="\n".join(meaningful),
+                value=len(meaningful),
                 data={"unexpected_output": meaningful},
             )
             result.elapsed_s = elapsed

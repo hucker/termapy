@@ -73,9 +73,10 @@ def _handler_explore(ctx: PluginContext, args: str) -> CmdResult:
     for path in paths:
         path.mkdir(parents=True, exist_ok=True)
         ctx.fs.open_file(path)
-    # Return newline-joined paths so scripts can capture which folders
-    # were opened (one on Windows/macOS, two on Linux).
-    return CmdResult.ok(value="\n".join(sorted(str(p) for p in paths)))
+    # The folders opened (one on Windows/macOS, two on Linux) are data;
+    # how many is the value (registry value-is-scalar).
+    folders = sorted(str(path) for path in paths)
+    return CmdResult.ok(value=len(folders), data={"folders": folders})
 
 
 # ── /app.list ─────────────────────────────────────────────────────────────────
@@ -369,7 +370,7 @@ def _handler_kill(ctx: PluginContext, args: str) -> CmdResult:
     if own:
         return ctx.internal.dispatch("exit")
     return CmdResult.ok(
-        value="\n".join(str(crumb.pid) for crumb in outcome.left),
+        value=len(outcome.left),
         data=[breadcrumbs.session_record(crumb) for crumb in outcome.left],
     )
 

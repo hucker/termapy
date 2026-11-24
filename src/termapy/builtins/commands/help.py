@@ -1112,7 +1112,7 @@ def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) ->
                                   commands needing it (`value` = its name).
       5. A global idiom        -> its page (`value` = the idiom's name).
       6. Candidate list        -> name+help substring match, CmdResult.ok
-                                  with `value` = newline-joined names.
+                                  with `value` = the count, `data` = the names.
       7. Zero matches          -> fail with hint to try /search.
 
     ``dev_mode`` routes exact matches to the developer docstring view
@@ -1158,7 +1158,7 @@ def _show_command_help(ctx: PluginContext, name: str, dev_mode: bool = False) ->
     candidates = _find_candidates(name, plugins, ctx.prefix)
     if candidates:
         _render_candidates(ctx, name, candidates)
-        return CmdResult.ok(value="\n".join(candidates))
+        return CmdResult.ok(value=len(candidates), data=candidates)
 
     # 7. No hits anywhere -- hint at the deeper tool.
     p = ctx.prefix
@@ -1343,10 +1343,10 @@ def _handler_target(ctx: PluginContext, args: str) -> CmdResult:
             f"No device commands available.  {ctx.prefix}profile.load <path> "
             f"or {ctx.prefix}profile.load cmd=<command> to load one."
         )
-        return CmdResult.ok(value="")
+        return CmdResult.ok(value=0, data=[])
     _render_target(ctx)
     ctx.io.result(f"{len(target_cmds)} device commands.")
-    return CmdResult.ok(value="\n".join(sorted(target_cmds)))
+    return CmdResult.ok(value=len(target_cmds), data=sorted(target_cmds))
 
 
 def _render_target(ctx: PluginContext, cmd_w: int | None = None) -> None:

@@ -124,7 +124,7 @@ def _handler_copy(ctx: PluginContext, args: str) -> CmdResult:
     names = ", ".join(path.name for path in written)
     ctx.io.result(f"Copied {names} to {folder}")
     paths = [str(path) for path in written]
-    return CmdResult.ok(value="\n".join(paths), data={"files": paths})
+    return CmdResult.ok(value=len(paths), data={"files": paths})
 
 
 def _handler_show(ctx: PluginContext, args: str) -> CmdResult:

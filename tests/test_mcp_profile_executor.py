@@ -453,7 +453,7 @@ class TestNoneFormat:
         assert "OOPS unexpected" in result["data"]["unexpected_output"], (
             "rejected output surfaced structurally for the LLM"
         )
-        assert "OOPS unexpected" in result["value"], "rejected output also readable as the scalar"
+        assert result["value"] == 1, "the scalar counts the unexpected lines"
 
     @pytest.mark.timing
     def test_timeout_zero_opts_out_of_silence_check(self, host):

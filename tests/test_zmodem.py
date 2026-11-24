@@ -346,7 +346,9 @@ class TestSendCommand:
         # Assert
         assert result.success, result.error
         assert (inbox / "fw.bin").read_bytes() == PAYLOAD, "the far end has the file"
-        assert result.value == "fw.bin", "the reply names what was sent"
+        assert (result.value, result.data["files"]) == (1, ["fw.bin"]), (
+            "the count is the value, the names the data"
+        )
 
     def test_two_files_go_in_one_batch(
         self, far_cli: CLITerminal, far_end: FarEnd, tmp_path

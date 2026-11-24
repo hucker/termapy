@@ -99,6 +99,19 @@ def test_nothing_close_keeps_the_way_to_look(demo, line, kept):
     assert "did you mean" not in result.error, "no far-fetched suggestion"
 
 
+@pytest.mark.rule("flag-names-subcommand")
+def test_a_flag_that_names_a_subcommand_points_at_it(demo):
+    """/demo --force is /demo.force typed as a flag: it fails before the handler runs, naming the subcommand."""
+    # Act
+    named = demo.repl.dispatch_full("/demo --force")
+    other = demo.repl.dispatch_full("/demo --nothing")
+
+    # Assert
+    actual = (named.success, named.error, other.error)
+    expected = (False, "Unknown flag: --force -- did you mean /demo.force?", "Usage: /demo")
+    assert actual == expected, "only a word that names a subcommand is pointed at it"
+
+
 def test_a_part_name_given_to_import_points_at_use(demo):
     """/dev.import of a library part's name says the part is converted and names the command that adds it."""
     result = demo.repl.dispatch_full("/dev.import acme-adc16")

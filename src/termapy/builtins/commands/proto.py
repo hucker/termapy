@@ -778,7 +778,7 @@ def _results_path(ctx: PluginContext, script_path: Path, template: str) -> Path:
     config_name = Path(ctx.config_path).stem if ctx.config_path else ""
     out_path = result_path(folder / "test", template, script_path.stem, config_name)
     ctx.fs.guard_code_folder(out_path.parent)
-    ctx.fs.guard_replace(out_path)
+    ctx.fs.guard_file_write(out_path)
     return out_path
 
 
@@ -1113,7 +1113,7 @@ def _write_crc_codegen_files(
     lang: str,
     file_stem: str,
     folder: Path,
-    guard_replace: Callable[[Path], None],
+    guard_file_write: Callable[[Path], None],
 ) -> list:
     """Write codegen output to disk; return the list of written ``Path``s.
 
@@ -1133,7 +1133,7 @@ def _write_crc_codegen_files(
             appended.
         folder: The folder the file(s) are written in, the config's
             ``firmware/`` unless ``file=`` names another.
-        guard_replace: ``ctx.fs.guard_replace``, asked about every file
+        guard_file_write: ``ctx.fs.guard_file_write``, asked about every file
             before any is written, so a refusal leaves no half of a C pair.
 
     Returns:
@@ -1146,7 +1146,7 @@ def _write_crc_codegen_files(
     contents = result if isinstance(result, tuple) else (result,)
     paths = [folder / f"{file_stem}{ext}" for ext in extensions[: len(contents)]]
     for path in paths:
-        guard_replace(path)
+        guard_file_write(path)
     # ``str(content)`` casts -- ``result`` comes from a crcglot generator
     # Callable, so ty widens its elements to ``object``; runtime always
     # returns strings.
@@ -1574,7 +1574,7 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         folder = write_destination(ctx, given, FIRMWARE)
         try:
             written = _write_crc_codegen_files(
-                result, lang, stem.name, folder, ctx.fs.guard_replace
+                result, lang, stem.name, folder, ctx.fs.guard_file_write
             )
         except OSError as e:
             return CmdResult.fail(msg=f"Write error: {e}")

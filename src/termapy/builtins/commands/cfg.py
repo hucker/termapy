@@ -55,6 +55,7 @@ from termapy.plugins import (
     CmdResult,
     Column,
     Command,
+    MissingCapability,
     UsageError,
     escape_markup,
     requires_text,
@@ -142,11 +143,19 @@ def _typed_value(ctx: PluginContext, container: Mapping, key: str, value_str: st
     Raises:
         ValueError: The key is termapy's own, the text is not the key's type
             (a ``Type error``), or the check refuses the value.
-        MissingCapability: A path value escapes the MCP sandbox.
+        MissingCapability: A path value escapes the MCP sandbox, or the key
+            runs a command in a person's session and no person is here.
     """
     record = cfg_key(key)
     if record is not None and record.managed:
         raise ValueError(f"Managed key: {key} (termapy writes it)")
+    if record is not None and record.runs_unasked and not ctx.capabilities.interactive:
+        # Saved, it would run at a person's next connect with their reach,
+        # outside every MCP fence (registry mcp-no-auto-run).
+        raise MissingCapability(
+            f"{key} runs at a person's every connect: an MCP client cannot set it "
+            "(mcp_on_connect_cmd runs only under MCP)."
+        )
     if record is not None and record.kind == "path" and value_str:
         # A path key turns a later read or load into a file primitive
         # (log_file -> /log.dump), so it is held to the MCP sandbox.

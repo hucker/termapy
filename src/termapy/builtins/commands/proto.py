@@ -1578,9 +1578,10 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
             )
         except OSError as e:
             return CmdResult.fail(msg=f"Write error: {e}")
-        ctx.io.output(f"Wrote {', '.join(str(p) for p in written)}", "green")
-        # Return the joined paths so scripts can capture them.
-        return CmdResult.ok(value=" ".join(str(p) for p in written))
+        # The reply naming the files is a write's answer, as /firmware.copy's is.
+        ctx.io.result(f"Wrote {', '.join(str(p) for p in written)}")
+        files = [str(path) for path in written]
+        return CmdResult.ok(value=len(files), data={"files": files})
 
     # ----- Stdout mode (default) -----
     # generate_c returns a (header, source) tuple so the same algorithm
@@ -1593,8 +1594,10 @@ def _crc_codegen(ctx: PluginContext, args: str, lang: str) -> CmdResult:
         banner_h = f"/* ====== {fname}.h ====== */"
         banner_c = f"/* ====== {fname}.c ====== */"
         combined = "\n".join([banner_h, header, "", banner_c, source])
+        # The generated source is the answer, so quiet shows it
+        # (registry answer-text-on-result).
         for line in combined.split("\n"):
-            ctx.io.output_markup(f"  [green]{escape_markup(line)}[/]")
+            ctx.io.result_markup(f"  [green]{escape_markup(line)}[/]")
         return CmdResult.ok(value=combined)
 
     code = result

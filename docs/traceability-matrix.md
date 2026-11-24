@@ -1127,7 +1127,7 @@ Ids: 233: 218 registry rows (guarantees 181, assumptions 37), 15 spec sections i
 
 ### `value-is-scalar` (guarantee, structure)
 
-- `test_architecture.py`: `test_a_status_page_value_is_no_summary` **guard**, `test_a_value_is_a_scalar` **guard**
+- `test_architecture.py`: `test_a_status_page_value_is_no_summary` **guard**, `test_a_value_is_a_scalar` **guard**, `test_summary_value_allowlist_is_not_stale`
 - `test_builtins.py`: `TestTermInfo.test_info_has_no_value`
 - `test_proto_commands.py`: `TestInfo.test_info_reports_hex_mode_and_the_connection`
 

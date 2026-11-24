@@ -212,7 +212,7 @@ def _handler_firmware(ctx: PluginContext, args: str) -> CmdResult:
     if command:
         ctx.io.output(f"Put them on the board: {command}{note}")
     paths = [str(path) for path in written]
-    return CmdResult.ok(value="\n".join(paths), data={"files": paths, "install": command})
+    return CmdResult.ok(value=len(paths), data={"files": paths, "install": command})
 
 
 def _handler_update(ctx: PluginContext, args: str) -> CmdResult:

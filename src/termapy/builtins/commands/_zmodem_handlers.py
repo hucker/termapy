@@ -149,9 +149,9 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
         ctx.serial.wait_idle(timeout_ms=200, max_wait_s=2.0)
         ctx.serial.drain()
 
-    names = ", ".join(path.name for path in paths)
-    ctx.io.result(f"ZMODEM send complete: {names} ({sent} bytes)")
-    return CmdResult.ok(value=names)
+    names = [path.name for path in paths]
+    ctx.io.result(f"ZMODEM send complete: {', '.join(names)} ({sent} bytes)")
+    return CmdResult.ok(value=len(names), data={"files": names, "bytes": sent})
 
 
 def _handler_recv(ctx: PluginContext, args: str) -> CmdResult:

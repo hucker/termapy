@@ -1197,8 +1197,8 @@ class TestHelp:
         assert any("Candidates matching" in text for text in texts), "banner shown"
         assert any("one.shiny" in text for text in texts), "first candidate listed"
         assert any("two.shiny" in text for text in texts), "second candidate listed"
-        assert "one.shiny" in result.value.splitlines(), "name in scripting value"
-        assert "two.shiny" in result.value.splitlines(), "name in scripting value"
+        assert "one.shiny" in result.data, "name in the data"
+        assert "two.shiny" in result.data, "name in the data"
 
     def test_help_exact_prefers_over_candidates(self, repl_env):
         """Exact match wins even when the name is a substring of others."""
@@ -1516,7 +1516,7 @@ class TestHelp:
         result = engine.dispatch("search __search_probe__")
 
         # Assert - the command surfaces via its dynamic long_help text
-        names = result.value.splitlines() if result.value else []
+        names = result.data
         assert "unique_cmd" in names, "callable long_help contributes to /search index"
 
     def test_help_cfg_shows_active_cfg_line(self, repl_env):
@@ -1825,7 +1825,7 @@ class TestSearch:
         result = engine.dispatch("search timeout")
 
         # Assert
-        names = result.value.splitlines() if result.value else []
+        names = result.data
         assert "widget_timer" in names, "matching command present"
         assert "unrelated" not in names, "non-matching command absent"
 
@@ -1856,7 +1856,7 @@ class TestSearch:
         result = engine.dispatch(r"search ^proto\.")
 
         # Assert
-        names = result.value.splitlines() if result.value else []
+        names = result.data
         assert "proto.foo" in names, "anchored match included"
         assert "other.proto" not in names, "non-anchored excluded"
 
@@ -1905,10 +1905,10 @@ class TestSearch:
 
         # Act - without --dev, docstring isn't searched
         result_plain = engine.dispatch("search zebras")
-        plain_names = result_plain.value.splitlines() if result_plain.value else []
+        plain_names = result_plain.data
         # Act - with --dev, docstring is searched
         result_dev = engine.dispatch("search --dev zebras")
-        dev_names = result_dev.value.splitlines() if result_dev.value else []
+        dev_names = result_dev.data
 
         # Assert
         assert "zebra_cmd" not in plain_names, "docstring not searched without --dev"
@@ -1934,7 +1934,7 @@ class TestSearch:
         result = engine.dispatch("search special_flag")
 
         # Assert
-        names = result.value.splitlines() if result.value else []
+        names = result.data
         assert "gadget" in names, "long_help match surfaces in /search"
 
     def test_search_matches_args(self, repl_env):
@@ -1956,7 +1956,7 @@ class TestSearch:
         result = engine.dispatch("search unusual_param")
 
         # Assert
-        names = result.value.splitlines() if result.value else []
+        names = result.data
         assert "widget" in names, "args match surfaces in /search"
 
     def test_search_multi_term_and(self, repl_env):
@@ -1994,7 +1994,7 @@ class TestSearch:
         result = engine.dispatch("search table crc")
 
         # Assert
-        names = result.value.splitlines() if result.value else []
+        names = result.data
         assert "alpha_cmd" in names, "command with both terms included"
         assert "table_only" not in names, "single-term match excluded"
         assert "crc_only" not in names, "single-term match excluded"
@@ -2026,7 +2026,7 @@ class TestSearch:
         result = engine.dispatch("search banana -apricot")
 
         # Assert
-        names = result.value.splitlines() if result.value else []
+        names = result.data
         assert "keep" in names, "command matching positive-only kept"
         assert "drop" not in names, "command matching negative excluded"
 
@@ -2050,7 +2050,7 @@ class TestSearch:
         result = engine.dispatch("search nitro")
 
         # Assert
-        names = result.value.splitlines() if result.value else []
+        names = result.data
         assert "boring_cmd" in names, "command surfaced via flag name"
 
     def test_search_finds_flag_description(self, repl_env):
@@ -2073,12 +2073,12 @@ class TestSearch:
         result = engine.dispatch("search combustion")
 
         # Assert
-        names = result.value.splitlines() if result.value else []
+        names = result.data
         assert "rocket_cmd" in names, "command surfaced via flag description"
 
     @pytest.mark.rule("value-scriptable")
     def test_search_returns_value_for_scripting(self, repl_env):
-        """CmdResult.value is the newline-joined matching command names."""
+        """The value is how many commands matched, and the data their names, as a list answers."""
         # Arrange
         engine, _, _, output = repl_env
         from termapy.plugins import PluginInfo
@@ -2096,9 +2096,9 @@ class TestSearch:
         result = engine.dispatch("search unique-token-xyz")
 
         # Assert
-        actual = result.value
-        expected = "alpha_cmd"
-        assert actual == expected, f"{actual} == {expected}"
+        actual = (result.value, result.data)
+        expected = (1, ["alpha_cmd"])
+        assert actual == expected, "the count is the value, the names the data"
 
     def test_search_no_meta_chars_uses_literal_grammar(self, repl_env):
         """Without regex metacharacters, `foo bar` AND-matches separately,
@@ -2123,7 +2123,7 @@ class TestSearch:
 
         # Assert - literal AND grammar matches; a regex for "foo bar"
         # (literal with space) would not match across fields.
-        names = result.value.splitlines() if result.value else []
+        names = result.data
         assert "foo_cmd" in names, "AND grammar matches across fields"
 
     @pytest.mark.parametrize(
@@ -2144,7 +2144,7 @@ class TestSearch:
 
         # Assert
         assert result.success, result.error
-        names = result.value.splitlines() if result.value else []
+        names = result.data
         assert "json" in names, "the device command is found by its long_help"
 
 

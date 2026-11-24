@@ -79,9 +79,9 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
         if cancel and cancel.is_set():
             return CmdResult.fail(msg="YMODEM send canceled.")
         if ok:
-            names = ", ".join(Path(p).name for p in paths)
-            ctx.io.result(f"YMODEM send complete: {names} ({total_size} bytes)")
-            return CmdResult.ok(value=names)
+            names = [Path(p).name for p in paths]
+            ctx.io.result(f"YMODEM send complete: {', '.join(names)} ({total_size} bytes)")
+            return CmdResult.ok(value=len(names), data={"files": names, "bytes": total_size})
         return CmdResult.fail(msg="YMODEM send failed.")
 
 

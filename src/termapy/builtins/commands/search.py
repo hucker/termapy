@@ -400,14 +400,14 @@ def _run_literal(ctx: PluginContext, pattern: str, include_dev: bool, prefix: st
 
 
 def _finish(ctx: PluginContext, pattern: str, matches: list[str], truncated: bool) -> CmdResult:
-    """Emit the summary line and return a scripting-friendly value."""
+    """Emit the summary line; the count is the value and the names the data."""
     if not matches:
         ctx.io.result(f"No matches for '{pattern}'.")
-        return CmdResult.ok(value="")
+        return CmdResult.ok(value=0, data=[])
     suffix = f" (showing first {_MAX_SEARCH_RESULTS})" if truncated else ""
     word = "matches" if len(matches) != 1 else "match"
     ctx.io.result(f"{len(matches)} {word}{suffix}.")
-    return CmdResult.ok(value="\n".join(matches))
+    return CmdResult.ok(value=len(matches), data=matches)
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
@@ -437,8 +437,8 @@ Grammar (regex mode, auto-detected on metacharacters):
   {prefix}search ^proto\\.            commands starting with "proto."
   {prefix}search --dev ctx\\.result   also searches handler docstrings.
 
-Returns matching command names as CmdResult.value (newline-joined),
-suitable for $(VAR) <- capture in scripts.
+Answers how many commands matched, so $(N) <- {prefix}search ... counts them;
+--json carries their names as data.
 
 See also: {prefix}grep (search scrollback text and print matching lines),
 {prefix}find (search scrollback and navigate matches interactively).""",

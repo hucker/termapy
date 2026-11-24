@@ -142,11 +142,12 @@ sends to the device) waits in the input line for Enter.
 | `/find {pattern}`         | Navigate scrollback matches with an interactive find bar (not over MCP; use `/grep` there) |
 | `/find.next` / `/find.prev` | Step to next / previous find match                                        |
 | `/find.clear`             | Close the find bar (or run `/find` with no args)                            |
-| `/firmware`               | List the device-side sources termapy ships: target, language, files, size   |
+| `/firmware`               | The device-side sources termapy ships and this config's `firmware/` folder (bare: `/firmware.lib`) |
 | `/firmware.copy {name} {lang=<l>} {folder=<path>}` | Write the shipped sources into the config's `firmware/` folder (a relative `folder=` is under the config's folder): every module of a language, or one by name; never overwrites |
-| `/firmware.dump <name> {file} {lang=<l>}` | Print one shipped source file (over MCP, the value an agent reads) |
-| `/firmware.list`          | Same as bare `/firmware`                                                    |
-| `/firmware.show <name> {lang=<l>}` | Open a target's main source in the system viewer                     |
+| `/firmware.lib`           | List the shipped modules: name, language, files, size (same as bare `/firmware`) |
+| `/firmware.lib.dump <name> {file} {lang=<l>}` | Print one shipped source file (over MCP, the value an agent reads) |
+| `/firmware.lib.show <name> {lang=<l>}` | Open a shipped module's main source in the system viewer         |
+| `/firmware.list`          | List this config's `firmware/` folder, the copies ([per-folder family](#per-folder-file-commands)) |
 | `/grep <pattern>`         | Search scrollback for regex matches (case-insensitive, prints the list)     |
 | `/help`                   | The landscape: terminal commands in full, other groups folded               |
 | `/help.idioms`            | List the words commands share: `--json`, `--quiet`, `toggle`, `cycle`, ...  |
@@ -223,6 +224,7 @@ sends to the device) waits in the input line for Enter.
 | `/proto.edit {file}`      | Edit a .pro file (same as `/edit.proto`)                                    |
 | `/proto.help`             | Show `/proto` help (alias for `/help proto`)                                |
 | `/proto.hex {on\|off\|toggle}`    | Same flag as `/term.hex`                                                    |
+| `/proto.viz`              | Packet visualizers in `viz/`: `.list` (bare), `.explore`, `.show`, `.dump`, `.edit`, `.rename`, `.delete` |
 | `/proto.list`             | List .pro files in proto/, newest first, with size, age and each one's `name`; a name runs, its edit cell opens the editor |
 | `/proto.run <file>`       | Run a binary protocol test script (.pro); TUI bare: the Proto picker        |
 | `/proto.send <hex>`       | Send raw hex bytes and display response                                     |
@@ -248,8 +250,10 @@ sends to the device) waits in the input line for Enter.
 | `/sym.load {path}`        | Load a symbol table (default: the cfg sidecar `/sym.import` writes)         |
 | `/sym.search <pattern>`   | Search symbols by name: the exact name, else a [name pattern](#name-patterns) |
 | `/sym.unload`             | Clear the loaded symbol table                                               |
+| `/sym.list`               | List the tables in `sym/`; in the TUI a click on one loads it ([per-folder family](#per-folder-file-commands)) |
 | `/dev.import <file> {format=<value>}` | Convert a vendor register description (CMSIS-SVD) into this config's `lib/` and reference it from `dev/` (`to=global` shares it) |
-| `/dev.lib {pattern}`      | List the parts the libraries hold (available, not loaded), with their layer |
+| `/dev.lib {pattern}`      | List the parts the libraries hold (available, not loaded), with their layer; `.explore`, `.show`, `.dump`, `.rename`, `.delete` work on this config's `lib/` |
+| `/dev.delete <part>`      | Remove a part from this config: its `dev/` file goes, after a yes, and the devices reload |
 | `/dev.list`               | List the devices this config has loaded, with layer and placement           |
 | `/dev.regs <device> {pattern}` | List a loaded device's registers from its file (never the chip), hazards flagged |
 | `/dev.use <part> {at=<value>}` | Add a library part to this config; `at=NAME@ADDR ...` places a relocatable one |
@@ -304,21 +308,28 @@ The CSVs in `prof/` have the per-folder file commands below
 
 ## Per-folder file commands
 
-Each per-config data folder has an owning top-level command (`/run` for
-`run/`, `/proto` for `proto/`, `/cap` for `cap/`, `/ss` for `ss/`,
-`/plugin` for `plugin/`, `/run.profile` for `prof/`) with one consistent
-family of file subcommands:
+Every per-config data folder has an owning command (`/run` for `run/`,
+`/proto` for `proto/`, `/cap` for `cap/`, `/ss` for `ss/`, `/plugin` for
+`plugin/`, `/run.profile` for `prof/`, `/sym` for `sym/`, `/dev` for `dev/`,
+`/dev.lib` for `lib/`, `/proto.viz` for `viz/`, `/firmware` for `firmware/`)
+with one consistent family of file subcommands, declared once per folder in
+termapy's folder table:
 
 | Subcommand            | Action                                                  | Folders                        |
 | --------------------- | ------------------------------------------------------- | ------------------------------ |
-| `.list`               | List files, newest first, with size and age             | all                            |
+| `.list`               | List files, newest first, with size and age             | all (`/dev.list` lists the loaded devices and `/dev.lib` the library's parts: what the files mean) |
 | `.explore`            | Open the folder in the system file explorer             | all                            |
 | `.show {name}`        | Open the newest (or named) file in the system viewer    | all                            |
-| `.dump {name}`        | Print the newest (or named) file to the terminal        | run, proto, plugin, cap, prof  |
+| `.dump {name}`        | Print the newest (or named) file to the terminal        | all but ss                     |
 | `.rename <old> <new>` | Rename a file (extension kept; never overwrites)        | all                            |
-| `.edit {name}`        | Edit a file (TUI bare: the folder's picker); also `/edit.<folder>` | run, proto, plugin |
-| `.delete <name>`      | Delete a file someone wrote, after a yes                | run, proto, plugin             |
+| `.edit {name}`        | Edit a file (TUI bare: the folder's picker); also `/edit.<folder>` | run, proto, plugin, viz, firmware |
+| `.delete <name>`      | Delete a file someone wrote, after a yes                | run, proto, plugin, viz, sym, dev, lib, firmware |
 | `.delete <name\|pattern>` | Delete a file, or after a yes every file a [pattern](#name-patterns) matches (`*` for all) | ss, cap, prof (generated output only) |
+
+What a plugin ships beside a folder is a noun of its own, so the plain verbs
+always mean the config's folder: `/firmware.lib` is the device code termapy
+ships (`/firmware.copy` puts it in `firmware/`), `/dev.lib` the parts a config
+picks from (`/dev.use` adds one to `dev/`).
 
 Examples:
 
@@ -330,3 +341,6 @@ Examples:
 - `/run.rename old.run new`: rename a script (`.run` is kept)
 - `/cap.delete adc_*`: delete the captures whose names start `adc_` (asks first; `*` is every capture)
 - `/run.profile.dump`: print the newest profile CSV to the terminal
+- `/sym.list`: list the symbol tables in `sym/`; in the TUI a click on one loads it
+- `/dev.delete acme-adc16`: remove a part from this config (its `dev/` file), after a yes
+- `/firmware.list`: list the device code copied into `firmware/`; `/firmware.lib` is what ships

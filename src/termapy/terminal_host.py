@@ -34,6 +34,7 @@ from termapy.config import (
 )
 from termapy.config_resolve import resolve_config
 from termapy.defaults import SESSION_FLAG_KEYS, cfg_value, quiet_start
+from termapy.folders import DEV
 from termapy.plugins import CmdResult, InternalHandle, PluginContext
 from termapy.plugins.capabilities import STATE_MESSAGES, state_message
 from termapy.plugins.output_levels import OUTPUT_LEVEL_RANK, OUTPUT_MIN_RANK
@@ -660,8 +661,8 @@ class TerminalHost:
             # How this frontend opens a file for editing (/edit decides which);
             # the handle's edit_file gates it on file_editor.
             _edit_file_impl=lambda path: self._edit_file(path),
-            # What this frontend refreshes when a command deletes files.
-            folder_changed=lambda folder: self._folder_changed(folder),
+            # What a deleted file changes for every frontend, then this one's refresh.
+            folder_changed=self._data_folder_changed,
             # Post-dispatch observer pair, shared by all hosts.  /run.record
             # registers via add_post_dispatch_observer; future audit-log /
             # repeat-last / event-stream features will use the same hook.
@@ -1334,8 +1335,20 @@ class TerminalHost:
         """
         self.repl.ctx.fs.open_file(path)
 
+    def _data_folder_changed(self, folder: str) -> None:
+        """``ctx.internal.folder_changed``: what a removed file means in every frontend, then this one's refresh.
+
+        ``dev/`` is the bill of materials (ARCHITECTURE.md "Device files"):
+        a file there is a loaded device, so ``/dev.delete`` ends with the
+        devices rescanned, as ``/dev.use`` and ``/dev.import`` do after
+        writing one.  The other folders hold nothing a session loaded.
+        """
+        if folder == DEV:
+            self.repl.reload_devices()
+        self._folder_changed(folder)
+
     def _folder_changed(self, folder: str) -> None:
-        """``ctx.internal.folder_changed``: the CLI and MCP show no file counts to refresh.
+        """The frontend's half of ``folder_changed``: the CLI and MCP show no file counts to refresh.
 
         The TUI overrides this to refresh its folder buttons' tooltips.
         """

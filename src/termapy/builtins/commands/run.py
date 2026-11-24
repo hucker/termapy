@@ -441,7 +441,7 @@ COMMAND = Command(
                     help="Profile a single command.",
                     handler=_handler_profile_cmd,
                 ),
-                **build_folder_subcommands("prof", noun="profile"),
+                **build_folder_subcommands("prof"),
             },
         ),
         **_FOLDER_SUBS,

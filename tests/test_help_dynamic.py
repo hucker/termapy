@@ -172,23 +172,23 @@ class TestFolderHelpers:
         assert actual == 0, "missing folder yields zero, not error"
 
     def test_folder_line_pluralizes(self, tmp_path):
-        """The folder line says '1 file' but '0 files' and '2 files'."""
-        # Arrange - 0, 1, 2 files -> "files", "file", "files"
+        """The folder line says '1 script' but '0 scripts' and '2 scripts': the noun is the folder's row's."""
+        # Arrange - 0, 1, 2 files -> "scripts", "script", "scripts"
         ctx, cfg_dir_ = _fake_ctx(tmp_path)
 
         # Act / Assert - zero
         actual_zero = folder_line(ctx, "run")
-        assert actual_zero == "[green]0 files in run/[/]", "zero plural"
+        assert actual_zero == "[green]0 scripts in run/[/]", "zero plural"
 
         # Act / Assert - one
         (cfg_dir_ / "run" / "a.run").write_text("x", encoding="utf-8")
         actual_one = folder_line(ctx, "run")
-        assert actual_one == "[green]1 file in run/[/]", "singular"
+        assert actual_one == "[green]1 script in run/[/]", "singular"
 
         # Act / Assert - two
         (cfg_dir_ / "run" / "b.run").write_text("x", encoding="utf-8")
         actual_two = folder_line(ctx, "run")
-        assert actual_two == "[green]2 files in run/[/]", "plural"
+        assert actual_two == "[green]2 scripts in run/[/]", "plural"
 
     def test_folder_line_custom_noun(self, tmp_path):
         """A caller-supplied noun replaces 'file', as in '1 screenshot in ss/'."""

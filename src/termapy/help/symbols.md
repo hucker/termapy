@@ -251,6 +251,7 @@ build symbol with the same name wins, with a warning.
 | `/sym.unload`                      | `/sym.unload`               | Clear the loaded table (file untouched)                 |
 | `/sym.search <pattern>`            | `/sym.search Mon*`          | Search names: the exact name, else contains or a glob   |
 | `/sym.info`                        | `/sym.info`                 | File, source, counts by section, address range, regions |
+| `/sym.list`, `.show`, `.dump`, `.explore`, `.rename`, `.delete` | `/sym.list` | The `sym/` folder's files, the [family every data folder has](commands.md#per-folder-file-commands); in the TUI a click on a listed table loads it |
 
 `/sym` returns the *other* representation as its value: `$(A) <- /sym gTemp`
 captures `0x00001000`, `$(N) <- /sym 0x2010` captures `main+0x10`.

@@ -17,7 +17,7 @@ lands in its group, not at the end of the user's file.
 import re
 from collections.abc import Callable
 
-CURRENT_CONFIG_VERSION = 41
+CURRENT_CONFIG_VERSION = 42
 
 # Keys that used to be valid config fields but have been removed or
 # renamed by a migration.  Maps deprecated key -> a short message
@@ -890,6 +890,29 @@ def _migrate_v40_to_v41(cfg: dict) -> dict:
 
 
 MIGRATIONS[40] = _migrate_v40_to_v41
+
+
+def _migrate_v41_to_v42(cfg: dict) -> dict:
+    """The shipped firmware catalog is /firmware.lib: the plain verbs name this config's firmware/ folder now.
+
+    ``/firmware.list``, ``.show`` and ``.dump`` listed and printed what
+    termapy ships; every data folder's family claims those verbs for the
+    folder (registry ``folder-family-from-table``), so the catalog moved
+    under the noun, as ``/dev.lib`` sits beside ``dev/``.  Renamed wherever
+    a config holds a command line.
+    """
+    _rename_commands(
+        cfg,
+        {
+            "firmware.list": "firmware.lib",
+            "firmware.show": "firmware.lib.show",
+            "firmware.dump": "firmware.lib.dump",
+        },
+    )
+    return cfg
+
+
+MIGRATIONS[41] = _migrate_v41_to_v42
 
 
 def migrate_config(cfg: dict) -> dict:

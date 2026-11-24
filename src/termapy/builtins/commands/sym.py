@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Final
 from termapy import diag_log
 from termapy.config import cfg_relative_path, not_found_message
 from termapy.converters import SYMBOLS, read_source
+from termapy.folder_ops import build_folder_subcommands
 from termapy.folders import SYM, SYMBOLS_SUFFIX, default_file_name, file_suggestion, is_inside
 from termapy.help_dynamic import compose, state_line
 from termapy.plugins import (
@@ -442,6 +443,7 @@ COMMAND = Command(
     long_help=_long_help,
     handler=_handler_root,
     shows=True,
+    help_list="list",
     sub_commands={
         "import": Command(
             params=[
@@ -500,5 +502,8 @@ COMMAND = Command(
             shows=True,
             state=True,
         ),
+        # The sym/ folder's family, as every data folder has (registry
+        # folder-family-from-table): a click on a listed table loads it.
+        **build_folder_subcommands("sym"),
     },
 )

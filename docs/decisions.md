@@ -2570,3 +2570,31 @@ for `.force` anywhere. Dispatch now answers a `--word` the command does not decl
 `<command>.<word>` is a subcommand, with `Unknown flag: --force -- did you mean /demo.force?` before
 the handler runs (registry `flag-names-subcommand`). A command that takes its text as written
 (`/term.send`, `/print`) keeps the token.
+
+## 2026-11-24 — Every data folder has the one command family, from its row
+
+Chuck, on the folder families: the commands spread across `/proto`, `/cfg`, `/plugin` and the rest
+will not stay consistent unless the way they are handled is table driven. The table is `folders.FOLDERS`,
+and `folder_ops.build_folder_subcommands` already built one family from a row's flags; what varied was
+where it was mounted and whether it was mounted at all: `sym/`, `dev/`, `lib/`, `viz/` and `firmware/`
+had no `.list`/`.show`/`.dump` (their files printed through `/cfg.file`), each caller passed its own
+`noun=`, and `/firmware` spelled `.list`, `.show` and `.dump` of its own over the shipped catalog, so
+one verb meant the config's folder in one family and termapy's package in another. Now every row
+declares `family` and `noun` (registry `folder-family-from-table`): `sym` (a click on a table runs
+`/sym.load`), `dev` (its `.list` stays the loaded devices, since a dev/ file is one, and bare `/dev` runs it; `/dev.delete <part>`
+removes a part from the config and the host reloads the devices through `folder_changed`), `dev.lib` (its
+`.list` the library's parts, since lib/ is a tree whose root-level files say nothing), `proto.viz` (a new
+node under `/proto`, with `edit` and `/edit.viz`) and `firmware` (with `edit` and `/edit.firmware`). The
+guard holds each family to its row, whole, and lets a plugin replace `.list` alone with a listing
+declared `state=True, shows=True`. The shipped firmware catalog is `/firmware.lib`, bare `/firmware`
+still, with `.lib.show` and `.lib.dump`: the noun beside the folder, as `/dev.lib` is beside `dev/`, so
+the plain verbs always mean the config's folder. Weighed and not taken: mounting the family under a
+`.files` node where a plugin had verbs of its own (one more spelling per folder), and letting the
+loader mount families itself (hides the declaration from the plugin file the next command is copied
+from). **Behavior changed:** `/firmware.list`, `.show` and `.dump` are the config's `firmware/` folder;
+the catalog's verbs are `/firmware.lib`, `.lib.show`, `.lib.dump` (migration v42 renames them in a
+config's command lines). `/sym`, `/dev`, `/dev.lib`, `/proto.viz` and `/firmware` gain `.list`,
+`.explore`, `.show`, `.dump`, `.rename` and `.delete`; `/cfg.info`'s tree links their folder names and
+files. Open: `/sym.delete` of the loaded sidecar leaves the table loaded until `/sym.unload` or the next
+load; `fs.py`'s `_FOLDER_ATTRS` is a second, older folder table (`ctx.fs.resolve`) not yet read from
+`FOLDERS`.

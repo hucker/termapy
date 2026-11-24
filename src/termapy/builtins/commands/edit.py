@@ -117,10 +117,11 @@ COMMAND = Command(
     group="advanced",
     name="edit",
     args="<filename>",
-    help="Open a project file for editing (run/, proto/ or plugin/).",
+    help="Open a project file for editing (run/, proto/, plugin/, viz/ or firmware/).",
     intro=(
-        "Open this config's files in an editor: its scripts, protocol tests and "
-        "plugins, the config itself, its session log and its project report."
+        "Open this config's files in an editor: its scripts, protocol tests, "
+        "plugins, visualizers and device code, the config itself, its session log "
+        "and its project report."
     ),
     handler=_handler_root,
     shows=True,
@@ -129,6 +130,8 @@ COMMAND = Command(
         "run": edit_folder_command("run"),
         "proto": edit_folder_command("proto"),
         "plugin": edit_folder_command("plugin"),
+        "viz": edit_folder_command("viz"),
+        "firmware": edit_folder_command("firmware"),
         "cfg": edit_cfg_command(),
         "log": Command(
             help="Open the session log in the system viewer.",

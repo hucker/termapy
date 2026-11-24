@@ -54,9 +54,16 @@ class FolderSpec:
             Default True -- override to False for folders whose contents
             shouldn't leave the session (e.g. screenshots = binary
             artifacts, not exportable as text).
-        family: The command the folder's ``list``/``show``/``dump``/...
-            family hangs under (``run.profile`` for ``prof/``); ``""`` for a
-            folder with none, whose names a listing shows as plain text.
+        family: The command the folder's ``list``/``explore``/``show``/
+            ``dump``/``rename``/``delete`` family hangs under (``run.profile``
+            for ``prof/``, ``proto.viz`` for ``viz/``).  Every data folder has
+            one, mounted whole from ``folder_ops.build_folder_subcommands``
+            (registry ``folder-family-from-table``); a family may replace
+            ``list`` alone with a listing of its own (``/run.list`` adds each
+            script's title, ``/dev.list`` shows the loaded devices).
+        noun: What ``.list`` counts in and ``/help`` heads its table with
+            (``script``, ``screenshot``, ``part``); pluralized by appending
+            ``s``.
         open: The command a click on one of its files runs, the file's name
             after it (``run``, ``proto.run``); ``""`` takes ``<family>.show``,
             the system viewer.
@@ -72,6 +79,7 @@ class FolderSpec:
     showable: bool = True
     dumpable: bool = True
     family: str = ""
+    noun: str = "file"
     open: str = ""
     edit: str = ""
 
@@ -94,29 +102,35 @@ class FolderSpec:
 # for folders of termapy's own output, safe to wipe by pattern; add ``dumpable=False`` when contents are
 # binary / shouldn't be exported.
 FOLDERS = [
-    FolderSpec("run", ".run", family="run", open="run", edit="run.edit"),
-    FolderSpec("proto", ".pro", family="proto", open="proto.run", edit="proto.edit"),
+    FolderSpec("run", ".run", family="run", noun="script", open="run", edit="run.edit"),
+    FolderSpec("proto", ".pro", family="proto", noun="script", open="proto.run", edit="proto.edit"),
     FolderSpec("plugin", ".py", family="plugin", edit="plugin.edit"),
-    FolderSpec("ss", "*", generated=True, dumpable=False, family="ss"),
-    FolderSpec("viz", ".py"),
+    FolderSpec("ss", "*", generated=True, dumpable=False, family="ss", noun="screenshot"),
+    # Packet visualizers the proto debug screen decodes with, so the family
+    # is /proto's.
+    FolderSpec("viz", ".py", family="proto.viz", noun="visualizer", edit="proto.viz.edit"),
     FolderSpec("cap", "*", generated=True, family="cap"),
-    FolderSpec("prof", ".csv", generated=True, family="run.profile"),
-    # Symbol tables (*.symbols.json) and, later, user converter modules.
-    FolderSpec("sym", "*"),
+    FolderSpec("prof", ".csv", generated=True, family="run.profile", noun="profile"),
+    # Symbol tables (*.symbols.json) and, later, user converter modules.  A
+    # click on a table loads it.
+    FolderSpec("sym", "*", family="sym", noun="table", open="sym.load"),
     # Memory-mapped device register files (*.device.json).  Static chip
-    # facts, not build output -- see termapy.devices.
-    FolderSpec("dev", ".device.json"),
+    # facts, not build output -- see termapy.devices.  /dev.list shows the
+    # loaded devices in place of the files: a file here IS a loaded device.
+    FolderSpec("dev", ".device.json", family="dev", noun="device file"),
     # The device library: parts a config picks FROM (nothing here loads).
     # A nested vendor/type/family tree, so the top folder is the data
-    # folder and the pattern sees only root-level files; listing is
-    # termapy.devices.scan_library's job.  After "dev" so .device.json
-    # keeps mapping to dev/ in EXT_TO_FOLDER.  Exists at the cfg root too,
-    # like plugin/ and dev/ -- the per-config one wins a name clash.
-    FolderSpec("lib", ".device.json"),
+    # folder and the pattern sees only root-level files; /dev.lib lists its
+    # parts (termapy.devices.scan_library) in place of the files.  After
+    # "dev" so .device.json keeps mapping to dev/ in EXT_TO_FOLDER.  Exists
+    # at the cfg root too, like plugin/ and dev/ -- the per-config one wins
+    # a name clash.
+    FolderSpec("lib", ".device.json", family="dev.lib", noun="part"),
     # Device-side code copied for this config's board: /firmware.copy and
     # /board.firmware write here unless told otherwise.  Mixed content
-    # (.c, .h, .py), written by termapy but then the user's to edit.
-    FolderSpec("firmware", "*"),
+    # (.c, .h, .py), written by termapy but then the user's to edit; what
+    # termapy ships is /firmware.lib.
+    FolderSpec("firmware", "*", family="firmware", edit="firmware.edit"),
 ]
 
 # -- Derived from FOLDERS (do not edit manually) ------------------------------
@@ -124,6 +138,13 @@ FOLDERS = [
 # Named folder constants -- for use in imports instead of bare strings.
 # These are derived from FOLDERS so the name string is defined exactly once.
 _BY_NAME = {f.name: f for f in FOLDERS}
+
+
+def spec_for(name: str) -> FolderSpec | None:
+    """The ``FOLDERS`` row for folder ``name``, or None for a folder the table does not hold."""
+    return _BY_NAME.get(name)
+
+
 RUN = _BY_NAME["run"].name
 PROTO = _BY_NAME["proto"].name
 PLUGIN = _BY_NAME["plugin"].name

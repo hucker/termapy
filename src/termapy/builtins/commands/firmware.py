@@ -1,12 +1,18 @@
 """Built-in plugin: /firmware -- the device-side sources termapy ships, one command away.
 
-``/firmware`` lists the targets ``termapy.firmware.TARGETS`` holds (the MEM
-wire-spec module and the JSON reply envelope, in C); ``.copy`` writes every
-module of a language, or one module by name, into a folder; ``.show`` opens
-a module's main source in the system viewer; ``.dump`` prints one file,
-which is also how an agent fetches it over MCP.  The tables and the file
-access are core (``termapy.firmware``); this file is the thin surface over
-them (registry ``infra-not-under-builtins``).
+``/firmware.lib`` (bare ``/firmware``) lists the modules
+``termapy.firmware.TARGETS`` holds (the MEM wire-spec module, the JSON reply
+envelope and the monitor, in C); ``.copy`` writes every module of a language,
+or one module by name, into a folder; ``.lib.show`` opens a module's main
+source in the system viewer; ``.lib.dump`` prints one file, which is also how
+an agent fetches it over MCP.  The config's own ``firmware/`` folder, where
+the copies land, has the family every data folder has (``/firmware.list``,
+``.show``, ``.dump``, ``.edit``, ``.rename``, ``.delete``; registry
+``folder-family-from-table``), so the plain verbs mean the config's files
+and the shipped catalog is the noun ``lib``, as ``/dev.lib`` is beside
+``dev/``.  The tables and the file access are core (``termapy.firmware``);
+this file is the thin surface over them (registry
+``infra-not-under-builtins``).
 """
 
 from __future__ import annotations
@@ -24,7 +30,7 @@ from termapy.firmware import (
     source_size,
     source_text,
 )
-from termapy.folder_ops import write_destination
+from termapy.folder_ops import build_folder_subcommands, edit_command, write_destination
 from termapy.folders import FIRMWARE
 from termapy.help_dynamic import compose
 from termapy.plugins import CapabilitySet, CmdResult, Column, Command, TextLine
@@ -84,9 +90,11 @@ def _long_help(ctx: PluginContext) -> str:
         "config's firmware/ folder and never overwrites a file: lang= picks "
         "the language when several ship, a name copies one module, folder= "
         "names another folder (a relative one is under the config's folder).  "
-        "{prefix}firmware.show opens a module's main source; "
-        "{prefix}firmware.dump prints one file, which over MCP is how an "
-        "agent reads it.",
+        "{prefix}firmware.lib.show opens a shipped module's main source; "
+        "{prefix}firmware.lib.dump prints one of its files, which over MCP is "
+        "how an agent reads it.  The copies are this config's: "
+        "{prefix}firmware.list, .show, .dump, .edit, .rename and .delete work "
+        "on firmware/ as {prefix}run.list and its family do on run/.",
     )
 
 
@@ -103,8 +111,8 @@ def _target_or_fail(ctx: PluginContext) -> Target | CmdResult:
 # and developer /search indexes it, so keep it true (registry handler-docstring).
 
 
-def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
-    """``/firmware``: what ships, one row per target."""
+def _handler_lib(ctx: PluginContext, args: str) -> CmdResult:
+    """``/firmware.lib`` (bare ``/firmware``): what ships, one row per target."""
     return CmdResult.table("firmware", "target", _COLUMNS, [_record(target) for target in TARGETS])
 
 
@@ -127,8 +135,8 @@ def _handler_copy(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=len(paths), data={"files": paths})
 
 
-def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
-    """``/firmware.show <name>``: open the module's main source in the system viewer."""
+def _handler_lib_show(ctx: PluginContext, args: str) -> CmdResult:
+    """``/firmware.lib.show <name>``: open the shipped module's main source in the system viewer."""
     target = _target_or_fail(ctx)
     if isinstance(target, CmdResult):
         return target
@@ -137,8 +145,8 @@ def _handler_show(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=path)
 
 
-def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
-    """``/firmware.dump <name> {file}``: one shipped file as a page; its text is the value, its facts the data."""
+def _handler_lib_dump(ctx: PluginContext, args: str) -> CmdResult:
+    """``/firmware.lib.dump <name> {file}``: one shipped file as a page; its text is the value, its facts the data."""
     target = _target_or_fail(ctx)
     if isinstance(target, CmdResult):
         return target
@@ -168,21 +176,54 @@ COMMAND = Command(
     group="devices",
     name="firmware",
     maturity="prototype",
-    help="Device-side sources termapy ships: list, copy, show, dump.",
+    help="Device-side sources: what termapy ships (.lib) and this config's firmware/ folder.",
     intro=(
         "Source code termapy ships for your device's firmware, so the device can "
         "answer termapy's memory and JSON commands. Copy it into your project and "
         "build it."
     ),
     long_help=_long_help,
-    bare_sub="list",
+    bare_sub="lib",
+    help_list="lib",
     sub_commands={
-        "list": Command(
-            help="List the shipped targets: name, language, files, size.",
+        # What ships, under a noun as /dev.lib is beside dev/, so the plain
+        # verbs below mean this config's firmware/ folder (registry
+        # folder-family-from-table).
+        "lib": Command(
+            help="List the shipped modules: name, language, files, size.",
+            intro=(
+                "The device code termapy ships, that {prefix}firmware.copy copies into "
+                "this config's firmware/ folder."
+            ),
             long_help=_long_help,
-            handler=_handler_list,
+            handler=_handler_lib,
             shows=True,
             state=True,
+            sub_commands={
+                "show": Command(
+                    help="Open a shipped module's main source in the system viewer.",
+                    handler=_handler_lib_show,
+                    shows=True,
+                    needs=CapabilitySet.GUI_APPS,
+                    params=[_NAME, _LANG],
+                ),
+                "dump": Command(
+                    help="Print one shipped source file to the terminal.",
+                    handler=_handler_lib_dump,
+                    shows=True,
+                    params=[
+                        _NAME,
+                        ParamSpec(
+                            "file",
+                            "str",
+                            positional=True,
+                            hint="<file>",
+                            help="one of the module's files; needed when it ships several",
+                        ),
+                        _LANG,
+                    ],
+                ),
+            },
         ),
         "copy": Command(
             help="Write the shipped sources into the config's firmware/ folder: every module of a language, or one by name; never overwrites.",
@@ -204,28 +245,7 @@ COMMAND = Command(
                 ),
             ],
         ),
-        "show": Command(
-            help="Open a module's main source in the system viewer.",
-            handler=_handler_show,
-            shows=True,
-            needs=CapabilitySet.GUI_APPS,
-            params=[_NAME, _LANG],
-        ),
-        "dump": Command(
-            help="Print one shipped source file to the terminal.",
-            handler=_handler_dump,
-            shows=True,
-            params=[
-                _NAME,
-                ParamSpec(
-                    "file",
-                    "str",
-                    positional=True,
-                    hint="<file>",
-                    help="one of the module's files; needed when it ships several",
-                ),
-                _LANG,
-            ],
-        ),
+        "edit": edit_command("firmware"),
+        **build_folder_subcommands("firmware"),
     },
 )

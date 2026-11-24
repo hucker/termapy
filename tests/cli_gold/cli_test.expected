@@ -197,11 +197,11 @@ demo> /help.idioms
 demo> /help.more
   groups beyond the terminal - 25 commands
   GROUP     COMMAND     LEVEL      DESCRIPTION
-  --------  ----------  ---------  -------------------------------------------------------------------------
+  -- -- -- --
   advanced  /app        stable     App-wide state, config and running sessions.
   advanced  /confirm    stable     Show Yes/Cancel dialog; Cancel stops a running script.
   advanced  /credits    stable     Print acknowledgments / third-party attributions.
-  advanced  /edit       stable     Open a project file for editing (run/, proto/ or plugin/).
+  advanced  /edit       stable     Open a project file for editing (run/, proto/, plugin/, viz/ or firmware/).
   advanced  /env        stable     Print environment variables for $(env.NAME) expansion (alias: /env.list).
   advanced  /expect     stable     Wait for text in serial output (blocks until match or timeout).
   advanced  /mcp        preview    MCP catalog and status (Model Context Protocol).
@@ -212,7 +212,7 @@ demo> /help.more
   advanced  /var        stable     List user variables, or show one by name.
   devices   /board      prototype  Starter projects for real dev boards: list, new, firmware, update.
   devices   /dev        preview    Device files: a part's registers as data (see /help devices).
-  devices   /firmware   prototype  Device-side sources termapy ships: list, copy, show, dump.
+  devices   /firmware   prototype  Device-side sources: what termapy ships (.lib) and this config's firmware/ folder.
   devices   /mem        preview    Device memory: dump, typed reads, writes and bit ops via /sym names.
   devices   /profile    stable     Device profile commands (MCP profile schema, validator, loader).
   devices   /sym        preview    Symbol table: name -> address, or address -> name+offset.
@@ -274,7 +274,7 @@ DESCRIPTION
   This session: yes
 
 NEEDED BY
-  /app.config.edit, /app.explore, /app.state.edit, /cap.explore, /cap.show, /cfg.explore, /cfg.icon, /cfg.icon.list, /cfg.icon.remove, /cfg.show, /edit.info, /edit.log, /edit.plugin, /edit.plugin.explore, /edit.proto.explore, /edit.run.explore, /firmware.show, /help.open, /log.diag.show, /log.show, /plugin.edit, /plugin.explore, /plugin.show, /proto.explore, /proto.show, /run.explore, /run.profile.explore, /run.profile.show, /run.show, /show, /show.cfg, /ss.explore, /ss.show
+  /app.config.edit, /app.explore, /app.state.edit, /cap.explore, /cap.show, /cfg.explore, /cfg.icon, /cfg.icon.list, /cfg.icon.remove, /cfg.show, /dev.explore, /dev.lib.explore, /dev.lib.show, /dev.show, /edit.firmware, /edit.firmware.explore, /edit.info, /edit.log, /edit.plugin, /edit.plugin.explore, /edit.proto.explore, /edit.run.explore, /edit.viz, /edit.viz.explore, /firmware.edit, /firmware.explore, /firmware.lib.show, /firmware.show, /help.open, /log.diag.show, /log.show, /plugin.edit, /plugin.explore, /plugin.show, /proto.explore, /proto.show, /proto.viz.edit, /proto.viz.explore, /proto.viz.show, /run.explore, /run.profile.explore, /run.profile.show, /run.show, /show, /show.cfg, /ss.explore, /ss.show, /sym.explore, /sym.show
 
 SEE ALSO
   /help capability
@@ -356,7 +356,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-      "config_version": 41,
+      "config_version": 42,
       "title": "Demo Device",
       "border_color": "",
       "serial": {
@@ -536,6 +536,18 @@ demo> /proto.list
   modbus_inline.pro    edit  <SIZE>  just now  Demo Modbus Inline Format
 demo> /cap.list
   cap/ - empty
+demo> /sym.list
+  sym/ - 1 table
+  NAME SIZE UPDATED
+  -- -- --
+  demo.symbols.json  <SIZE>  just now
+demo> /dev.lib.list
+  library - empty
+demo> /proto.viz.list
+  viz/ - empty
+demo> /firmware.list
+  Note: /firmware is a prototype; it may change or be removed.
+  firmware/ - empty
 demo> /print === section: port read ===
   === section: port read ===
 demo> /port.baud_rate
@@ -1212,7 +1224,7 @@ SUBCOMMANDS
   /cap.dump       Print the newest (or named) file from cap/ to the terminal.
   /cap.explore    Open cap/ in the system file explorer.
   /cap.hex        Capture hex text lines, decode with format spec to CSV.
-  /cap.list       List files in cap/, newest first, with size and age.
+  /cap.list       List the files in cap/, newest first, with size and age.
   /cap.out        Write what a termapy command prints to a file.
   /cap.poll       Poll commands on a schedule, display (and optionally save) results.
   /cap.rename     Rename a file in cap/ (extension kept; never overwrites).
@@ -1239,7 +1251,7 @@ DESCRIPTION
 SUBCOMMANDS
   /ss.delete     Delete a file from ss/; a pattern (* for all) deletes its matches, after a yes.
   /ss.explore    Open ss/ in the system file explorer.
-  /ss.list       List files in ss/, newest first, with size and age.
+  /ss.list       List the screenshots in ss/, newest first, with size and age.
   /ss.rename     Rename a file in ss/ (extension kept; never overwrites).
   /ss.show       Open the newest (or named) file in ss/ with the system viewer.
   /ss.svg        Save an SVG screenshot of the terminal.
@@ -1300,6 +1312,7 @@ SUBCOMMANDS
   /proto.run        Run a protocol test script.
   /proto.send       Send raw bytes (with optional CRC), show response.
   /proto.show       Open the newest (or named) file in proto/ with the system viewer.
+  /proto.viz        Packet visualizers in viz/: list, explore, show, dump, edit, rename, delete.
 
   /help proto --verbose shows the rest: status, where it runs, see also.
 
@@ -1323,7 +1336,7 @@ SUBCOMMANDS
   /plugin.dump       Print the newest (or named) file from plugin/ to the terminal.
   /plugin.edit       Open a .py file for editing.
   /plugin.explore    Open plugin/ in the system file explorer.
-  /plugin.list       List files in plugin/, newest first, with size and age.
+  /plugin.list       List the files in plugin/, newest first, with size and age.
   /plugin.rename     Rename a file in plugin/ (extension kept; never overwrites).
   /plugin.show       Open the newest (or named) file in plugin/ with the system viewer.
 
@@ -1410,13 +1423,25 @@ DESCRIPTION
     /sym.info               - file, source, counts by section, range
 
 SUBCOMMANDS
-  /sym.import    Convert an ELF or a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same file).
-  /sym.info      Show the loaded symbol table: file, source, counts by section, address range.
-  /sym.load      Load a symbol table (default: sym/<cfg>.symbols.json, the file /sym.import writes).
-  /sym.search    Search symbols by name: the exact name, else contains (gpio) or a glob (Mon*).
-  /sym.unload    Clear the loaded symbol table.
+  /sym.delete     Delete a file from sym/, after a yes.
+  /sym.dump       Print the newest (or named) file from sym/ to the terminal.
+  /sym.explore    Open sym/ in the system file explorer.
+  /sym.import     Convert an ELF or a linker map to sym/<cfg>.symbols.json and load it (bare: re-import the same file).
+  /sym.info       Show the loaded symbol table: file, source, counts by section, address range.
+  /sym.list       List the tables in sym/, newest first, with size and age.
+  /sym.load       Load a symbol table (default: sym/<cfg>.symbols.json, the file /sym.import writes).
+  /sym.rename     Rename a file in sym/ (extension kept; never overwrites).
+  /sym.search     Search symbols by name: the exact name, else contains (gpio) or a glob (Mon*).
+  /sym.show       Open the newest (or named) file in sym/ with the system viewer.
+  /sym.unload     Clear the loaded symbol table.
 
   /help sym --verbose shows the rest: status, where it runs, see also.
+
+TABLES
+  sym/ - 1 table
+  NAME SIZE UPDATED
+  -- -- --
+  demo.symbols.json  <SIZE>  just now
 demo> /help mem
 NAME
   /mem - Device memory: dump, typed reads, writes and bit ops via /sym names.
@@ -1782,11 +1807,11 @@ demo> /help.plugin
   /delay        Wait for a duration (e.g. 500ms, 1.5s); Escape or Ctrl+C cancels.
   /demo         Switch to the built-in demo device (creates its config if needed).
   /dev          Device files: a part's registers as data (see /help devices).
-  /edit         Open a project file for editing (run/, proto/ or plugin/).
+  /edit         Open a project file for editing (run/, proto/, plugin/, viz/ or firmware/).
   /env          Print environment variables for $(env.NAME) expansion (alias: /env.list).
   /exit         Exit termapy.
   /find         Navigate scrollback matches with an interactive find bar.
-  /firmware     Device-side sources termapy ships: list, copy, show, dump.
+  /firmware     Device-side sources: what termapy ships (.lib) and this config's firmware/ folder.
   /grep         Search the scrollback for lines matching a pattern (case-insensitive regex).
   /help         Show the command landscape, or one command's page.
   /log          Session log: start, stop, print, fingerprint, or open it.
@@ -1838,7 +1863,7 @@ demo> /help.group devices
   -- -- --
   /board     prototype  Starter projects for real dev boards: list, new, firmware, update.
   /dev       preview    Device files: a part's registers as data (see /help devices).
-  /firmware  prototype  Device-side sources termapy ships: list, copy, show, dump.
+  /firmware  prototype  Device-side sources: what termapy ships (.lib) and this config's firmware/ folder.
   /mem       preview    Device memory: dump, typed reads, writes and bit ops via /sym names.
   /profile   stable     Device profile commands (MCP profile schema, validator, loader).
   /sym       preview    Symbol table: name -> address, or address -> name+offset.
@@ -1848,7 +1873,7 @@ demo> /help.group dev*
   -- -- --
   /board     prototype  Starter projects for real dev boards: list, new, firmware, update.
   /dev       preview    Device files: a part's registers as data (see /help devices).
-  /firmware  prototype  Device-side sources termapy ships: list, copy, show, dump.
+  /firmware  prototype  Device-side sources: what termapy ships (.lib) and this config's firmware/ folder.
   /mem       preview    Device memory: dump, typed reads, writes and bit ops via /sym names.
   /profile   stable     Device profile commands (MCP profile schema, validator, loader).
   /sym       preview    Symbol table: name -> address, or address -> name+offset.
@@ -2221,7 +2246,7 @@ SUBCOMMANDS
   /print.r    Print Rich markup text (e.g. [bold red]Warning![/]).
 demo> /help.dev ss.list
 NAME
-  /ss.list - List files in ss/, newest first, with size and age.
+  /ss.list - List the screenshots in ss/, newest first, with size and age.
 
 STATUS
   stable - tested and part of the standard release
@@ -2286,14 +2311,13 @@ demo> /find.max_count
 demo> /print === section: firmware: the shipped device-side sources ===
   === section: firmware: the shipped device-side sources ===
 demo> /firmware
-  Note: /firmware is a prototype; it may change or be removed.
   firmware - 3 targets
   NAME     LANGUAGE  FILES                                 SIZE
   -- -- -- --
   json     c         termapy_json.c, termapy_json.h  <SIZE>
   mem      c         termapy_mem.c, termapy_mem.h  <SIZE>
   monitor  c         termapy_monitor.c, termapy_monitor.h  <SIZE>
-demo> /firmware.list
+demo> /firmware.lib
   firmware - 3 targets
   NAME     LANGUAGE  FILES                                 SIZE
   -- -- -- --
@@ -2306,10 +2330,12 @@ demo> /firmware.copy mem lang=rust
   Error: Unknown language: rust (use c)
 demo> /firmware.copy lang=rust
   Error: Unknown language: rust (use c)
-demo> /firmware.dump mem
+demo> /firmware.lib.dump mem
   Error: Specify a file: termapy_mem.c, termapy_mem.h
-demo> /firmware.dump mem nosuch.h
+demo> /firmware.lib.dump mem nosuch.h
   Error: Unknown file: nosuch.h (use termapy_mem.c, termapy_mem.h)
+demo> /firmware.dump
+    firmware/ is empty.
 demo> /print === section: board: starter projects for dev boards ===
   === section: board: starter projects for dev boards ===
 demo> /board.new nosuch

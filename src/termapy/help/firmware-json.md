@@ -286,7 +286,7 @@ deliberate choice rather than a linker side effect.
 ## Reference
 
 The full API is in the header comment of `termapy_json.h`
-(`/firmware.dump json termapy_json.h` prints it).
+(`/firmware.lib.dump json termapy_json.h` prints it).
 The byte-exact behavior is pinned by `tests/test_firmware_json.py` in the
 termapy repo, which compiles this module against a host harness
 (`tests/fixtures/firmware/json_host.c`). For how the device then appears to an

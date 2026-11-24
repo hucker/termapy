@@ -44,6 +44,8 @@ class TestFolderSpec:
         assert spec.generated is False, "generated default (wiping by pattern is opt-in)"
         assert spec.showable is True, "showable default (user-facing)"
         assert spec.dumpable is True, "dumpable default (exportable)"
+        assert spec.noun == "file", "a list counts files unless the row says what they are"
+        assert spec.family == "", "a family is declared, never guessed from the name"
 
 
 class TestFolders:

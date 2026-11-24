@@ -203,7 +203,10 @@ Summary: 4/4 PASS (4 tests)
 
 The proto debug screen uses pluggable visualizers to decode packet bytes into
 named columns. Built-in visualizers (Hex, Text, Modbus) ship with termapy. Add
-your own by dropping a `.py` file into `termapy_cfg/<config>/viz/`.
+your own by dropping a `.py` file into `termapy_cfg/<config>/viz/`: `/proto.viz`
+lists that folder, `/proto.viz.edit <name>` (also `/edit.viz`) opens one,
+`.explore` opens the folder, and `.show`, `.dump`, `.rename` and `.delete` are
+the [file commands every data folder has](commands.md#per-folder-file-commands).
 
 Several can be active at once: check them in the Visualizations list, and
 each draws its own table under every test.

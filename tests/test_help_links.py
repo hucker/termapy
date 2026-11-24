@@ -339,7 +339,7 @@ def test_a_bare_forms_link_runs_only_what_only_shows(tmp_path):
 
 @pytest.mark.rule("links-are-data")
 def test_a_bare_form_only_opens_or_shows(tmp_path):
-    """A declared bare_sub is a list, a folder, a viewer or an info page: /help's link runs it."""
+    """A declared bare_sub is a list, a folder, a viewer, an info page or a catalog (/firmware.lib): /help's link runs it."""
     # Arrange
     eng = _engine(tmp_path)
 
@@ -347,7 +347,7 @@ def test_a_bare_form_only_opens_or_shows(tmp_path):
     actual = {plugin.bare_sub for plugin in eng._plugins.values() if plugin.bare_sub}
 
     # Assert
-    assert actual <= {"list", "explore", "show", "info"}, (
+    assert actual <= {"list", "explore", "show", "info", "lib"}, (
         "a new bare form is run by a click on its page: review that it changes nothing, then add it"
     )
 

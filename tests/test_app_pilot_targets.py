@@ -1737,17 +1737,19 @@ class TestClickableOutput:
 @pytest.mark.rule("folder-links-declared")
 class TestFolderLinks:
     def test_cfg_info_links_each_file(self, app_factory):
-        """/cfg.info's tree makes a .run file run and edit, as /run.list does, its folder list, and a .json in sym/ print."""
+        """/cfg.info's tree makes a .run file run and edit, as /run.list does, its folder list, a table in sym/ load, and a root file nothing declares print."""
 
         async def scenario():
             app, _, path = app_factory(quiet_start=True)
-            run = Path(path).parent / "run"
+            root = Path(path).parent
+            run = root / "run"
             run.mkdir(exist_ok=True)
             (run / "boot.run").write_text("# Boot\n", encoding="utf-8")
-            sym = Path(path).parent / "sym"
+            sym = root / "sym"
             sym.mkdir(exist_ok=True)
-            (sym / "notes.json").write_text("{}", encoding="utf-8")
-            (sym / "big.json").write_text(" " * 20_000, encoding="utf-8")
+            (sym / "table.json").write_text("{}", encoding="utf-8")
+            (root / "notes.json").write_text("{}", encoding="utf-8")
+            (root / "big.json").write_text(" " * 20_000, encoding="utf-8")
             async with app.run_test(size=(120, 60)) as pilot:
                 await pilot.pause()
 
@@ -1760,7 +1762,8 @@ class TestFolderLinks:
                 )
                 assert has_link(app, "run boot.run"), "the name runs it"
                 assert has_link(app, "run.list"), "the folder lists its files"
-                assert has_link(app, "cfg.file sym/notes.json"), "a file nothing declares prints"
-                assert has_link(app, "cfg.file --display sym/big.json"), "a big one opens instead"
+                assert has_link(app, "sym.load table.json"), "a table in sym/ loads"
+                assert has_link(app, "cfg.file notes.json"), "a file nothing declares prints"
+                assert has_link(app, "cfg.file --display big.json"), "a big one opens instead"
 
         asyncio.run(scenario())

@@ -963,7 +963,7 @@ def _render_help_list(ctx: PluginContext, name: str, plugin: PluginInfo) -> None
         return
     ctx.io.output_markup("")
     # The heading is the list's noun, plural: CONFIGS, SCRIPTS, SCREENSHOTS,
-    # LOGS, and FILES for cap/ (build_folder_subcommands' default noun).
+    # LOGS, and FILES for a folder whose FolderSpec keeps the default noun (cap/).
     ctx.io.output_markup(_section_markup(f"{view.noun}s".upper()))
     _write_table(ctx, view, list_name, _HELP_LIST_ROWS)
 

@@ -1764,6 +1764,93 @@ def test_one_validator_guard_fires_on_a_probe():
     assert not _calls_the_check(bad, "surface"), "a rule of its own is flagged"
 
 
+# ── Guard: every data folder's family comes from the table (registry folder-family-from-table) ──
+#
+# 2026-11-24: sym/, dev/, lib/, viz/ and firmware/ had no .list/.show/.dump
+# while run/ and proto/ did, and /firmware spelled .list/.show/.dump of its
+# own over the shipped catalog, so one verb meant a folder in one family and a
+# catalog in another.  The family is one declaration per folder,
+# FolderSpec.family, mounted whole from build_folder_subcommands; a family may
+# replace .list alone with a listing of its own (state=True, shows=True).
+
+
+def _folder_family_violations(specs, plugins: dict) -> list[str]:
+    """Where a folder's family is undeclared, unmounted, mounted elsewhere, or not folder_ops' build."""
+    from termapy import folder_ops
+
+    wrong: list[str] = []
+    for spec in specs:
+        if not spec.family:
+            wrong.append(f"{spec.name}/: no family declared on its FolderSpec")
+            continue
+        if spec.family not in plugins:
+            wrong.append(f"{spec.name}/: family {spec.family} is not a command")
+            continue
+        for verb in folder_ops.build_folder_subcommands(spec.name):
+            name = f"{spec.family}.{verb}"
+            info = plugins.get(name)
+            if info is None:
+                wrong.append(f"{spec.name}/: {name} is not mounted")
+                continue
+            handler = info.handler
+            built = getattr(handler, "__module__", "") == folder_ops.__name__ and getattr(
+                handler, "__qualname__", ""
+            ).startswith(f"_make_{verb}_handler.")
+            if built or (verb == "list" and info.state and info.shows):
+                continue
+            own = (
+                " (a listing of its own declares state=True, shows=True)" if verb == "list" else ""
+            )
+            wrong.append(f"{spec.name}/: {name} is not the family's {verb}{own}")
+    return wrong
+
+
+def _registered_plugins() -> dict:
+    """Every registered built-in command, by name."""
+    from termapy.plugins import builtins_dir, load_plugins_from_dir
+
+    return {
+        info.name: info for info in load_plugins_from_dir(builtins_dir(), source="built-in").plugins
+    }
+
+
+@pytest.mark.rule("folder-family-from-table")
+def test_every_data_folder_mounts_its_family_from_the_table():
+    """Every FOLDERS row declares a family, and that command carries the whole folder_ops family, .list its own at most."""
+    from termapy.folders import FOLDERS
+
+    assert _folder_family_violations(FOLDERS, _registered_plugins()) == [], (
+        "mount **build_folder_subcommands(<folder>) under the FolderSpec's family, whole"
+    )
+
+
+@pytest.mark.rule("folder-family-from-table")
+def test_folder_family_guard_fires_on_a_probe():
+    """The checker names a row with no family, a family that is no command, a verb left out, and a .list replaced without state."""
+    from dataclasses import replace
+
+    from termapy.folders import spec_for
+
+    # Arrange -- a doctored table and command set
+    run, cap, proto, ss = (spec_for(name) for name in ("run", "cap", "proto", "ss"))
+    assert run and cap and proto and ss, "the probe rows exist"
+    plugins = dict(_registered_plugins())
+    del plugins["proto.dump"]
+    plugins["ss.list"] = replace(plugins["ss.list"], handler=lambda ctx, args: None, state=False)
+
+    # Act
+    wrong = _folder_family_violations(
+        [replace(run, family=""), replace(cap, family="nosuch"), proto, ss], plugins
+    )
+
+    # Assert
+    actual = [line.split(":")[0] for line in wrong]
+    assert actual == ["run/", "cap/", "proto/", "ss/"], wrong
+    assert _folder_family_violations([run, cap, proto, ss], _registered_plugins()) == [], (
+        "the real rows pass"
+    )
+
+
 # ── Guard: a family says what it is for (registry family-has-intro) ─────────
 #
 # A command with subcommands, at any level, declares Command.intro.  Before
@@ -2767,7 +2854,7 @@ NOT_IN_GOLD: dict[str, str] = {
     "exit": "ends the session, and with it the gold run",
     "expect": "races the device's reply; tests/test_expect.py drives it",
     "expect.regex": "races the device's reply; tests/test_expect.py drives it",
-    "firmware.show": _OPENS_APP,
+    "firmware.lib.show": _OPENS_APP,
     "log.diag.dump": _DIAG_RUN,
     "log.diag.list": _DIAG_RUN,
     "log.show": _OPENS_APP,

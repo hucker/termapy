@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 228: 213 registry rows (guarantees 176, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 224. Pinned by none: 4.
+Ids: 229: 214 registry rows (guarantees 177, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 225. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -604,9 +604,13 @@ Ids: 228: 213 registry rows (guarantees 176, assumptions 37), 15 spec sections i
 - `test_mcp_boundary.py`: `TestHostView` (6 functions)
 - `test_mcp_server.py`: `TestLogCommandsAvailableInMCP.test_log_fingerprint_registered_but_gated_on_host_info`
 
+### `mcp-no-auto-run` (guarantee, contract)
+
+- `test_mcp_boundary.py`: `TestNoAutoRun.test_a_file_write_cannot_make_a_config`, `TestNoAutoRun.test_a_person_side_on_connect_key_is_refused` **guard**, `TestNoAutoRun.test_a_person_still_sets_one`, `TestNoAutoRun.test_every_command_key_outside_mcp_is_marked` **guard**, `TestNoAutoRun.test_the_mark_guard_fires_on_a_probe` **guard**, `TestNoAutoRun.test_the_mcp_key_stays_the_clients`, `TestTheGuards.test_a_config_file_is_refused_in_any_spelling`
+
 ### `mcp-no-code-writes` (assumption, contract)
 
-- `test_mcp_boundary.py`: `TestDemoTraffic.test_a_hexdump_cannot_reach_a_code_folder`, `TestDemoTraffic.test_a_hexdump_replaces_inside_the_folder`, `TestNoCodeWritten.test_a_person_still_can`, `TestNoCodeWritten.test_a_saved_profile_cannot_land_in_a_code_folder`, `TestNoCodeWritten.test_a_spelling_windows_folds_is_refused_with_the_folder_absent`, `TestNoCodeWritten.test_a_writer_cannot_land_in_a_code_folder`, `TestNoCodeWritten.test_the_sandbox_flag_does_not_lift_it`, `TestProtoRunResults.test_a_fixed_name_runs_twice`, `TestProtoRunResults.test_a_run_replaces_an_earlier_results_file`, `TestProtoRunResults.test_results_beside_an_outside_script_are_not_replaced`, `TestProtoRunResults.test_the_sandbox_flag_does_not_open_a_code_folder`, `TestReplacing.test_a_capture_may_still_append`, `TestReplacing.test_a_capture_replaces_inside_the_folder`, `TestReplacing.test_a_file_outside_the_folder_is_not_replaced`, `TestReplacing.test_a_saved_profile_replaces_inside_the_folder`, `TestReplacing.test_another_configs_file_is_outside_too`, `TestReplacing.test_generated_code_replaces_inside_the_folder`, `TestTheGuards.test_a_folder_below_a_code_folder_is_refused`, `TestTheGuards.test_with_no_config_nothing_is_inside`
+- `test_mcp_boundary.py`: `TestDemoTraffic.test_a_hexdump_cannot_reach_a_code_folder`, `TestDemoTraffic.test_a_hexdump_replaces_inside_the_folder`, `TestNoCodeWritten.test_a_person_still_can`, `TestNoCodeWritten.test_a_saved_profile_cannot_land_in_a_code_folder`, `TestNoCodeWritten.test_a_spelling_windows_folds_is_refused_with_the_folder_absent`, `TestNoCodeWritten.test_a_writer_cannot_land_in_a_code_folder`, `TestNoCodeWritten.test_the_sandbox_flag_does_not_lift_it`, `TestProtoRunResults.test_a_fixed_name_runs_twice`, `TestProtoRunResults.test_a_run_replaces_an_earlier_results_file`, `TestProtoRunResults.test_results_beside_an_outside_script_are_not_replaced`, `TestProtoRunResults.test_the_sandbox_flag_does_not_open_a_code_folder`, `TestReplacing.test_a_capture_may_still_append`, `TestReplacing.test_a_capture_replaces_inside_the_folder`, `TestReplacing.test_a_file_outside_the_folder_is_not_changed`, `TestReplacing.test_a_saved_profile_replaces_inside_the_folder`, `TestReplacing.test_another_configs_file_is_outside_too`, `TestReplacing.test_generated_code_replaces_inside_the_folder`, `TestTheGuards.test_a_folder_below_a_code_folder_is_refused`, `TestTheGuards.test_with_no_config_nothing_is_inside`
 
 ### `mcp-no-file-management` (guarantee, contract)
 

@@ -2603,7 +2603,6 @@ def test_rule_markers_name_known_ids():
 KNOWN_UNTESTED_COMMANDS: frozenset[str] = frozenset(
     {
         "app.state.edit",
-        "cap.hex",
         "edit.plugin.list",
         "edit.proto.list",
         "edit.run.list",

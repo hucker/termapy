@@ -23,7 +23,7 @@ import pytest
 import termapy
 from termapy.builtins.commands.proto import _write_crc_codegen_files
 from termapy.cli import CLITerminal
-from termapy.defaults import DEFAULT_CFG
+from termapy.defaults import CFG_KEYS, DEFAULT_CFG, CfgKey
 from termapy.mcp.server import MCPHost
 from termapy.plugins.capabilities import (
     ENVIRONMENTS,
@@ -451,12 +451,14 @@ class TestReplacing:
         "line",
         [
             "/cap.text {victim} timeout=100ms",
+            "/cap.text {victim} timeout=100ms mode=append",
+            "/cap.hex {victim} fmt=Val:U1 records=1 timeout=100ms mode=append",
             "/proto.crc.python crc16-xmodem file={stem}",
             "/profile.save {victim}",
         ],
     )
-    def test_a_file_outside_the_folder_is_not_replaced(self, host, tmp_path, line):
-        """Even with host-wide paths on, the one way to aim outside, a file there is never replaced."""
+    def test_a_file_outside_the_folder_is_not_changed(self, host, tmp_path, line):
+        """Even with host-wide paths on, the one way to aim outside, a file there is never replaced or added to."""
         # Arrange
         host.ctx.capabilities = replace(host.ctx.capabilities, filesystem_unconfined=True)
         host.ctx.sync_capabilities()
@@ -526,6 +528,123 @@ class TestReplacing:
         with pytest.raises(MissingCapability):
             _write_crc_codegen_files(("header", "source"), "c", "x", tmp_path, guard)
         assert list(tmp_path.iterdir()) == [], "the header was not written either"
+
+
+def _unmarked_command_keys(keys: tuple[CfgKey, ...]) -> list[str]:
+    """The ``command`` keys whose ``runs_unasked`` mark disagrees with where they run.
+
+    A key named ``mcp_*`` runs only under MCP; every other command key runs in
+    a person's session too, so it must carry the mark.
+    """
+    return [
+        record.path
+        for record in keys
+        if record.kind == "command" and record.runs_unasked == record.path.startswith("mcp_")
+    ]
+
+
+_PERSON_SIDE_KEYS = ["on_connect_cmd", "tui_on_connect_cmd", "cli_on_connect_cmd"]
+
+
+class TestNoAutoRun:
+    @pytest.mark.rule("mcp-no-auto-run")
+    def test_every_command_key_outside_mcp_is_marked(self):
+        """A command key that runs in a person's session is marked, so /cfg refuses it to a client."""
+        # Act
+        actual = _unmarked_command_keys(CFG_KEYS)
+
+        # Assert
+        assert actual == [], (
+            "mark each with runs_unasked=True, or name it mcp_* if only MCP runs it"
+        )
+
+    @pytest.mark.rule("mcp-no-auto-run")
+    def test_the_mark_guard_fires_on_a_probe(self):
+        """A new web_on_connect_cmd without the mark, and an MCP key with it, are both caught."""
+        # Arrange
+        probe = (
+            CfgKey("web_on_connect_cmd", "", "command"),
+            CfgKey("mcp_on_connect_cmd", "", "command", runs_unasked=True),
+        )
+
+        # Act
+        actual = _unmarked_command_keys(probe)
+
+        # Assert
+        assert actual == ["web_on_connect_cmd", "mcp_on_connect_cmd"]
+
+    @pytest.mark.rule("mcp-no-auto-run")
+    @pytest.mark.parametrize("key", _PERSON_SIDE_KEYS)
+    def test_a_person_side_on_connect_key_is_refused(self, host, key):
+        """A client cannot set a command a person's next connect would run, so a save keeps none of it."""
+        # Arrange
+        path = Path(host.ctx.config_path)
+        before = path.read_text(encoding="utf-8")
+
+        # Act
+        result = _call(host, f"/cfg {key} /print planted")
+        saved = _call(host, "/cfg.save", confirm=True)
+
+        # Assert
+        assert result["success"] is False, "the set is refused"
+        assert "mcp_on_connect_cmd" in result["error"], "the refusal names the key a client may set"
+        assert host.ctx.cfg[key] == "", "the session holds nothing to save"
+        assert saved["success"] is True, saved["error"]
+        assert path.read_text(encoding="utf-8") == before, "the config file is untouched"
+
+    @pytest.mark.rule("mcp-no-auto-run")
+    def test_the_mcp_key_stays_the_clients(self, host):
+        """mcp_on_connect_cmd runs only under MCP, so a client sets it as before."""
+        # Act
+        result = _call(host, "/cfg mcp_on_connect_cmd /print mine")
+
+        # Assert
+        assert result["success"] is True, result["error"]
+        assert host.ctx.cfg["mcp_on_connect_cmd"] == "/print mine"
+
+    @pytest.mark.rule("mcp-no-auto-run")
+    def test_a_person_still_sets_one(self, tmp_path):
+        """The CLI is a person at their own machine, so on_connect_cmd is theirs to set."""
+        # Arrange
+        path = tmp_path / "c" / "c.cfg"
+        path.parent.mkdir()
+        path.write_text(json.dumps(DEFAULT_CFG))
+        cli = CLITerminal(dict(DEFAULT_CFG), str(path), no_color=True, term_width=120)
+        cli.repl.global_root = tmp_path
+
+        # Act
+        result = cli.repl.dispatch_full("/cfg on_connect_cmd /print mine")
+
+        # Assert
+        assert result.success is True, result.error
+        assert cli.repl.ctx.cfg["on_connect_cmd"] == "/print mine"
+
+    @pytest.mark.rule("mcp-no-auto-run")
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "/cap.text ../p.cfg timeout=100ms",
+            "/cap.text ../p.cfg timeout=100ms mode=append",
+            "/cap.text ../../made/made.cfg timeout=100ms",
+            "/cap.text x.CFG. timeout=100ms",
+        ],
+    )
+    def test_a_file_write_cannot_make_a_config(self, host, line):
+        """With host-wide paths on, no capture writes a config file, the active one or a new one."""
+        # Arrange
+        host.ctx.capabilities = replace(host.ctx.capabilities, filesystem_unconfined=True)
+        host.ctx.sync_capabilities()
+        assert _call(host, "/port.connect")["success"] is True, "a capture needs a port"
+        config = Path(host.ctx.config_path)
+        before = config.read_text(encoding="utf-8")
+
+        # Act
+        result = _call(host, line)
+
+        # Assert
+        assert "would be a config file" in result["error"], result["error"]
+        assert config.read_text(encoding="utf-8") == before, "the config is untouched"
+        assert not (_folder(host).parent / "made").exists(), "and no new config was made"
 
 
 _PROTO_TEST = """
@@ -741,7 +860,20 @@ class TestTheGuards:
 
         # Act / Assert
         handle.guard_code_folder(existing.parent)
-        handle.guard_replace(existing)
+        handle.guard_file_write(existing)
+        handle.guard_file_write(tmp_path / "c" / "c.cfg")
+
+    @pytest.mark.rule("mcp-no-auto-run")
+    @pytest.mark.parametrize("name", ["c.cfg", "C.CFG", "c.cfg.", "c.cfg ", "c.cfg::$DATA"])
+    def test_a_config_file_is_refused_in_any_spelling(self, tmp_path, name):
+        """Windows writes c.cfg for each of these, inside the config's folder or not."""
+        # Arrange
+        root = tmp_path / "termapy_cfg"
+        handle = FilesystemHandle(capabilities=CapabilitySet(), cap_dir=root / "c" / "cap")
+
+        # Act / Assert
+        with pytest.raises(MissingCapability, match="would be a config file"):
+            handle.guard_file_write(root / "c" / name)
 
     @pytest.mark.parametrize("name", ["plugin", "viz", "PLUGIN", "Viz"])
     def test_a_code_folder_is_refused_in_any_case(self, tmp_path, name):
@@ -754,7 +886,7 @@ class TestTheGuards:
             handle.guard_code_folder(tmp_path / name)
 
     def test_replacing_inside_the_config_folder_passes(self, tmp_path):
-        """guard_replace lets a file in the config's folder be written over, at any depth."""
+        """guard_file_write lets a file in the config's folder be written over, at any depth."""
         # Arrange
         root = tmp_path / "termapy_cfg"
         handle = FilesystemHandle(capabilities=CapabilitySet(), cap_dir=root / "c" / "cap")
@@ -763,11 +895,11 @@ class TestTheGuards:
         deep.write_text("x", encoding="utf-8")
 
         # Act / Assert
-        handle.guard_replace(deep)
+        handle.guard_file_write(deep)
 
     @pytest.mark.parametrize("name", ["other/x.cfg", "x.json", "../x.json"])
     def test_replacing_outside_the_config_folder_is_refused(self, tmp_path, name):
-        """guard_replace refuses a sibling config's file, a file at the root, and anything above it."""
+        """guard_file_write refuses a sibling config's file, a file at the root, and anything above it."""
         # Arrange
         root = tmp_path / "project" / "termapy_cfg"
         handle = FilesystemHandle(capabilities=CapabilitySet(), cap_dir=root / "c" / "cap")
@@ -777,7 +909,7 @@ class TestTheGuards:
 
         # Act / Assert
         with pytest.raises(MissingCapability, match="File exists"):
-            handle.guard_replace(path)
+            handle.guard_file_write(path)
 
     @pytest.mark.rule("mcp-no-code-writes")
     def test_with_no_config_nothing_is_inside(self, tmp_path):
@@ -789,7 +921,7 @@ class TestTheGuards:
 
         # Act / Assert
         with contextlib.chdir(tmp_path), pytest.raises(MissingCapability, match="File exists"):
-            handle.guard_replace(path)
+            handle.guard_file_write(path)
 
     @pytest.mark.parametrize("name", ["plugin.", "viz..", "plugin. ", "PLUGIN::$INDEX_ALLOCATION"])
     def test_a_spelling_windows_folds_is_refused(self, tmp_path, name):
@@ -830,7 +962,7 @@ class TestTheGuards:
 
         # Act / Assert
         handle.guard_code_folder(tmp_path / "firmware")
-        handle.guard_replace(tmp_path / "firmware" / "new.c")
+        handle.guard_file_write(tmp_path / "firmware" / "new.c")
 
 
 # Runs in its own process: TERMAPY_MCP_HOST_INFO is read at import, as at a

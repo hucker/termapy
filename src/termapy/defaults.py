@@ -118,6 +118,10 @@ class CfgKey:
         session_flag: The key starts the session flag of the same name
             (``ctx.ns("flags")``): every load seeds the flag from it, and
             ``/cfg`` sets both, so the key is what its setter reports.
+        runs_unasked: A person's session runs the value as a command with
+            no one asking (at every connect), so an MCP client never sets
+            it (registry ``mcp-no-auto-run``).  ``mcp_on_connect_cmd``,
+            which runs only under MCP, is not one.
     """
 
     path: str
@@ -130,6 +134,7 @@ class CfgKey:
     preview: Callable[[str], str] | None = None
     managed: bool = False
     session_flag: bool = False
+    runs_unasked: bool = False
 
 
 # Every key, and the layout of every config file: termapy writes a config in
@@ -241,6 +246,7 @@ CFG_KEYS: tuple[CfgKey, ...] = (
         "on_connect_cmd",
         "",
         "command",
+        runs_unasked=True,
         help="Command run after every connect, in every frontend.",
         hint="One command; for several, a .run file. Example: {prefix}run welcome",
     ),
@@ -248,6 +254,7 @@ CFG_KEYS: tuple[CfgKey, ...] = (
         "tui_on_connect_cmd",
         "",
         "command",
+        runs_unasked=True,
         help="Extra command after connecting in the TUI, after on_connect_cmd.",
         hint="One command; for several, a .run file. For TUI-only setup.",
     ),
@@ -255,6 +262,7 @@ CFG_KEYS: tuple[CfgKey, ...] = (
         "cli_on_connect_cmd",
         "",
         "command",
+        runs_unasked=True,
         help="Extra command after connecting in the CLI, after on_connect_cmd.",
         hint="One command; for several, a .run file. For CLI-only setup.",
     ),

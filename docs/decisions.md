@@ -2392,3 +2392,32 @@ removed:** `/cfg.auto`, and the TUI's Yes/No dialog on `/cfg <key> <value>`
 TUI; `/exit`, `/app.tui` and `/cfg.load` ask in an interactive CLI.
 **Where:** `TerminalHost._config_owns_its_changes`, `_may_leave`,
 `describe_saved`; `cfg.py` `_handler_save`.
+
+## 2026-11-23 — An MCP client never leaves a command a person's session runs unasked
+
+Found while planning `/cap.out`: with no flag set, an MCP client could run
+`/cfg on_connect_cmd <command>` and `/cfg.save`, and the person's next TUI or
+CLI connect ran that command with the person's reach, outside every MCP
+fence. Today that could overwrite any file of theirs with device output
+(`/cap.text <absolute path>`); with `/cap.out` it would be
+`/print anything >> ~/.bashrc`. Chuck chose "Fence auto-run": the line is
+what runs with no one asking, the reason `plugin/` and `viz/` are fenced.
+
+`/cfg` refuses an MCP client a key `CfgKey.runs_unasked` marks
+(`on_connect_cmd`, `tui_on_connect_cmd`, `cli_on_connect_cmd`), so no save
+keeps one, and `ctx.fs.guard_file_write` (renamed from `guard_replace`)
+refuses a file write that would make a config file. Every `command` key that
+runs outside MCP carries the mark (registry `mcp-no-auto-run`). An append now
+counts as changing a file: outside the config's folder it is refused as a
+replace is, which closes `mode=append` onto a file such as `~/.bashrc` when
+`TERMAPY_MCP_FS_UNCONFINED=1` is set.
+
+What did not move: the 2026-11-05 entry's "mcp should be able to write json,
+cfg, run etc to its own folders". `mcp_on_connect_cmd` runs only under MCP
+and stays the client's; so do `.run` scripts, which run when a person names
+one, and `custom_buttons`, which run on a click (both weighed and left open).
+**Behavior removed:** an MCP client setting `on_connect_cmd`,
+`tui_on_connect_cmd` or `cli_on_connect_cmd`, appending to a file outside the
+config's folder, and writing a `.cfg` by a capture or `/profile.save`.
+**Behavior changed:** plugins call `ctx.fs.guard_file_write`; `guard_replace`
+is gone.

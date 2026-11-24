@@ -16,11 +16,16 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from termapy.folders import PLUGIN, VIZ, inside, is_inside
+from termapy.folders import CONFIG_SUFFIX, PLUGIN, VIZ, inside, is_inside
 from termapy.plugins.capabilities import CapabilitySet, MissingCapability
 
 # The folders termapy imports Python from, in the case a typed path may use.
 _CODE_FOLDERS = frozenset(name.casefold() for name in (PLUGIN, VIZ))
+
+
+def _as_windows_writes(name: str) -> str:
+    """``name`` as Windows writes it, case folded: ``plugin.`` and ``x.cfg::$DATA`` lose their tails."""
+    return name.split(":")[0].rstrip(". ").casefold()
 
 
 @dataclass
@@ -196,33 +201,43 @@ class FilesystemHandle:
         )
         for part in parts:
             # Windows makes plugin. and plugin::$INDEX_ALLOCATION the folder plugin/.
-            if part.split(":")[0].rstrip(". ").casefold() in _CODE_FOLDERS:
+            if _as_windows_writes(part) in _CODE_FOLDERS:
                 raise MissingCapability(
                     f"Folder {part!r} holds code termapy imports: an MCP client cannot write there."
                 )
 
-    def guard_replace(self, path: Path) -> None:
-        """Refuse replacing a file outside the config's folder, with no person present.
+    def guard_file_write(self, path: Path) -> None:
+        """Refuse a file write that changes what is not the client's, with no person present.
 
-        Inside its folder an MCP client may write over a file, as a person can;
-        outside it the file is not the config's to change, and no flag lifts
-        this (registry ``mcp-no-code-writes``, decision 2026-11-05).  A code
-        folder inside it is ``guard_code_folder``'s answer.
+        Inside its config's folder an MCP client may write over a file, as a
+        person can (decision 2026-11-05).  Outside it a file is not the
+        config's to change, by replacing it or by adding to it, and no flag
+        lifts this (registry ``mcp-no-code-writes``).  Nor does a file write
+        make a config file, whose on-connect commands a person's session runs
+        with no one asking (registry ``mcp-no-auto-run``).  A code folder is
+        ``guard_code_folder``'s answer.
 
         Args:
-            path: The file about to be written.
+            path: The file about to be written or appended to.
 
         Raises:
-            MissingCapability: The file exists outside the config's folder, or
-                no config is loaded, and the host has no interactive session.
+            MissingCapability: The file is a config file, or it exists outside
+                the config's folder or with no config loaded, and the host has
+                no interactive session.
         """
-        if self.capabilities.interactive or not path.exists():
+        if self.capabilities.interactive:
             return
-        config_folder = self._config_folder()
-        if config_folder is None or not is_inside(path, config_folder):
+        if path.exists():
+            config_folder = self._config_folder()
+            if config_folder is None or not is_inside(path, config_folder):
+                raise MissingCapability(
+                    f"File exists: {path.name} "
+                    "(an MCP client never changes a file outside the config's folder)"
+                )
+        if _as_windows_writes(path.name).endswith(CONFIG_SUFFIX):
             raise MissingCapability(
-                f"File exists: {path.name} "
-                "(an MCP client never replaces a file outside the config's folder)"
+                f"File {path.name} would be a config file, whose on-connect commands run "
+                "in a person's session: an MCP client never writes one."
             )
 
     def _config_folder(self) -> Path | None:

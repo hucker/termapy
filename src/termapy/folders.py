@@ -146,6 +146,8 @@ FOLDER_MIGRATIONS = [
 
 # -- Special filenames --------------------------------------------------------
 
+# A config file: termapy_cfg/<name>/<name>.cfg (config.CONFIG_GLOB finds them).
+CONFIG_SUFFIX = ".cfg"
 # Per-config history lives NEXT TO the config file as <stem>.history;
 # HISTORY_FILE is only the no-config fallback name (in the cfg root).
 HISTORY_FILE = ".cmd_history.txt"

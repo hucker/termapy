@@ -111,7 +111,7 @@ def _handler_hexdump(ctx: PluginContext, args: str) -> CmdResult:
     # folders, and replaces a file only inside it.
     out_path = ctx.fs.resolve(parts[0], "cap")
     ctx.fs.guard_code_folder(out_path.parent)
-    ctx.fs.guard_replace(out_path)
+    ctx.fs.guard_file_write(out_path)
     try:
         duration_s = parse_duration(parts[1]) if len(parts) > 1 else 5.0
     except ValueError as e:

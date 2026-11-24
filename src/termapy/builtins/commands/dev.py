@@ -15,8 +15,8 @@ none of it lives here (CLAUDE.md: infrastructure never lives under
   config folder travels; ``to=global`` shares the part with every config.
 - ``/dev.use <part> {at=NAME@ADDR ...}`` -- add a library part to this
   config, with where it sits on THIS board.
-- ``/dev.list`` (bare ``/dev``) -- the devices THIS config loaded, with layer
-  and placement.  It stands in for the dev/ folder family's ``.list`` (a dev/ file IS a
+- ``/dev.list`` -- the devices THIS config loaded, with layer and placement.
+  It stands in for the dev/ folder family's ``.list`` (a dev/ file IS a
   loaded device); ``.explore``, ``.show``, ``.dump``, ``.rename`` and
   ``.delete`` are the family's own, so ``/dev.delete <part>`` removes a
   part from this config and the devices reload.
@@ -487,8 +487,6 @@ COMMAND = Command(
         "to this config."
     ),
     long_help=_long_help,
-    bare_sub="list",
-    help_list="list",
     sub_commands={
         "import": Command(
             params=[

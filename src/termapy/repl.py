@@ -783,6 +783,24 @@ class ReplEngine:
                 write(row)
         return result
 
+    def _flag_names_subcommand(self, name: str, args: str, plugin: PluginInfo) -> str:
+        """The error for a ``--word`` that names a subcommand, ``<name>.<word>``; ``""`` for none.
+
+        termapy spells an operation as a subcommand, never a flag, so
+        ``/demo --force`` is ``/demo.force`` typed the other way, and a
+        retired flag points at what replaced it (registry
+        ``flag-names-subcommand``).  Only a token the command did not declare
+        reaches here; a command that takes its text as written keeps it.
+        """
+        if plugin.raw_args:
+            return ""
+        for token in args.split():
+            if token.startswith("--") and len(token) > 2:
+                subcommand = f"{name}.{token[2:]}"
+                if subcommand in self._plugins:
+                    return f"Unknown flag: {token}{did_you_mean([subcommand], prefix=self.prefix)}"
+        return ""
+
     def capture(self, line: str) -> tuple[CmdResult, str]:
         """Run a termapy line for ``$(X) <- line``: its result, and the text the variable keeps.
 
@@ -2460,6 +2478,9 @@ class ReplEngine:
             args, active_flags, flag_error = _parse_flags(args, plugin.flags)
             if flag_error:
                 return _finish(CmdResult.fail(msg=flag_error))
+            subcommand_error = self._flag_names_subcommand(name, args, plugin)
+            if subcommand_error:
+                return _finish(CmdResult.fail(msg=subcommand_error))
             if command_line:
                 args = " ".join(part for part in (args.strip(), command_line) if part)
             # Declarative params: parse/coerce/validate before touching the

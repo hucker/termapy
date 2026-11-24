@@ -2560,3 +2560,13 @@ cannot click prints the markup it always did. `viz/`, `sym/`, `dev/`, `lib/` and
 command family, so their names stay listless until one is mounted; their files print with `/cfg.file`. **Behavior changed:** `/cfg.info --json` answers the dictionary, its
 `output_lines` empty, where it carried the drawn tree; its tree prints on the result channel, so
 quiet shows it; `/plugin.list` gains the EDIT link `/run.list` and `/proto.list` have.
+
+## 2026-11-24 — A flag that names a subcommand points at it
+
+`/demo --force` answered `Usage: /demo`, though the reset is `/demo.force`: the flag was retired for
+the subcommand, and a command with no declared flags hands an unknown `--word` to its handler as
+text. termapy spells an operation as a subcommand, never a flag, so a person will type `--force`
+for `.force` anywhere. Dispatch now answers a `--word` the command does not declare, where
+`<command>.<word>` is a subcommand, with `Unknown flag: --force -- did you mean /demo.force?` before
+the handler runs (registry `flag-names-subcommand`). A command that takes its text as written
+(`/term.send`, `/print`) keeps the token.

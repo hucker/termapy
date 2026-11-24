@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 234: 219 registry rows (guarantees 182, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 230. Pinned by none: 4.
+Ids: 235: 220 registry rows (guarantees 183, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 231. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -330,7 +330,7 @@ Ids: 234: 219 registry rows (guarantees 182, assumptions 37), 15 spec sections i
 ### `did-you-mean-one` (guarantee, data)
 
 - `test_architecture.py`: `test_suggestion_guard_fires_on_a_probe`, `test_suggestions_have_one_owner` **guard**, `test_the_suggestion_allowlist_is_not_stale`
-- `test_did_you_mean.py`: the module (21 functions) **guard**
+- `test_did_you_mean.py`: the module (22 functions) **guard**
 - `test_help_idioms.py`: `TestALookup.test_a_near_miss_suggests_what_it_meant`
 - `test_matching.py`: the module (7 functions) **guard**
 - `test_params.py`: `TestMisspelledKeywords` (3 functions)
@@ -428,6 +428,10 @@ Ids: 234: 219 registry rows (guarantees 182, assumptions 37), 15 spec sections i
 ### `firmware-no-forced-deps` (guarantee, structure)
 
 - `test_firmware.py`: `TestTable.test_shipped_firmware_imports_only_the_runtime_or_termapy` **guard**
+
+### `flag-names-subcommand` (guarantee, contract)
+
+- `test_did_you_mean.py`: `test_a_flag_that_names_a_subcommand_points_at_it` **guard**
 
 ### `flag-paths-light` (guarantee, structure)
 

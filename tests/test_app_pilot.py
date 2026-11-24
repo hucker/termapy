@@ -3364,7 +3364,7 @@ class TestDemoCommand:
         _run(scenario)
 
     def test_an_argument_is_refused_not_ignored(self, app_factory):
-        """/demo --force fails with usage instead of switching without the reset it used to mean."""
+        """/demo --force fails pointing at /demo.force instead of switching without the reset it used to mean."""
 
         async def scenario():
             app, _, path = app_factory()
@@ -3375,7 +3375,7 @@ class TestDemoCommand:
                 result, _ = await dispatch_on_worker(pilot, app, "/demo --force")
 
                 # Assert
-                assert result.error.startswith("Usage:"), result.error
+                assert result.error == "Unknown flag: --force -- did you mean /demo.force?"
                 assert app.config_path == path, "no switch happened"
 
         _run(scenario)

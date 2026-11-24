@@ -335,7 +335,7 @@ form, shown first; `-h` prints the same help.
 | `--cfg-dir PATH`  | Override the default config directory for this run.           |
 | `-c`, `--cli`     | Plain-text mode instead of the TUI, an interactive REPL; `--run` and `-e` imply it.  With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |
 | `--vt100`         | Start in VT100 passthrough mode (see [VT100 mode](vt100.md)). |
-| `--web [[HOST:]PORT]` | Serve the TUI in a browser: `http://localhost:8000`, this machine only, unless `9000`, `192.168.1.50` or `192.168.1.50:9000` says otherwise. A network address opens it to other computers, with no login. A browser tab is a WEB session: the TUI without the console. |
+| `--web [[HOST:]PORT]` | Serve the TUI in a browser: `http://localhost:8000`, this machine only, unless `9000`, `192.168.1.50` or `192.168.1.50:9000` says otherwise. A network address opens it to other computers, with no login, so files stay inside the config folder as under MCP ([Browser](environment.md#browser-termapy---web)). A browser tab is a WEB session: the TUI without the console. |
 | `--mcp`           | Run as a stdio MCP server for an AI agent (see [MCP server](mcp-server.md)); `--mcp-verbose` tees its log to stderr. |
 
 ### Run one thing and exit

@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 236: 221 registry rows (guarantees 184, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 232. Pinned by none: 4.
+Ids: 237: 222 registry rows (guarantees 185, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 233. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -1186,8 +1186,12 @@ Ids: 236: 221 registry rows (guarantees 184, assumptions 37), 15 spec sections i
 
 - `test_app_pilot.py`: `TestAppBoots.test_a_tui_on_a_terminal_publishes_the_tui_row` **guard**
 - `test_cli.py`: `test_the_cli_publishes_its_row` **guard**
-- `test_environments.py`: the module (6 functions)
+- `test_environments.py`: the module (10 functions)
 - `test_mcp_boundary.py`: `TestNoShell.test_the_host_publishes_the_mcp_row` **guard**
+
+### `web-network-confined` (guarantee, contract)
+
+- `test_environments.py`: `test_a_confinement_refusal_names_every_opt_in` **guard**, `test_served_on_this_machine_keeps_host_wide_file_access` **guard**, `test_served_to_the_network_keeps_files_in_the_config_folder` **guard**, `test_the_web_opt_in_lifts_the_confinement` **guard**
 
 ### `widget-text-literal` (guarantee, data)
 

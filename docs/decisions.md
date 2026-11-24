@@ -2598,3 +2598,21 @@ config's command lines). `/sym`, `/dev`, `/dev.lib`, `/proto.viz` and `/firmware
 files. Open: `/sym.delete` of the loaded sidecar leaves the table loaded until `/sym.unload` or the next
 load; `fs.py`'s `_FOLDER_ATTRS` is a second, older folder table (`ctx.fs.resolve`) not yet read from
 `FOLDERS`.
+
+## 2026-11-24 — A --web session served to the network is confined to the config folder
+
+Branch 3 of the `/cap.out` plan (Chuck, 2026-11-24: "careful that we handle security properly").
+The WEB row inherited the TUI's `filesystem_unconfined`, so a browser on another computer, which
+reaches the port with no login, could capture to or `>>` onto any path on the serving machine. The
+row now follows `gui_apps`' loopback rule (decision 2026-11-13): served on a loopback address the
+viewer is the operator at this desktop and keeps host-wide paths; served to the network the session
+is confined to the config folder as an MCP server is, and `TERMAPY_WEB_FS_UNCONFINED=1` in the
+server's shell, the twin of `TERMAPY_MCP_FS_UNCONFINED`, lifts it (registry `web-network-confined`).
+The web banner lists the confinement beside what else the row lacks, since it is generated from the
+row. The three confinement refusals (`ctx.fs.resolve`, `ctx.fs.guard_external_path`, `/log.dump`)
+said "The MCP host is confined ... set TERMAPY_MCP_FS_UNCONFINED=1", wrong under `--web`; they are
+one sentence now, `capabilities.confined_text`, built from the capability's hint, which names both
+opt-ins. Not moved: a network-served WEB session keeps `host_info` and `network_egress`; whether a
+remote viewer should see the USB bus and open `socket://` ports is open. **Behavior removed:** a
+`--web` session on a network address reading or writing a path outside the config folder without
+the opt-in.

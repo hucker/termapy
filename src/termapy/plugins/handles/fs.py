@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from termapy.folders import CONFIG_SUFFIX, PLUGIN, VIZ, inside, is_inside
-from termapy.plugins.capabilities import CapabilitySet, MissingCapability
+from termapy.plugins.capabilities import CapabilitySet, MissingCapability, confined_text
 
 # The folders termapy imports Python from, in the case a typed path may use.
 _CODE_FOLDERS = frozenset(name.casefold() for name in (PLUGIN, VIZ))
@@ -111,10 +111,10 @@ class FilesystemHandle:
         A plain name lands inside ``folder``.  An absolute path or ``..``
         that escapes the folder is refused UNLESS the host grants
         ``filesystem_unconfined`` -- so an MCP client (a remote/automated
-        peer) is confined to the config sandbox, while the operator at a
-        CLI/TUI keeps host-wide paths.  The containment is
-        ``folders.inside``, as for the ``.dump`` commands and the MCP
-        capture resource.
+        peer) and a ``--web`` session served to the network are confined to
+        the config sandbox, while the operator at a CLI/TUI keeps host-wide
+        paths.  The containment is ``folders.inside``, as for the ``.dump``
+        commands and the MCP capture resource.
 
         Args:
             name: Caller-supplied file name or path.
@@ -140,9 +140,7 @@ class FilesystemHandle:
         if self.capabilities.filesystem_unconfined:
             return (base / name).resolve()
         raise MissingCapability(
-            f"Path {name!r} escapes the {base.name or folder}/ sandbox. The MCP host is "
-            f"confined to the config directory; set TERMAPY_MCP_FS_UNCONFINED=1 "
-            f"in the server's shell to allow host-wide paths."
+            f"Path {name!r} escapes the {base.name or folder}/ sandbox. {confined_text()}"
         )
 
     def guard_external_path(self, arg: str, what: str = "Path") -> None:
@@ -164,10 +162,7 @@ class FilesystemHandle:
         escapes = p.is_absolute() or ".." in p.parts
         if escapes and not self.capabilities.filesystem_unconfined:
             raise MissingCapability(
-                f"{what} {arg!r} is outside the config sandbox. The MCP host "
-                f"is confined to the config directory; set "
-                f"TERMAPY_MCP_FS_UNCONFINED=1 in the server's shell to allow "
-                f"host-wide paths."
+                f"{what} {arg!r} is outside the config sandbox. {confined_text()}"
             )
 
     def guard_code_folder(self, folder: Path) -> None:

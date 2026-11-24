@@ -44,6 +44,12 @@ The settings:
   an MCP server none.  Not a boolean: a value that does not compile is the
   startup error.
 
+- ``TERMAPY_WEB_FS_UNCONFINED``: when truthy, a ``--web`` session served to
+  the network keeps host-wide file access.  Default off: served on a network
+  address the browser is not the operator's desktop, so the session is
+  confined to the config folder as an MCP server is (registry
+  ``web-network-confined``); served on a loopback address it never applies.
+
 - ``TERMAPY_WEB_HOST``: not a policy a user sets; ``--web`` sets it to the
   address it listens on for the TUI it spawns, so that TUI knows whether its
   browser is on this machine (``web_served_locally``).
@@ -165,6 +171,12 @@ MCP_NET_EGRESS: bool = _read_gate("TERMAPY_MCP_NET_EGRESS")
 #   MCP_HOST_INFO     -> host_info (the whole USB bus, port holders, fingerprint)
 MCP_HOST_INFO: bool = _read_gate("TERMAPY_MCP_HOST_INFO")
 
+# The same opt-in for a --web session served to the network, whose viewer is
+# not at this desktop either: the WEB row grants filesystem_unconfined on a
+# loopback address, and elsewhere only with this set (registry
+# web-network-confined).
+WEB_FS_UNCONFINED: bool = _read_gate("TERMAPY_WEB_FS_UNCONFINED")
+
 # Not a policy gate: the GUI-apps detection override (see
 # ``plugins.capabilities.detect_gui_apps``).  Read here with the other
 # environment booleans so a bad value is refused at startup instead of
@@ -249,6 +261,7 @@ __all__ = [
     "MCP_FS_UNCONFINED",
     "MCP_NET_EGRESS",
     "MCP_HOST_INFO",
+    "WEB_FS_UNCONFINED",
     "GUI_OVERRIDE",
     "ALLOWED_PORTS",
     "WEB_HOST_VARIABLE",

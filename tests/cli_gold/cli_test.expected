@@ -258,7 +258,7 @@ CAPABILITIES
   gui_apps              - a local desktop that can open apps the user sees  [TUI WEB CLI]
   file_editor           - an editor for project files (the TUI's own, or a desktop's)  [TUI WEB CLI]
   session_log           - a session log (the TUI's or the MCP server's; the CLI keeps none)  [TUI WEB MCP]
-  filesystem_unconfined - host-wide file access (TERMAPY_MCP_FS_UNCONFINED=1 under MCP)  [TUI WEB CLI]
+  filesystem_unconfined - host-wide file access (TERMAPY_MCP_FS_UNCONFINED=1 under MCP, TERMAPY_WEB_FS_UNCONFINED=1 for --web on the network)  [TUI CLI]
   network_egress        - outbound network access (TERMAPY_MCP_NET_EGRESS=1 under MCP)  [TUI WEB CLI]
   host_info             - a view of the host machine (TERMAPY_MCP_HOST_INFO=1 under MCP)  [TUI WEB CLI]
 

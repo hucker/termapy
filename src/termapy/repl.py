@@ -88,6 +88,8 @@ from termapy.scripting import (
     SETTING_TOGGLE,
     expand_template,
     format_duration,
+    split_redirect,
+    split_rest,
     strip_ansi,
     strip_leading_echo,
     value_text,
@@ -123,6 +125,9 @@ _EXTERNAL_KEEP: frozenset[str] = frozenset({"built-in", "app"})
 # whose setting the session changed from the config file.
 # The command whose typed text bypasses every transform (dispatch_full step 1).
 RAW_COMMAND = "term.raw"
+# The command a trailing ``> file`` or ``>> file`` on a typed line becomes
+# (``ReplEngine._redirected``).
+REDIRECT_COMMAND = "cap.out"
 
 SETTING_VALUE = "{value}"
 SETTING_NO_VALUE = "-"
@@ -198,6 +203,23 @@ def _parse_flags(
             continue
         remaining.append(token)
     return " ".join(remaining), active, None
+
+
+def _split_command_arg(plugin: PluginInfo | None, args: str) -> tuple[str, str]:
+    """``args`` split where the command's command line begins: ``(its own text, the line)``.
+
+    A command that takes a command line as its ``cmd=`` (a ``command`` param,
+    rest) owns only the flags before it: ``--json`` or ``--quiet`` after
+    ``cmd=`` belongs to the line it runs (registry
+    ``command-arg-keeps-its-flags``).  Any other command keeps every flag.
+    """
+    if plugin is None:
+        return args, ""
+    for spec in plugin.params:
+        if spec.rest and spec.type == "command" and not spec.positional:
+            head, line = split_rest(args, spec.name)
+            return (head, line) if line else (args, "")
+    return args, ""
 
 
 def _strip_level_flags(args: str) -> tuple[str, str | None]:
@@ -354,6 +376,9 @@ class ReplEngine:
         # ctx.internal.dispatch): the JSON envelope belongs to the
         # OUTERMOST command only, so nested dispatches suppress theirs.
         self._handler_depth: int = 0
+        # The depth whose envelope prints: 0, the outermost, except while
+        # dispatch_to runs a line as if typed, when it is that line's.
+        self._envelope_depth: int = 0
         self._script_stack: list[str] = []  # stack of script names
         # The last id a JSON-mode request carried (registry json-mode-ids).
         self._request_id = 0
@@ -683,6 +708,62 @@ class ReplEngine:
             yield
         finally:
             io._write, io._write_markup, io._write_segments = saved
+
+    def _redirected(self, repl_cmd: str) -> str:
+        """``repl_cmd`` with a trailing ``> file`` or ``>> file`` made its ``/cap.out``.
+
+        ``/term.info --json > info.json`` becomes
+        ``cap.out info.json mode=new cmd=/term.info --json``.  A command that
+        takes its text as written keeps a ``>`` in it (``/term.send ls > out.txt``
+        is a line for a device's shell), and a line with no redirect comes back
+        as it was.
+        """
+        if self.command_has_raw_args(repl_cmd):
+            return repl_cmd
+        redirect = split_redirect(repl_cmd)
+        if redirect is None:
+            return repl_cmd
+        line, append, file_name = redirect
+        mode = "append" if append else "new"
+        return f"{REDIRECT_COMMAND} {file_name} mode={mode} cmd={self.prefix}{line}"
+
+    def dispatch_to(self, line: str, write: Callable[[str], None]) -> CmdResult:
+        """Run a command line as if typed at the prompt, each line it prints handed to ``write``.
+
+        ``/cap.out``'s door, and so the ``> file`` and ``>> file`` door.  The line
+        answers as it would typed: its own ``--json`` prints its envelope though
+        it runs inside another command, a person's view rather than an agent's
+        data under MCP, and JSON is laid out as for a file, one line per value.
+        Each line arrives as plain text, markup flattened, at the session's
+        level, so the caller's ``--silent`` quiets only its own reply.  A
+        failure is not printed: the caller answers with it (registry
+        ``failure-reported-once``).
+
+        Args:
+            line: The command line, prefix included.
+            write: Takes each line the command prints.
+
+        Returns:
+            The command's result.
+        """
+
+        def _plain(text: str, color: str | None = None) -> None:
+            write(str(text))
+
+        def _marked(text: str) -> None:
+            write(markup_to_plain(str(text)))
+
+        ctx = self.ctx
+        saved = (self._envelope_depth, self.screen_json, ctx.wants_data, ctx._call_level)
+        self._envelope_depth = self._handler_depth
+        self.screen_json = False
+        ctx.wants_data = False
+        ctx._call_level = None
+        try:
+            with self._io_redirected(_plain, _marked):
+                return self.dispatch(line.removeprefix(self.prefix), report=False)
+        finally:
+            self._envelope_depth, self.screen_json, ctx.wants_data, ctx._call_level = saved
 
     def _emit_json_envelope(
         self,
@@ -1923,6 +2004,8 @@ class ReplEngine:
             _log(">", f"{prefix}{repl_cmd}")
             if echo_repl_on and not _asks_silent(repl_cmd):
                 _announce(f"{prefix}{repl_cmd}")
+            # Read off the line as typed, before a transform can put a > in it.
+            repl_cmd = self._redirected(repl_cmd)
             if self.has_repl_transforms:
                 if not self.command_has_raw_args(repl_cmd):
                     try:
@@ -2217,13 +2300,16 @@ class ReplEngine:
             raw_args = rest[1:] if rest[:1].isspace() else rest
         args = self._expand_template(raw_args)
 
-        # Universal --json flag: stripped before the plugin lookup (unlike
-        # the level flags) so an unknown command still answers with a JSON
-        # envelope rather than leaking the flag into the error message.
-        args, wants_json = _strip_json_flag(args)
         # The suffix forms of the level and --json, read off the name when
         # no command claims the whole of it.
         name, call_level, suffix_json = self.split_suffixes(name)
+        # A command line given as cmd= keeps its own flags: every flag below
+        # is read from the text before it, and the line rejoins at the params.
+        args, command_line = _split_command_arg(self._plugins.get(name), args)
+        # Universal --json flag: stripped before the plugin check (unlike
+        # the level flags) so an unknown command still answers with a JSON
+        # envelope rather than leaking the flag into the error message.
+        args, wants_json = _strip_json_flag(args)
         wants_json = wants_json or suffix_json
 
         # Request mode is the SESSION's structured dial, and from the
@@ -2248,7 +2334,7 @@ class ReplEngine:
         # output_lines under request mode.  Suppressed, the inner
         # command's prose is captured by the outer JSON collector and
         # its CmdResult propagates: one envelope, the right contents.
-        if wants_json and self._handler_depth > 0:
+        if wants_json and self._handler_depth > self._envelope_depth:
             wants_json = False
         # Prose captured during a JSON-mode dispatch; ships in the
         # envelope's ``output_lines``.  Stays empty for converted
@@ -2328,6 +2414,8 @@ class ReplEngine:
             args, active_flags, flag_error = _parse_flags(args, plugin.flags)
             if flag_error:
                 return _finish(CmdResult.fail(msg=flag_error))
+            if command_line:
+                args = " ".join(part for part in (args.strip(), command_line) if part)
             # Declarative params: parse/coerce/validate before touching the
             # context, so a bad-argument failure returns without having
             # mutated ctx.  Commands with no declared params opt out entirely

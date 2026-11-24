@@ -11,6 +11,7 @@ from termapy.folders import ensure_folder
 from termapy.help_dynamic import compose, folder_line
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError, escape_markup
 from termapy.plugins.params import EnumValue, ParamSpec
+from termapy.plugins.views import counted
 from termapy.protocol import get_crc_registry, parse_format_spec
 from termapy.scripting import parse_bool, parse_duration, resolve_seq_filename, value_text
 
@@ -604,6 +605,51 @@ def _handler_stop(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=result.byte_count, data=result.to_record())
 
 
+# ── /cap.out handler ─────────────────────────────────────────────────────────
+
+
+def _handler_out(ctx: PluginContext, args: str) -> CmdResult:
+    """Write what a termapy command prints to a file in ``cap/``; ``> file`` and ``>> file`` are this.
+
+    The command runs as typed at the prompt (``ctx.internal.dispatch_to``),
+    so its own ``--json`` writes its envelope, one line per run, and a
+    ``mode=append`` file of them is JSON Lines.  The file is resolved and
+    guarded before the command runs, so a refused name runs nothing.  A
+    failure writes what the command printed, a JSON envelope's error among
+    it, and answers with the failure; one that printed nothing leaves the
+    file as it was, so a mistyped command never empties it.
+    """
+    line = ctx.arg("cmd")
+    if not line.startswith(ctx.prefix):
+        return CmdResult.fail(
+            msg=f"Not a termapy command: {line} ({ctx.prefix}cap.text cmd= captures a device's reply)"
+        )
+    if ctx.internal.dispatch_to is None:
+        return CmdResult.fail(msg="No engine to run the command.")
+    try:
+        filename = resolve_seq_filename(ctx.arg("file"), ctx.fs.cap_dir)
+    except ValueError as e:
+        return CmdResult.fail(msg=str(e))
+    path = _resolve_path(ctx, filename)
+    lines: list[str] = []
+    result = ctx.internal.dispatch_to(line, lines.append)
+    if not result.success and not lines:
+        return result
+    try:
+        ensure_folder(path.parent)
+        with path.open("a" if ctx.arg("mode") == "append" else "w", encoding="utf-8") as file:
+            file.writelines(f"{text}\n" for text in lines)
+    except OSError as e:
+        return CmdResult.fail(msg=f"Write error: {e}")
+    if not result.success:
+        return result
+    ctx.io.result(f"{counted(len(lines), 'line')} to {path}")
+    return CmdResult.ok(
+        value=str(path),
+        data={"path": str(path), "lines": len(lines), "mode": ctx.arg("mode")},
+    )
+
+
 # ── /cap.wire handler ────────────────────────────────────────────────────────
 
 
@@ -711,6 +757,19 @@ _CAP_TEXT_PROSE = (
     "fixed duration.  Use {prefix}cap.stop to end early."
 )
 
+_CAP_OUT_PROSE = (
+    "Runs a termapy command as if typed and writes what it prints to a\n"
+    "file, instead of the screen.  A trailing > file or >> file on a\n"
+    "line says the same: >> appends.\n"
+    "\n"
+    "  {prefix}cfg.list > configs.txt\n"
+    "  {prefix}term.info --json >> info.jsonl\n"
+    "\n"
+    "The command keeps its own flags: --json writes its JSON envelope,\n"
+    "one line per run, so a file of appended runs is JSON Lines.  A\n"
+    "device's reply is {prefix}cap.text cmd=.  {prefix}help redirect explains the > form."
+)
+
 _CAP_BIN_PROSE = (
     "Captures a fixed number of raw bytes to a binary file.  Ends\n"
     "when the byte count is reached or the optional timeout expires."
@@ -812,7 +871,8 @@ COMMAND = Command(
     help="Data capture tools.",
     intro=(
         "Save device output to a file in the config's cap/ folder, as text, as raw "
-        "binary or as decoded values, and manage the captures kept there."
+        "binary or as decoded values, or what a termapy command prints, and manage "
+        "the captures kept there."
     ),
     long_help=_cap_folder_line,
     handler=None,
@@ -945,6 +1005,29 @@ COMMAND = Command(
                     rest=True,
                     required=True,
                     help="newline-separated commands to poll",
+                ),
+            ],
+        ),
+        "out": Command(
+            help="Write what a termapy command prints to a file.",
+            long_help=_cap_long_help_with_prose(_CAP_OUT_PROSE),
+            handler=_handler_out,
+            needs=CapabilitySet.CONFIG_LOADED,
+            params=[
+                ParamSpec(
+                    "file",
+                    "path",
+                    positional=True,
+                    required=True,
+                    help="output filename (relative to cap/ dir)",
+                ),
+                ParamSpec("mode", "enum", default="new", values=_MODE_VALUES, help="file mode"),
+                ParamSpec(
+                    "cmd",
+                    "command",
+                    rest=True,
+                    required=True,
+                    help="termapy command whose output is written",
                 ),
             ],
         ),

@@ -116,6 +116,28 @@ Defaults: `count=60`, `delay=1s`, `fmt=csv`, `timeout=1s`. Use `delay=0`
 to go as fast as possible. Without `regex=`, the first sample must be a
 numeric value or the command aborts.
 
+## A command's output to a file: `/cap.out`, `>` and `>>`
+
+```text
+/cfg.list > configs.txt
+/term.info --json >> info.jsonl
+/cap.out <file> {mode=new|append} cmd=<command>
+```
+
+End a termapy line with `> file` to write what the command prints to that
+file in `cap/` instead of the screen, or `>> file` to add to its end. The
+line is `/cap.out file mode=new cmd=<line>` (`mode=append` for `>>`), and
+the reply names the file in full.
+
+The command runs as typed and keeps its own flags: `--json` writes its JSON
+envelope, one line per run, so a file of appended runs is JSON Lines, and a
+flag before `cmd=` is `/cap.out`'s own (`/cap.out --silent ...` prints no
+reply). A `>` inside quotes or inside a word is text, and so is any `>` in a
+line for the device or in a command that takes its text as written
+(`/term.send ls > out.txt` goes to the device's shell). A command that fails
+before printing leaves the file as it was. A device's reply is
+`/cap.text cmd=`'s, not `/cap.out`'s.
+
 ## Format spec quick reference
 
 | Spec      | Meaning                              |

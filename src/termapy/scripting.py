@@ -648,6 +648,55 @@ def render_progress_bar(
 _KW_NORMALIZE_RE = re.compile(r"(\w+)\s*=\s*")
 
 
+def split_rest(text: str, rest_keyword: str) -> tuple[str, str]:
+    """``text`` split where its to-end-of-line keyword starts: ``(head, "cmd=...")``.
+
+    The one answer to where a rest keyword begins, for ``parse_keywords`` and
+    for dispatch, which reads a command's flags from the head alone so the
+    command line after ``cmd=`` keeps its own.  ``key = value`` is normalized
+    to ``key=value`` first, as ``parse_keywords`` reads it.
+
+    Args:
+        text: An argument string.
+        rest_keyword: The keyword that runs to the end of the line (``cmd``).
+
+    Returns:
+        The text before the keyword and the text from it on; ``(text, "")``
+        when the keyword is absent.
+    """
+    text = _KW_NORMALIZE_RE.sub(r"\1=", text)
+    idx = text.lower().find(rest_keyword.lower() + "=")
+    if idx == -1:
+        return text, ""
+    return text[:idx], text[idx:]
+
+
+# A line's trailing redirect: one blank-separated > or >>, then one name with
+# no quote or > in it, at the end of the line.
+_REDIRECT_RE = re.compile(r"^(?P<line>.*\S)\s+(?P<op>>>?)\s*(?P<file>[^\s\"'>]+)\s*$")
+
+
+def split_redirect(line: str) -> tuple[str, bool, str] | None:
+    """A line's trailing ``> file`` or ``>> file``: ``(line before it, append, file)``.
+
+    The operator stands apart, outside quotes, with a line before it and one
+    name after it: ``/cfg.list > configs.txt``.  A ``>`` inside a word
+    (``a>b``), inside a quoted string (``"a > b"``), with nothing after it
+    (a prompt ``>``) or tripled (``>>>``) is text, and the line is no redirect.
+
+    Args:
+        line: A command line as typed.
+
+    Returns:
+        The line without the redirect, whether it appends (``>>``), and the
+        file name; ``None`` when the line has no redirect.
+    """
+    match = _REDIRECT_RE.match(line)
+    if match is None or match["line"].count('"') % 2:
+        return None
+    return match["line"], match["op"] == ">>", match["file"]
+
+
 def parse_keywords(
     text: str,
     keywords: set[str],
@@ -679,12 +728,9 @@ def parse_keywords(
 
     # Extract rest_keyword first - it consumes everything after it
     if rest_keyword:
-        rk_lower = rest_keyword.lower() + "="
-        text_lower = text.lower()
-        idx = text_lower.find(rk_lower)
-        if idx != -1:
-            result[rest_keyword.lower()] = text[idx + len(rk_lower) :].strip()
-            text = text[:idx]
+        text, rest = split_rest(text, rest_keyword)
+        if rest:
+            result[rest_keyword.lower()] = rest[len(rest_keyword) + 1 :].strip()
 
     # Parse remaining tokens
     positional_parts: list[str] = []

@@ -623,6 +623,7 @@ class TerminalHost:
             # redirect), so the failure is printed once, at its exit.
             dispatch=lambda line: self.repl.dispatch(line, report=False),
             read_state=self.repl.read_state,
+            dispatch_to=self.repl.dispatch_to,
             # set_proto_active intentionally not exposed -- the bare flag
             # setter is private; ``ctx.serial.io()`` is the public path.
             # TUI override installs a real modal launcher.  In non-TUI

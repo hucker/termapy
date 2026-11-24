@@ -2421,3 +2421,29 @@ one, and `custom_buttons`, which run on a click (both weighed and left open).
 config's folder, and writing a `.cfg` by a capture or `/profile.save`.
 **Behavior changed:** plugins call `ctx.fs.guard_file_write`; `guard_replace`
 is gone.
+
+## 2026-11-23 — A trailing > or >> writes a command's output to cap/, and a cmd= line keeps its flags
+
+Chuck asked for shell-style redirects on REPL lines; he reads `<<` the C++ way,
+and the trailing `> file` / `>> file` form won. A typed termapy line ending in
+one is `/cap.out <file> mode=new|append cmd=<line>`, read off the line as typed
+by the engine (`ReplEngine._redirected`), as a bare line becomes `/term.send`:
+a directive cannot do it, since it sees neither the prefix nor which commands
+take their text raw (registry `redirect-is-cap-out`). `/cap.out` runs the line
+through `ReplEngine.dispatch_to`, the new door that runs a line as typed with
+what it prints handed to a writer. Writes stay in `cap/` behind `/cap.text`'s
+guards, which the same day stopped an MCP client appending outside the config's
+folder and writing a config file.
+
+The redirect needed the inner command to keep its flags: the dispatcher took
+`--json` and the level flags off the whole line, so `/cap.out f cmd=/term.info
+--json` gave `/cap.out` the envelope, as `$(X) <- /cfg.list --json` gives
+`/var.capture` one. Now a command whose command line is its `cmd=` (a keyword
+`command` param) owns only the flags before it (registry
+`command-arg-keeps-its-flags`). **Behavior changed:** for `/repeat`, `/ping`,
+`/cap.text`, `/cap.bin`, `/cap.poll` and `/cap.wire`, a flag after `cmd=` is
+the inner line's; `/repeat --json count=3 cmd=...` still gives `/repeat`'s
+envelope. A nested line prints no envelope of its own except through
+`dispatch_to`, so `--json` after `/repeat`'s `cmd=` now changes nothing. The
+hand-rolled holdouts (`/var.capture`, `/profile.load cmd=`, `/cap.struct`,
+`/cap.hex`) read flags as before.

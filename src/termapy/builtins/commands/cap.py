@@ -632,7 +632,9 @@ def _handler_out(ctx: PluginContext, args: str) -> CmdResult:
         return CmdResult.fail(msg=str(e))
     path = _resolve_path(ctx, filename)
     lines: list[str] = []
-    result = ctx.internal.dispatch_to(line, lines.append)
+    # At normal unless the line names a level: the session's level is the
+    # screen's, and the file is what the line says (registry redirect-is-cap-out).
+    result = ctx.internal.dispatch_to(line, lines.append, level="normal")
     if not result.success and not lines:
         return result
     try:

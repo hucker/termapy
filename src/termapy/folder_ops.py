@@ -421,7 +421,7 @@ def dump_text_slice(ctx: PluginContext, path: Path, args: str) -> CmdResult:
         return CmdResult.fail(msg=f"Read error: {e}")
     lines = select_lines(lines, n)
     for line in lines:
-        ctx.io.output(line)
+        ctx.io.result(line, "dim")
     return CmdResult.ok(value=len(lines))
 
 
@@ -551,7 +551,7 @@ def _make_dump_handler(
         try:
             text = path.read_text(encoding="utf-8")
             for line in text.splitlines():
-                ctx.io.output(line)
+                ctx.io.result(line, "dim")
         except OSError as e:
             return CmdResult.fail(msg=f"Read error: {e}")
         # Return the dumped contents so scripts can capture / grep them.

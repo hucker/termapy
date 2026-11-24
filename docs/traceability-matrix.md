@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 232: 217 registry rows (guarantees 180, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 228. Pinned by none: 4.
+Ids: 233: 218 registry rows (guarantees 181, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 229. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -33,6 +33,12 @@ Ids: 232: 217 registry rows (guarantees 180, assumptions 37), 15 spec sections i
 - `test_demo_symbols.py`: `TestBundledDeviceFile.test_the_console_pointer_names_the_uart_block`
 - `test_devices.py`: `TestAliasBlocks.test_a_base_two_blocks_share_is_refused_and_said` **guard**, `TestAliasBlocks.test_a_pointer_to_a_block_names_its_registers` **guard**, `TestAliasBlocks.test_a_pointer_to_one_word_is_not_an_alias` **guard**, `TestAliasBlocks.test_a_taken_name_keeps_its_owner_and_is_said` **guard**, `TestAliasBlocks.test_a_value_at_no_base_is_not_an_alias` **guard**, `TestAliasBlocks.test_an_alias_keeps_the_registers_safety_trio_and_type` **guard**
 - `test_sym_commands.py`: `TestBlockAliases.test_a_pointer_constant_names_the_blocks_registers` **guard**, `TestBlockAliases.test_a_skipped_alias_is_said_at_load` **guard**
+
+### `answer-text-on-result` (guarantee, contract)
+
+- `test_architecture.py`: `test_an_answer_prints_on_the_result_channel` **guard**, `test_answer_on_output_guard_fires_on_a_probe` **probe**
+- `test_output_level.py`: `TestTheAnswerShowsAtQuiet.test_a_printed_answer_shows_at_quiet` **guard**, `TestTheAnswerShowsAtQuiet.test_silent_hides_a_printed_answer`
+- `test_var.py`: `TestTheTypoWarningShowsAtQuiet.test_an_unknown_name_is_warned_at_quiet`
 
 ### `architecture-generated` (guarantee, repository)
 
@@ -377,6 +383,7 @@ Ids: 232: 217 registry rows (guarantees 180, assumptions 37), 15 spec sections i
 - `test_engine.py`: `TestDispatchCapabilities.test_a_closed_port_answers_not_connected`
 - `test_port_commands.py`: `TestProperties.test_a_non_number_is_refused`
 - `test_proto_commands.py`: `TestRun.test_a_failing_suite_answers_json_with_its_results`
+- `test_var.py`: `TestDirectiveIntegration.test_run_directives_refuses_bare_dollar`
 
 ### `failure-reported-once` (guarantee, structure)
 
@@ -873,7 +880,7 @@ Ids: 232: 217 registry rows (guarantees 180, assumptions 37), 15 spec sections i
 
 ### `redirect-is-cap-out` (guarantee, requirement)
 
-- `test_cap_out.py`: `TestRedirect.test_a_device_line_keeps_its_operator`, `TestRedirect.test_a_failing_command_leaves_the_file`, `TestRedirect.test_a_page_lands_flush_and_help_keeps_its_indents` **guard**, `TestRedirect.test_a_quoted_operator_is_text`, `TestRedirect.test_a_raw_args_command_keeps_its_operator`, `TestRedirect.test_a_redirect_writes_the_output_to_cap` **guard**, `TestRedirect.test_a_script_line_redirects`, `TestRedirect.test_a_second_redirect_replaces_the_first`, `TestRedirect.test_append_adds_after_what_is_there`, `TestRedirect.test_json_appends_one_envelope_a_line` **guard**, `TestSplitRedirect.test_a_trailing_operator_is_a_redirect` **guard**, `TestSplitRedirect.test_an_operator_that_is_text_is_no_redirect` **guard**, `TestUnderMcp.test_an_agent_gets_the_person_view`
+- `test_cap_out.py`: `TestRedirect.test_a_device_line_keeps_its_operator`, `TestRedirect.test_a_failing_command_leaves_the_file`, `TestRedirect.test_a_page_lands_flush_and_help_keeps_its_indents` **guard**, `TestRedirect.test_a_quoted_operator_is_text`, `TestRedirect.test_a_raw_args_command_keeps_its_operator`, `TestRedirect.test_a_redirect_writes_the_output_to_cap` **guard**, `TestRedirect.test_a_script_line_redirects`, `TestRedirect.test_a_second_redirect_replaces_the_first`, `TestRedirect.test_append_adds_after_what_is_there`, `TestRedirect.test_json_appends_one_envelope_a_line` **guard**, `TestRedirect.test_the_file_does_not_follow_the_session_level`, `TestSplitRedirect.test_a_trailing_operator_is_a_redirect` **guard**, `TestSplitRedirect.test_an_operator_that_is_text_is_no_redirect` **guard**, `TestUnderMcp.test_an_agent_gets_the_person_view`
 
 ### `register-spec-word-form` (guarantee, data)
 
@@ -1147,7 +1154,7 @@ Ids: 232: 217 registry rows (guarantees 180, assumptions 37), 15 spec sections i
 ### `view-is-the-answer` (guarantee, requirement)
 
 - `test_firmware.py`: `TestCommands.test_firmware_dump_shows_at_quiet`
-- `test_output_level.py`: `TestTheAnswerShowsAtQuiet` (3 functions)
+- `test_output_level.py`: `TestTheAnswerShowsAtQuiet` (5 functions)
 - `test_var.py`: `TestVarListing.test_one_name_shows_at_quiet`
 
 ### `vt100-on-engine` (guarantee, contract)

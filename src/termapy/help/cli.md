@@ -354,7 +354,7 @@ Shape a CLI run's output; each lasts this run.
 | Flag              | What it does                                                  |
 | ----------------- | ------------------------------------------------------------- |
 | `--no-color`      | Plain output without ANSI color (implied by `-e`).            |
-| `--silent`        | Output level: nothing (script reads `CmdResult.value` only).  |
+| `--silent`        | Output level: errors only (a script reads `CmdResult.value`). |
 | `-q`, `--quiet`   | Output level: command results only.                           |
 | `-v`, `--verbose` | Output level: results + data + progress chatter.              |
 | `--term-width N`  | Override the terminal width for CLI output (default: detected). |

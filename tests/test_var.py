@@ -423,7 +423,7 @@ class TestRewriteAssignment:
 
 
 class TestCheckBareDollar:
-    """Tests for the bare $NAME = value warning."""
+    """Tests for the bare $NAME = value refusal."""
 
     def test_bare_assignment_warns(self):
         """The warning for $NAME = value shows the $(NAME) form the user meant."""
@@ -890,16 +890,17 @@ class TestDirectiveIntegration:
         # Assert - no directive matched
         assert actual.action == "none"
 
-    def test_run_directives_warns_on_bare_dollar(self, tmp_path):
-        """run_directives should return a warn result for bare $VAR = syntax."""
+    @pytest.mark.rule("failure-is-failure")
+    def test_run_directives_refuses_bare_dollar(self, tmp_path):
+        """A bare $VAR = value is refused as an error naming the $(VAR) form, never a warning beside success."""
         # Arrange
         engine, _ = _make_engine(tmp_path)
 
         # Act
         actual = engine.run_directives("$PORT = COM7")
 
-        # Assert - warning with helpful message
-        assert actual.action == "warn"
+        # Assert
+        assert actual.action == "error", "the line is not run, so it fails"
         assert "$(PORT)" in actual.payload, "suggests correct syntax"
 
     def test_run_directives_errors_on_empty_value(self, tmp_path):
@@ -1151,6 +1152,21 @@ class TestCaptureSpellsTypedValues:
         assert result.success is True, result.error
         assert user_vars(cli.repl.ctx)["X"] == expected, "the variable holds text"
         assert capsys.readouterr().out.splitlines()[-1].strip() == expected
+
+
+class TestTheTypoWarningShowsAtQuiet:
+    @pytest.mark.rule("answer-text-on-result")
+    def test_an_unknown_name_is_warned_at_quiet(self, cli, capsys):
+        """At a quiet session a dotted name nothing defines is still warned about, as an MCP agent needs."""
+        # Arrange
+        cli.repl.dispatch_full("/term.output quiet")
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("/print x$(CFG.NOPE)y")
+
+        # Assert
+        assert "Unknown variable: $(CFG.NOPE)" in capsys.readouterr().out
 
 
 @pytest.mark.rule("capture-reads-the-flag")

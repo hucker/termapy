@@ -622,6 +622,36 @@ class TestTheAnswerShowsAtQuiet:
         assert result.success is True, result.error
         assert expected in capsys.readouterr().out, f"{command}.quiet shows what was asked for"
 
+    @pytest.mark.rule("answer-text-on-result")
+    @pytest.mark.parametrize(
+        ("line", "expected"),
+        [("/print --quiet foo", "foo"), ("/cfg.dump --quiet", "baud_rate")],
+        ids=["print", "dump"],
+    )
+    def test_a_printed_answer_shows_at_quiet(self, cli, capsys, line, expected):
+        """/print's text and a dump's contents are their answers, so quiet shows them."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full(line)
+
+        # Assert
+        assert expected in capsys.readouterr().out, f"{line} shows its answer"
+
+    @pytest.mark.rule("answer-text-on-result")
+    def test_silent_hides_a_printed_answer(self, cli, capsys):
+        """Silent prints only errors, so /print --silent prints nothing and still answers its text."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        result = cli.repl.dispatch_full("/print --silent foo")
+
+        # Assert
+        assert capsys.readouterr().out.strip() == "", "nothing printed"
+        assert result.value == "foo", "the value is still the answer"
+
     @pytest.mark.parametrize("command", ["/port.info", "/var"], ids=["status-page", "table"])
     def test_silent_prints_nothing(self, cli, capsys, command):
         """At silent neither prints, and the value (the port's name, the row count) is still the answer a script reads."""

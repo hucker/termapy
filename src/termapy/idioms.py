@@ -132,7 +132,8 @@ command keeps its own flags: --json writes its JSON envelope, one line per run,
 so a file of appended runs is JSON Lines. The > stands apart, outside quotes,
 with one name after it. A > inside quotes or inside a word is text, and so is
 any > in a line for the device or in a command that takes its text as written
-({prefix}term.send). A command that fails before printing leaves the file as it was.""",
+({prefix}term.send). The line runs at normal unless it names a level, whatever the
+session's. A command that fails before printing leaves the file as it was.""",
     ),
     Idiom(
         name="capture",
@@ -160,7 +161,7 @@ A .quiet suffix on the name says the same thing.
   {{prefix}}port.list --quiet
   {{prefix}}port.list.quiet
 
-silent prints nothing, quiet only the result, normal adds the command's other
+silent prints only errors, quiet adds the result, normal adds the command's other
 output, and verbose adds its detail: on a help page, the whole page. {{prefix}}term.output sets the level for the
 session. The flag is taken off the line wherever it appears, so a command's
 text cannot carry it, except after a command's cmd=, where it belongs to the

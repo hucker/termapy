@@ -2493,3 +2493,21 @@ positional form fails with its usage. `$(X) <- /cmd --json` stores the line's en
 `/var.capture` its own; the capture's own `--json` goes before `cmd=`. A captured line runs at quiet
 where it ran silent, its output collected, not shown. `/repeat cmd=/print a = b` prints `a = b`
 where it printed `a=b`.
+
+## 2026-11-24 — An answer that is text prints at quiet; the session's level is only the screen's
+
+Reviewing the output levels against variables: `/print` put its text on the output channel, so a
+quiet session or script showed nothing, and `/print Hello > foo.txt` at quiet wrote an empty file.
+Chuck: `/print --quiet foo` should print `foo`. Quiet is the result channel and errors, and a
+command whose answer is text it prints prints it there (registry `answer-text-on-result`, an `ast`
+guard, probe-proven): `/print`, `/print.r`, every folder `.dump`, `/log.dump`, `/cfg.dump`, the
+`/app` dumps, `/app.state` and `/app.config`'s paths and `/run.help <script>`'s docstring. The
+unknown-variable warning moved there too: it exists so a typo does not reach the device in silence,
+and quiet is MCP's level. A `> file` runs its line at normal unless the line names one (registry
+`redirect-is-cap-out`), since the session's level says what the screen shows, not what a file asked
+for holds. A bare `$X = 5`, refused and never run, is an error, not a warning beside success
+(registry `failure-is-failure`). `/help level` and `cli.md` say silent prints only errors, which it
+always did. **Behavior changed:** at quiet those commands print their text and the warning shows;
+`/print` and the dumps keep their dim color; a bare `$X = 5` fails, so a script shows it as an
+error where a yellow warning stood, and runs on; a redirect at a quiet or silent session writes what the line
+prints at normal.

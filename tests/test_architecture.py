@@ -1394,8 +1394,6 @@ def test_encoded_write_allowlist_has_no_stale_entries():
 # difflib import, an edit-distance function or the phrase anywhere else is a
 # fifth copy.  The phrase is allowed where it is not a name suggestion.
 SUGGESTION_PHRASE_ALLOWED = {
-    # A syntax hint, not a name match: "/var X = 1" is how to set a variable.
-    "termapy/builtins/commands/var.py",
     # The editor's help pane draws the suggested key in green; the key
     # itself comes from matching.closest.
     "termapy/dialogs/config_editor.py",
@@ -4307,6 +4305,75 @@ def _summary_values(tree: ast.Module) -> list[tuple[str, int]]:
             if isinstance(value, ast.JoinedStr) or joined:
                 sites.append((qualname, node.lineno))
     return sites
+
+
+def _answers_on_output(tree: ast.Module) -> list[tuple[str, int]]:
+    """``(qualname, line)`` of every ``ctx.io.output(X)`` in a function that answers ``value=X``.
+
+    The text a command prints and answers is its answer, so it belongs on the
+    result channel; a loop that prints a value's lines one by one is review.
+    """
+    sites: list[tuple[str, int]] = []
+    for qualname, function in _scoped_nodes(tree):
+        if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        printed: list[tuple[str, int]] = []
+        answered: set[str] = set()
+        for node in ast.walk(function):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                continue
+            owner = node.func.value
+            if (
+                node.func.attr in ("output", "output_markup")
+                and isinstance(owner, ast.Attribute)
+                and owner.attr == "io"
+                and node.args
+                and isinstance(node.args[0], ast.Name)
+            ):
+                printed.append((node.args[0].id, node.lineno))
+            for keyword in node.keywords:
+                if keyword.arg == "value" and isinstance(keyword.value, ast.Name):
+                    answered.add(keyword.value.id)
+        sites.extend((qualname, line) for name, line in printed if name in answered)
+    return sites
+
+
+@pytest.mark.rule("answer-text-on-result")
+def test_an_answer_prints_on_the_result_channel():
+    """No handler prints its answer on the output channel, where quiet would hide it."""
+    # Arrange / Act
+    violations, _ = _unallowed(_answers_on_output, {})
+
+    # Assert
+    assert violations == [], (
+        "the text a command answers is its answer: print it with ctx.io.result, "
+        "which quiet shows:\n  " + "\n  ".join(violations)
+    )
+
+
+@pytest.mark.rule("answer-text-on-result")
+def test_answer_on_output_guard_fires_on_a_probe():
+    """The guard flags output() and output_markup() of the answered name, and passes result() and other text."""
+    # Arrange -- the forbidden shapes, then the correct ones
+    source = """
+def handler(ctx, args):
+    if a:
+        ctx.io.output(text)
+        return CmdResult.ok(value=text)
+    if b:
+        ctx.io.output_markup(page)
+        return CmdResult.ok(value=page)
+    ctx.io.result(path)
+    ctx.io.output(note)
+    return CmdResult.ok(value=path)
+"""
+    tree = ast.parse(source)
+
+    # Act
+    actual = [line for _, line in _answers_on_output(tree)]
+
+    # Assert
+    assert actual == [4, 7], "the answered name on output; result() and other text pass"
 
 
 @pytest.mark.rule("value-is-scalar")

@@ -109,18 +109,18 @@ def rewrite_capture(line: str) -> str | None:
 
 
 def check_bare_dollar(line: str) -> str | None:
-    """Check for bare ``$NAME = value`` and return a warning message.
+    """Check for bare ``$NAME = value``, which is refused, and return why.
 
     Args:
         line: Raw input line.
 
     Returns:
-        Warning string if bare syntax detected, or None.
+        The error message if bare syntax is detected, or None.
     """
     m = _BARE_ASSIGN_RE.match(line)
     if m:
         name = m.group(1)
-        return f"Did you mean $({name}) = ...?  Variables use $(NAME) syntax."
+        return f"Invalid assignment: ${name} (variables use $(NAME) syntax: $({name}) = ...)"
     return None
 
 
@@ -419,7 +419,8 @@ def _expand_and_warn(ctx: PluginContext, text: str) -> str:
         for name in unknown:
             suggestions = closest(name, names)
             if "." in name or suggestions:
-                ctx.io.output(f"Unknown variable: $({name}){did_you_mean(suggestions)}", "yellow")
+                # The result channel, so quiet and an MCP agent see it.
+                ctx.io.result(f"Unknown variable: $({name}){did_you_mean(suggestions)}", "yellow")
     return expand_vars(ctx, text)
 
 
@@ -498,9 +499,9 @@ def _directive_var_assign(line: str) -> DirectiveResult | None:
     m = _EMPTY_ASSIGN_RE.match(line)
     if m:
         return DirectiveResult("error", f"$({m.group(1)}) = requires a value.")
-    warning = check_bare_dollar(line)
-    if warning is not None:
-        return DirectiveResult("warn", warning)
+    refused = check_bare_dollar(line)
+    if refused is not None:
+        return DirectiveResult("error", refused)
     return None
 
 

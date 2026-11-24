@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
 from termapy.markup import escape_markup
+from termapy.plugins.views import Link, Piece
 from termapy.scripting import format_size
 
 # ── File metadata helpers (moved from cfg.py) ─────────────────────────────────
@@ -97,27 +99,55 @@ class FileTree:
     FILE_STYLE: str = field(default="blue")
     TREE_STYLE: str = field(default="dim")
 
-    def render(self) -> list[str]:
-        """Return the tree as a list of lines (no trailing newlines)."""
-        lines: list[str] = []
+    def _walk(self) -> list[tuple[str, str, str]]:
+        """Each line as ``(prefix, name, folder)``: the connectors, the entry, the folder it is in.
+
+        ``folder`` is ``""`` at the top level; a folder's own line ends its
+        name in ``/``.
+        """
+        rows: list[tuple[str, str, str]] = []
         n = len(self.sections)
         for i, (name, files) in enumerate(self.sections):
             is_last = i == n - 1
             connector = "└── " if is_last else "├── "
             child_indent = "    " if is_last else "│   "
-
+            rows.append((connector, name, ""))
             if name.endswith("/"):
-                lines.append(self._dir_line(connector, name))
-                folder_path = (
-                    self.base_dir / name.rstrip("/") if self.base_dir is not None else None
-                )
                 for j, fname in enumerate(files):
                     child_conn = "└── " if j == len(files) - 1 else "├── "
-                    fpath = folder_path / fname if folder_path is not None else None
-                    lines.append(self._file_line(child_indent + child_conn, fname, fpath))
-            else:
-                fpath = self.base_dir / name if self.base_dir is not None else None
-                lines.append(self._file_line(connector, name, fpath))
+                    rows.append((child_indent + child_conn, fname, name.rstrip("/")))
+        return rows
+
+    def render(self) -> list[str]:
+        """Return the tree as a list of lines (no trailing newlines)."""
+        lines: list[str] = []
+        for prefix, name, folder in self._walk():
+            if name.endswith("/"):
+                lines.append(self._dir_line(prefix, name))
+                continue
+            fpath = self.base_dir / folder / name if self.base_dir is not None else None
+            lines.append(self._file_line(prefix, name, fpath))
+        return lines
+
+    def pieces(self, click: Callable[[str, str], tuple[str, str]]) -> list[list[Piece]]:
+        """The tree as a page of pieces, each name a link where ``click`` names a command.
+
+        ``click(folder, name)`` returns the command a click on the name runs
+        and the one a dim ``edit`` beside it runs, ``""`` for none; a
+        folder's own line passes ``""`` and its name.  Connectors are dim,
+        folders cyan and files blue, as ``render`` draws them.
+        """
+        lines: list[list[Piece]] = []
+        for prefix, name, folder in self._walk():
+            opens, edits = click(folder, name)
+            style = self.DIR_STYLE if name.endswith("/") else self.FILE_STYLE
+            line = [
+                Piece(self.indent + prefix, None, self.TREE_STYLE),
+                Piece(name, Link(opens) if opens else None, style),
+            ]
+            if edits:
+                line += [Piece("  ", None, ""), Piece("edit", Link(edits), self.TREE_STYLE)]
+            lines.append(line)
         return lines
 
     def _dir_line(self, connector: str, name: str) -> str:

@@ -114,10 +114,10 @@ sends to the device) waits in the input line for Enter.
 | `/cfg.delete <name>`      | Delete a config and its whole folder after asking (MCP: `confirm=true`); never the active one |
 | `/cfg.dump`               | Print the config in memory as JSON                                          |
 | `/cfg.edit`               | Edit the current config file (same as `/edit.cfg`)                          |
-| `/cfg.file <name>`        | Print a file from the config folder (subfolders allowed)                    |
+| `/cfg.file <name>`        | Print a file from the config folder (subfolders allowed); `--display` opens it |
 | `/cfg.list`               | List all config files                                                       |
 | `/cfg.help`               | Show `/cfg` help (alias for `/help cfg`)                                    |
-| `/cfg.info {--display}`   | Write and show the project report (tree, config, buttons, log and history tails); also written at exit; `--display` opens it |
+| `/cfg.info {--display}`   | Write the project report (tree, config, buttons, log and history tails) and show the config's folder tree, each file a link; `--json` gives the files by folder; also written at exit; `--display` opens it |
 | `/cfg.load <name>`        | Switch to a different config by name                                        |
 | `/cfg.loaded`             | Show the load report: one row per plugin file, symbol table and device file the config load read, failures included (MCP: the auto-loaded profile too) |
 | `/cfg.new <name> <port> {baud} {mode}` | Create a config for a port (settings as `/port.connect`); asks before replacing one; TUI bare: the New Config wizard. `/cfg.load <name>` switches to it |

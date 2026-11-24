@@ -16,6 +16,7 @@ from termapy.folder_ops import (
     build_folder_subcommands,
     edit_command,
     file_table,
+    folder_links,
     list_entries,
     write_destination,
 )
@@ -866,8 +867,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         "script",
         files,
         extra=((title, script_name, "title"),),
-        run=lambda record: f"proto.run {record['name']}",
-        edit=lambda record: f"proto.edit {record['name']}",
+        **folder_links(PROTO),
     )
 
 

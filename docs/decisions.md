@@ -2526,3 +2526,37 @@ exception. `/proto.crc.<lang>` prints its source, and its `file=` reply naming w
 the result channel, as `/firmware.copy` does (registry `answer-text-on-result`). **Behavior changed**, for a script and an agent: `$(N) <- /search kettle` is a count, `0`
 with no match, where it was the names or empty; the same for the others; `--json` and MCP read the
 names in `data`.
+
+## 2026-11-24 — What a click on a file does is declared once per folder
+
+Chuck: `/cfg.info` is a file and folder lister, so it should link in the terminal and answer a
+dictionary in JSON mode, as a generalish solution to the file and folder commands. It printed its
+tree as markup, so `--json` carried the drawing as one string and no data. What a click on a file
+did was spelled in three places: `/run.list` and `/proto.list` by hand, the generic `.list` as
+`<folder>.show`, and `/cfg.info` not at all. Now it is declared once, on the folder's `FolderSpec`
+(registry `folder-links-declared`): `family`, the command its `list`/`show`/`dump` family hangs
+under (`run.profile` for `prof/`, which `build_folder_subcommands` took as an argument); `open`, the
+command a click on a file runs, `<family>.show` unless the folder says otherwise (`run`,
+`proto.run`); and `edit`, the dim `edit` beside it (`run.edit`, `proto.edit`, `plugin.edit`).
+`folder_ops.file_click` and `folder_links` are its readers, for every `.list` table and for
+`/cfg.info`'s tree, which `FileTree.pieces` draws as a page of links over the same walk `render`
+uses. Its root lists every file there, not the config and its log alone: the report it writes,
+the history, the MCP log and anything else but a dotfile, which no `.list` shows either, the
+config's own opening by suffix from
+`folders.ROOT_FILE_OPEN` (the config in its editor, the report and the session log in the viewer).
+Chuck asked why a `.json` was no link: a file nothing declares, in `sym/`, `dev/` or at the root,
+now prints in the log window with `/cfg.file` (`folders.FILE_PRINT`), or, over 10 KB
+(`FILE_PRINT_MAX_BYTES`), opens in the system viewer with `/cfg.file --display`: Chuck clicked a
+device file converted from an SVD and the log window stalled, and the "escape to cancel" the prompt
+showed did nothing: a file's text now prints through `waiting.print_lines`, which Escape (Ctrl+C in
+the CLI) ends with `Stopped after N of M lines.`, the value still the whole text. `/cfg.file`, `/show`,
+`/credits` and `/mcp.catalog` print on the result channel, the dumps the levels sweep missed
+(its guard now reads a loop over the value's lines). `/cfg.info` answers a record: the page, the files by folder as data (each a `file_record`,
+the shape every `.list` answers, the folders a mapping from name to files) and the report's path as
+the value. A record page could not carry links until now: `RecordView.lines` flattened a
+`PieceLine` to markup, so dispatch prints a page through `RecordView.segment_lines` and
+`IOHandle.result_markup_segments`, the result twin of `output_markup_segments`, and a frontend that
+cannot click prints the markup it always did. `viz/`, `sym/`, `dev/`, `lib/` and `firmware/` have no
+command family, so their names stay listless until one is mounted; their files print with `/cfg.file`. **Behavior changed:** `/cfg.info --json` answers the dictionary, its
+`output_lines` empty, where it carried the drawn tree; its tree prints on the result channel, so
+quiet shows it; `/plugin.list` gains the EDIT link `/run.list` and `/proto.list` have.

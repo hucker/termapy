@@ -544,8 +544,8 @@ class TestCfgInfoTree:
         after = _all_sections(str(config_path))
 
         # Assert
-        assert before == ["rig.cfg", "rig.log"], "a bare config lists no folder at all"
-        assert [name for name, _ in after] == ["rig.cfg", "rig.log", "cap/"], (
+        assert before == ["rig.cfg"], "a bare config lists itself and no folder"
+        assert [name for name, _ in after] == ["rig.cfg", "cap/"], (
             "a folder is listed once it exists, and only that one"
         )
         assert dict(after)["cap/"] == ["x.txt"], "with its files"

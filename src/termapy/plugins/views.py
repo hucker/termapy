@@ -327,9 +327,9 @@ class RecordView:
 
     items: tuple[Item, ...]
 
-    def lines(self) -> list[str]:
-        """The page as markup lines, every value escaped (registry ``markup-escape``)."""
-        lines: list[str] = []
+    def segment_lines(self) -> list[str | tuple[Piece, ...]]:
+        """The page as :meth:`lines` draws it, a ``PieceLine`` kept as its pieces so its links can click."""
+        lines: list[str | tuple[Piece, ...]] = []
         group: list[KvRow] = []
 
         def flush() -> None:
@@ -342,7 +342,7 @@ class RecordView:
                 continue
             flush()
             if isinstance(item, PieceLine):
-                lines.append(f"  {pieces_markup(item.pieces)}")
+                lines.append((Piece("  "), *item.pieces))
             elif item is None or not item.text:
                 lines.append("")
             else:
@@ -352,6 +352,12 @@ class RecordView:
                 )
         flush()
         return lines
+
+    def lines(self) -> list[str]:
+        """The page as markup lines, every value escaped (registry ``markup-escape``)."""
+        return [
+            line if isinstance(line, str) else pieces_markup(line) for line in self.segment_lines()
+        ]
 
 
 def error_pieces(

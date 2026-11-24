@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 233: 218 registry rows (guarantees 181, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 229. Pinned by none: 4.
+Ids: 234: 219 registry rows (guarantees 182, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 230. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -448,6 +448,12 @@ Ids: 233: 218 registry rows (guarantees 181, assumptions 37), 15 spec sections i
 - `test_architecture.py`: `test_folder_globs_are_read_from_the_table` **guard**, `test_typed_glob_guard_fires_on_a_probe` **guard**
 - `test_help_dynamic.py`: `TestFolderHelpers.test_file_count_uses_folder_pattern`
 
+### `folder-links-declared` (guarantee, structure)
+
+- `test_app_pilot_targets.py`: `TestFolderLinks` (1 functions)
+- `test_architecture.py`: `test_a_file_table_reads_its_folder_links` **guard**, `test_file_table_links_allowlist_is_not_stale`, `test_file_table_links_guard_fires_on_a_probe` **probe**
+- `test_folder_links.py`: `TestCfgInfo.test_json_is_the_files_by_folder`, `test_a_list_and_the_tree_click_alike`, `test_every_declared_click_is_a_command` **guard**
+
 ### `folders-ensure-only` (guarantee, data)
 
 - `test_architecture.py`: `test_data_folders_are_created_only_by_ensure_folder` **guard**
@@ -461,7 +467,7 @@ Ids: 233: 218 registry rows (guarantees 181, assumptions 37), 15 spec sections i
 
 - `test_app_pilot.py`: `TestEditHooks.test_edit_refuses_a_plugin_file_without_a_desktop`
 - `test_architecture.py`: `test_a_handler_calling_a_gated_method_declares_the_capability` **guard**, `test_gated_call_guard_fires_on_a_probe` **guard**
-- `test_cfg_info_report.py`: `TestDisplay.test_opens_the_report_through_the_gated_opener`, `TestDisplay.test_refused_without_a_desktop_before_writing`
+- `test_cfg_info_report.py`: `TestDisplay.test_opens_the_report_through_the_gated_opener`, `TestDisplay.test_refused_without_a_desktop_before_writing`, `TestFileDisplay.test_opens_the_file_through_the_gated_opener`, `TestFileDisplay.test_refused_without_a_desktop`
 
 ### `handler-docstring` (guarantee, structure)
 
@@ -746,6 +752,7 @@ Ids: 233: 218 registry rows (guarantees 181, assumptions 37), 15 spec sections i
 
 - `test_architecture.py`: `test_only_the_outermost_operation_clears_the_stop_event` **guard**, `test_stop_clear_allowlist_has_no_stale_entries`, `test_stop_clear_guard_fires_on_a_probe` **guard**
 - `test_cap_poll.py`: `TestStop.test_a_stop_already_requested_ends_the_poll_before_the_first_tick`
+- `test_print_lines.py`: `test_at_the_prompt_a_stale_stop_is_cleared`, `test_in_a_script_the_stop_is_the_scripts`
 
 ### `plugins-import-published-only` (guarantee, structure)
 

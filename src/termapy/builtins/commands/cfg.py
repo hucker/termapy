@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from termapy import diag_log, load_report, port_control
 from termapy.builtins.commands._cfg_icon import (
@@ -39,7 +39,15 @@ from termapy.config import (
 )
 from termapy.config_resolve import resolve_config
 from termapy.defaults import CFG_CHOICES, cfg_key, cfg_slot, cfg_value
-from termapy.folder_ops import FILE_COLUMNS, edit_cfg_command, file_record, list_entries
+from termapy.folder_ops import (
+    FILE_COLUMNS,
+    edit_cfg_command,
+    file_click,
+    file_record,
+    folder_list_command,
+    list_entries,
+    root_file_click,
+)
 from termapy.folders import (
     FOLDER_PATTERNS,
     FOLDERS,
@@ -55,12 +63,15 @@ from termapy.plugins import (
     CmdResult,
     Column,
     Command,
+    Link,
     MissingCapability,
+    Piece,
+    PieceLine,
     UsageError,
-    escape_markup,
     requires_text,
 )
 from termapy.plugins.params import ParamSpec
+from termapy.plugins.waiting import print_lines
 from termapy.scripting import coerce_to_type
 
 if TYPE_CHECKING:
@@ -443,12 +454,17 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_file(ctx: PluginContext, args: str) -> CmdResult:
-    """Print a file from the active config folder to the terminal.
+    """Print a file from the active config folder to the terminal, or open it with ``--display``.
 
     Names resolve RELATIVE TO THE CFG ROOT ONLY (subfolders allowed):
     absolute paths and ``..`` traversal are refused for every frontend,
-    so this can never read outside the config folder.
+    so this can never read outside the config folder.  ``--display`` needs
+    the desktop, the option, not the command, so the handler checks it
+    first (registry ``gated-call-declares-need``); ``/cfg.info``'s tree
+    links a big file to it.
     """
+    if ctx.flag("--display") and not ctx.capabilities.gui_apps:
+        return CmdResult.fail(msg=f"--display requires {requires_text(['gui_apps'], ctx.prefix)}")
     name = ctx.arg("name")
     root = Path(ctx.config_path).parent.resolve()
     rel = Path(name)
@@ -460,12 +476,14 @@ def _handler_file(ctx: PluginContext, args: str) -> CmdResult:
     if not path.is_file():
         # The folder is the cfg root or one under it: the containment check passed.
         return CmdResult.fail(msg=f"File not found: {name}{file_suggestion(path.parent, name)}")
+    if ctx.flag("--display"):
+        ctx.fs.open_file(path)
+        return CmdResult.ok(value=str(path))
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as e:
         return CmdResult.fail(msg=f"Read error: {e}")
-    for line in text.splitlines():
-        ctx.io.output(line)
+    print_lines(ctx, text.splitlines())
     return CmdResult.ok(value=text)
 
 
@@ -500,46 +518,66 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _names(directory: Path, pattern: str) -> list[str]:
-    """Return sorted filenames matching pattern in directory."""
-    if pattern == "*":
-        return sorted(path.name for path in directory.glob(pattern) if path.is_file())
-    return sorted(path.name for path in directory.glob(pattern))
+    """Return sorted filenames matching pattern in directory; dotfiles never, as no .list shows them."""
+    return sorted(
+        path.name
+        for path in directory.glob(pattern)
+        if path.is_file() and not path.name.startswith(".")
+    )
+
+
+def _tree_click(config_path: str) -> Callable[[str, str], tuple[str, str]]:
+    """What a click on a name in a config's ``/cfg.info`` tree runs, and its ``edit``.
+
+    A folder lists, a file in one does what its folder declares
+    (``folder_ops.file_click``), and a file at the root what
+    ``folders.ROOT_FILE_OPEN`` says (``root_file_click``): the config opens
+    in its editor, the report and the log in the viewer (registry
+    ``folder-links-declared``).  A file either prints passes its size, so a
+    big one opens in the viewer instead.
+    """
+    data_dir = Path(config_path).parent
+    stem = Path(config_path).stem
+
+    def size_of(path: Path) -> int | None:
+        try:
+            return path.stat().st_size
+        except OSError:
+            return None
+
+    def click(folder: str, name: str) -> tuple[str, str]:
+        if folder:
+            return file_click(folder, name, size_of(data_dir / folder / name))
+        if name.endswith("/"):
+            return folder_list_command(name.rstrip("/")), ""
+        return root_file_click(stem, name, size_of(data_dir / name)), ""
+
+    return click
 
 
 def _build_tree(
     config_path: str,
-    sections: list[tuple[str, list[str]]],
+    entries: list[tuple[str, list[str]]],
     global_names: list[str] | None = None,
-) -> tuple[str, str]:
-    """Build plain and Rich-colored directory trees.
+) -> tuple[list[PieceLine | None], str]:
+    """The tree as a page for the terminal, and as plain text for the report.
 
-    The colored tree is for the terminal output and contains names
-    only.  The plain tree is for the markdown report and appends
-    size / created / modified columns to each file line; folders
-    appear bare.  Columns are space-padded so they align in a
-    monospace ``text`` code-fence.
+    The page names files only, each a link where its folder declares one;
+    the report's tree appends size / created / modified to each file, its
+    columns space-padded to line up in a monospace ``text`` fence.
 
     Args:
         config_path: Path to the config file.
-        sections: List of (name, file_list) tuples.
+        entries: The sections on disk (``_all_sections``).
         global_names: Optional global plugin filenames.
 
     Returns:
-        Tuple of (colored tree for terminal, plain tree for markdown).
+        The page's lines (``None`` a blank one) and the plain tree.
     """
     from termapy.tree_render import FileTree
 
     abs_root = Path(config_path).parent.resolve().as_posix() + "/"
     data_dir = Path(config_path).parent
-
-    # Filter to entries that exist on disk; bare files that don't
-    # exist are skipped so the tree never claims a missing artifact.
-    entries: list[tuple[str, list[str]]] = []
-    for name, files in sections:
-        if name.endswith("/"):
-            entries.append((name, files))
-        elif (data_dir / name).exists():
-            entries.append((name, []))
 
     # Pad all file names to the longest one (across both top-level and
     # nested files, plus any global plugins) so the metadata columns
@@ -554,11 +592,9 @@ def _build_tree(
     for fname in global_names or []:
         name_width = max(name_width, len(fname))
 
-    color_lines = [f"[cyan]{escape_markup(abs_root)}[/]"] + FileTree(
-        entries,
-        base_dir=data_dir,
-        color=True,
-    ).render()
+    page: list[PieceLine | None] = [PieceLine((Piece(abs_root, Link("cfg.explore"), "cyan"),))]
+    click = _tree_click(config_path)
+    page += [PieceLine(tuple(line)) for line in FileTree(entries, base_dir=data_dir).pieces(click)]
     plain_lines = [abs_root] + FileTree(
         entries,
         base_dir=data_dir,
@@ -569,15 +605,13 @@ def _build_tree(
 
     if global_names:
         global_sections = [(fname, []) for fname in global_names]
-        color_lines.append("")
-        color_lines.append("[cyan]plugin/ (global)[/]")
-        color_lines.extend(
-            FileTree(
-                global_sections,
-                base_dir=global_plugins_dir(),
-                color=True,
-            ).render()
-        )
+        page += [None, PieceLine((Piece("plugin/ (global)", None, "cyan"),))]
+        page += [
+            PieceLine(tuple(line))
+            for line in FileTree(global_sections, base_dir=global_plugins_dir()).pieces(
+                lambda folder, name: ("", "")
+            )
+        ]
 
         plain_lines.append("")
         plain_lines.append("plugin/ (global)")
@@ -591,21 +625,50 @@ def _build_tree(
             ).render()
         )
 
-    return "\n".join(color_lines), "\n".join(plain_lines)
+    return page, "\n".join(plain_lines)
 
 
-def _all_sections(config_path: str) -> list[tuple[str, list[str]]]:
-    """Build the sections list for a config: cfg, log, and every data folder that exists.
+def _info_record(
+    config_path: str,
+    entries: list[tuple[str, list[str]]],
+    global_names: list[str],
+    report_path: Path,
+) -> dict[str, Any]:
+    """``/cfg.info``'s data: the config, its folder and report, then its files by folder.
 
+    Each file is a ``file_record``, the shape every ``.list`` answers, and
+    the folders are a mapping from name to files, so an agent looks a
+    folder up instead of reading the drawn tree.
+    """
+    data_dir = Path(config_path).parent
+    return {
+        "config": Path(config_path).stem,
+        "folder": str(data_dir.resolve()),
+        "report": str(report_path),
+        "files": [file_record(data_dir / name) for name, _ in entries if not name.endswith("/")],
+        "folders": {
+            name.rstrip("/"): [file_record(data_dir / name / fname) for fname in files]
+            for name, files in entries
+            if name.endswith("/")
+        },
+        "global": {"plugin": [file_record(global_plugins_dir() / fname) for fname in global_names]},
+    }
+
+
+def _all_sections(config_path: str, writing: str = "") -> list[tuple[str, list[str]]]:
+    """Build the sections list for a config: every file at its root, then every data folder that exists.
+
+    The config comes first, then the rest of the root's files by name: its
+    sidecars (the report, the log, the history) and anything else there,
+    with ``writing``, a file about to be written (the report), among them.
     Data folders appear on first write, so an absent one is not listed --
     the tree shows what is on disk, not the maximum layout.
     """
     data_dir = Path(config_path).parent
-    config_name = Path(config_path).stem
-    sections: list[tuple[str, list[str]]] = [
-        (f"{config_name}.cfg", []),
-        (f"{config_name}.log", []),
-    ]
+    config_file = Path(config_path).name
+    on_disk = set(_names(data_dir, "*"))
+    others = sorted((on_disk | ({writing} if writing else set())) - {config_file})
+    sections: list[tuple[str, list[str]]] = [(name, []) for name in (config_file, *others)]
     for spec in FOLDERS:
         folder = data_dir / spec.name
         if folder.is_dir():
@@ -644,8 +707,10 @@ def _tail_section(title: str, path: Path) -> list[str]:
     ]
 
 
-def write_info_report(ctx: PluginContext, *, trigger: str) -> tuple[Path, str]:
-    """Write ``<config>.md`` beside the config; return its path and the coloured tree.
+def write_info_report(
+    ctx: PluginContext, *, trigger: str
+) -> tuple[Path, list[PieceLine | None], dict[str, Any]]:
+    """Write ``<config>.md`` beside the config; return its path, the tree's page and its data.
 
     A ``Written`` line with the time and ``trigger`` (what caused the
     write), then folder tree, config, active custom buttons, and the tails
@@ -662,9 +727,12 @@ def write_info_report(ctx: PluginContext, *, trigger: str) -> tuple[Path, str]:
         TypeError: The config holds a value ``json.dumps`` cannot encode.
         RuntimeError: The config is a bundled read-only template.
     """
-    sections = _all_sections(ctx.config_path)
+    # The report this call writes belongs in its own tree, even the first time.
+    entries = _all_sections(
+        ctx.config_path, writing=f"{Path(ctx.config_path).stem}{INFO_REPORT_SUFFIX}"
+    )
     global_names = _names(global_plugins_dir(), FOLDER_PATTERNS[PLUGIN])
-    colored_tree, plain_tree = _build_tree(ctx.config_path, sections, global_names)
+    page, plain_tree = _build_tree(ctx.config_path, entries, global_names)
 
     cfg_display = {k: v for k, v in ctx.cfg.items() if k != "custom_buttons"}
     buttons = cfg_value(ctx.cfg, "custom_buttons")
@@ -706,11 +774,16 @@ def write_info_report(ctx: PluginContext, *, trigger: str) -> tuple[Path, str]:
     data_dir = cfg_data_dir(ctx.config_path)
     report_path = data_dir / f"{config_name}{INFO_REPORT_SUFFIX}"
     report_path.write_text("\n".join(md_lines), encoding="utf-8")
-    return report_path, colored_tree
+    return report_path, page, _info_record(ctx.config_path, entries, global_names, report_path)
 
 
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
-    """Write the project report and print the folder tree.
+    """Write the project report and answer with the config's folder tree.
+
+    A record answer (registry ``record-one-format``): the tree is the page,
+    each name a link that does what its folder declares (registry
+    ``folder-links-declared``), and the files by folder are the data; the
+    report's path is the value.
 
     With ``--display``, also opens the report in the system viewer.  The
     option, not the command, needs the desktop, so the handler checks the
@@ -724,8 +797,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     if ctx.flag("--display") and not ctx.capabilities.gui_apps:
         return CmdResult.fail(msg=f"--display requires {requires_text(['gui_apps'], ctx.prefix)}")
     try:
-        report_path, colored_tree = write_info_report(ctx, trigger=f"by {ctx.prefix}cfg.info")
-        ctx.io.output_markup(colored_tree)
+        report_path, page, record = write_info_report(ctx, trigger=f"by {ctx.prefix}cfg.info")
         if ctx.flag("--display"):
             ctx.fs.open_file(report_path)
     except OSError as e:
@@ -734,7 +806,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
         # json.dumps() hit a non-serializable value in the config.
         # Worth a specific message so the user knows what to fix.
         return CmdResult.fail(msg=f"Config has non-JSON value: {e}")
-    return CmdResult.ok(value=report_path)
+    return CmdResult.record(record, page, value=str(report_path))
 
 
 def on_app_stop(ctx: PluginContext) -> None:
@@ -915,6 +987,7 @@ COMMAND = Command(
         ),
         "file": Command(
             help="Print a file from the config folder to the terminal.",
+            flags={"--display": "Open the file in the system viewer instead of printing it."},
             handler=_handler_file,
             shows=True,
             needs=CapabilitySet.CONFIG_LOADED,

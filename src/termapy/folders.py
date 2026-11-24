@@ -54,6 +54,16 @@ class FolderSpec:
             Default True -- override to False for folders whose contents
             shouldn't leave the session (e.g. screenshots = binary
             artifacts, not exportable as text).
+        family: The command the folder's ``list``/``show``/``dump``/...
+            family hangs under (``run.profile`` for ``prof/``); ``""`` for a
+            folder with none, whose names a listing shows as plain text.
+        open: The command a click on one of its files runs, the file's name
+            after it (``run``, ``proto.run``); ``""`` takes ``<family>.show``,
+            the system viewer.
+        edit: The command the dim ``edit`` beside a name runs (``run.edit``);
+            ``""`` for none.  ``open`` and ``edit`` are the one answer to what
+            a click on a file does, in every ``.list`` table and in
+            ``/cfg.info``'s tree (registry ``folder-links-declared``).
     """
 
     name: str
@@ -61,6 +71,16 @@ class FolderSpec:
     generated: bool = False
     showable: bool = True
     dumpable: bool = True
+    family: str = ""
+    open: str = ""
+    edit: str = ""
+
+    @property
+    def open_command(self) -> str:
+        """The command a click on one of the folder's files runs; ``""`` for none."""
+        if self.open:
+            return self.open
+        return f"{self.family}.show" if self.family and self.showable else ""
 
     @property
     def pattern(self) -> str:
@@ -74,13 +94,13 @@ class FolderSpec:
 # for folders of termapy's own output, safe to wipe by pattern; add ``dumpable=False`` when contents are
 # binary / shouldn't be exported.
 FOLDERS = [
-    FolderSpec("run", ".run"),
-    FolderSpec("proto", ".pro"),
-    FolderSpec("plugin", ".py"),
-    FolderSpec("ss", "*", generated=True, dumpable=False),
+    FolderSpec("run", ".run", family="run", open="run", edit="run.edit"),
+    FolderSpec("proto", ".pro", family="proto", open="proto.run", edit="proto.edit"),
+    FolderSpec("plugin", ".py", family="plugin", edit="plugin.edit"),
+    FolderSpec("ss", "*", generated=True, dumpable=False, family="ss"),
     FolderSpec("viz", ".py"),
-    FolderSpec("cap", "*", generated=True),
-    FolderSpec("prof", ".csv", generated=True),
+    FolderSpec("cap", "*", generated=True, family="cap"),
+    FolderSpec("prof", ".csv", generated=True, family="run.profile"),
     # Symbol tables (*.symbols.json) and, later, user converter modules.
     FolderSpec("sym", "*"),
     # Memory-mapped device register files (*.device.json).  Static chip
@@ -182,6 +202,26 @@ SIDECARS: tuple[tuple[str, str | None], ...] = (
     (PROFILE_SUFFIX, None),
     (SYMBOLS_SUFFIX, SYM),
 )
+
+# The command that prints any file in a config's folder to the log window,
+# its path relative to the folder after it: the click on a file whose folder,
+# or the root, declares none (a .json in sym/, a .history at the root).
+FILE_PRINT = "cfg.file"
+
+# A click on a file larger than this opens it in the system viewer
+# (FILE_PRINT --display) instead of printing it: a device file converted
+# from a vendor SVD runs to megabytes and stalls the log window.
+FILE_PRINT_MAX_BYTES = 10 * 1024
+
+# What a click on a config's own file at its folder's root opens, by the
+# suffix after the config's stem: the root's half of what FolderSpec's open
+# and edit declare for a data folder (registry folder-links-declared).  A
+# root file with none here prints with FILE_PRINT.
+ROOT_FILE_OPEN: dict[str, str] = {
+    CONFIG_SUFFIX: "cfg.edit",
+    INFO_REPORT_SUFFIX: "edit.info",
+    LOG_SUFFIX: "edit.log",
+}
 
 # -- Containment: whether a path stays in a folder ----------------------------
 

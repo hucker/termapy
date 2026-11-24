@@ -52,6 +52,7 @@ from termapy.folder_ops import (
     build_folder_subcommands,
     edit_command,
     file_table,
+    folder_links,
     list_entries,
 )
 from termapy.folders import (
@@ -129,8 +130,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
         "script",
         files,
         extra=((title, lambda file: extract_docstring(file)[0], "title"),),
-        run=lambda record: f"run {record['name']}",
-        edit=lambda record: f"run.edit {record['name']}",
+        **folder_links(RUN),
     )
 
 
@@ -441,7 +441,7 @@ COMMAND = Command(
                     help="Profile a single command.",
                     handler=_handler_profile_cmd,
                 ),
-                **build_folder_subcommands("prof", noun="profile", command="run.profile"),
+                **build_folder_subcommands("prof", noun="profile"),
             },
         ),
         **_FOLDER_SUBS,

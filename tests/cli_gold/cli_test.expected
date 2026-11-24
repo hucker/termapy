@@ -2206,7 +2206,9 @@ DESCRIPTION (developer)
   Write a message to the terminal output.
 
     Prints the argument text directly to the terminal. Useful in
-    scripts for status messages or visual separators.
+    scripts for status messages or visual separators.  The text is the
+    answer, so it prints on the result channel: quiet shows it, silent
+    does not (registry ``answer-text-on-result``).
 
   Args:
       ctx: Plugin context for output.

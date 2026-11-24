@@ -19,13 +19,15 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
     """Write a message to the terminal output.
 
     Prints the argument text directly to the terminal. Useful in
-    scripts for status messages or visual separators.
+    scripts for status messages or visual separators.  The text is the
+    answer, so it prints on the result channel: quiet shows it, silent
+    does not (registry ``answer-text-on-result``).
 
     Args:
         ctx: Plugin context for output.
         args: Text to print.
     """
-    ctx.io.output(args)
+    ctx.io.result(args, "dim")
     # Return the printed text so scripts can echo and capture in one shot.
     return CmdResult.ok(value=args)
 
@@ -41,7 +43,7 @@ def _handler_rich(ctx: PluginContext, args: str) -> CmdResult:
         ctx: Plugin context for output.
         args: Rich markup text to render.
     """
-    ctx.io.output_markup(args)
+    ctx.io.result_markup(args)
     # Return the printed text so scripts can echo and capture in one shot.
     return CmdResult.ok(value=args)
 

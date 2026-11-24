@@ -188,6 +188,18 @@ class TestRedirect:
         ), "the heading flush, its body two spaces in, as on screen"
 
     @pytest.mark.rule("redirect-is-cap-out")
+    def test_the_file_does_not_follow_the_session_level(self, cli):
+        """At a quiet session a redirect still writes what the line says at normal."""
+        # Arrange
+        cli.repl.dispatch_full("/term.output quiet")
+
+        # Act
+        cli.repl.dispatch_full("/seq.reset > out.txt")
+
+        # Assert
+        assert (_cap(cli) / "out.txt").read_text(encoding="utf-8") == "Sequence counters reset.\n"
+
+    @pytest.mark.rule("redirect-is-cap-out")
     def test_a_script_line_redirects(self, cli):
         """A .run line is a typed line, so its redirect writes the file too."""
         # Arrange

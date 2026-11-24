@@ -106,7 +106,7 @@ def _handler_help(ctx: PluginContext, args: str) -> CmdResult:
         _summary, full = extract_docstring(path)
         if not full:
             return CmdResult.fail(msg=f"{path.name}: no docstring (add # comments at the top).")
-        ctx.io.output(full)
+        ctx.io.result(full, "dim")
         return CmdResult.ok(value=full)
 
     # Bare /run.help is /help run: the page, ending with /run.list's scripts.

@@ -154,7 +154,7 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_state(ctx: PluginContext, args: str) -> CmdResult:
     """Print the path to ``state.json``."""
     path = str(app_state_file())
-    ctx.io.output(path)
+    ctx.io.result(path, "dim")
     return CmdResult.ok(value=path)
 
 
@@ -165,7 +165,7 @@ def _handler_state_dump(ctx: PluginContext, args: str) -> CmdResult:
     """
     state = load_app_state()
     payload = json.dumps(state, indent=4)
-    ctx.io.output(payload)
+    ctx.io.result(payload, "dim")
     return CmdResult.ok(value=payload)
 
 
@@ -193,7 +193,7 @@ def _handler_state_edit(ctx: PluginContext, args: str) -> CmdResult:
 def _handler_config(ctx: PluginContext, args: str) -> CmdResult:
     """Print the path to ``config.json``."""
     path = str(app_config_file())
-    ctx.io.output(path)
+    ctx.io.result(path, "dim")
     return CmdResult.ok(value=path)
 
 
@@ -205,7 +205,7 @@ def _handler_config_dump(ctx: PluginContext, args: str) -> CmdResult:
     """
     cfg = load_app_config()
     payload = json.dumps(cfg, indent=4)
-    ctx.io.output(payload)
+    ctx.io.result(payload, "dim")
     return CmdResult.ok(value=payload)
 
 

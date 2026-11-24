@@ -134,7 +134,8 @@ envelope, one line per run, so a file of appended runs is JSON Lines, and a
 flag before `cmd=` is `/cap.out`'s own (`/cap.out --silent ...` prints no
 reply). A `>` inside quotes or inside a word is text, and so is any `>` in a
 line for the device or in a command that takes its text as written
-(`/term.send ls > out.txt` goes to the device's shell). A command that fails
+(`/term.send ls > out.txt` goes to the device's shell). The line runs at
+normal unless it names a level, whatever the session's. A command that fails
 before printing leaves the file as it was. A device's reply is
 `/cap.text cmd=`'s, not `/cap.out`'s.
 

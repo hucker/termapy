@@ -438,7 +438,7 @@ def _handler_dump(ctx: PluginContext, args: str) -> CmdResult:
     if args.strip():
         raise UsageError(f"For a file in the config folder use {ctx.prefix}cfg.file <name>")
     text = json.dumps(dict(ctx.cfg), indent=4)
-    ctx.io.output(text)
+    ctx.io.result(text, "dim")
     return CmdResult.ok(value=text)
 
 

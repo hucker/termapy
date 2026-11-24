@@ -169,13 +169,14 @@ DESCRIPTION
   how the JSON prints. The level flags decide how much of it there is, as they
   do for text: with --quiet output_lines holds only the answer, and --silent
   prints nothing. The flag is taken off the line wherever it appears, so a
-  command's text cannot carry it. Typed as /help --json it means help as JSON,
+  command's text cannot carry it, except after a command's cmd=, where it belongs
+  to the command cmd= runs. Typed as /help --json it means help as JSON,
   which is why this page is /help json.
 
 SEE ALSO
   /help.idioms
 demo> /help.idioms
-  idioms - 7 idioms
+  idioms - 8 idioms
   NAME        MEANING
   -- --
   boolean     A yes or no, in any of these words: on/off/true/false/yes/no/1/0/y/n/t/f.
@@ -183,6 +184,7 @@ demo> /help.idioms
   cycle       Move a setting to its next value, wrapping at the end; made for a custom button.
   bare        A setting with no argument shows its value and changes nothing.
   json        Answer this one call as a JSON object, for a script or an agent.
+  redirect    End a termapy line with > file or >> file to write what it prints to cap/.
   level       How much one call prints, from nothing to all its detail.
   capability  What a command needs from where it runs; a frontend that lacks it refuses the command.
 demo> /help.more
@@ -1187,7 +1189,8 @@ SYNOPSIS
 
 DESCRIPTION
   Save device output to a file in the config's cap/ folder, as text, as
-  raw binary or as decoded values, and manage the captures kept there.
+  raw binary or as decoded values, or what a termapy command prints, and
+  manage the captures kept there.
 
   0 files in cap/
 
@@ -1198,6 +1201,7 @@ SUBCOMMANDS
   /cap.explore    Open cap/ in the system file explorer.
   /cap.hex        Capture hex text lines, decode with format spec to CSV.
   /cap.list       List files in cap/, newest first, with size and age.
+  /cap.out        Write what a termapy command prints to a file.
   /cap.poll       Poll commands on a schedule, display (and optionally save) results.
   /cap.rename     Rename a file in cap/ (extension kept; never overwrites).
   /cap.show       Open the newest (or named) file in cap/ with the system viewer.
@@ -2326,6 +2330,36 @@ demo> /run.delete nosuch
   Error: File not found: nosuch
 demo> /run.delete *
   Error: Invalid name: * (run/ deletes one named file at a time)
+demo> /print === section: cap.out: a command's output to a file ===
+  === section: cap.out: a command's output to a file ===
+demo> /print hello > gold_out.txt
+  1 line to <CFG_DIR>/demo/cap/gold_out.txt
+demo> /print again >> gold_out.txt
+  1 line to <CFG_DIR>/demo/cap/gold_out.txt
+demo> /cap.dump gold_out.txt
+  hello
+  again
+demo> /print hello > gold_out.txt
+  1 line to <CFG_DIR>/demo/cap/gold_out.txt
+demo> /cap.dump gold_out.txt
+  hello
+demo> /print one --json >> gold_out.jsonl
+  1 line to <CFG_DIR>/demo/cap/gold_out.jsonl
+demo> /print two --json >> gold_out.jsonl
+  1 line to <CFG_DIR>/demo/cap/gold_out.jsonl
+demo> /cap.dump gold_out.jsonl
+  {"cmd": "/print one", "success": true, "error": "", "value": "one", "data": null, "output_lines": ["one"], "elapsed_s": 0}
+  {"cmd": "/print two", "success": true, "error": "", "value": "two", "data": null, "output_lines": ["two"], "elapsed_s": 0}
+demo> /cap.dump gold_quiet.txt
+  only the file hears this
+demo> /print "a > b"
+  "a > b"
+demo> /cap.out gold_out.txt cmd=AT
+  Error: Not a termapy command: AT (/cap.text cmd= captures a device's reply)
+demo> /nosuch > gold_out.txt
+  Error: Unknown command: nosuch
+demo> /cap.dump gold_out.txt
+  hello
 demo> /print === section: port by USB serial number (DEMO answers to TERMAPY-DEMO) ===
   === section: port by USB serial number (DEMO answers to TERMAPY-DEMO) ===
 demo> /port.disconnect

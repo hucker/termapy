@@ -555,6 +555,21 @@ MEM.R 0x1000 2 --json
 /cap.delete *
 /run.delete nosuch
 /run.delete *
+/print === section: cap.out: a command's output to a file ===
+/print hello > gold_out.txt
+/print again >> gold_out.txt
+/cap.dump gold_out.txt
+/print hello > gold_out.txt
+/cap.dump gold_out.txt
+/print one --json >> gold_out.jsonl
+/print two --json >> gold_out.jsonl
+/cap.dump gold_out.jsonl
+/cap.out --silent gold_quiet.txt cmd=/print only the file hears this
+/cap.dump gold_quiet.txt
+/print "a > b"
+/cap.out gold_out.txt cmd=AT
+/nosuch > gold_out.txt
+/cap.dump gold_out.txt
 /print === section: port by USB serial number (DEMO answers to TERMAPY-DEMO) ===
 /port.disconnect
 /port.connect TERMAPY-DEMO

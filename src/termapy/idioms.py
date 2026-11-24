@@ -111,8 +111,28 @@ A .json suffix on a command's name says the same thing.
 how the JSON prints. The level flags decide how much of it there is, as they
 do for text: with --quiet output_lines holds only the answer, and --silent
 prints nothing. The flag is taken off the line wherever it appears, so a
-command's text cannot carry it. Typed as {prefix}help --json it means help as JSON,
+command's text cannot carry it, except after a command's cmd=, where it belongs
+to the command cmd= runs. Typed as {prefix}help --json it means help as JSON,
 which is why this page is {prefix}help json.""",
+    ),
+    Idiom(
+        name="redirect",
+        aliases=("redirection",),
+        summary="End a termapy line with > file or >> file to write what it prints to cap/.",
+        page="""\
+A termapy line that ends in > file writes what the command prints to that file
+in the config's cap/ folder instead of the screen, and >> file adds to its end.
+The reply names the file in full.
+
+  {prefix}cfg.list > configs.txt
+  {prefix}term.info --json >> info.jsonl
+
+The line is {prefix}cap.out file mode=new cmd=<line>, mode=append for >>, and the
+command keeps its own flags: --json writes its JSON envelope, one line per run,
+so a file of appended runs is JSON Lines. The > stands apart, outside quotes,
+with one name after it. A > inside quotes or inside a word is text, and so is
+any > in a line for the device or in a command that takes its text as written
+({prefix}term.send). A command that fails before printing leaves the file as it was.""",
     ),
     Idiom(
         name="level",
@@ -129,7 +149,8 @@ A .quiet suffix on the name says the same thing.
 silent prints nothing, quiet only the result, normal adds the command's other
 output, and verbose adds its detail: on a help page, the whole page. {{prefix}}term.output sets the level for the
 session. The flag is taken off the line wherever it appears, so a command's
-text cannot carry it.""",
+text cannot carry it, except after a command's cmd=, where it belongs to the
+command cmd= runs.""",
     ),
     Idiom(
         name="capability",

@@ -103,6 +103,11 @@ class InternalHandle:
     # CURRENT STATE.  None on a bare test fake: the page leaves the section off.
     read_state: Callable | None = None
 
+    # dispatch_to(line, write) -> CmdResult: run a command line as if typed,
+    # each line it prints handed to write (/cap.out's door).  None on a bare
+    # test fake.
+    dispatch_to: Callable | None = None
+
     apply_cfg: Callable = lambda key, val: None  # set cfg in-memory, no dialog
     in_script: Callable = lambda: False
     # effective_capabilities() -> CapabilitySet: the engine's "what can a

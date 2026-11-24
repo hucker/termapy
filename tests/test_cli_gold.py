@@ -78,6 +78,21 @@ _SIZE_RE = re.compile(r"\s+\d+(?:\.\d)? +(?:B|KB|MB)\b")
 # tx_bytes stays exact: every write finishes before the next script line.
 _RX_BYTES_RE = re.compile(r"^(\s*rx_bytes\s*: )\d+$")
 
+# A path under the run's config root, once the root reads <CFG_DIR>: its
+# separators are the platform's, so they are read as /.
+_CFG_PATH_RE = re.compile(r"<CFG_DIR>\S*")
+
+
+def _mask_cfg_root(text: str, cfg_root: Path) -> str:
+    """``text`` with the run's config root as ``<CFG_DIR>``, its paths in ``/`` form.
+
+    A reply that names the file it wrote names it in full (registry
+    ``writes-in-cfg-folder``), and the root is a pytest temp folder.
+    """
+    for spelling in {str(cfg_root.resolve()), str(cfg_root)}:
+        text = text.replace(spelling, "<CFG_DIR>")
+    return _CFG_PATH_RE.sub(lambda match: match[0].replace("\\", "/"), text)
+
 
 def _normalize(text: str) -> list[str]:
     """Normalize output for comparison.
@@ -89,7 +104,8 @@ def _normalize(text: str) -> list[str]:
     - ``/term.info``'s ``rx_bytes`` count -> ``<N>`` (the last reply may still be arriving)
     - File sizes in listings (``1.2 KB``) -> ``<SIZE>`` (CRLF/LF checkouts differ),
       and a listing's header padding and dash row, whose widths follow them
-    - Absolute paths replaced with <CFG_DIR>/demo/
+    - The run's config root replaced with <CFG_DIR>, before this runs
+      (``_mask_cfg_root``), so a path reads <CFG_DIR>/demo/cap/x.txt
     - Trailing whitespace
     """
     lines = []
@@ -189,7 +205,7 @@ def _assert_gold(script_name: str, expected_name: str, tmp_path: Path) -> None:
         f"CLI leaked a traceback to stderr:\n{result.stderr}"
     )
 
-    actual_text = result.stdout
+    actual_text = _mask_cfg_root(result.stdout, tmp_path / "termapy_cfg")
     actual = _normalize(actual_text)
 
     # Expected

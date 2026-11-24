@@ -15,12 +15,18 @@ none of it lives here (CLAUDE.md: infrastructure never lives under
   config folder travels; ``to=global`` shares the part with every config.
 - ``/dev.use <part> {at=NAME@ADDR ...}`` -- add a library part to this
   config, with where it sits on THIS board.
-- ``/dev.list`` -- the devices THIS config loaded, with layer and placement.
+- ``/dev.list`` (bare ``/dev``) -- the devices THIS config loaded, with layer
+  and placement.  It stands in for the dev/ folder family's ``.list`` (a dev/ file IS a
+  loaded device); ``.explore``, ``.show``, ``.dump``, ``.rename`` and
+  ``.delete`` are the family's own, so ``/dev.delete <part>`` removes a
+  part from this config and the devices reload.
 - ``/dev.regs <device> {pattern}`` -- one loaded device's registers, from
   its file and never from the chip, with the flags that make a read or a
   masked write risky.
 - ``/dev.lib {pattern}`` -- the parts the library holds.  A different
-  question from ``/dev.list``: available, not installed.
+  question from ``/dev.list``: available, not installed.  The lib/
+  folder's family hangs under it (``/dev.lib.explore``, ``.show``, ...),
+  its ``.list`` the parts.
 """
 
 from __future__ import annotations
@@ -44,6 +50,7 @@ from termapy.devices import (
     write_library_part,
 )
 from termapy.devices.converters import FORMATS, find_converter
+from termapy.folder_ops import build_folder_subcommands
 from termapy.folders import ensure_folder
 from termapy.help_dynamic import compose, state_line
 from termapy.matching import closest, did_you_mean, matches
@@ -422,6 +429,7 @@ _GRAMMAR_HELP: Final[str] = (
     "  {prefix}dev.list                             - what this config has loaded\n"
     "  {prefix}dev.regs <device> {pattern}          - its registers, hazards flagged\n"
     "  {prefix}dev.lib {pattern}                    - what the library offers\n"
+    "  {prefix}dev.delete <part>                    - remove a part from this config, after a yes\n"
     "\n"
     "Storing a part once is the point: a 2500-register MCU is a fact about the\n"
     "silicon, not about one board, and the reference keeps this board's addresses\n"
@@ -440,6 +448,34 @@ def _long_help(ctx: PluginContext) -> str:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
+# The dev/ folder's family, its .list the loaded devices rather than the
+# files: a dev/ file IS a loaded device (or a reference to a library part), so
+# the devices with their layer and placement are the listing a person wants
+# (registry folder-family-from-table lets a family replace .list alone).
+_FOLDER_SUBS = build_folder_subcommands("dev")
+_FOLDER_SUBS["list"] = Command(
+    help="List the devices this config has loaded, with their layer and placement.",
+    handler=_handler_list,
+    shows=True,
+    state=True,
+)
+# The lib/ folder's family, its .list the parts: the library is a nested
+# vendor/type/family tree, so its root-level files say nothing.
+_LIB_PATTERN = ParamSpec(
+    "pattern",
+    "str",
+    positional=True,
+    rest=True,
+    help="filter by part or category: pic32 contains, pic32cm* a glob",
+)
+_LIB_SUBS = build_folder_subcommands("lib")
+_LIB_SUBS["list"] = Command(
+    params=[_LIB_PATTERN],
+    help="List the parts the device library holds (available, not loaded).",
+    handler=_handler_lib,
+    shows=True,
+    state=True,
+)
 COMMAND = Command(
     group="devices",
     name="dev",
@@ -451,6 +487,8 @@ COMMAND = Command(
         "to this config."
     ),
     long_help=_long_help,
+    bare_sub="list",
+    help_list="list",
     sub_commands={
         "import": Command(
             params=[
@@ -491,12 +529,6 @@ COMMAND = Command(
             help="Convert a vendor register description (CMSIS-SVD) into this config's library and use it here.",
             handler=_handler_import,
             needs=CapabilitySet.CONFIG_LOADED,
-        ),
-        "list": Command(
-            help="List the devices this config has loaded, with their layer and placement.",
-            handler=_handler_list,
-            shows=True,
-            state=True,
         ),
         "regs": Command(
             params=[
@@ -539,18 +571,18 @@ COMMAND = Command(
             needs=CapabilitySet.CONFIG_LOADED,
         ),
         "lib": Command(
-            params=[
-                ParamSpec(
-                    "pattern",
-                    "str",
-                    positional=True,
-                    rest=True,
-                    help="filter by part or category: pic32 contains, pic32cm* a glob",
-                ),
-            ],
-            help="List the parts the device library holds (available, not loaded).",
+            params=[_LIB_PATTERN],
+            help="The device library: list its parts, or manage this config's lib/ folder.",
+            intro=(
+                "The library holds the parts a config picks from with {prefix}dev.use; "
+                "nothing in it loads. This config's lib/ sits over the shared "
+                "termapy_cfg/lib/, and these commands work on this config's."
+            ),
             handler=_handler_lib,
             shows=True,
+            state=True,
+            sub_commands=_LIB_SUBS,
         ),
+        **_FOLDER_SUBS,
     },
 )

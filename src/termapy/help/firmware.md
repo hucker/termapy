@@ -4,7 +4,8 @@
 
 termapy ships the device-side sources a monitor compiles in to speak its
 protocols, so getting them is one command, not a trip to the repository.
-`/firmware` lists what ships; `.copy` writes it into your tree.
+`/firmware` lists what ships; `.copy` writes it into the config's `firmware/`
+folder, which has the file commands every data folder has.
 
 | Target    | Language | Files                                    | Guide                                   |
 | --------- | -------- | ---------------------------------------- | --------------------------------------- |
@@ -20,13 +21,20 @@ MicroPython board starters run, on the same wire, and the Arduino board
 starters are built on it.
 
 ```text
-/firmware                          what ships: target, language, files, size
-/firmware.copy                     every module of the shipped language into the config's firmware/
-/firmware.copy lang=c              the same, naming the language
-/firmware.copy mem folder=fw       one module into fw/ under the config's folder, created if missing
-/firmware.show json                open termapy_json.c in the system viewer
-/firmware.dump mem termapy_mem.h   print one file to the terminal
+/firmware                              what ships: target, language, files, size (same as /firmware.lib)
+/firmware.copy                         every module of the shipped language into the config's firmware/
+/firmware.copy lang=c                  the same, naming the language
+/firmware.copy mem folder=fw           one module into fw/ under the config's folder, created if missing
+/firmware.lib.show json                open the shipped termapy_json.c in the system viewer
+/firmware.lib.dump mem termapy_mem.h   print one shipped file to the terminal
+/firmware.list                         the copies in this config's firmware/, newest first
+/firmware.edit termapy_mem.c           open a copy in the system editor (also /edit.firmware)
+/firmware.show, .dump, .rename, .delete   the folder's file commands, as /run has for run/
 ```
+
+What ships is `/firmware.lib`, the noun beside the folder as `/dev.lib` is
+beside `dev/`, so the plain verbs (`.list`, `.show`, `.dump`) always mean this
+config's own files ([per-folder file commands](commands.md#per-folder-file-commands)).
 
 A module's files follow its language: in C a module is a `.c` and its
 `.h`, so `mem` is `termapy_mem.c` and `termapy_mem.h`; a language with one
@@ -39,8 +47,8 @@ full path. `.copy` never overwrites: a file already in the folder fails
 the whole copy before anything is written, so a module you have edited
 stays yours. `lang=` names the language when the sources ship
 in several; today everything ships in C, so it is never needed. Over MCP,
-`/firmware.dump` is how an agent reads a source: the file's text is the
-command's value.
+`/firmware.lib.dump` is how an agent reads a shipped source, and
+`/firmware.dump` a copied one: the file's text is the command's value.
 
 Each module is strict C99 with no dependency beyond the standard headers.
 The suite compiles each against a host harness (`tests/test_firmware_mem.py`,

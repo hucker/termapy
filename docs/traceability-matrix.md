@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 235: 220 registry rows (guarantees 183, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 231. Pinned by none: 4.
+Ids: 236: 221 registry rows (guarantees 184, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 232. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -446,6 +446,11 @@ Ids: 235: 220 registry rows (guarantees 183, assumptions 37), 15 spec sections i
 ### `folder-exts-from-table` (guarantee, data)
 
 - `test_architecture.py`: `test_termapy_extensions_are_read_from_the_table` **guard**, `test_typed_ext_guard_fires_on_a_probe` **guard**
+
+### `folder-family-from-table` (guarantee, structure)
+
+- `test_architecture.py`: `test_every_data_folder_mounts_its_family_from_the_table` **guard**, `test_folder_family_guard_fires_on_a_probe` **guard**
+- `test_folder_families.py`: the module (13 functions)
 
 ### `folder-globs-from-table` (guarantee, data)
 

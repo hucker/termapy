@@ -128,6 +128,10 @@ $(BE) <- /port.baud_rate --json
 /run.list
 /proto.list
 /cap.list
+/sym.list
+/dev.lib.list
+/proto.viz.list
+/firmware.list
 
 # ── REPL: port control - read all properties ────────────────────────────────
 /print === section: port read ===
@@ -537,12 +541,13 @@ MEM.R 0x1000 2 --json
 /find.max_count
 /print === section: firmware: the shipped device-side sources ===
 /firmware
-/firmware.list
+/firmware.lib
 /firmware.copy nosuch
 /firmware.copy mem lang=rust
 /firmware.copy lang=rust
-/firmware.dump mem
-/firmware.dump mem nosuch.h
+/firmware.lib.dump mem
+/firmware.lib.dump mem nosuch.h
+/firmware.dump
 /print === section: board: starter projects for dev boards ===
 /board.new nosuch
 /board.firmware nosuch

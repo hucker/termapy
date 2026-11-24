@@ -49,7 +49,18 @@ Two questions, two commands:
 ```text
 /dev.list              # what THIS config loaded: layer and placement
 /dev.lib {pattern}     # what the libraries hold; LOADED marks what this config has
+/dev.delete <part>     # remove a part from this config: its dev/ file goes, after a yes
 ```
+
+`dev/` and `lib/` are data folders, so each has the [file commands every
+data folder has](commands.md#per-folder-file-commands): `/dev.explore`,
+`.show`, `.dump`, `.rename` and `.delete` work on `dev/`, and
+`/dev.lib.explore`, `.show`, `.dump`, `.rename` and `.delete` on this
+config's `lib/` (name a part by its path in the tree, `acme/adc/adc16`).
+Their `.list` is the two commands above: a `dev/` file is a loaded device
+and a library's root-level files say nothing, so each lists what its files
+mean. Deleting a `dev/` file reloads the devices, as `/dev.use` does after
+writing one.
 
 The **library** is a tree of parts, nested however suits you
 (`microchip/mcu/pic32cm/`, `lattice/fpga/`). There are two, layered the way

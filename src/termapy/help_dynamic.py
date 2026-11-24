@@ -27,7 +27,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from termapy.folders import FOLDER_PATTERNS
+from termapy.folders import FOLDER_PATTERNS, spec_for
 from termapy.markup import escape_markup
 from termapy.plugins.capabilities import STATE_MESSAGES
 
@@ -150,11 +150,14 @@ def file_count(ctx: _Ctx, kind: str, pattern: str | None = None) -> int:
 def folder_line(ctx: _Ctx, kind: str, noun: str | None = None) -> str:
     """Green one-liner: ``N <noun> in <kind>/``.
 
-    ``noun`` defaults to ``"file"`` / ``"files"``. The pluralization is
-    naive (append 's') -- fine for the nouns this is used with.
+    ``noun`` defaults to the folder's ``FolderSpec.noun`` (``script`` for
+    run/), ``"file"`` for a folder the table does not hold. The
+    pluralization is naive (append 's') -- fine for the nouns this is used
+    with.
     """
     n = file_count(ctx, kind)
-    label = noun or "file"
+    spec = spec_for(kind)
+    label = noun or (spec.noun if spec is not None else "file")
     if n != 1:
         label += "s"
     return green(f"{n} {label} in {kind}/")

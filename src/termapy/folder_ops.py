@@ -1,8 +1,8 @@
 """Shared folder-operation handlers for per-config data folders.
 
-Every top-level plugin that owns a data folder (run/, proto/, plugin/,
-ss/, cap/, and prof/ as ``/run.profile``) exposes the same uniform
-subcommand family:
+Every data folder's owning command (run/, proto/, plugin/, ss/, cap/,
+sym/, dev/, firmware/, and prof/ as ``/run.profile``, lib/ as ``/dev.lib``,
+viz/ as ``/proto.viz``) exposes the same uniform subcommand family:
 
   - ``list``    -- list files in the folder
   - ``explore`` -- open the folder in the system file explorer
@@ -14,11 +14,17 @@ subcommand family:
   - ``delete``  -- delete one named file, or in a folder of termapy's own
                    output every file a pattern matches (generated)
 
-Which of ``show`` and ``dump`` exist, and whether ``delete`` takes a
-pattern, is driven by the ``showable / dumpable / generated`` flags on
-each ``FolderSpec`` in ``termapy.folders`` -- no per-plugin decision, no
-duplication.  viz/ has no command family (the proto debug screen loads
-it), and a config folder is not a data folder: ``/cfg`` has its own verbs.
+Which of ``show`` and ``dump`` exist, whether ``delete`` takes a
+pattern, what ``list`` counts in and where the family mounts are the
+``showable / dumpable / generated / noun / family`` fields of each
+``FolderSpec`` in ``termapy.folders`` -- no per-plugin decision, no
+duplication -- and a guard holds every folder's family to its row
+(registry ``folder-family-from-table``).  A family may replace ``list``
+alone with a listing of its own: ``/run.list`` adds each script's title,
+``/dev.list`` shows the loaded devices a dev/ file means, ``/dev.lib``
+the library's parts.  What a plugin ships beside a folder is a noun node
+(``/firmware.lib``), so the plain verbs always mean the config's folder.
+A config folder is not a data folder: ``/cfg`` has its own verbs.
 
 These factories used to live in ``cfg.py``.  They moved here so that
 ``ss.py``, ``cap.py``, ``proto.py``, and the ``/run.*`` hook registrations
@@ -53,15 +59,14 @@ from termapy.folders import (
     FILE_PRINT,
     FILE_PRINT_MAX_BYTES,
     FOLDER_EXTS,
-    FOLDERS,
     PROTO,
     ROOT_FILE_OPEN,
     RUN,
-    FolderSpec,
     default_file_name,
     ensure_folder,
     file_suggestion,
     inside,
+    spec_for,
 )
 from termapy.help_dynamic import compose, folder_line
 from termapy.matching import is_glob, matches
@@ -368,7 +373,7 @@ def file_click(folder: str, name: str, size: int | None = None) -> tuple[str, st
     ``folder-links-declared``).  A folder that declares no click prints the
     file, or opens it when ``size`` is over the limit (``print_click``).
     """
-    spec = _spec_for(folder)
+    spec = spec_for(folder)
     if spec is None:
         return "", ""
     opens = (
@@ -390,7 +395,7 @@ def root_file_click(config_stem: str, name: str, size: int | None = None) -> str
 
 def folder_list_command(folder: str) -> str:
     """The command a click on ``folder``'s name runs, its ``.list``; ``""`` for a folder with no family."""
-    spec = _spec_for(folder)
+    spec = spec_for(folder)
     return f"{spec.family}.list" if spec is not None and spec.family else ""
 
 
@@ -403,7 +408,7 @@ class FileLinks(TypedDict):
 
 def folder_links(folder: str) -> FileLinks:
     """``file_table``'s ``run=`` and ``edit=`` for a table of ``folder``'s files, from ``file_click``."""
-    spec = _spec_for(folder)
+    spec = spec_for(folder)
     # Every file of a known folder opens (file_click's fallback prints it).
     opens = spec is not None
     edits = spec is not None and bool(spec.edit)
@@ -749,40 +754,36 @@ def _make_rename_handler(folder: str, ext: str) -> Callable[[PluginContext, str]
     return handler
 
 
-def _spec_for(folder: str) -> FolderSpec | None:
-    """Look up the FolderSpec for a folder name, or None."""
-    for spec in FOLDERS:
-        if spec.name == folder:
-            return spec
-    return None
+def build_folder_subcommands(folder: str) -> dict[str, Command]:
+    """Build the standard ``list/explore/show/dump/rename/delete`` subcommand family.
 
-
-def build_folder_subcommands(folder: str, noun: str = "file") -> dict[str, Command]:
-    """Build the standard ``list/explore/show/dump/clear`` subcommand family.
-
-    Driven by the ``FolderSpec`` for the given folder name.  Always
-    includes ``list`` and ``explore``; adds ``show`` / ``dump`` /
-    ``clear`` according to the spec's capability flags.  ``noun`` is
-    what ``.list``'s title counts in (``proto/ - 6 scripts``).  The
+    Driven by the ``FolderSpec`` for the given folder name, and by nothing
+    else: always ``list``, ``explore``, ``rename`` and ``delete``; ``show``
+    and ``dump`` by the spec's ``showable`` and ``dumpable``; ``.list``'s
+    title counts in the spec's ``noun`` (``proto/ - 6 scripts``).  The
     family hangs under the spec's ``family`` (``prof/`` is
-    ``/run.profile``), which a test holds to where it is mounted.
+    ``/run.profile``), and ``tests/test_architecture.py`` holds every
+    folder's family to that mount, whole (registry
+    ``folder-family-from-table``); a plugin may replace ``list`` alone
+    with a listing of its own, declared ``state=True, shows=True``.
 
     Caller merges the result into its plugin's ``sub_commands=`` dict:
 
         sub_commands={
             "send": ...,           # plugin-specific subcommands
             "run": ...,
-            **build_folder_subcommands("proto", noun="script"),
+            **build_folder_subcommands("proto"),
         }
     """
-    spec = _spec_for(folder)
+    spec = spec_for(folder)
     if spec is None:
         raise ValueError(f"Unknown folder: {folder!r}")
     pattern = spec.pattern
+    noun = spec.noun
 
     subs: dict[str, Command] = {
         "list": Command(
-            help=f"List files in {folder}/, newest first, with size and age.",
+            help=f"List the {noun}s in {folder}/, newest first, with size and age.",
             handler=_make_list_handler(folder, pattern, noun),
             shows=True,
             state=True,
@@ -868,9 +869,6 @@ def build_folder_subcommands(folder: str, noun: str = "file") -> dict[str, Comma
 # check that capability for the file it found.
 TERMAPY_EDITS = frozenset({FOLDER_EXTS[RUN], FOLDER_EXTS[PROTO]})
 
-# The word ``folder_line`` counts files in, where "file" would read wrong.
-_NOUNS = {"run": "script", "proto": "script"}
-
 
 def _edit_folder_dir(folder: str, ctx: PluginContext) -> Path:
     """The per-config data folder; the cwd when no config is loaded."""
@@ -878,13 +876,17 @@ def _edit_folder_dir(folder: str, ctx: PluginContext) -> Path:
 
 
 def _folder_long_help(folder: str, text: str = "") -> Callable[[PluginContext], str]:
-    """Dynamic long_help: the live file count ("42 scripts in run/"), then ``text``."""
-    noun = _NOUNS.get(folder)
+    """Dynamic long_help: the live file count ("42 scripts in run/", the folder's noun), then ``text``."""
 
     def long_help(ctx: PluginContext) -> str:
-        return compose(folder_line(ctx, folder, noun=noun), text)
+        return compose(folder_line(ctx, folder), text)
 
     return long_help
+
+
+def _file_kind(ext: str) -> str:
+    """``.run file`` for a typed folder, ``file`` for a mixed one (``firmware/``)."""
+    return "file" if ext == "*" else f"{ext} file"
 
 
 def _make_edit_handler(folder: str, ext: str) -> Callable[[PluginContext, str], CmdResult]:
@@ -909,22 +911,25 @@ def _make_edit_handler(folder: str, ext: str) -> Callable[[PluginContext, str], 
         return CmdResult.ok(value=path)
 
     # The /help.dev text of each command built here (registry handler-docstring).
-    handler.__doc__ = f"Open a {ext} file from the config's {folder}/ folder in the editor, or list the folder when no name is given."
+    handler.__doc__ = f"Open a {_file_kind(ext)} from the config's {folder}/ folder in the editor, or list the folder when no name is given."
     return handler
 
 
 def _make_forward_list_handler(folder: str) -> Callable[[PluginContext, str], CmdResult]:
-    """``/edit.<folder>.list`` is ``/<folder>.list``: one listing per folder.
+    """``/edit.<folder>.list`` is the folder family's ``.list``: one listing per folder.
 
-    Forwarded through the engine, so the listing (format, order, data
-    records, ``/run.list``'s TITLE) is the folder command's own.
+    Forwarded through the engine to ``<family>.list`` (``proto.viz.list``
+    for ``viz/``), so the listing (format, order, data records,
+    ``/run.list``'s TITLE) is the folder command's own.
     """
+    spec = spec_for(folder)
+    target = f"{spec.family}.list" if spec is not None and spec.family else f"{folder}.list"
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
-        return ctx.internal.dispatch(f"{folder}.list")
+        return ctx.internal.dispatch(target)
 
     # The /help.dev text of each command built here (registry handler-docstring).
-    handler.__doc__ = f"The same listing as {folder}.list, so there is one listing per folder."
+    handler.__doc__ = f"The same listing as {target}, so there is one listing per folder."
     return handler
 
 
@@ -951,7 +956,7 @@ def edit_command(folder: str) -> Command:
     Args:
         folder: A ``folders.FOLDERS`` name holding editable text files.
     """
-    spec = _spec_for(folder)
+    spec = spec_for(folder)
     if spec is None:
         raise ValueError(f"Unknown folder: {folder!r}")
     # A folder with a picker opens it on a bare call in the TUI (SYNOPSIS
@@ -968,14 +973,15 @@ def edit_command(folder: str) -> Command:
         if own_editor
         else "the system editor"
     )
+    optional = "" if spec.ext == "*" else f" (the {spec.ext} is optional)"
     text = (
-        f"With a name, opens that existing file from {folder}/ in {where} "
-        f"(the {spec.ext} is optional); a missing name fails.  {bare}  "
-        f"/{folder}.edit and {{prefix}}edit.{folder} are the same command."
+        f"With a name, opens that existing file from {folder}/ in {where}"
+        f"{optional}; a missing name fails.  {bare}  "
+        f"{{prefix}}{spec.family}.edit and {{prefix}}edit.{folder} are the same command."
     )
     return Command(
         args="{filename}",
-        help=f"Open a {spec.ext} file for editing.",
+        help=f"Open a {_file_kind(spec.ext)} for editing.",
         long_help=_folder_long_help(folder, text),
         handler=_make_edit_handler(folder, spec.ext),
         shows=True,
@@ -1002,16 +1008,17 @@ def edit_cfg_command() -> Command:
 
 def edit_folder_command(folder: str) -> Command:
     """``/edit.<folder>``: the shared edit leaf plus ``.list`` and ``.explore``."""
-    spec = _spec_for(folder)
+    spec = spec_for(folder)
     if spec is None:
         raise ValueError(f"Unknown folder: {folder!r}")
     long_help = _folder_long_help(folder)  # the subs: the count line alone
+    kind = _file_kind(spec.ext)
     return replace(
         edit_command(folder),
-        intro=f"Open a {spec.ext} file from {folder}/ in an editor, list them, or open the folder.",
+        intro=f"Open a {kind} from {folder}/ in an editor, list them, or open the folder.",
         sub_commands={
             "list": Command(
-                help=f"List {spec.ext} files.",
+                help=f"List the {kind}s.",
                 long_help=long_help,
                 handler=_make_forward_list_handler(folder),
                 shows=True,

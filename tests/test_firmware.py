@@ -242,9 +242,9 @@ class TestTable:
 
 
 class TestCommands:
-    def test_firmware_list_is_the_table(self, env: Env):
-        """/firmware.list answers with one record per target, files and size as real values."""
-        result = env.engine.dispatch("firmware.list")
+    def test_firmware_lib_is_the_table(self, env: Env):
+        """/firmware.lib answers with one record per target, files and size as real values."""
+        result = env.engine.dispatch("firmware.lib")
         assert result.success, result.error
         names = [(record["name"], record["language"]) for record in result.data]
         assert names == [(target.name, target.language) for target in TARGETS]
@@ -253,11 +253,11 @@ class TestCommands:
         )
         assert all(record["bytes"] > 0 for record in result.data), "size is the files' bytes"
 
-    def test_bare_firmware_lists(self, env: Env):
-        """Bare /firmware runs its declared bare_sub, the listing."""
+    def test_bare_firmware_lists_the_catalog(self, env: Env):
+        """Bare /firmware runs its declared bare_sub, the shipped catalog /firmware.lib."""
         bare = env.engine.dispatch("firmware")
-        listed = env.engine.dispatch("firmware.list")
-        assert bare.data == listed.data, "bare and .list are one answer"
+        listed = env.engine.dispatch("firmware.lib")
+        assert bare.data == listed.data, "bare and .lib are one answer"
 
     def test_firmware_copy_without_a_name_writes_the_whole_kit(self, env: Env, tmp_path):
         """/firmware.copy alone writes every module of the one shipped language; lang=c says the same."""
@@ -347,7 +347,7 @@ class TestCommands:
         assert inside.success, "the config's own firmware/ is inside the sandbox"
 
     def test_firmware_dump_prints_one_file(self, env: Env):
-        """/firmware.dump <name> <file> is a record page: the file's lines print, its text is the value, the facts the data."""
+        """/firmware.lib.dump <name> <file> is a record page: the file's lines print, its text is the value, the facts the data."""
         from termapy.markup import markup_to_plain
 
         expected = source_text(find_target("mem"), "termapy_mem.h")
@@ -355,7 +355,7 @@ class TestCommands:
         page: list[str] = []
         env.engine.ctx.io._write_markup = page.append
 
-        result = env.engine.dispatch("firmware.dump mem termapy_mem.h")
+        result = env.engine.dispatch("firmware.lib.dump mem termapy_mem.h")
 
         assert result.success, result.error
         assert result.value == expected, "the file's text is the scriptable value"
@@ -370,23 +370,23 @@ class TestCommands:
         page: list[str] = []
         env.engine.ctx.io._write_markup = page.append
 
-        env.engine.dispatch("firmware.dump.quiet mem termapy_mem.h")
+        env.engine.dispatch("firmware.lib.dump.quiet mem termapy_mem.h")
 
         assert page, "the page printed at quiet"
 
     def test_firmware_dump_needs_a_file_name_for_a_pair(self, env: Env):
         """A module shipping two files will not guess which one to print."""
-        result = env.engine.dispatch("firmware.dump mem")
+        result = env.engine.dispatch("firmware.lib.dump mem")
         assert not result.success
         assert result.error == "Specify a file: termapy_mem.c, termapy_mem.h"
 
     def test_firmware_dump_rejects_a_file_the_target_lacks(self, env: Env):
         """A file name outside the module's files is a lookup failure that lists them."""
-        result = env.engine.dispatch("firmware.dump mem nosuch.h")
+        result = env.engine.dispatch("firmware.lib.dump mem nosuch.h")
         assert not result.success
         assert result.error == "Unknown file: nosuch.h (use termapy_mem.c, termapy_mem.h)"
 
     def test_firmware_show_is_gated_on_gui_apps(self, env: Env):
-        """/firmware.show opens a viewer, so without gui_apps the gate answers, not the handler."""
-        result = env.engine.dispatch("firmware.show mem")
+        """/firmware.lib.show opens a viewer, so without gui_apps the gate answers, not the handler."""
+        result = env.engine.dispatch("firmware.lib.show mem")
         assert not result.success, "no desktop, no viewer"

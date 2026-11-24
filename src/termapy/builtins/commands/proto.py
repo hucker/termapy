@@ -2456,7 +2456,7 @@ def _build_crc_lang_commands() -> dict[str, Command]:
 
 
 # ── COMMAND (must be at end of file) ──────────────────────────────────────────
-_FOLDER_SUBS = build_folder_subcommands("proto", noun="script")
+_FOLDER_SUBS = build_folder_subcommands("proto")
 # Override .list with the title-aware version, as /run.list adds the
 # docstring's title; the other folder subs keep the generic behavior.
 _FOLDER_SUBS["list"] = Command(
@@ -2715,6 +2715,22 @@ COMMAND = Command(
             state=True,
         ),
         "edit": edit_command("proto"),
+        # The viz/ folder's family: a visualizer is the debug screen's, so it
+        # hangs here (FolderSpec("viz").family, registry folder-family-from-table).
+        "viz": Command(
+            help="Packet visualizers in viz/: list, explore, show, dump, edit, rename, delete.",
+            intro=(
+                "A visualizer is a Python file that decodes a packet's bytes into named "
+                "columns on the protocol debug screen. Hex, Text and Modbus ship with "
+                "termapy; this config's viz/ folder adds your own."
+            ),
+            bare_sub="list",
+            help_list="list",
+            sub_commands={
+                "edit": edit_command("viz"),
+                **build_folder_subcommands("viz"),
+            },
+        ),
         **_FOLDER_SUBS,
     },
 )

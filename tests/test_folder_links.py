@@ -7,7 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from termapy.folder_ops import file_click, folder_links, folder_list_command, root_file_click
+from termapy.folder_ops import (
+    file_click,
+    folder_links,
+    folder_list_command,
+    print_click,
+    root_file_click,
+)
 from termapy.folders import FILE_PRINT, FILE_PRINT_MAX_BYTES, FOLDERS, ROOT_FILE_OPEN
 from termapy.tree_render import FileTree
 
@@ -60,11 +66,29 @@ def test_a_run_file_runs_and_edits():
     assert actual == expected
 
 
-def test_a_folder_with_no_family_prints_its_files():
-    """sym/ has no command family, so a click prints its file in the log window and its own line has no list."""
-    actual = (file_click("sym", "demo.symbols.json"), folder_list_command("sym"))
-    expected = (("cfg.file sym/demo.symbols.json", ""), "")
+def test_a_symbols_file_loads_and_every_folder_lists():
+    """A click on a table in sym/ loads it, a visualizer opens in the viewer with edit beside it, and lib/ lists as /dev.lib.list."""
+    actual = (
+        file_click("sym", "demo.symbols.json"),
+        file_click("viz", "mine.py"),
+        file_click("lib", "part.device.json"),
+        folder_list_command("sym"),
+        folder_list_command("lib"),
+    )
+    expected = (
+        ("sym.load demo.symbols.json", ""),
+        ("proto.viz.show mine.py", "proto.viz.edit mine.py"),
+        ("dev.lib.show part.device.json", ""),
+        "sym.list",
+        "dev.lib.list",
+    )
     assert actual == expected
+
+
+def test_a_folder_the_table_lacks_declares_no_click():
+    """A name that is no data folder has no click and no list: nothing is guessed."""
+    actual = (file_click("nosuch", "a.txt"), folder_list_command("nosuch"))
+    assert actual == (("", ""), "")
 
 
 def test_a_root_file_opens_by_its_suffix():
@@ -78,17 +102,19 @@ def test_a_root_file_opens_by_its_suffix():
 
 
 def test_a_big_file_opens_in_the_viewer():
-    """Over FILE_PRINT_MAX_BYTES a click opens the file with --display rather than printing it."""
+    """Over FILE_PRINT_MAX_BYTES a printed click opens the file with --display instead: a root file, or any file nothing declares."""
     big = FILE_PRINT_MAX_BYTES + 1
     actual = [
-        file_click("dev", "chip.device.json", big)[0],
-        file_click("dev", "chip.device.json", 100)[0],
+        print_click("dev/chip.device.json", big),
+        print_click("dev/chip.device.json", 100),
         root_file_click("demo", "notes.json", big),
+        root_file_click("demo", "notes.json", 100),
     ]
     expected = [
         "cfg.file --display dev/chip.device.json",
         "cfg.file dev/chip.device.json",
         "cfg.file --display notes.json",
+        "cfg.file notes.json",
     ]
     assert actual == expected
 

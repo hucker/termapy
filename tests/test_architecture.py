@@ -4268,6 +4268,85 @@ def handler(ctx, args):
     assert actual == [4, 6, 8], "a dict, a list and a comprehension; not data, not a scalar"
 
 
+def _summary_values(tree: ast.Module) -> list[tuple[str, int]]:
+    """``(qualname, line)`` of every ``CmdResult.record`` whose ``value`` is an f-string or a ``join``.
+
+    Followed through a local name, so ``snapshot = "...".join(...)`` then
+    ``value=snapshot`` is the same site: a summary of the page's facts.
+    """
+    sites: list[tuple[str, int]] = []
+    for qualname, function in _scoped_nodes(tree):
+        if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        assigned = {
+            target.id: node.value
+            for node in ast.walk(function)
+            if isinstance(node, ast.Assign)
+            for target in node.targets
+            if isinstance(target, ast.Name)
+        }
+        for node in ast.walk(function):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "record"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "CmdResult"
+            ):
+                continue
+            value = next(
+                (keyword.value for keyword in node.keywords if keyword.arg == "value"), None
+            )
+            if isinstance(value, ast.Name):
+                value = assigned.get(value.id)
+            joined = (
+                isinstance(value, ast.Call)
+                and isinstance(value.func, ast.Attribute)
+                and value.func.attr == "join"
+            )
+            if isinstance(value, ast.JoinedStr) or joined:
+                sites.append((qualname, node.lineno))
+    return sites
+
+
+@pytest.mark.rule("value-is-scalar")
+def test_a_status_page_value_is_no_summary():
+    """No record answer packs its facts into value as text; the facts are data, value the one that leads or None."""
+    # Arrange / Act
+    violations, _ = _unallowed(_summary_values, {})
+
+    # Assert
+    assert violations == [], (
+        "a record's facts are its data= with real types; value= is the one fact that "
+        "leads (a name, a count) or None, never a key=value summary:\n  " + "\n  ".join(violations)
+    )
+
+
+def test_summary_value_guard_fires_on_a_probe():
+    """The summary guard flags an f-string, a join and a join through a local name, and passes a fact."""
+    # Arrange -- each forbidden shape, then the correct forms
+    source = """
+def handler(ctx, args):
+    if a:
+        return CmdResult.record(data, rows, value=f"hex={hex_text}")
+    if b:
+        return CmdResult.record(data, rows, value=", ".join(parts))
+    snapshot = " ".join(parts)
+    if c:
+        return CmdResult.record(data, rows, value=snapshot)
+    if d:
+        return CmdResult.record(data, rows, value=len(table))
+    return CmdResult.record(data, rows, value=None)
+"""
+    tree = ast.parse(source)
+
+    # Act
+    actual = [line for _, line in _summary_values(tree)]
+
+    # Assert
+    assert actual == [4, 6, 9], "an f-string, a join and a joined local; a count and None pass"
+
+
 def test_failure_printers_has_no_stale_entries():
     """Every FAILURE_PRINTERS function still prints a failure, so the list only shrinks."""
     # Arrange / Act

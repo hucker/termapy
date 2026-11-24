@@ -305,7 +305,10 @@ number, never a prose string.  Most commands don't need it; listings and
 info commands benefit most.  `value` stays one scalar a script captures,
 so an answer with several facts puts them in `data` and picks one for
 `value`: the demo's `/traffic.count` answers the reply's byte count as
-`value` and `{"tx_bytes": 8, "rx_bytes": 5}` as `data`.
+`value` and `{"tx_bytes": 8, "rx_bytes": 5}` as `data`.  When no fact
+leads, as on a page of independent settings (`/term.info`), `value` is
+`None`, and a capture (`$(X) <- /cmd`) keeps the page instead; it is never
+a `key=value` summary of the data.
 
 **A list returns `CmdResult.table`.**  Build records of raw values and
 declare the columns; the records become `data`, their count the `value`,

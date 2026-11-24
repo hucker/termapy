@@ -1,9 +1,9 @@
 """End-to-end check that handlers populate ``CmdResult.value``.
 
 Runs ``tests/fixtures/value_capture.run`` through a real CLI
-subprocess.  The script uses ``/var.capture <name> /<cmd> ...`` to
-dispatch each handler with the ``.silent`` modifier and stash the
-returned ``CmdResult.value``, then prints ``label=$(name)`` lines.
+subprocess.  The script uses ``$(name) <- /<cmd> ...`` to run each
+handler at quiet and stash the returned ``CmdResult.value``, then
+prints ``label=$(name)`` lines.
 
 The test asserts each ``label=expected_value`` pair appears in
 stdout.  If a handler regresses to a bare ``CmdResult.ok()``, the
@@ -48,11 +48,10 @@ def _run(tmp_path: Path) -> str:
     return result.stdout
 
 
-# Expected captured values.  ``''`` (empty) means the script
-# prints ``label=`` with nothing after the equals sign -- which is
-# the correct behavior for ``/seq`` immediately after a reset.
+# Expected captured values.  ``/seq`` right after a reset answers its
+# number of counters, zero.
 EXPECTED_CAPTURES = [
-    ("seq.empty", ""),
+    ("seq.empty", "0"),
     ("seq.reset", "reset"),
     ("var.set", "bar"),
     ("var.get", "bar"),

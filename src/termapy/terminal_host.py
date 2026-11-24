@@ -624,6 +624,7 @@ class TerminalHost:
             dispatch=lambda line: self.repl.dispatch(line, report=False),
             read_state=self.repl.read_state,
             dispatch_to=self.repl.dispatch_to,
+            capture=self.repl.capture,
             # set_proto_active intentionally not exposed -- the bare flag
             # setter is private; ``ctx.serial.io()`` is the public path.
             # TUI override installs a real modal launcher.  In non-TUI

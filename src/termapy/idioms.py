@@ -135,6 +135,20 @@ any > in a line for the device or in a command that takes its text as written
 ({prefix}term.send). A command that fails before printing leaves the file as it was.""",
     ),
     Idiom(
+        name="capture",
+        summary="$(X) <- line stores a command's answer in a variable; --json stores its JSON.",
+        page="""$(X) <- line runs the line and stores its answer in the variable X, as text.
+
+  $(B) <- {prefix}port.baud_rate          its value: 115200
+  $(T) <- {prefix}term.info               no one value, so the page it shows at quiet
+  $(E) <- {prefix}port.baud_rate --json   its JSON envelope, one line
+
+The line is {prefix}var.capture X cmd=<line>, and like any cmd= line it keeps its
+own flags and its text as written; a flag for the capture itself goes before
+cmd=. A line for the device stores the device's reply. Nothing the line prints
+reaches the screen, and a line that fails leaves the variable as it was.""",
+    ),
+    Idiom(
         name="level",
         aliases=OUTPUT_LEVELS,
         flags=tuple(LEVEL_FLAGS),

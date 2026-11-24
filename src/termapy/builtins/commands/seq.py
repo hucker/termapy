@@ -80,17 +80,14 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
         args: Unused.
     """
     # Integer keys only -- _start_time is plugin-internal, not a counter.
-    # A record answer (registry record-one-format): {"seq1": 3, ...}.
+    # A record answer (registry record-one-format): {"seq1": 3, ...}, and
+    # the value the number of counters, as a list answers its count.
     numbered = sorted((key, value) for key, value in ctx.ns("seq").items() if isinstance(key, int))
     counters = {f"seq{key}": value for key, value in numbered}
     if not counters:
-        return CmdResult.record({}, [TextLine("No counters set.")], value="")
+        return CmdResult.record({}, [TextLine("No counters set.")], value=0)
     rows = [(name, str(count)) for name, count in counters.items()]
-    return CmdResult.record(
-        counters,
-        rows,
-        value=", ".join(f"{name}={count}" for name, count in counters.items()),
-    )
+    return CmdResult.record(counters, rows, value=len(counters))
 
 
 def _handler_reset(ctx: PluginContext, args: str) -> CmdResult:

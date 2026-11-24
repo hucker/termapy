@@ -1144,13 +1144,78 @@ class TestCaptureSpellsTypedValues:
         capsys.readouterr()
 
         # Act
-        result = cli.repl.dispatch_full("/var.capture X /probe")
+        result = cli.repl.dispatch_full("/var.capture X cmd=/probe")
         cli.repl.dispatch_full("/print $(X)")
 
         # Assert
         assert result.success is True, result.error
         assert user_vars(cli.repl.ctx)["X"] == expected, "the variable holds text"
         assert capsys.readouterr().out.splitlines()[-1].strip() == expected
+
+
+@pytest.mark.rule("capture-reads-the-flag")
+class TestCaptureKeeps:
+    """$(X) <- line keeps what the line's own output flag asks for."""
+
+    def test_bare_keeps_the_value(self, cli):
+        """With no flag the variable holds the command's value, not the line it prints at normal."""
+        # Act
+        cli.repl.dispatch_full("$(N) <- /var.clear")
+
+        # Assert
+        assert user_vars(cli.repl.ctx)["N"] == "0", "the count, not the sentence"
+
+    def test_a_level_flag_keeps_the_value(self, cli):
+        """A level flag sets only how the line runs: the variable still holds the value, not that level's text."""
+        # Act
+        cli.repl.dispatch_full("$(N) <- /var.clear --normal")
+
+        # Assert
+        assert user_vars(cli.repl.ctx)["N"] == "0", "the count, not the sentence"
+
+    def test_no_value_keeps_the_page(self, cli):
+        """A status page with no value is kept as the page it prints at quiet."""
+        # Act
+        cli.repl.dispatch_full("$(J) <- /term.json_fmt")
+
+        # Assert
+        rows = user_vars(cli.repl.ctx)["J"].splitlines()
+        actual = [row.split(":")[0] for row in rows]
+        assert actual == ["highlight", "indent   "], "both rows of the page, flush"
+
+    def test_a_page_shows_below_its_name(self, cli, capsys):
+        """A value of several lines is shown under $(NAME) =, every row indented alike."""
+        # Arrange
+        capsys.readouterr()
+
+        # Act
+        cli.repl.dispatch_full("$(J) <- /term.json_fmt")
+
+        # Assert
+        actual = capsys.readouterr().out.splitlines()[-3:]
+        expected = ["  $(J) =", "    highlight: on", "    indent   : 2"]
+        assert actual == expected
+
+    @pytest.mark.rule("command-arg-keeps-its-flags")
+    def test_json_keeps_the_envelope(self, cli):
+        """--json after the captured command keeps its envelope, one line, with the value typed."""
+        # Act
+        cli.repl.dispatch_full("$(E) <- /port.baud_rate --json")
+
+        # Assert
+        text = user_vars(cli.repl.ctx)["E"]
+        envelope = json.loads(text)
+        assert "\n" not in text, "one line"
+        assert (envelope["cmd"], envelope["value"]) == ("/port.baud_rate", 115200)
+
+    @pytest.mark.rule("command-arg-keeps-its-flags")
+    def test_the_line_is_kept_as_written(self, cli):
+        """The captured line keeps its spacing around =, as typed."""
+        # Act
+        cli.repl.dispatch_full("$(P) <- /print a = b")
+
+        # Assert
+        assert user_vars(cli.repl.ctx)["P"] == "a = b"
 
 
 class TestPortContextVars:

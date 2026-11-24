@@ -840,12 +840,12 @@ class TestCapture:
         assert cli.repl.dispatch_full("/var B").success is False, "B was not assigned"
 
     def test_json_names_the_inner_error(self, cli, capsys):
-        """--json on a failed capture carries the inner error in the envelope and prints no line outside it."""
+        """The capture's own --json, before cmd=, carries the inner error in its envelope and prints no line outside it."""
         # Arrange
         capsys.readouterr()
 
         # Act
-        cli.repl.dispatch_full("$(B) <- /port.baud_rate fast --json")
+        cli.repl.dispatch_full("/var.capture --json B cmd=/port.baud_rate fast")
         lines = capsys.readouterr().out.strip().splitlines()
 
         # Assert
@@ -881,12 +881,12 @@ class TestChip:
         assert all(device in out for device in ("COM3", "COM4", "COM7")), "every roster port"
 
     def test_a_star_returns_one_chip_record_per_port(self, cli, monkeypatch):
-        """/port.chip * returns a list of chip records, and their device names as the value."""
+        """/port.chip * returns a list of chip records, and how many as the value."""
         monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         result = cli.repl.dispatch_full("/port.chip *")
         actual = [record["device"] for record in result.data]
-        assert actual == result.value.split("\n"), (
-            "the value lists the devices the records describe"
+        assert result.value == len(actual), (
+            "the value counts the ports, as a list answers its count"
         )
         assert {"COM3", "COM4", "COM7"} <= set(actual), "one record per roster port"
 
@@ -896,7 +896,7 @@ class TestChip:
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.chip")
         assert "No port matching 'DEMO'" in capsys.readouterr().out
-        assert result.value == "", "a warning is not a dump"
+        assert result.value is None, "a warning is not a dump"
 
     def test_a_field_for_one_port_is_the_bare_value(self, cli, monkeypatch):
         """/port.chip.serial COM4 returns just the field, the shape a script captures."""

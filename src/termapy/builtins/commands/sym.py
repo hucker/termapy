@@ -378,7 +378,7 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
             f"{STATE_MESSAGES['symbols_loaded']}  {ctx.prefix}sym.import <map> or {ctx.prefix}sym.load {{path}} to load one.",
             "yellow",
         )
-        return CmdResult.ok(value="", data={"loaded": False})
+        return CmdResult.ok(value=None, data={"loaded": False})
     file = _display_path(ctx, table.path)
     return CmdResult.record(
         {"loaded": True, **table_record(table, file=file)},

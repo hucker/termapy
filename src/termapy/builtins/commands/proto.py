@@ -876,6 +876,8 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
 
     Displays hex display mode and connection status, a record answer
     (registry ``record-one-format``) with both as booleans in ``data``.
+    The value is None: the two are independent, and ``/proto.hex``
+    answers the mode (registry ``value-is-scalar``).
 
     Args:
         ctx: Plugin context for state and output.
@@ -883,12 +885,10 @@ def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """
     hex_mode = bool(ctx.ns("flags")["hex"])
     connected = ctx.serial.is_connected()
-    hex_text = "on" if hex_mode else "off"
-    connected_text = "yes" if connected else "no"
     return CmdResult.record(
         {"hex": hex_mode, "connected": connected},
-        [("Hex Mode", hex_text), ("Connected", connected_text)],
-        value=f"hex={hex_text}, connected={connected_text}",
+        [("Hex Mode", "on" if hex_mode else "off"), ("Connected", "yes" if connected else "no")],
+        value=None,
     )
 
 

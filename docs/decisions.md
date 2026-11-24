@@ -2447,3 +2447,49 @@ envelope. A nested line prints no envelope of its own except through
 `dispatch_to`, so `--json` after `/repeat`'s `cmd=` now changes nothing. The
 hand-rolled holdouts (`/var.capture`, `/profile.load cmd=`, `/cap.struct`,
 `/cap.hex`) read flags as before.
+
+## 2026-11-24 — A status page's value is the fact that leads, or None, never a summary
+
+Found testing the redirect: `/term.info --json >> info.jsonl` wrote every fact twice, once
+typed in `data` and once as a sixteen-line `echo=off` string in `value`. The 2026-11-08 audit
+left the status pages' summary lines as text; they were the one place a composite
+`x=on, y=3` summary was still a `value`, which the same day's rule says a value never is.
+Now a `CmdResult.record`'s value is the fact that leads, a name or a count, or None when the
+facts are independent settings, each answered by its own command (registry `value-is-scalar`,
+whose guard now flags a record whose value is an f-string or a join, followed through a local
+name, probe-proven). Nothing reported is `None` rather than `""` (`value-typed`: None for
+nothing). **Behavior changed**, as a script and an agent see it: `/term.info`,
+`/term.json_fmt` and `/proto.info` answer None (`$(X) <- /term.info` is empty; read one
+setting through its own command, `/term.echo`, `/proto.hex`); `/seq` answers its number of
+counters (`0` with none) where it answered `seq1=3, seq2=7`; `/port.chip *` answers its number
+of ports where it answered the device names one per line; `/profile.info`, `/sym.info` with
+nothing loaded and a `/port.chip` that finds no port answer None where they answered `""`,
+which a script reads the same. The pages a person reads are unchanged. Not in this entry: nine
+answers still join a list into `value` (`/search`, `/help`'s candidate list, `/help.target`,
+`/firmware.copy`, `/board.firmware`, `/proto.crc.<lang>`'s written files, `/app.explore`,
+`/app.kill` and MCP's profile dispatch); they are lists, a family of their own.
+
+## 2026-11-24 — A capture keeps the value, the page, or with --json the envelope
+
+Testing the entry above, `$(T) <- /term.info` stored nothing: a capture kept the command's
+`value`, and the page's value had become None. Chuck: the REPL is for a person exploring, JSON
+mode for code, and the output levels already choose what a command prints. Capturing the printed
+text alone would break the pipeline idiom (`$(crc) <- /proto.crc.find cmd=AT+PKT` then
+`/proto.crc.c $(crc)`: at quiet `/proto.crc.find` prints the match with its details, and
+`/port.disconnect` and `/var.clear` print nothing), so a capture keeps (registry
+`capture-reads-the-flag`, `ReplEngine.capture`) the value as a person reads it, or the page the
+line prints at quiet when it has none, and with `--json` the envelope, one line. A mode that kept
+a level flag's text was built and dropped the same day: nothing needed it, and the rule reads
+better without it; a level flag on the line sets only how the line runs. `$(X) <- line` is now `/var.capture X cmd=<line>`, so the line
+keeps its flags and its text as written (registry `command-arg-keeps-its-flags`) and runs through
+`dispatch_to`, the door `> file` uses; `split_rest` stopped rewriting `a = b` inside the line after
+`cmd=` for every command that takes one. `/help capture` is the page (an idioms row). Text
+that leaves the screen, a capture or a `> file`, is laid out as a terminal shows it less termapy's
+two-space gutter: a plain line gets the gutter from its frontend and a markup line carries it in
+its text, so `$(T) <- /term.info` kept each row's screen indent until the block lost the indent
+it shares. A value of several lines shows under its `$(T) =` line.
+**Behavior changed:** `/var.capture NAME <command>` is `/var.capture NAME cmd=<command>`; the
+positional form fails with its usage. `$(X) <- /cmd --json` stores the line's envelope where it gave
+`/var.capture` its own; the capture's own `--json` goes before `cmd=`. A captured line runs at quiet
+where it ran silent, its output collected, not shown. `/repeat cmd=/print a = b` prints `a = b`
+where it printed `a=b`.

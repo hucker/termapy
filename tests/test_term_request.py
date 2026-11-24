@@ -1256,6 +1256,7 @@ class TestJsonLayout:
         assert engine.dispatch("term.json_fmt indent 4").value == 4, "the space form sets it"
         bare = engine.dispatch("term.json_fmt")
         assert bare.data == {"highlight": True, "indent": 4}
+        assert bare.value is None, "two settings, each its own subcommand's answer"
         assert engine.dispatch("term.json_fmt pretty").error.startswith("Usage:")
 
     @pytest.mark.rule("cfg-schema-one-table")

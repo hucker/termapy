@@ -654,7 +654,8 @@ def split_rest(text: str, rest_keyword: str) -> tuple[str, str]:
     The one answer to where a rest keyword begins, for ``parse_keywords`` and
     for dispatch, which reads a command's flags from the head alone so the
     command line after ``cmd=`` keeps its own.  ``key = value`` is normalized
-    to ``key=value`` first, as ``parse_keywords`` reads it.
+    to ``key=value`` in the head, as ``parse_keywords`` reads it; the line
+    after the keyword stays as written, its own ``a = b`` included.
 
     Args:
         text: An argument string.
@@ -664,11 +665,11 @@ def split_rest(text: str, rest_keyword: str) -> tuple[str, str]:
         The text before the keyword and the text from it on; ``(text, "")``
         when the keyword is absent.
     """
-    text = _KW_NORMALIZE_RE.sub(r"\1=", text)
-    idx = text.lower().find(rest_keyword.lower() + "=")
-    if idx == -1:
-        return text, ""
-    return text[:idx], text[idx:]
+    match = re.search(rf"(?<!\w){re.escape(rest_keyword)}\s*=\s*", text, re.IGNORECASE)
+    if match is None:
+        return _KW_NORMALIZE_RE.sub(r"\1=", text), ""
+    head = _KW_NORMALIZE_RE.sub(r"\1=", text[: match.start()])
+    return head, f"{rest_keyword}={text[match.end() :]}"
 
 
 # A line's trailing redirect: one blank-separated > or >>, then one name with
@@ -721,16 +722,16 @@ def parse_keywords(
         Dict mapping keyword name to value string.  Unrecognized tokens
         go under ``"_positional"``.  Missing keywords are absent.
     """
-    # Normalize "key = value" and "key =value" to "key=value"
-    text = _KW_NORMALIZE_RE.sub(r"\1=", text)
-
     result: dict[str, str] = {}
 
-    # Extract rest_keyword first - it consumes everything after it
+    # Extract rest_keyword first - it consumes everything after it, as
+    # written; "key = value" reads as "key=value" in the text before it.
     if rest_keyword:
         text, rest = split_rest(text, rest_keyword)
         if rest:
             result[rest_keyword.lower()] = rest[len(rest_keyword) + 1 :].strip()
+    else:
+        text = _KW_NORMALIZE_RE.sub(r"\1=", text)
 
     # Parse remaining tokens
     positional_parts: list[str] = []

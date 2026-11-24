@@ -164,6 +164,7 @@ class TestProfileInfo:
         result = eng.dispatch("profile.info")
         # Assert
         assert result.success is True, "info still succeeds with no profile"
+        assert result.value is None, "nothing loaded: no command count"
         assert result.data == {"loaded": False}, "an agent reads the state, not the prose"
         full = " ".join(t for t, _ in output)
         assert "no profile" in full.lower(), "informs user no profile loaded"

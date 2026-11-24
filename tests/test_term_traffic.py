@@ -102,11 +102,12 @@ class TestEngineCounts:
         assert _await_counts(loop_cli, expected) == expected
 
     @pytest.mark.rule("data-structured-twin")
-    def test_term_info_reports_the_counts(self, loop_cli):
+    def test_term_info_reports_the_counts(self, loop_cli, capsys):
         """/term.info answers the counts as integers in its data and as exact numbers on its page."""
         # Arrange
         loop_cli.ctx.serial.write(b"abcde")
         assert _await_counts(loop_cli, (5, 5)) == (5, 5), "the echo came back"
+        capsys.readouterr()
 
         # Act
         result = loop_cli.repl.dispatch_full("/term.info")
@@ -114,9 +115,8 @@ class TestEngineCounts:
         # Assert
         actual = (result.data["tx_bytes"], result.data["rx_bytes"])
         assert actual == (5, 5), "the data carries the engine's counts"
-        assert "tx_bytes=5" in result.value and "rx_bytes=5" in result.value, (
-            "the scriptable snapshot carries them too"
-        )
+        page = " ".join(capsys.readouterr().out.split())
+        assert "tx_bytes : 5" in page and "rx_bytes : 5" in page, "the page shows them exact"
 
 
 def test_the_cli_refuses_the_toggle(tmp_path):

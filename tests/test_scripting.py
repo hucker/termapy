@@ -29,6 +29,7 @@ from termapy.scripting import (
     resolve_seq_filename,
     select_lines,
     split_cmd_lines,
+    split_rest,
     strip_leading_echo,
     transcript_commands,
     value_text,
@@ -672,6 +673,25 @@ class TestResolveSeqFilename:
 
 
 # ── parse_keywords ──────────────────────────────────────────────
+
+
+class TestSplitRest:
+    @pytest.mark.rule("command-arg-keeps-its-flags")
+    def test_the_head_is_normalized_and_the_line_kept(self):
+        """Spaces around = are read in the head; the line after cmd= stays as written."""
+        # Act
+        actual = split_rest("count = 2 cmd = /print a = b", "cmd")
+
+        # Assert
+        assert actual == ("count=2 ", "cmd=/print a = b")
+
+    def test_the_keyword_starts_a_word(self):
+        """A keyword ending in cmd= is not the rest keyword."""
+        # Act
+        actual = split_rest("xcmd=1 cmd=/print a", "cmd")
+
+        # Assert
+        assert actual == ("xcmd=1 ", "cmd=/print a")
 
 
 class TestParseKeywords:

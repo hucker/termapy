@@ -2616,3 +2616,12 @@ opt-ins. Not moved: a network-served WEB session keeps `host_info` and `network_
 remote viewer should see the USB bus and open `socket://` ports is open. **Behavior removed:** a
 `--web` session on a network address reading or writing a path outside the config folder without
 the opt-in.
+
+## 2026-11-24 — Bare /dev keeps its family page
+
+A correction to the folder-families entry above, which says bare `/dev` runs `/dev.list`. That
+change was made after the branch's suite had run, and the merged suite caught it: a bare family
+printing what it is for and its subcommands is established behavior (registry `family-has-intro`,
+`tests/test_family_intro.py`), so bare `/dev` keeps it and `/help dev` ends with no devices table.
+`/dev.list` is still the `dev/` family's list, the loaded devices. Behavior is as before the folder
+families.

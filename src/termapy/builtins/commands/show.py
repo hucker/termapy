@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from termapy.folders import file_suggestion
 from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
+from termapy.plugins.waiting import print_lines
 
 if TYPE_CHECKING:
     from termapy.plugins import PluginContext
@@ -31,10 +32,10 @@ def _show_file(ctx: PluginContext, path: Path, typed: str) -> CmdResult:
     # conditions worth a friendly message.  Anything else is a bug.
     try:
         text = path.read_text(encoding="utf-8")
-        ctx.io.output(f"--- {path} ---")
-        for line in text.splitlines():
-            ctx.io.output(line)
-        ctx.io.output("--- end ---")
+        # The file is the answer, so quiet shows it (registry answer-text-on-result).
+        ctx.io.result(f"--- {path} ---", "dim")
+        print_lines(ctx, text.splitlines())
+        ctx.io.result("--- end ---", "dim")
     except (OSError, UnicodeDecodeError) as e:
         return CmdResult.fail(msg=f"Read error: {path}: {e}")
     return CmdResult.ok(value=path)

@@ -61,7 +61,7 @@ def _handler_catalog(ctx: PluginContext, args: str) -> CmdResult:
 
         text = json.dumps(build_catalog(ctx), indent=None, sort_keys=False)
     for line in text.splitlines():
-        ctx.io.output(line)
+        ctx.io.result(line, "dim")
     return CmdResult.ok(value=text)
 
 

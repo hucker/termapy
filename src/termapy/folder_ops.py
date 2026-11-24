@@ -46,13 +46,16 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from termapy.config import validate_file_stem
 from termapy.folders import (
+    FILE_PRINT,
+    FILE_PRINT_MAX_BYTES,
     FOLDER_EXTS,
     FOLDERS,
     PROTO,
+    ROOT_FILE_OPEN,
     RUN,
     FolderSpec,
     default_file_name,
@@ -66,6 +69,7 @@ from termapy.plugins import CapabilitySet, CmdResult, Command, UsageError
 from termapy.plugins.command import PICKERS
 from termapy.plugins.params import ParamSpec
 from termapy.plugins.views import Column
+from termapy.plugins.waiting import print_lines
 from termapy.scripting import filename_timestamp, format_age, format_size, select_lines
 
 if TYPE_CHECKING:
@@ -345,6 +349,72 @@ def staged_receive(destination: Path) -> Generator[Staging, None, None]:
         shutil.rmtree(staging, ignore_errors=True)
 
 
+def print_click(path: str, size: int | None) -> str:
+    """The click that prints ``path`` (relative to the config folder) in the log window, or opens it when big.
+
+    Over ``folders.FILE_PRINT_MAX_BYTES`` the file opens in the system
+    viewer instead (``--display``); an unknown size prints.
+    """
+    if size is not None and size > FILE_PRINT_MAX_BYTES:
+        return f"{FILE_PRINT} --display {path}"
+    return f"{FILE_PRINT} {path}"
+
+
+def file_click(folder: str, name: str, size: int | None = None) -> tuple[str, str]:
+    """What a click on file ``name`` in ``folder`` runs, and the dim ``edit`` beside it; ``""`` for none.
+
+    Read from the folder's ``FolderSpec`` (``open``, ``edit``), so every
+    ``.list`` table and ``/cfg.info``'s tree agree on it (registry
+    ``folder-links-declared``).  A folder that declares no click prints the
+    file, or opens it when ``size`` is over the limit (``print_click``).
+    """
+    spec = _spec_for(folder)
+    if spec is None:
+        return "", ""
+    opens = (
+        f"{spec.open_command} {name}"
+        if spec.open_command
+        else print_click(f"{folder}/{name}", size)
+    )
+    edits = f"{spec.edit} {name}" if spec.edit else ""
+    return opens, edits
+
+
+def root_file_click(config_stem: str, name: str, size: int | None = None) -> str:
+    """What a click on file ``name`` at a config's root opens: ``folders.ROOT_FILE_OPEN``'s, else ``print_click``'s."""
+    for suffix, command in ROOT_FILE_OPEN.items():
+        if name == f"{config_stem}{suffix}":
+            return command
+    return print_click(name, size)
+
+
+def folder_list_command(folder: str) -> str:
+    """The command a click on ``folder``'s name runs, its ``.list``; ``""`` for a folder with no family."""
+    spec = _spec_for(folder)
+    return f"{spec.family}.list" if spec is not None and spec.family else ""
+
+
+class FileLinks(TypedDict):
+    """``file_table``'s ``run=`` and ``edit=`` for a folder's files: what a click on a name, and on EDIT, runs."""
+
+    run: Callable[[dict[str, Any]], str] | None
+    edit: Callable[[dict[str, Any]], str] | None
+
+
+def folder_links(folder: str) -> FileLinks:
+    """``file_table``'s ``run=`` and ``edit=`` for a table of ``folder``'s files, from ``file_click``."""
+    spec = _spec_for(folder)
+    # Every file of a known folder opens (file_click's fallback prints it).
+    opens = spec is not None
+    edits = spec is not None and bool(spec.edit)
+    return {
+        "run": (lambda record: file_click(folder, record["name"], record.get("bytes"))[0])
+        if opens
+        else None,
+        "edit": (lambda record: file_click(folder, record["name"])[1]) if edits else None,
+    }
+
+
 def file_table(
     title: str,
     noun: str,
@@ -420,24 +490,23 @@ def dump_text_slice(ctx: PluginContext, path: Path, args: str) -> CmdResult:
     except OSError as e:
         return CmdResult.fail(msg=f"Read error: {e}")
     lines = select_lines(lines, n)
-    for line in lines:
-        ctx.io.result(line, "dim")
+    print_lines(ctx, lines)
     return CmdResult.ok(value=len(lines))
 
 
 def _make_list_handler(
-    folder: str, pattern: str, noun: str = "file", show: str = ""
+    folder: str, pattern: str, noun: str = "file"
 ) -> Callable[[PluginContext, str], CmdResult]:
     """Handler: list files in the folder, newest first, with size and age.
 
-    With ``show`` (``ss.show``), a click on a name opens that file in the
-    system viewer (registry ``links-are-data``).
+    A click on a name, and on the EDIT beside it, runs what the folder
+    declares (``folder_links``, registry ``folder-links-declared``).
     """
 
     def handler(ctx: PluginContext, args: str) -> CmdResult:
         data_dir = _folder_path(ctx, folder)
-        run = (lambda record: f"{show} {record['name']}") if show else None
-        return file_table(f"{folder}/", noun, list_entries(data_dir, pattern), run=run)
+        files = list_entries(data_dir, pattern)
+        return file_table(f"{folder}/", noun, files, **folder_links(folder))
 
     # The /help.dev text of each command built here (registry handler-docstring).
     handler.__doc__ = (
@@ -550,8 +619,7 @@ def _make_dump_handler(
             return path
         try:
             text = path.read_text(encoding="utf-8")
-            for line in text.splitlines():
-                ctx.io.result(line, "dim")
+            print_lines(ctx, text.splitlines())
         except OSError as e:
             return CmdResult.fail(msg=f"Read error: {e}")
         # Return the dumped contents so scripts can capture / grep them.
@@ -689,18 +757,15 @@ def _spec_for(folder: str) -> FolderSpec | None:
     return None
 
 
-def build_folder_subcommands(
-    folder: str, noun: str = "file", command: str = ""
-) -> dict[str, Command]:
+def build_folder_subcommands(folder: str, noun: str = "file") -> dict[str, Command]:
     """Build the standard ``list/explore/show/dump/clear`` subcommand family.
 
     Driven by the ``FolderSpec`` for the given folder name.  Always
     includes ``list`` and ``explore``; adds ``show`` / ``dump`` /
     ``clear`` according to the spec's capability flags.  ``noun`` is
-    what ``.list``'s title counts in (``proto/ - 6 scripts``).
-    ``command`` is the command the family hangs under when it is not the
-    folder's name (``prof/`` is ``/run.profile``): a listed name links
-    to ``<command>.show <name>``.
+    what ``.list``'s title counts in (``proto/ - 6 scripts``).  The
+    family hangs under the spec's ``family`` (``prof/`` is
+    ``/run.profile``), which a test holds to where it is mounted.
 
     Caller merges the result into its plugin's ``sub_commands=`` dict:
 
@@ -714,12 +779,11 @@ def build_folder_subcommands(
     if spec is None:
         raise ValueError(f"Unknown folder: {folder!r}")
     pattern = spec.pattern
-    show = f"{command or folder}.show" if spec.showable else ""
 
     subs: dict[str, Command] = {
         "list": Command(
             help=f"List files in {folder}/, newest first, with size and age.",
-            handler=_make_list_handler(folder, pattern, noun, show),
+            handler=_make_list_handler(folder, pattern, noun),
             shows=True,
             state=True,
             needs=CapabilitySet.CONFIG_LOADED,

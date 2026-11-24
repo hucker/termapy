@@ -144,6 +144,22 @@ class IOHandle:
         else:
             self._write("".join(piece.text for piece in segments), color)
 
+    def result_markup_segments(self, segments: Sequence[Piece]) -> None:
+        """Write one ``result_markup`` line built from pieces, each in its own style: a record page's drawing.
+
+        The result twin of :meth:`output_markup_segments`, so a page's
+        linked names (``/cfg.info``'s tree) click where a frontend can and
+        read as the escaped markup everywhere else.  Shown at quiet+.
+        """
+        if not self._shows(RESULT_MIN_RANK):
+            return
+        if self._write_segments is not None:
+            self._write_segments(segments, None)
+        else:
+            from termapy.plugins.views import pieces_markup
+
+            self._write_markup(pieces_markup(segments))
+
     def output_markup_segments(self, segments: Sequence[Piece]) -> None:
         """Write one ``output_markup`` line built from pieces, each in its own style: a help row.
 

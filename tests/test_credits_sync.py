@@ -64,7 +64,7 @@ class TestCreditsSync:
 
     def test_credits_plugin_outputs_full_markdown(self, tmp_path):
         """/credits prints every line of the embedded constant."""
-        # Arrange -- minimal fake ctx that captures io.output() calls
+        # Arrange -- minimal fake ctx that captures io.result() calls: the page is the answer
         from termapy.builtins.commands.credits import (
             _ACKNOWLEDGMENTS,
             _handler,
@@ -73,7 +73,7 @@ class TestCreditsSync:
         captured: list[str] = []
 
         class _IO:
-            def output(self, text, *_a, **_kw):
+            def result(self, text, *_a, **_kw):
                 captured.append(text)
 
         class _Ctx:

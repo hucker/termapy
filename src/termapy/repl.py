@@ -674,9 +674,13 @@ class ReplEngine:
                 self.ctx._call_level = call_level
             try:
                 if isinstance(view, RecordView):
-                    # Cyan labels: markup, every value already escaped.
-                    for line in view.lines():
-                        self.ctx.io.result_markup(line)
+                    # Cyan labels: markup, every value already escaped; a
+                    # drawing's pieces keep their links (/cfg.info's tree).
+                    for line in view.segment_lines():
+                        if isinstance(line, str):
+                            self.ctx.io.result_markup(line)
+                        else:
+                            self.ctx.io.result_markup_segments(line)
                 else:
                     # Pieces with their links: the TUI makes them
                     # clickable, every other frontend prints the joined

@@ -4316,7 +4316,8 @@ def _answers_on_output(tree: ast.Module) -> list[tuple[str, int]]:
     """``(qualname, line)`` of every ``ctx.io.output(X)`` in a function that answers ``value=X``.
 
     The text a command prints and answers is its answer, so it belongs on the
-    result channel; a loop that prints a value's lines one by one is review.
+    result channel.  A loop over ``X.splitlines()`` printing each line counts
+    as printing ``X``; a page built some other way is review.
     """
     sites: list[tuple[str, int]] = []
     for qualname, function in _scoped_nodes(tree):
@@ -4324,6 +4325,18 @@ def _answers_on_output(tree: ast.Module) -> list[tuple[str, int]]:
             continue
         printed: list[tuple[str, int]] = []
         answered: set[str] = set()
+        # A loop's variable stands for the text whose lines it walks.
+        lines_of: dict[str, str] = {}
+        for node in ast.walk(function):
+            if (
+                isinstance(node, ast.For)
+                and isinstance(node.target, ast.Name)
+                and isinstance(node.iter, ast.Call)
+                and isinstance(node.iter.func, ast.Attribute)
+                and node.iter.func.attr == "splitlines"
+                and isinstance(node.iter.func.value, ast.Name)
+            ):
+                lines_of[node.target.id] = node.iter.func.value.id
         for node in ast.walk(function):
             if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
                 continue
@@ -4335,7 +4348,8 @@ def _answers_on_output(tree: ast.Module) -> list[tuple[str, int]]:
                 and node.args
                 and isinstance(node.args[0], ast.Name)
             ):
-                printed.append((node.args[0].id, node.lineno))
+                name = node.args[0].id
+                printed.append((lines_of.get(name, name), node.lineno))
             for keyword in node.keywords:
                 if keyword.arg == "value" and isinstance(keyword.value, ast.Name):
                     answered.add(keyword.value.id)
@@ -4368,6 +4382,10 @@ def handler(ctx, args):
     if b:
         ctx.io.output_markup(page)
         return CmdResult.ok(value=page)
+    if c:
+        for line in body.splitlines():
+            ctx.io.output(line)
+        return CmdResult.ok(value=body)
     ctx.io.result(path)
     ctx.io.output(note)
     return CmdResult.ok(value=path)
@@ -4378,7 +4396,80 @@ def handler(ctx, args):
     actual = [line for _, line in _answers_on_output(tree)]
 
     # Assert
-    assert actual == [4, 7], "the answered name on output; result() and other text pass"
+    assert actual == [4, 7, 11], (
+        "the answered name on output, whole or line by line; result() and other text pass"
+    )
+
+
+# A file table whose links are not a data folder's declaration, with why.
+FILE_TABLE_LINKS_ALLOWED: dict[tuple[str, str], str] = {
+    ("builtins/commands/log.py", "_handler_list"): (
+        "log/ holds the session log, a sidecar, not a FolderSpec data folder"
+    ),
+    ("builtins/commands/log.py", "_handler_diag_list"): (
+        "the diagnostic logs are the app's own, not a config's data folder"
+    ),
+}
+
+
+def _hand_spelled_file_links(tree: ast.Module) -> list[tuple[str, int]]:
+    """``(qualname, line)`` of every ``file_table`` call that passes ``run=`` or ``edit=`` by hand."""
+    sites: list[tuple[str, int]] = []
+    for qualname, node in _scoped_nodes(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "file_table"
+            and any(keyword.arg in ("run", "edit") for keyword in node.keywords)
+        ):
+            sites.append((qualname, node.lineno))
+    return sites
+
+
+@pytest.mark.rule("folder-links-declared")
+def test_a_file_table_reads_its_folder_links():
+    """No file table spells its links by hand: a data folder's are its FolderSpec's, through folder_links."""
+    # Arrange / Act
+    violations, _ = _unallowed(_hand_spelled_file_links, FILE_TABLE_LINKS_ALLOWED)
+
+    # Assert
+    assert violations == [], (
+        "what a click on a file does is its folder's declaration: pass "
+        "**folder_links(FOLDER) and declare open=/edit= on its FolderSpec:\n  "
+        + "\n  ".join(violations)
+    )
+
+
+@pytest.mark.rule("folder-links-declared")
+def test_file_table_links_allowlist_is_not_stale():
+    """Every FILE_TABLE_LINKS_ALLOWED entry still spells its links, so the list only shrinks."""
+    # Arrange / Act
+    _, used = _unallowed(_hand_spelled_file_links, FILE_TABLE_LINKS_ALLOWED)
+
+    # Assert
+    stale = sorted(set(FILE_TABLE_LINKS_ALLOWED) - used)
+    assert stale == [], f"drop these from FILE_TABLE_LINKS_ALLOWED: {stale}"
+
+
+@pytest.mark.rule("folder-links-declared")
+def test_file_table_links_guard_fires_on_a_probe():
+    """The guard flags a hand-spelled run= and edit=, and passes the declaration splatted in."""
+    # Arrange -- each forbidden shape, then the correct one
+    source = """
+def handler(ctx, args):
+    if a:
+        return file_table("run/", "script", files, run=lambda record: "run " + record["name"])
+    if b:
+        return file_table("proto/", "script", files, edit=lambda record: "proto.edit")
+    return file_table("cap/", "file", files, **folder_links(CAP))
+"""
+    tree = ast.parse(source)
+
+    # Act
+    actual = [line for _, line in _hand_spelled_file_links(tree)]
+
+    # Assert
+    assert actual == [4, 6], "run= and edit= by hand; the declaration passes"
 
 
 # A value a join builds that is one document, not a list or a page's facts.
@@ -6676,6 +6767,10 @@ STOP_CLEAR_ALLOWED: dict[tuple[str, str], str] = {
         "plugins/waiting.py",
         "wait",
     ): "the shared wait behind /delay, /repeat, /proto.run and /port.connect timeout=; cleared only outside a script",
+    (
+        "plugins/waiting.py",
+        "print_lines",
+    ): "the shared print behind /cfg.file and the .dump family; cleared only outside a script",
     (
         "builtins/commands/run.py",
         "_replay",

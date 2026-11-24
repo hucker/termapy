@@ -127,6 +127,42 @@ class TestDisplay:
         assert opened == [str(_report(config_path))], "the report, through the gated opener"
 
 
+class TestFileDisplay:
+    """``/cfg.file --display`` opens a file instead of printing it; the tree links a big file to it."""
+
+    @pytest.mark.rule("gated-call-declares-need")
+    def test_refused_without_a_desktop(self, rig):
+        """Without gui_apps, --display fails naming the need."""
+        # Arrange
+        engine, config_path, _ = rig
+        (config_path.parent / "notes.json").write_text("{}", encoding="utf-8")
+
+        # Act
+        result = engine.dispatch("cfg.file --display notes.json")
+
+        # Assert
+        assert result.success is False, "--display is refused"
+        assert result.error == f"--display requires {requires_text(['gui_apps'], engine.prefix)}"
+
+    @pytest.mark.rule("gated-call-declares-need")
+    def test_opens_the_file_through_the_gated_opener(self, tmp_path):
+        """With gui_apps, --display hands the file to ctx.fs.open_file and prints none of it."""
+        # Arrange
+        engine, config_path, output = _build(tmp_path, gui_apps=True)
+        notes = config_path.parent / "notes.json"
+        notes.write_text('{"a": 1}', encoding="utf-8")
+        opened: list[str] = []
+        engine.ctx.fs._open_file_impl = lambda path: opened.append(str(path))
+
+        # Act
+        result = engine.dispatch("cfg.file --display notes.json")
+
+        # Assert
+        assert result.success, result.error
+        assert opened == [str(notes.resolve())], "the file, through the gated opener"
+        assert not any('"a"' in str(line) for line in output), "and not printed"
+
+
 class TestReportContents:
     def test_tails_the_log_and_history(self, rig):
         """The log and history sections keep exactly their newest 40 lines."""

@@ -1732,3 +1732,35 @@ class TestClickableOutput:
                 )
 
         asyncio.run(scenario())
+
+
+@pytest.mark.rule("folder-links-declared")
+class TestFolderLinks:
+    def test_cfg_info_links_each_file(self, app_factory):
+        """/cfg.info's tree makes a .run file run and edit, as /run.list does, its folder list, and a .json in sym/ print."""
+
+        async def scenario():
+            app, _, path = app_factory(quiet_start=True)
+            run = Path(path).parent / "run"
+            run.mkdir(exist_ok=True)
+            (run / "boot.run").write_text("# Boot\n", encoding="utf-8")
+            sym = Path(path).parent / "sym"
+            sym.mkdir(exist_ok=True)
+            (sym / "notes.json").write_text("{}", encoding="utf-8")
+            (sym / "big.json").write_text(" " * 20_000, encoding="utf-8")
+            async with app.run_test(size=(120, 60)) as pilot:
+                await pilot.pause()
+
+                # Act
+                await _submit(pilot, "/cfg.info")
+
+                # Assert
+                assert await until(pilot, lambda: has_link(app, "run.edit boot.run"), seconds=15), (
+                    "the dim edit beside the name"
+                )
+                assert has_link(app, "run boot.run"), "the name runs it"
+                assert has_link(app, "run.list"), "the folder lists its files"
+                assert has_link(app, "cfg.file sym/notes.json"), "a file nothing declares prints"
+                assert has_link(app, "cfg.file --display sym/big.json"), "a big one opens instead"
+
+        asyncio.run(scenario())

@@ -304,7 +304,7 @@ The most common ones:
 | `/grep <pattern>`                    | Search scrollback for regex matches (case-insensitive, skips own output)      |
 | `/find {pattern}`                    | Navigate scrollback matches with an interactive find bar                      |
 | `/search {--dev} <pattern>`          | Deep-search every command's metadata (name, help, args, flags, long help)      |
-| `/cfg.info {--display}`              | Write and show the project report (folder tree, config, buttons, log and history tails); also written at exit; `--display` opens it |
+| `/cfg.info {--display}`              | Write the project report (folder tree, config, buttons, log and history tails) and show the folder tree, each file a link; `--json` gives the files by folder; also written at exit; `--display` opens it |
 | `/cap.text <f> ...`                  | Capture serial text to file for a timed duration                              |
 | `/cap.bin <f> ...`                   | Capture raw binary bytes to a file                                            |
 | `/cap.struct <f> ...`                | Capture binary data, decode with format spec to CSV                           |

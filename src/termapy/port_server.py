@@ -31,6 +31,8 @@ Nothing here imports the command system, Textual or Rich: a server reaches
 from __future__ import annotations
 
 import copy
+import errno
+import select
 import socket
 import threading
 import time
@@ -49,7 +51,6 @@ if TYPE_CHECKING:
     import subprocess
 
 # Where a server listens unless --listen names another address: this machine only.
-DEFAULT_HOST = "localhost"
 
 # The first TCP port an unnumbered entry takes, then the next free one:
 # 2217 is RFC 2217's customary port and pyserial's server default.
@@ -396,6 +397,91 @@ class _Client:
                 break
 
 
+# A documentation address (TEST-NET-1, RFC 5737): a UDP socket connected to it
+# names the local address the default route would use, and sends nothing.
+_ROUTE_PROBE = ("192.0.2.1", 9)
+
+
+def _default_route_address() -> str | None:
+    """The IPv4 address this machine reaches its default route from, or None with no route."""
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect(_ROUTE_PROBE)
+        address = str(probe.getsockname()[0])
+    except OSError:
+        return None
+    finally:
+        probe.close()
+    return None if address.startswith(("0.", "127.")) else address
+
+
+def listen_choices() -> list[tuple[str, str]]:
+    """The addresses ``--listen`` can name on this machine, each with what it means.
+
+    ``localhost`` first (this machine only), then the address of the default
+    route (the LAN, most likely), then this machine's other IPv4 addresses.
+    termapy never picks one: a machine has several (Wi-Fi, Ethernet, a VPN, a
+    WSL or Hyper-V adapter), and serving on the wrong one is a port open to the
+    wrong network.  Loopback and link-local (``169.254.*``) addresses are left
+    out: nothing else can reach them.  Nothing is sent to find them.
+    """
+    route = _default_route_address()
+    try:
+        infos = socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)
+    except OSError:
+        infos = []
+    addresses = {str(info[4][0]) for info in infos}
+    others = sorted(
+        address
+        for address in addresses
+        if address != route and not address.startswith(("127.", "169.254."))
+    )
+    choices = [("localhost", "this machine only")]
+    if route is not None:
+        choices.append((route, "the default route's: your LAN, most likely"))
+    choices += [(address, "") for address in others]
+    return choices
+
+
+def _listen(host: str, tcp_port: int) -> list[socket.socket]:
+    """A listening socket on every address ``host`` names, all on one TCP port.
+
+    ``localhost`` names ``::1`` and ``127.0.0.1``, and a client tries them in
+    that order; Windows takes two seconds to refuse an address nothing
+    listens on, so a server on ``127.0.0.1`` alone made every
+    ``rfc2217://localhost`` open wait.  An address of a family this machine
+    does not have is skipped; a TCP port in use on any address is the error
+    it is.  Each socket has the accept poll's timeout, so an accepted
+    connection is a blocking socket, as the pumps expect.
+
+    Raises:
+        OSError: No address would listen, or the port is in use.
+    """
+    addresses: list[tuple[int, str]] = []
+    for family, _, _, _, sockaddr in socket.getaddrinfo(host, tcp_port, type=socket.SOCK_STREAM):
+        if (family, sockaddr[0]) not in addresses:
+            addresses.append((family, str(sockaddr[0])))
+    listeners: list[socket.socket] = []
+    try:
+        for family, address in addresses:
+            port = listeners[0].getsockname()[1] if listeners else tcp_port
+            try:
+                listener = socket.create_server((address, port), family=family)
+            except OSError as e:
+                if e.errno in (errno.EADDRNOTAVAIL, errno.EAFNOSUPPORT):
+                    continue
+                raise
+            listener.settimeout(_ACCEPT_POLL_S)
+            listeners.append(listener)
+    except OSError:
+        for listener in listeners:
+            listener.close()
+        raise
+    if not listeners:
+        raise OSError(errno.EADDRNOTAVAIL, f"no address of {host} will listen")
+    return listeners
+
+
 class PortServer:
     """One served port: its serial port, its listening socket and the client on it."""
 
@@ -436,15 +522,13 @@ class PortServer:
         self.device = _device_of(port, entry.port)
         self._client: _Client | None = None
         self._stop = threading.Event()
-        family = socket.AF_INET6 if ":" in host else socket.AF_INET
         try:
-            self._listener = socket.create_server((host, entry.tcp_port), family=family)
+            self._listeners = _listen(host, entry.tcp_port)
         except OSError as e:
             raise ServeError(
                 f"Cannot listen on {host}:{entry.tcp_port} for {entry.port}: {e}"
             ) from e
-        self._listener.settimeout(_ACCEPT_POLL_S)
-        self.tcp_port: int = self._listener.getsockname()[1]
+        self.tcp_port: int = self._listeners[0].getsockname()[1]
         self._thread = threading.Thread(
             target=self._accept_loop, name=f"termapy-serve-{entry.port}", daemon=True
         )
@@ -488,7 +572,8 @@ class PortServer:
             client = self._client
         if client is not None:
             client.join()
-        self._listener.close()
+        for listener in self._listeners:
+            listener.close()
         with self._lock:
             port, self._port = self._port, None
         if port is not None:
@@ -528,12 +613,17 @@ class PortServer:
                 retry_at = time.monotonic() + _REOPEN_S
                 self._try_reopen()
             try:
-                conn, address = self._listener.accept()
-            except TimeoutError:
-                continue
-            except OSError:
-                break
-            self._admit(conn, str(address[0]))
+                ready, _, _ = select.select(self._listeners, [], [], _ACCEPT_POLL_S)
+            except (OSError, ValueError):
+                break  # a listener closed under it: the server is stopping
+            for listener in ready:
+                try:
+                    conn, address = listener.accept()
+                except TimeoutError:
+                    continue  # the client gave up before it was accepted
+                except OSError:
+                    return
+                self._admit(conn, str(address[0]))
 
     def _try_reopen(self) -> None:
         """Open the lost port again; quiet while it is still gone."""

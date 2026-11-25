@@ -15,9 +15,9 @@ from typing import TYPE_CHECKING, Any
 from rich.default_styles import DEFAULT_STYLES
 from rich.style import Style
 from rich.text import Text
-from textual import events, on
+from textual import events, on, work
 from textual.binding import Binding, BindingType
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Input, Label, OptionList, Static, TextArea
 from textual.widgets.option_list import Option
 from textual.widgets.text_area import Selection, TextAreaTheme
@@ -28,6 +28,7 @@ from termapy.highlighting import highlights
 if TYPE_CHECKING:
     from textual.app import ComposeResult
 
+    from termapy.plugins import CmdResult
     from termapy.port_control import ChipFacts
 
 
@@ -503,8 +504,109 @@ class FindRow(Horizontal):
         count.update(f"{index + 1}/{len(matches)}")
 
 
+NETWORK_PORT_FORM = "A network port is rfc2217://host:port or socket://host:port"
+
+
+def network_url_problem(text: str) -> str | None:
+    """Why ``text`` is not a network port to open, or None when it is ``rfc2217://host:port`` or ``socket://host:port``."""
+    from termapy.port_allow import NETWORK_SCHEMES, url_endpoint, url_scheme
+
+    if url_scheme(text) in NETWORK_SCHEMES and url_endpoint(text) is not None:
+        return None
+    return NETWORK_PORT_FORM
+
+
+class NetworkPortBox(Vertical):
+    """A network port typed by hand, ``rfc2217://`` or ``socket://``, with a Test that asks ``/port.test``.
+
+    Nothing finds a port on another machine, so its URL is typed.  Test runs
+    ``test_port`` on a worker (an RFC 2217 open can take seconds) and shows
+    the answer under the field; the host's ``test_port`` dispatches
+    ``/port.test <url>``, so the port policy and the gate answer as in every
+    frontend.  Without ``test_port`` there is no Test button.
+    """
+
+    DEFAULT_CSS = """
+    NetworkPortBox { height: auto; }
+    NetworkPortBox Horizontal { height: auto; align: left middle; }
+    NetworkPortBox Input { width: 1fr; }
+    NetworkPortBox #net-note { height: 1; padding-left: 1; }
+    """
+
+    def __init__(self, test_port: Callable[[str], CmdResult] | None = None, *, id: str) -> None:
+        """Build the box; ``test_port`` answers a Test, given the typed URL."""
+        super().__init__(id=id)
+        self._test_port = test_port
+
+    def compose(self) -> ComposeResult:
+        with Horizontal():
+            field = Input(placeholder="rfc2217://host:2217  or  socket://host:port", id="net-url")
+            field.tooltip = (
+                "A port on another machine: rfc2217:// carries the baud rate and "
+                "lines, socket:// carries bytes only."
+            )
+            yield field
+            if self._test_port is not None:
+                test = Button("Test", id="net-test")
+                test.tooltip = (
+                    "Open the port and close it again, to see that it answers. "
+                    "An open sets DTR and RTS, which can reset a board at the far end."
+                )
+                yield test
+        yield Static("", id="net-note", markup=False)
+
+    @property
+    def url(self) -> str:
+        """The URL as typed, trimmed."""
+        return self.query_one("#net-url", Input).value.strip()
+
+    def focus_field(self) -> None:
+        """Put the cursor in the URL field."""
+        self.query_one("#net-url", Input).focus()
+
+    def say(self, text: str, color: str) -> None:
+        """Show ``text`` under the field in ``color``; nothing once the box has gone."""
+        if self.is_mounted:
+            self.query_one("#net-note", Static).update(Text(text, style=color))
+
+    def checked_url(self) -> str | None:
+        """The typed URL when it is a network port, else None after saying what one looks like."""
+        problem = network_url_problem(self.url)
+        if problem is not None:
+            self.say(problem, "red")
+            return None
+        return self.url
+
+    @on(Button.Pressed, "#net-test")
+    def _test(self, event: Button.Pressed) -> None:
+        event.stop()
+        url = self.checked_url()
+        if url is None:
+            return
+        self.say(f"Testing {url} ...", "yellow")
+        self._run_test(url)
+
+    @work(thread=True, exclusive=True, group="net-test")
+    def _run_test(self, url: str) -> None:
+        """Ask ``test_port`` off the main thread, then show its answer on it."""
+        if self._test_port is None:
+            return
+        result = self._test_port(url)
+        if result.success:
+            data = result.data if isinstance(result.data, dict) else {}
+            seconds = data.get("seconds")
+            took = f" ({seconds:.1f} s)" if isinstance(seconds, (int, float)) else ""
+            text, color = f"{url} answers{took}.", "green"
+        else:
+            text, color = result.error, "red"
+        try:
+            self.app.call_from_thread(self.say, text, color)
+        except RuntimeError:
+            pass  # the app is shutting down
+
+
 def _port_facts(ports: list) -> list[ChipFacts]:
-    """The port table's facts: each listed port's, then the pyserial loopback."""
+    """The port table's facts: each listed port's, each port a local ``--serve`` shares, then the pyserial loopback."""
     from termapy import port_control
 
     # fast=True: the picker table has no in_use column, and this runs on
@@ -518,6 +620,9 @@ def _port_facts(ports: list) -> list[ChipFacts]:
     facts_list = [fact for fact in facts_list if fact is not None]
     # The termapy session holding each port, for its color (breadcrumbs).
     port_control.fill_sessions(facts_list)
+    # A port a termapy --serve on this machine shares, by the URL a client
+    # opens (its breadcrumb; nothing is opened to find it).
+    facts_list.extend(port_control.served_port_facts())
     # Always offer the pyserial loopback as a selectable virtual port,
     # appended below real hardware.  It echoes writes back -- handy for
     # testing without a device.  Honest facts (no invented VID/PID/SN).

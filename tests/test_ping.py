@@ -53,6 +53,22 @@ def test_a_timeout_is_counted_never_averaged(cli):
     assert actual == (2, [None, None], None), "a timeout is counted, never averaged"
 
 
+@pytest.mark.timing  # the DEMO's first byte must come well inside the 500 ms gap
+def test_a_round_trip_ends_at_the_replys_first_byte(cli):
+    """A 500 ms frame gap is not in the time: a round trip ends when the reply starts, not when its frame is over."""
+    # Arrange -- the end of a frame is 500 ms of silence after its last byte
+    cli.repl.dispatch_full("/cfg proto_frame_gap_ms 500")
+
+    # Act
+    result = cli.repl.dispatch_full("/ping count=2 timeout=2s cmd=AT")
+
+    # Assert
+    assert result.success is True, result.error
+    assert result.data["max_ms"] < 500, (
+        f"timed to the first byte, never past the gap: {result.data['times_ms']}"
+    )
+
+
 def test_a_plain_ping_prints_each_time_not_the_reply(cli, capsys):
     """At normal level each round trip prints its time; the reply's text is detail, left to verbose."""
     # Arrange

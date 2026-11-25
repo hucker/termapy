@@ -633,6 +633,29 @@ def loopback_port_facts() -> ChipFacts:
     )
 
 
+def served_port_facts(*, policy: PortPolicy | None = None) -> list[ChipFacts]:
+    """One row per port a termapy ``--serve`` on this machine shares, named by the URL a client opens.
+
+    Read from the servers' breadcrumbs (``Crumb.address`` beside
+    ``Crumb.open_ports``), so a picker offers a served port without
+    anything typed and opens nothing to find it.  A URL the port policy
+    refuses is left out, as a refused device is.
+    """
+    from termapy import breadcrumbs
+
+    policy = _policy(policy)
+    facts: list[ChipFacts] = []
+    for crumb in breadcrumbs.read_running():
+        if crumb.frontend != "serve":
+            continue
+        for device, url in zip(crumb.open_ports, crumb.address, strict=False):
+            if policy.network_refusal(url) is not None:
+                continue
+            description = f"termapy serve {port_short_name(device)} (PID {crumb.pid})"
+            facts.append(ChipFacts(device=url, description=description))
+    return facts
+
+
 def _read_sysfs(*parts: str) -> str | None:
     """Read a single line from a sysfs file.  Returns None on any error."""
     try:

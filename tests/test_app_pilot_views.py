@@ -349,12 +349,8 @@ class TestConfigInfo:
 
 
 class TestPortPicker:
-    def test_the_picker_opens_unless_exactly_one_port(self, app_factory):
-        """With zero or several ports the picker opens; with exactly one it would switch to it unasked, so that case is skipped here."""
-        from serial.tools.list_ports import comports
-
-        if len(list(comports())) == 1:
-            pytest.skip("exactly one port: the view would pick it and switch without a dialog")
+    def test_the_picker_opens_whatever_the_port_count(self, app_factory):
+        """The picker opens even with one port, its network field's Test wired to the app: a URL can always be typed."""
 
         async def scenario():
             app, _, _ = app_factory()
@@ -362,7 +358,8 @@ class TestPortPicker:
                 await pilot.pause()
                 info_views.show_port_picker(app)
                 await pilot.pause()
-                assert isinstance(app.screen, PortPicker)
+                assert isinstance(app.screen, PortPicker), "the dialog, never a silent pick"
+                assert app.screen.query("#net-test"), "the app answers Test"
 
         _run(scenario)
 

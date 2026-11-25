@@ -5430,7 +5430,7 @@ RAW_MODULE_HOMES: dict[str, frozenset[str]] = {
         }
     ),
     # /log.fingerprint's hostname (host_info), and --serve's listener, the one
-    # network server (registry serve-local-by-default).
+    # network server (registry serve-listen-named).
     "socket": frozenset({"builtins/commands/log.py", "port_server.py"}),
 }
 

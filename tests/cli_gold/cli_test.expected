@@ -618,6 +618,14 @@ demo> /port.rts toggle
   1
 demo> /port.rts toggle
   0
+demo> /print === section: port test ===
+  === section: port test ===
+demo> /port.test loop://
+  loop:// answers.
+demo> /port.test DEMO
+  Error: Open in this session.
+demo> /port.test socket://localhost
+  Error: Invalid port: socket://localhost (a network port is scheme://host:port)
 demo> /print === section: port disconnect/connect ===
   === section: port disconnect/connect ===
 demo> /port.disconnect
@@ -683,6 +691,7 @@ SUBCOMMANDS
   /port.ri              Show Ring Indicator state (read-only).
   /port.rts             Show or set RTS line (hardware only).
   /port.stop_bits       Show or set stop bits.
+  /port.test            Open a port and close it again, to see that it answers.
   /port.usb             Show the whole USB tree, with serial ports marked.
 
   /help port --verbose shows the rest: status, where it runs, see also.
@@ -1046,6 +1055,7 @@ SUBCOMMANDS
   /port.ri              Show Ring Indicator state (read-only).
   /port.rts             Show or set RTS line (hardware only).
   /port.stop_bits       Show or set stop bits.
+  /port.test            Open a port and close it again, to see that it answers.
   /port.usb             Show the whole USB tree, with serial ports marked.
 
   /help port --verbose shows the rest: status, where it runs, see also.

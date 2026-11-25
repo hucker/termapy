@@ -271,7 +271,7 @@ Ids: 243: 228 registry rows (guarantees 191, assumptions 37), 15 spec sections i
 - `test_builtins.py`: `TestRunDocstring.test_run_list_wants_data_returns_records_without_prose`
 - `test_cli_improvements.py`: `TestPortsJsonShape` (5 functions)
 - `test_load_report.py`: `TestResult.test_table_and_data_are_the_same_rows`
-- `test_ping.py`: the module (10 functions)
+- `test_ping.py`: the module (11 functions)
 - `test_symbols_format.py`: `TestLookupRecord` (2 functions), `TestSymbolRecord` (1 functions), `TestTableRecord` (2 functions)
 - `test_term_request.py`: `TestExecRequestMode.test_json_native_response_lands_in_data`
 - `test_term_traffic.py`: `TestEngineCounts.test_term_info_reports_the_counts`
@@ -960,9 +960,10 @@ Ids: 243: 228 registry rows (guarantees 191, assumptions 37), 15 spec sections i
 
 - `test_cli.py`: `TestServeDetach` (2 functions), `TestServeFlags.test_detach_needs_serve` **guard**
 
-### `serve-local-by-default` (guarantee, contract)
+### `serve-listen-named` (guarantee, contract)
 
-- `test_cli.py`: `TestServeFlags` (5 functions)
+- `test_cli.py`: `TestServeFlags` (7 functions)
+- `test_port_server.py`: `TestBridge.test_localhost_listens_on_every_address_it_names`, `test_the_listen_choices_start_with_localhost_and_leave_out_the_unreachable`
 
 ### `serve-opens-like-a-session` (guarantee, contract)
 
@@ -1184,7 +1185,7 @@ Ids: 243: 228 registry rows (guarantees 191, assumptions 37), 15 spec sections i
 - `test_architecture.py`: `test_a_value_is_not_spelled_at_the_source` **guard**
 - `test_cfg_schema.py`: `TestValueText` **guard** (1 functions)
 - `test_mcp_server.py`: `TestUnifiedEnvelope.test_a_typed_value_reaches_the_agent_as_itself` **guard**
-- `test_ping.py`: the module (10 functions)
+- `test_ping.py`: the module (11 functions)
 - `test_repl_cfg.py`: `TestCfgShowKey.test_container_key_is_json_never_repr`, `TestCfgShowKey.test_query_data_keeps_the_json_type`, `TestCfgShowKey.test_set_answers_the_new_value_as_data`
 - `test_scripting.py`: `TestValueText` **guard** (1 functions)
 - `test_sym_commands.py`: `TestValueContract.test_every_command_returns_a_scalar_value`

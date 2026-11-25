@@ -161,6 +161,12 @@ $(BE) <- /port.baud_rate --json
 /port.rts toggle
 /port.rts toggle
 
+# ── REPL: port control - test a port without switching to it ────────────────
+/print === section: port test ===
+/port.test loop://
+/port.test DEMO
+/port.test socket://localhost
+
 # ── REPL: port control - disconnect and reconnect ───────────────────────────
 /print === section: port disconnect/connect ===
 /port.disconnect

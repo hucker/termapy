@@ -1223,7 +1223,6 @@ class SerialTerminal(TerminalHost, App):
         ctx.io._write_segments = self._write_link_segments
         ctx.io.width = lambda: self._output_width
         ctx.io.log = self._log_line
-        ctx.serial.wait_for_data = self._wait_for_data
         ctx.io.status_bar = self._set_status_bar
         ctx.dispatch = self._dispatch_single
         # A plugin's notification is text unless it asks otherwise.
@@ -1287,7 +1286,7 @@ class SerialTerminal(TerminalHost, App):
             self._new_config()
         elif self._first_run:
             self.push_screen(
-                QuickSetup(title="Welcome to Termapy - Quick Setup"),
+                QuickSetup(title="Welcome to Termapy - Quick Setup", test_port=self._test_port),
                 callback=self._on_quick_setup,
             )
         elif cfg_value(self.cfg, "auto_connect"):
@@ -1586,15 +1585,6 @@ class SerialTerminal(TerminalHost, App):
             self.query_one("#status-bar", StatusBar).show(text, timeout)
         except SHUTDOWN_RACE:
             pass  # widget gone during shutdown
-
-    def _wait_for_data(self, timeout_ms: int = 250) -> bool:
-        """Block until RX arrives or *timeout_ms* elapses (``ctx.serial``).
-
-        Same bind-to-local reason as ``TerminalHost._serial_write``: the
-        port can be disowned between the check and the call.
-        """
-        port = self._engine.serial_port
-        return port.wait_for_data(timeout_ms) if port is not None else False
 
     def _ask(self, screen: ModalScreen) -> object:
         """Push a modal from a worker and block until it is answered.
@@ -1911,7 +1901,9 @@ class SerialTerminal(TerminalHost, App):
             self._pending_config_path = path
             if port:
                 self._status(f"Port {port} not found", "yellow")
-            self.push_screen(PortPicker(), callback=self._on_load_port_picked)
+            self.push_screen(
+                PortPicker(test_port=self._test_port), callback=self._on_load_port_picked
+            )
         else:
             self._switch_config(cfg, path)
             self._show_config_info(path)
@@ -2622,7 +2614,7 @@ class SerialTerminal(TerminalHost, App):
     # -- Palette action wrappers --
 
     def _new_config(self) -> None:
-        self.push_screen(QuickSetup(), callback=self._on_quick_setup)
+        self.push_screen(QuickSetup(test_port=self._test_port), callback=self._on_quick_setup)
 
     def _on_quick_setup(self, result: tuple | None) -> None:
         """Delegate to ``pickers.on_quick_setup``."""
@@ -3621,6 +3613,14 @@ class SerialTerminal(TerminalHost, App):
         (registry ``prefix-never-hardcoded``).
         """
         return f"{cmd_prefix(self.cfg)}{command}"
+
+    def _test_port(self, url: str) -> CmdResult:
+        """A port dialog's Test: ``/port.test <url>`` dispatched, so the policy and the gate answer it.
+
+        Called on the dialog's worker thread; the line and its answer go to
+        the output pane as any dispatched line does.
+        """
+        return self._dispatch_single(self._repl_line(f"port.test {url}"), report=False)
 
     def _dispatch_quiet(self, cmd: str) -> CmdResult:
         """Dispatch without echoing the command line to the output.

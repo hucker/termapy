@@ -619,7 +619,14 @@ Termapy supports every port format pyserial accepts, including:
 - `hwgrep://regex` -- find by device description
 - `spy://port?file=name` -- log every byte in both directions (see [Logging the raw traffic](#logging-the-raw-traffic))
 
-Just put the URL in the `port` config field. See [pyserial's URL handler
+Put the URL in the `port` config field, or type it in the TUI: Select
+Serial Port and the New Config wizard have a **Network Port...** button
+that swaps the port list for a field. **Test** opens the port and closes
+it again to see that it answers, as `/port.test <url>` does in any
+frontend; an open sets DTR and RTS, so a board that resets on them
+resets. **Use** takes the URL as a picked port. A port a `termapy
+--serve` on this machine shares is already a row there, by its URL. See
+[pyserial's URL handler
 docs](https://pyserial.readthedocs.io/en/latest/url_handlers.html) for
 the full list.
 

@@ -30,6 +30,7 @@ from termapy.port_server import (
     PortServer,
     ServeEntry,
     ServeError,
+    listen_choices,
     parse_entries,
     port_cfg,
 )
@@ -98,14 +99,14 @@ def _serve_threads() -> list[str]:
 
 @pytest.fixture
 def served() -> Iterator[Callable[..., tuple[Bridge, list[str]]]]:
-    """Open and start a bridge on 127.0.0.1; every one made is stopped after the test."""
+    """Open and start a bridge, on 127.0.0.1 unless ``host`` says; every one made is stopped after the test."""
     bridges: list[Bridge] = []
 
-    def serve(*ports: str, opener=None, policy=None) -> tuple[Bridge, list[str]]:
+    def serve(*ports: str, opener=None, policy=None, host=LOCAL) -> tuple[Bridge, list[str]]:
         events: list[str] = []
         bridge = Bridge.open(
             [ServeEntry(port, 0) for port in ports],
-            LOCAL,
+            host,
             report=events.append,
             opener=opener,
             policy=policy,
@@ -213,7 +214,48 @@ class TestEntries:
         assert str(refused.value).startswith(message), "the message names what was wrong"
 
 
+@pytest.mark.rule("serve-listen-named")
+def test_the_listen_choices_start_with_localhost_and_leave_out_the_unreachable():
+    """localhost first, then the default route's address when there is one; never loopback or link-local."""
+    # Act
+    actual = listen_choices()
+
+    # Assert
+    assert actual[0] == ("localhost", "this machine only"), "this machine only, first"
+    rest = [address for address, _ in actual[1:]]
+    assert not [a for a in rest if a.startswith(("127.", "169.254."))], (
+        "nothing else can reach those"
+    )
+    marked = [address for address, note in actual if note.startswith("the default route")]
+    assert marked == rest[:1] or not marked, "the default route's address, if any, comes next"
+
+
 class TestBridge:
+    @pytest.mark.rule("serve-listen-named")
+    def test_localhost_listens_on_every_address_it_names(self, served):
+        """Each address localhost names takes a connection, so a client never waits out one nothing listens on."""
+        # Arrange -- on Windows a refused ::1 cost every rfc2217://localhost open two seconds
+        bridge, _ = served("loop://", host="localhost")
+        port = bridge.servers[0].tcp_port
+        addresses = sorted(
+            {
+                str(info[4][0])
+                for info in socket.getaddrinfo("localhost", port, type=socket.SOCK_STREAM)
+            }
+        )
+
+        # Act
+        actual = {}
+        for address in addresses:
+            try:
+                socket.create_connection((address, port), timeout=1).close()
+                actual[address] = True
+            except OSError:
+                actual[address] = False
+
+        # Assert
+        assert actual == dict.fromkeys(addresses, True), "every address of localhost listens"
+
     def test_bytes_and_settings_cross_the_network(self, served):
         """What a client writes reaches the port and comes back, and a baud change it makes reaches the served port."""
         # Arrange

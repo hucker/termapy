@@ -1663,6 +1663,8 @@ class TestDispatchCapabilities:
         assert STATE_MESSAGES == {
             "config_loaded": "No config loaded.",
             "serial_connected": "Not connected.",
+            "port_settings": "Not available on a socket:// port: it carries bytes, not port settings or lines.",
+            "local_timing": "Not available on a network port: the network changes the timing.",
             "profile_loaded": "No profile loaded.",
             "symbols_loaded": "No symbols loaded.",
             "capture_idle": "Capture already active - use {prefix}cap.stop first.",

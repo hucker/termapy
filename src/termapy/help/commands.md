@@ -203,6 +203,7 @@ sends to the device) waits in the input line for Enter.
 | `/port.ri`                | Show RI state (read-only)                                                   |
 | `/port.rts {on\|off\|toggle}` | Show or set RTS line                                                    |
 | `/port.stop_bits {1\|1.5\|2\|cycle}` | Show or set stop bits (hardware only)                               |
+| `/port.test <port>`       | Open a port and close it again, to see that it answers (a typed network URL above all) |
 | `/print <text>`           | Print a message to the terminal                                             |
 | `/print.r <text>`         | Print Rich markup text (e.g. `[bold red]Warning![/]`)                       |
 | `/profile.info`           | Show metadata of the active profile (plus cfg-vs-profile transport drift)   |

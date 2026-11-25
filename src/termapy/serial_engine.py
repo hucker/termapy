@@ -184,7 +184,44 @@ def _find_port_holder(port_name: str) -> str | None:
 _LOCKED = "In use by another program (it holds the port's lock)"
 
 
-def _classify_serial_error(
+def network_error_text(port_name: str, exc: BaseException) -> str | None:
+    """A network port's failure in plain words, with the ``host:port`` it concerns; None for any other port.
+
+    pyserial words these by its internals: ``[WinError 10061] No connection
+    could be made...``, ``Remote does not seem to support RFC2217 or BINARY
+    mode``, ``connection failed (reader thread died)``.  For a ``socket://``
+    or ``rfc2217://`` port each has a plainer cause.  A failure it does not
+    know is None, so the caller keeps its own wording.
+
+    Args:
+        port_name: The port as opened, a URL for a network port.
+        exc: The failure, at the open or in the reader.
+    """
+    from termapy.port_allow import NETWORK_SCHEMES, url_endpoint, url_scheme
+
+    endpoint = url_endpoint(port_name) if url_scheme(port_name) in NETWORK_SCHEMES else None
+    if endpoint is None:
+        return None
+    where = f"{endpoint[1]}:{endpoint[2]}"
+    chain = (exc, exc.__cause__, exc.__context__)
+    if any(isinstance(link, ConnectionRefusedError) for link in chain):
+        return f"Nothing answers at {where}: no server listens there"
+    if any(isinstance(link, TimeoutError) for link in chain):
+        return f"No answer from {where} in time: the host is off or unreachable"
+    lowered = str(exc).lower()
+    if "does not seem to support rfc2217" in lowered:
+        return (
+            f"The server at {where} did not take the connection: busy with another "
+            "client, or not an RFC 2217 server"
+        )
+    if "reader thread died" in lowered or any(
+        isinstance(link, (ConnectionResetError, ConnectionAbortedError)) for link in chain
+    ):
+        return f"The connection to {where} closed: the server stopped or the network dropped it"
+    return None
+
+
+def classify_serial_error(
     exc: Exception,
     port_name: str = "",
     *,
@@ -193,6 +230,7 @@ def _classify_serial_error(
 ) -> str:
     """Turn a serial open exception into a user-friendly message.
 
+    A network port's failure is ``network_error_text``'s plain words.
     If a ``port_name`` is provided and the error looks like "port in
     use" (PermissionError / EACCES), also name the holder: a termapy
     session from its breadcrumb on every OS, with the command that stops
@@ -217,6 +255,9 @@ def _classify_serial_error(
     hardware -- so it exists to make the diagnostic reproducible against
     a known fleet.
     """
+    network = network_error_text(port_name, exc)
+    if network is not None:
+        return network
     msg = str(exc)
     cause = exc.__cause__ or exc.__context__
 
@@ -568,7 +609,7 @@ class SerialEngine:
         # or ValueError (bad baud / unsupported parameter combo).
         # AmbiguousSerialNumberError comes from resolve_port() when a
         # user's SN spec matches 2+ connected devices.
-        # _classify_serial_error normalizes each into a friendly
+        # classify_serial_error normalizes each into a friendly
         # message for the user.  A port policy refusal is already worded
         # for the reader (it names TERMAPY_ALLOWED_PORTS) and stays as is.
         try:
@@ -586,7 +627,7 @@ class SerialEngine:
             )
             return False
         except (_serial.SerialException, OSError, ValueError) as e:
-            self.last_error = _classify_serial_error(
+            self.last_error = classify_serial_error(
                 e, self._cfg["serial"]["port"], prefix=cmd_prefix(self._cfg)
             )
             return False
@@ -792,8 +833,12 @@ class SerialEngine:
                 except (OSError, _serial.SerialException) as exc:
                     # pyserial raises SerialException on a lost device and
                     # OSError on an underlying fd failure; either is an
-                    # effective disconnect.
-                    failure = f"{exc.__class__.__name__}: {exc}"
+                    # effective disconnect.  A network port's loss reads in
+                    # plain words (the server stopped, the network dropped it).
+                    failure = (
+                        network_error_text(str(getattr(port, "port", "") or ""), exc)
+                        or f"{exc.__class__.__name__}: {exc}"
+                    )
                 except BoundaryException as exc:
                     # Last resort: a bug in SerialReader or a frontend
                     # callback.  Ending the thread silently would leave the

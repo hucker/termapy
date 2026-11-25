@@ -26,6 +26,8 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 if TYPE_CHECKING:
     from types import ModuleType
 
+    from termapy.plugins.views import Item
+
 from termapy import env_flags
 from termapy.defaults import (
     STANDARD_BAUD_RATES,
@@ -35,8 +37,6 @@ from termapy.defaults import (
     VALID_STOP_BITS,
     cfg_value,
 )
-from termapy.plugins.capabilities import STATE_MESSAGES
-from termapy.plugins.views import Item, TextLine
 from termapy.port_allow import (
     LOOPBACK_SCHEME,
     NETWORK_SCHEMES,
@@ -416,6 +416,10 @@ def _result(msgs: list[Msg], **side_effects: Any) -> Result:
 
 def _not_connected() -> Result:
     """The refusal for a port operation with no open port, in the gate's words."""
+    # Here, not at the top: importing the plugin framework costs every path
+    # that opens a port, --serve included (registry flag-paths-light).
+    from termapy.plugins.capabilities import STATE_MESSAGES
+
     return _result([_msg(STATE_MESSAGES["serial_connected"], "yellow")])
 
 
@@ -1284,15 +1288,16 @@ def crumb_holding(device: str, crumbs: list[Any]) -> Any | None:
     """The breadcrumb of the termapy session holding ``device``; None when none does.
 
     The one match of a port to its session.  A breadcrumb names the
-    physical port its session has open, so ``device`` is a device name:
-    an alias (a USB serial number, a fallback chain) is resolved first.
+    physical ports its session has open (several for a ``--serve``
+    process, ``Crumb.open_ports``), so ``device`` is a device name: an
+    alias (a USB serial number, a fallback chain) is resolved first.
 
     Args:
         device: The port, as the system lists it.
         crumbs: The running termapys (``breadcrumbs.read_running``).
     """
     return next(
-        (crumb for crumb in crumbs if crumb.open_port and same_port(crumb.open_port, device)),
+        (crumb for crumb in crumbs if any(same_port(port, device) for port in crumb.open_ports)),
         None,
     )
 
@@ -2377,6 +2382,8 @@ def _chip_page(facts: ChipFacts) -> list[Item]:
     Per-row coloring -- USB-speed indicator, latency-timer warning, denied
     permissions -- is the row's third element (``_chip_rows``).
     """
+    from termapy.plugins.views import TextLine  # as STATE_MESSAGES: not on the opener's path
+
     items: list[Item] = [TextLine(facts.device or "?", "green"), *_chip_rows(facts)]
     # Nudge: when we see a real USB device whose VID:PID isn't in the
     # chip table, invite the user to report it so the table can grow.

@@ -1851,6 +1851,93 @@ def test_folder_family_guard_fires_on_a_probe():
     )
 
 
+# ── Guard: a session's kind is a row of one table (registry session-kinds-one-table) ──
+#
+# 2026-11-24: --serve made a sixth kind of session, and /app.kill serve stops
+# every one; a kind spelled in one frontend and missing from the table would
+# be a session /app.kill could not name.  Every literal a breadcrumb carries as
+# its frontend -- a ``front_end`` class attribute, the first argument of a
+# ``breadcrumbs.leave`` call -- is a ``breadcrumbs.SESSION_KINDS`` key.
+
+# (file, kind): why a literal outside the table is not a session's kind.
+SESSION_KIND_ALLOWED: dict[tuple[str, str], str] = {
+    ("terminal_host.py", "unknown"): "the base class's placeholder; every frontend overrides it",
+}
+
+
+def _session_kind_literals(tree: ast.Module) -> list[tuple[int, str]]:
+    """``(line, kind)`` for each frontend literal: a ``front_end`` assignment, a ``breadcrumbs.leave`` first argument."""
+    found: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "leave"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "breadcrumbs"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+        ):
+            found.append((node.lineno, node.args[0].value))
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if (
+                any(isinstance(target, ast.Name) and target.id == "front_end" for target in targets)
+                and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)
+            ):
+                found.append((node.lineno, node.value.value))
+    return found
+
+
+@pytest.mark.rule("session-kinds-one-table")
+def test_every_session_kind_is_in_the_table():
+    """Every frontend literal a breadcrumb carries is a breadcrumbs.SESSION_KINDS key, and every key is used."""
+    from termapy.breadcrumbs import SESSION_KINDS
+
+    # Arrange / Act
+    used: set[str] = set()
+    outside: list[str] = []
+    for path in _package_python_files():
+        file = path.relative_to(SRC).as_posix()
+        for line, kind in _session_kind_literals(ast.parse(path.read_text(encoding="utf-8"))):
+            if kind in SESSION_KINDS:
+                used.add(kind)
+            elif (file, kind) not in SESSION_KIND_ALLOWED:
+                outside.append(f"{file}:{line}  {kind}")
+
+    # Assert
+    assert outside == [], "a session kind outside breadcrumbs.SESSION_KINDS:\n  " + "\n  ".join(
+        outside
+    )
+    assert used == set(SESSION_KINDS), "every kind in the table is one a frontend carries"
+
+
+@pytest.mark.rule("session-kinds-one-table")
+def test_session_kind_guard_fires_on_a_probe():
+    """The guard reads a leave literal and a front_end attribute, and only those."""
+    # Arrange
+    source = (
+        "from termapy import breadcrumbs\n"
+        "breadcrumbs.leave('nosuch', config='')\n"
+        "breadcrumbs.leave(kind)\n"
+        "class Host:\n"
+        "    front_end = 'bogus'\n"
+        "class Other:\n"
+        "    front_end: str = 'tui'\n"
+        "leave('notabreadcrumb')\n"
+    )
+
+    # Act
+    actual = _session_kind_literals(ast.parse(source))
+
+    # Assert
+    assert actual == [(2, "nosuch"), (5, "bogus"), (7, "tui")], (
+        "literals only, breadcrumbs.leave only"
+    )
+
+
 # ── Guard: a family says what it is for (registry family-has-intro) ─────────
 #
 # A command with subcommands, at any level, declares Command.intro.  Before
@@ -5332,6 +5419,7 @@ RAW_MODULE_HOMES: dict[str, frozenset[str]] = {
             "app.py",  # stty sane when the TUI hands its terminal back
             "builtins/commands/os_cmd.py",  # /os: interactive and env-gated
             "builtins/commands/_cfg_icon.py",  # /cfg.icon's launcher: gui_apps
+            "port_server.py",  # --serve --detach: the server started as a process of its own
         }
     ),
     "webbrowser": frozenset({"terminal_host.py"}),  # /help.open: gui_apps in every frontend
@@ -5341,7 +5429,9 @@ RAW_MODULE_HOMES: dict[str, frozenset[str]] = {
             "builtins/commands/log.py",  # /log.fingerprint: host_info
         }
     ),
-    "socket": frozenset({"builtins/commands/log.py"}),  # /log.fingerprint's hostname: host_info
+    # /log.fingerprint's hostname (host_info), and --serve's listener, the one
+    # network server (registry serve-local-by-default).
+    "socket": frozenset({"builtins/commands/log.py", "port_server.py"}),
 }
 
 # A name that IS a raw primitive -> the files that may reference it; an

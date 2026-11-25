@@ -53,6 +53,7 @@ class FakeSerial:
         self._lock = threading.Lock()
         self._input_buf = bytearray()
         self._output_buf = bytearray()
+        self._break_condition = False
 
         # Device state
         self._led_state: bool = False
@@ -319,6 +320,22 @@ class FakeSerial:
 
     def send_break(self, duration: float = 0.25) -> None:
         """Send break - no-op for simulated device."""
+
+    def reset_output_buffer(self) -> None:
+        """Discard bytes not yet sent (pyserial API parity): none wait, a write is answered at once.
+
+        An RFC 2217 client purges both buffers as it opens, so ``--serve
+        DEMO`` reaches this through pyserial's ``PortManager``.
+        """
+
+    @property
+    def break_condition(self) -> bool:
+        """The break line (pyserial API parity), held but never sent to the simulated device."""
+        return self._break_condition
+
+    @break_condition.setter
+    def break_condition(self, value: bool) -> None:
+        self._break_condition = bool(value)
 
     # -- XMODEM protocol constants --------------------------------------------
 

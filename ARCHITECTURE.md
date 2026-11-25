@@ -188,6 +188,7 @@ src/termapy/
 ├── port_allow.py           #              Which ports this process may open and list: `TERMAPY_ALLOWED_PORTS`, read once
 ├── port_control.py         # (2700 lines) Pure functions for serial port control - no Textual, no pyserial imports
 ├── port_format.py          #              One-line-per-port formatting for serial-port tables
+├── port_server.py          #              Share serial ports on the network over RFC 2217: the core of `termapy --serve`
 ├── proto_debug.py          # (1429 lines) Interactive protocol debug screen
 ├── repl.py                 # (2878 lines) REPL engine for termapy - plugin-based command dispatch and scripting
 ├── request_response.py     #              Request/response I/O pipeline for synchronous device exchanges
@@ -623,6 +624,17 @@ Four techniques, in order of preference:
    termapy reads it in the codegen command, for that one language, never
    in a module-level dict over every language.
 
+A server mode is a path too. `termapy --serve` (`port_server`, `cli_flags.run_serve`)
+needs the opener, pyserial's RFC 2217 server and a socket, and nothing of the
+command system, so it reaches listening without `termapy.plugins`,
+`termapy.repl`, Textual or Rich, and reads its version for the breadcrumb only
+once its ports listen. Two top-level imports were moved into the functions
+that use them for it: `port_control`'s `STATE_MESSAGES` and `TextLine` (the
+whole plugin framework) and `config`'s `shutil` (three compression
+libraries). Measured warm on Windows on 2026-11-24, the modules the server
+path imports fell from about 290 ms to about 160 ms, and launch to banner is
+about 300 ms.
+
 The usual trap is a package `__init__`. Importing
 `termapy.plugins.capabilities` runs `termapy/plugins/__init__.py` first,
 which imports the whole plugin API; that is how Rich reached `--ports`
@@ -841,6 +853,14 @@ The payoff — and the reason this is a core concept, not plumbing — is that s
 │  _run_cmds()        │  Short-lived, setup/teardown commands
 └─────────────────────┘
 ```
+
+`termapy --serve` is a process of its own, not a frontend, and has no main
+loop of its own: its main thread waits for Ctrl+C or a stop request, each
+served port has an accept thread (`termapy-serve-<port>`), and each client two
+pumps (`termapy-serve-in-<port>`, network to port; `termapy-serve-out-<port>`,
+port to network). They are `port_server`'s, not `SerialEngine`'s, and
+`Bridge.stop` joins every one; a pump that leaves by any path closes its
+client (registry `serve-pumps-joined`).
 
 Only the reader and the stop watch are long-lived. Dispatch and scripts are each serialized: one
 `dispatch_full` at a time (nested dispatch on the same thread is allowed) and
@@ -1085,6 +1105,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_port_control.py                | Tests for port_control.py - pure serial port control functions                                                                                                                      |
 | test_port_noninvasive.py            | K1 regression: resolution and plain enumeration must never open a port                                                                                                              |
 | test_port_serial_resolution.py      | End-to-end tests for USB serial-number resolution in port specs                                                                                                                     |
+| test_port_server.py                 | termapy --serve's core: its entries, a bridge over RFC 2217, one client at a time, a lost port reopened, every thread joined                                                        |
 | test_port_state.py                  | A port's state color: green held by this termapy session, yellow by another termapy session                                                                                         |
 | test_post_dispatch_observer.py      | Tests for `ReplEngine.add_post_dispatch_observer` and friends                                                                                                                       |
 | test_print_lines.py                 | A file's text printed a person can stop: waiting.print_lines, behind /cfg.file and the .dump family                                                                                 |

@@ -1431,3 +1431,196 @@ def cli_demo(tmp_path):
     yield cli
     if cli.engine.is_connected:
         cli._disconnect()
+
+
+@pytest.mark.rule("session-kinds-one-table")
+class TestSessionKinds:
+    """A session's kind is a row of breadcrumbs.SESSION_KINDS, and a kind is an /app.kill target."""
+
+    def test_a_kind_picks_every_session_of_it(self):
+        """serve picks every port server and nothing else; a near miss is answered with the kind."""
+        # Arrange
+        crumbs = [
+            _crumb(pid=1, frontend="serve", config="", port="COM3", open_port="COM3"),
+            _crumb(pid=2, frontend="tui"),
+            _crumb(pid=3, frontend="serve", config="", port="DEMO", open_port="DEMO"),
+        ]
+
+        # Act
+        picked = [crumb.pid for crumb in breadcrumbs.select(crumbs, "serve")]
+        by_case = [crumb.pid for crumb in breadcrumbs.select(crumbs, "SERVE")]
+        hint = breadcrumbs.suggest(crumbs, "serv")
+
+        # Assert
+        assert picked == [1, 3], "every port server, no other kind"
+        assert by_case == [1, 3], "a kind is read in any case, as a config name is"
+        assert hint == " -- did you mean serve?", "the running kinds are offered"
+
+
+@pytest.mark.rule("serve-opens-like-a-session")
+class TestServeCrumb:
+    """A --serve process holds several ports, and its breadcrumb names each."""
+
+    def test_a_serve_crumb_holds_each_of_its_ports(self):
+        """open_port lists every served device; the holder lookup and --kill find the server by any one of them."""
+        from termapy.port_control import crumb_holding
+
+        # Arrange
+        server = _crumb(
+            pid=7,
+            frontend="serve",
+            config="",
+            port=breadcrumbs.PORT_LIST_SEPARATOR.join(["BG03U7VTA", "COM4"]),
+            open_port=breadcrumbs.PORT_LIST_SEPARATOR.join(["COM7", "COM4"]),
+        )
+        crumbs = [server, _crumb(pid=8, port="COM9", open_port="COM9")]
+
+        # Act
+        actual = (
+            server.open_ports,
+            crumb_holding("COM4", crumbs),
+            [crumb.pid for crumb in breadcrumbs.select(crumbs, "COM7")],
+            [crumb.pid for crumb in breadcrumbs.select(crumbs, "BG03U7VTA")],
+        )
+
+        # Assert
+        assert actual == (("COM7", "COM4"), server, [7], [7])
+
+    @pytest.mark.slow  # a --serve process
+    @pytest.mark.sw_loopback
+    def test_app_kill_serve_stops_a_port_server(self, cli_demo, state_dir):
+        """A running termapy --serve is the serve kind in /app.alive, and /app.kill serve stops it: it exits 0 and its TCP port closes."""
+        import socket
+
+        # Arrange -- a free TCP port on this machine for the server to take
+        with socket.create_server(("127.0.0.1", 0)) as probe:
+            tcp_port = probe.getsockname()[1]
+        server = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "termapy",
+                "--serve",
+                f"loop://={tcp_port}",
+                "--listen",
+                "127.0.0.1",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            env={**os.environ, "TERMAPY_STATE_DIR": str(state_dir)},
+        )
+        try:
+            assert server.stdout is not None
+            assert any("->" in line for line in iter(server.stdout.readline, "")), "the banner"
+            crumb = next(
+                (crumb for crumb in breadcrumbs.read_running() if crumb.frontend == "serve"), None
+            )
+            cli_demo._fire_app_start()
+
+            # Act
+            with patch("builtins.input", return_value="y"):
+                stopped = cli_demo.repl.dispatch_full("/app.kill serve")
+
+            # Assert
+            assert crumb is not None and crumb.open_ports == ("loop://",), (
+                "the serve kind, its port"
+            )
+            assert crumb.address == (f"rfc2217://127.0.0.1:{tcp_port}",), "and where it answers"
+            assert stopped.success, stopped.error
+            assert server.wait(timeout=10) == 0, "it left when asked, as a session does"
+            with pytest.raises(OSError):
+                socket.create_connection(("127.0.0.1", tcp_port), timeout=0.5)
+        finally:
+            if server.poll() is None:
+                running = [
+                    crumb for crumb in breadcrumbs.read_running() if crumb.frontend == "serve"
+                ]
+                for crumb in running:
+                    _end(crumb)
+                server.kill()
+
+
+@pytest.mark.rule("serve-opens-like-a-session")
+class TestServerAddress:
+    """A server's breadcrumb names where it answers and who is on each port, and --alive shows it."""
+
+    def test_an_address_and_its_clients_round_trip(self, state_dir):
+        """Written as JSON lists, read back as the same tuples; the record carries them as lists."""
+        # Arrange
+        crumb_file = Breadcrumb()
+        urls = ["rfc2217://192.168.1.57:2217", "rfc2217://192.168.1.57:2218"]
+
+        # Act
+        crumb_file.write(
+            "serve", open_port="COM7, COM4", address=urls, clients=["192.168.1.20", ""]
+        )
+        crumb = breadcrumbs._load(crumb_file.path)
+        crumb_file.remove()
+
+        # Assert
+        assert crumb is not None
+        assert (crumb.address, crumb.clients) == (tuple(urls), ("192.168.1.20", ""))
+        record = breadcrumbs.session_record(crumb)
+        assert (record["address"], record["clients"]) == (urls, ["192.168.1.20", ""]), "JSON lists"
+
+    @pytest.mark.parametrize("value", [None, "rfc2217://host:2217", 7])
+    def test_an_older_or_odd_breadcrumb_has_no_address(self, state_dir, value):
+        """A breadcrumb with no address list (an older termapy's, or a bad one) still loads, with none."""
+        # Arrange
+        path = breadcrumbs.running_dir() / "4242.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        record = {"pid": 4242, "token": "t", "started": "2026-11-24T09:00:00", "frontend": "cli"}
+        if value is not None:
+            record["address"] = value
+        path.write_text(json.dumps(record), encoding="utf-8")
+
+        # Act
+        crumb = breadcrumbs._load(path)
+
+        # Assert
+        assert crumb is not None, "the session is still listed"
+        assert (crumb.address, crumb.clients) == ((), ())
+
+    def test_the_alive_table_shows_where_a_server_answers(self):
+        """ADDRESS names each URL without its scheme and the client on it, and hides when no server runs."""
+        from termapy.plugins.views import TableView
+
+        # Arrange
+        server = _crumb(
+            frontend="serve",
+            config="",
+            open_port="COM7, COM4",
+            address=("rfc2217://192.168.1.57:2217", "rfc2217://192.168.1.57:2218"),
+            clients=("192.168.1.20", ""),
+        )
+        web = _crumb(
+            pid=9, frontend="web", config="", open_port="", address=("http://localhost:8000",)
+        )
+
+        def table(*crumbs: Crumb) -> list[str]:
+            view = TableView(
+                breadcrumbs.SESSIONS_TITLE,
+                "session",
+                breadcrumbs.session_columns(),
+                tuple(breadcrumbs.session_record(crumb) for crumb in crumbs),
+            )
+            return [text for text, _ in view.lines(200)]
+
+        # Act
+        with_servers = "\n".join(table(server, web))
+        sessions_only = "\n".join(table(_crumb()))
+
+        # Assert
+        assert "192.168.1.57:2217 (192.168.1.20), 192.168.1.57:2218" in with_servers
+        assert "localhost:8000" in with_servers, "a web server's address too"
+        assert "rfc2217://" not in with_servers, "MODE says which kind of server it is"
+        assert "ADDRESS" not in sessions_only, "no server running, no column"
+
+    @pytest.mark.parametrize(
+        ("host", "expected"),
+        [("192.168.1.57", "rfc2217://192.168.1.57:2217"), ("fe80::1", "rfc2217://[fe80::1]:2217")],
+    )
+    def test_a_listen_url_brackets_an_ipv6_address(self, host, expected):
+        """listen_url is the one spelling of a server's address; an IPv6 host goes in brackets."""
+        assert breadcrumbs.listen_url("rfc2217", host, 2217) == expected

@@ -4506,7 +4506,13 @@ def _run_web_mode(args: argparse.Namespace) -> None:
     # process with its own breadcrumb); this one lets --kill find it.
     from termapy import breadcrumbs
 
-    breadcrumbs.leave("web", config=args.config or "", detailed=True)
+    # Where the server answers, for --alive: it listens there for its whole run.
+    breadcrumbs.leave(
+        "web",
+        config=args.config or "",
+        address=[breadcrumbs.listen_url("http", host, port)],
+        detailed=True,
+    )
 
     def _stop_server(by: int) -> None:
         """Another termapy asked this server to stop: unwind as Ctrl+C does (the stop watch's thread).

@@ -959,6 +959,7 @@ Ids: 243: 228 registry rows (guarantees 191, assumptions 37), 15 spec sections i
 ### `serve-detaches` (guarantee, contract)
 
 - `test_cli.py`: `TestServeDetach` (2 functions), `TestServeFlags.test_detach_needs_serve` **guard**
+- `test_port_server.py`: `test_a_detached_server_starts_with_no_window`
 
 ### `serve-listen-named` (guarantee, contract)
 

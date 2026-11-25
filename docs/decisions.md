@@ -2802,3 +2802,14 @@ default route's, marked, then the rest), with an example built from the ports na
 `--serve` lists the serial ports to share. The registry row `serve-local-by-default` becomes
 `serve-listen-named`. **Behavior changed:** `termapy --serve COM3` no longer serves on
 `localhost`; it says to add `--listen localhost` or an address.
+
+## 2026-11-25 — --detach opens no window on Windows
+
+`--serve --detach` started the server with `DETACHED_PROCESS`, and on Windows a console window
+flashed up: a venv's `python.exe` is a launcher that starts the real interpreter, and a detached
+launcher leaves that interpreter no console, so Windows opened it one of its own.
+`start_detached` now uses `CREATE_NO_WINDOW` (`port_server._detach_flags`): the launcher gets a
+console that is never shown, and the interpreter shares it. It is still not the console
+`--detach` was typed in, so closing that window does not reach the server, and the process group
+of its own still keeps a Ctrl+C there from reaching it. Windows ignores `CREATE_NO_WINDOW` beside
+`DETACHED_PROCESS`, so the second is gone (registry `serve-detaches`). Released as 0.82.1.

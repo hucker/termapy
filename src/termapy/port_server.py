@@ -149,12 +149,34 @@ def parse_entries(texts: list[str], first: int = FIRST_TCP_PORT) -> list[ServeEn
     return entries
 
 
+def _detach_flags() -> int:
+    """Windows' process-creation flags for a server started in the background; 0 elsewhere.
+
+    ``CREATE_NO_WINDOW``, not ``DETACHED_PROCESS``: a venv's ``python.exe`` is a
+    launcher that starts the real interpreter, and a detached launcher leaves
+    that interpreter no console, so Windows opens it a console window of its
+    own, which flashed on screen.  With no window the launcher gets a console
+    that is never shown, and the interpreter shares it.  That console is not
+    the one ``--detach`` was typed in, so closing that window does not reach
+    the server, and a group of its own keeps a Ctrl+C there from reaching it.
+    Windows ignores ``CREATE_NO_WINDOW`` beside ``DETACHED_PROCESS``, so the two
+    never go together.
+    """
+    import subprocess
+    import sys
+
+    if sys.platform != "win32":
+        return 0
+    return subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
+
+
 def start_detached(argv: list[str], output: Path) -> subprocess.Popen[bytes]:
     """Start ``termapy <argv>`` as a process of its own, its output appended to ``output``.
 
-    No console and no controlling terminal: on Windows a detached process in
-    a group of its own, so closing the window it was started from or a
-    Ctrl+C there never reaches it; elsewhere a session of its own.  Its
+    No window and no controlling terminal: on Windows a console never shown,
+    in a group of its own (``_detach_flags``), so closing the window it was
+    started from or a Ctrl+C there never reaches it; elsewhere a session of
+    its own.  Its
     standard input is closed, and what it prints, its banner, every event
     and any failure, goes to ``output``.  The caller learns that it listens
     from its breadcrumb, as every other termapy does (registry
@@ -172,7 +194,6 @@ def start_detached(argv: list[str], output: Path) -> subprocess.Popen[bytes]:
     import sys
 
     windows = sys.platform == "win32"
-    flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP if windows else 0
     with output.open("ab") as sink:
         return subprocess.Popen(
             [sys.executable, "-m", "termapy", *argv],
@@ -180,7 +201,7 @@ def start_detached(argv: list[str], output: Path) -> subprocess.Popen[bytes]:
             stdout=sink,
             stderr=subprocess.STDOUT,
             close_fds=True,
-            creationflags=flags,
+            creationflags=_detach_flags(),
             start_new_session=not windows,
         )
 

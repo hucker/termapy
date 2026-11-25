@@ -265,91 +265,11 @@ pyserial's `loop://` URL handler is reachable but not enumerated.
 
 **Status: prototype.** It may change or be removed in any release.
 
-`termapy --serve` puts serial ports on the network for another computer to
-open, over RFC 2217, the serial-over-TCP protocol pyserial speaks. It runs
-no TUI and none of the command system, so it starts in a fraction of a
-second. Name each port to share, each on its own TCP port, and the address
-clients connect to:
-
-```text
-termapy --serve COM3 --listen 192.168.1.57             rfc2217://192.168.1.57:2217
-termapy --serve COM3 COM5 --listen 192.168.1.57        two ports
-termapy --serve BG03U7VTA=2300 --listen 192.168.1.57   by USB serial number, on TCP port 2300
-termapy --serve DEMO --listen localhost                the simulator, this machine only
-```
-
-termapy never picks the address: a machine has several (Wi-Fi, Ethernet, a
-VPN, a WSL or Hyper-V adapter), and the wrong one opens the port to the
-wrong network. Leave `--listen` out and it lists them, the default route's
-marked; leave the ports out and it lists those:
-
-```text
-$ termapy --serve COM3
-termapy: error: --serve needs --listen, the address clients connect to:
-  --listen localhost     this machine only
-  --listen 192.168.1.57  the default route's: your LAN, most likely
-  --listen 172.18.208.1
-e.g. termapy --serve COM3 --listen 192.168.1.57
-There is no login: anyone who can reach the address can drive the port.
-```
-
-```text
-termapy --serve (prototype): serial ports on the network over RFC 2217
-  COM3  ->  rfc2217://192.168.1.57:2217
-  COM5  ->  rfc2217://192.168.1.57:2218
-  Open to the network at 192.168.1.57. There is no login:
-  anyone who can reach this address can drive these ports.
-  Stop with Ctrl+C, or from any termapy: /app.kill serve (termapy --kill serve).
-```
-
-On the other computer the URL is the port, in a config or at the REPL:
-`/port rfc2217://192.168.1.57:2217`. RFC 2217 carries the settings across,
-so the baud rate, frame, DTR, RTS and break you set there reach the real
-port.
-
-- **The ports you name, and no others.** Unnamed ports stay free on this
-  machine. A port's TCP number is fixed by its place in the list or by
-  `=TCPPORT`, so a client's URL never changes.
-- **Opened as a session opens one.** `TERMAPY_ALLOWED_PORTS` applies, a
-  port open elsewhere is refused, and a port that will not open stops the
-  run before anything listens.
-- **One client per port at a time.** Another is refused at once, and the
-  server prints who holds the port. A client that vanishes without closing,
-  a laptop gone to sleep or off the network, is dropped within about a
-  minute, so it never holds the port for good.
-- **Unplugged or reset, it comes back.** The client is dropped and the
-  port is tried again about once a second while its URL keeps listening.
-  Name the port by its USB serial number, so a board that comes back as a
-  new COM number is still found.
-- **No login.** `--listen` with this machine's address opens the ports to
-  anyone who can reach it. `--listen localhost` keeps them to this machine,
-  which still works through an SSH tunnel. A host name listens on every
-  address it names: `localhost` on both `::1` and `127.0.0.1`, so a client
-  tries no address that is not listening.
-- **A session kind of its own.** `--alive` lists it as `serve` with every
-  port it holds, where each answers and who is connected to it, a TUI that
-  tries one of them is told the server holds it, and `/app.kill serve` or
-  `termapy --kill serve` stops every port server.
-
-To run it in the background, add `--detach`. termapy starts the server as
-a process of its own, with no console, waits until it listens, and
-returns:
-
-```text
-$ termapy --serve COM7 --listen 192.168.1.57 --detach
-termapy --serve is running in the background, PID 11120:
-  COM7  ->  rfc2217://192.168.1.57:2217
-  Open to the network at 192.168.1.57. There is no login.
-  Its output: C:\Users\you\AppData\Local\termapy\log\20261124_164358-serve.log
-  Stop it with: termapy --kill serve
-```
-
-Closing the window it was started from does not stop it. Its banner and
-every event go to the output file, which the diagnostic log's own pruning
-removes in time. A server that cannot start, a port that will not open or
-a TCP port in use, prints its reason there and here, and `--detach` exits
-with its code. To start one at every logon, register the same command as a
-Task Scheduler task on Windows or a systemd unit on Linux or a Raspberry Pi.
+`termapy --serve PORT ... --listen HOST` shares serial ports on the
+network over RFC 2217, each on its own TCP port, for another computer to
+open as `rfc2217://HOST:2217`; `--detach` runs it in the background. Its
+addresses, ports, one client at a time, the background and the secure
+setups are on [Network ports](network-ports.md#sharing-this-machines-ports).
 
 ## `--alive` and `--kill`: see and stop sessions
 
@@ -441,7 +361,7 @@ form, shown first; `-h` prints the same help.
 | `--web [[HOST:]PORT]` | Serve the TUI in a browser: `http://localhost:8000`, this machine only, unless `9000`, `192.168.1.50` or `192.168.1.50:9000` says otherwise. A network address opens it to other computers, with no login, so files stay inside the config folder as under MCP ([Browser](environment.md#browser-termapy---web)). A browser tab is a WEB session: the TUI without the console. |
 | `--serve PORT[=TCPPORT] ...` | Share serial ports on the network over RFC 2217, with no TUI (see [`--serve`](#--serve-share-a-port-on-the-network)). Each port gets its own TCP port, 2217 and up. |
 | `--listen HOST` | The address `--serve` listens on; this machine only without it. A network address has no login. |
-| `--detach` | With `--serve`, run the server in the background with no console; it prints its PID, addresses and output file, and returns. |
+| `--detach` | With `--serve`, run the server in the background with no window; it prints its PID, addresses and output file, and returns. |
 | `--mcp`           | Run as a stdio MCP server for an AI agent (see [MCP server](mcp-server.md)); `--mcp-verbose` tees its log to stderr. |
 
 ### Run one thing and exit

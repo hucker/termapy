@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import errno
 import socket
+import subprocess
+import sys
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -30,6 +32,7 @@ from termapy.port_server import (
     PortServer,
     ServeEntry,
     ServeError,
+    _detach_flags,
     listen_choices,
     parse_entries,
     port_cfg,
@@ -173,6 +176,29 @@ class _Opener:
         port = _Flaky(port="COM9")
         self.opened.append(port)
         return port
+
+
+@pytest.mark.rule("serve-detaches")
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows process-creation flags")
+def test_a_detached_server_starts_with_no_window():
+    """A server put in the background opens no window: no console shown, a group of its own, never DETACHED_PROCESS.
+
+    Windows ignores CREATE_NO_WINDOW beside DETACHED_PROCESS, and a detached venv
+    launcher left its interpreter to open a console window of its own.
+    """
+    # Arrange -- the skipif keeps this to Windows; the assert says so to the type checker,
+    # which reads no marker and knows no Windows-only subprocess flags elsewhere
+    assert sys.platform == "win32", "Windows only"
+
+    # Act
+    actual = _detach_flags()
+
+    # Assert
+    assert actual & subprocess.CREATE_NO_WINDOW, "a console never shown"
+    assert actual & subprocess.CREATE_NEW_PROCESS_GROUP, (
+        "a Ctrl+C where it was typed never reaches it"
+    )
+    assert not actual & subprocess.DETACHED_PROCESS, "which would cancel the no-window flag"
 
 
 class TestEntries:

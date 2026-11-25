@@ -12,6 +12,7 @@ Select a topic:
 - [Getting started](getting-started.md): connect to real hardware, config files, folder layout
 - [Configuration](config.md): JSON config, field reference, config management
 - [Serial ports](ports.md): picking a port, chip info, USB speed, latency tuning
+- [Network ports](network-ports.md): a port on another machine, and sharing this machine's with `termapy --serve`
 - [Command-line flags](cli.md): `--ports`, `--watch`, `--info`, and friends
 - [VT100 mode](vt100.md): raw ANSI passthrough for cursor-addressed devices
 - [Custom buttons](custom-buttons.md): adding toolbar buttons

@@ -2717,3 +2717,14 @@ entry above that vendored `master` whole; it is a candidate for a pull request u
 CI run found termapy's ZMODEM receive from lrzsz's `sz` failing its CRC-32 check on macOS, the
 first macOS run that had ZMODEM in it; ZMODEM is a preview, so that test is marked `xfail` on
 macOS and the release notes say so, until it is debugged on the Mac bench.
+
+## 2026-11-24 — A ZMODEM receive that fails its CRC check ships as a known issue
+
+The next CI run showed the failure above is not lrzsz's: two tests receiving from termapy's own
+sender over a `socket://` port failed the same CRC-32 check on macOS 3.15, after passing on both
+macOS jobs of the run before, and a receive test failed once on Windows the same day with "Unknown
+header format byte". A failed receive lands nothing, since its files land only when the transfer
+completes (registry `xfer-recv-staged`). ZMODEM is a preview, so Chuck chose to release with the
+bug named in the release notes: every test where termapy receives is `xfail` on macOS, non-strict
+because it does not fail every run, from one marker in `tests/test_zmodem.py`. This widens the
+entry above from one test; the bug is the next thing debugged.

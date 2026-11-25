@@ -157,7 +157,7 @@ Termapy is in beta: everything not listed here is stable and ready for public te
 | Device files | `/dev` | preview |
 | Symbols | `/sym` | preview |
 | Memory access | `/mem` | preview |
-| ZMODEM transfer | `/xfer.zmodem` | preview |
+| ZMODEM transfer | `/xfer.zmodem` | prototype |
 | Dev board starters | `/board` | prototype |
 | Device-side firmware | `/firmware` | prototype |
 
@@ -741,7 +741,6 @@ A progress bar and Stop button overlay the toolbar during capture. The `Cap` but
 
 </details>
 
-
 <details>
 <summary><strong>Demo mode</strong> - simulated device for trying everything without hardware</summary>
 
@@ -869,7 +868,6 @@ It's also a reversible toggle from inside the TUI, like `/app.cli` <-> `/app.tui
 **Caveats:** needs a VT-capable host terminal (universal on macOS/Linux; Windows Terminal / VS Code / Win10+ on Windows; legacy `conhost` is iffy). Run it in a standalone terminal tab for zero extra key interception; VS Code's integrated terminal adds one layer (the same one any serial terminal faces there). For LLM-driven menu navigation, a headless emulator + MCP is the intended path, not passthrough.
 
 </details>
-
 
 </details>
 

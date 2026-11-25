@@ -1,10 +1,13 @@
 
+
+
 <!doctype html>
 <html lang="en" class="no-js">
   <head>
     
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
+      
       
       
       
@@ -20,23 +23,24 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.1.1">
+      <meta name="generator" content="zensical-0.1.3">
     
     
       
-        <title>Variables - Termapy Help v0.81.0</title>
+        <title>Variables - Termapy Help v0.82.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.ebb7f775.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.e2cf241e.min.css">
       
         
           
         
         <link rel="stylesheet" href="./assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
       
       
 
@@ -87,7 +91,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.81.0" class="md-header__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.0" class="md-header__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -102,7 +106,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.81.0
+            Termapy Help v0.82.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +178,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.81.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.81.0
+    Termapy Help v0.82.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1432,13 +1436,39 @@ values across commands, scripts, and config fields. Variables use
 <div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>/var.set ADDR 01
 </span></code></pre></div>
 <h2 id="capturing-command-output">Capturing command output<a class="headerlink" href="#capturing-command-output" title="Permanent link">&para;</a></h2>
-<p>Use <code>&lt;-</code> to run a command and store its result in a variable. The
-right-hand side is executed - as a REPL command (if it starts with
-<code>/</code>) or as a device command (sent to the serial port) - and the
-response is captured.</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>$(BAUD) &lt;- /port.baud_rate    # captures REPL command output
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>$(TEMP) &lt;- AT+TEMP            # captures device response
+<p>Use <code>&lt;-</code> to run a command and store its answer in a variable. A
+termapy command (one that starts with <code>/</code>) runs without printing; a
+device command is sent to the serial port and its reply is stored.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>$(BAUD) &lt;- /port.baud_rate    # its value: 115200
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>$(TEMP) &lt;- AT+TEMP            # the device's reply
 </span></code></pre></div>
+<p>What a termapy command leaves in the variable:</p>
+<table>
+<thead>
+<tr>
+<th>Line</th>
+<th>The variable holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>$(B) &lt;- /port.baud_rate</code></td>
+<td>its value, <code>115200</code></td>
+</tr>
+<tr>
+<td><code>$(T) &lt;- /term.info</code></td>
+<td>no one value, so the page it shows at quiet</td>
+</tr>
+<tr>
+<td><code>$(E) &lt;- /port.baud_rate --json</code></td>
+<td>its JSON envelope, one line</td>
+</tr>
+</tbody>
+</table>
+<p>The line is <code>/var.capture NAME cmd=&lt;line&gt;</code>: like any <code>cmd=</code> line it keeps
+its own flags and its text as written, and a flag for the capture itself
+goes before <code>cmd=</code>. A line that fails leaves the variable as it was.
+<code>/help capture</code> shows this in the app.</p>
 <h2 id="using-variables">Using variables<a class="headerlink" href="#using-variables" title="Permanent link">&para;</a></h2>
 <p>Variables expand anywhere: serial commands, REPL commands, scripts:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>AT+ADDR=$(ADDR)
@@ -1509,7 +1539,7 @@ a single argument.</p>
 <p>It works in any command that declares typed parameters, in every argument slot
 except a <code>rest</code> value (a <code>rest</code> value is a whole line, not an argument, so it
 has no arity to guarantee - use <code>$(NAME)</code> there). Commands that take their
-arguments literally - <code>/raw</code>, <code>/term.send</code>, <code>/var.set</code>, <code>/search</code> - are
+arguments literally - <code>/term.raw</code>, <code>/term.send</code>, <code>/var.set</code>, <code>/search</code> - are
 unaffected by both forms.</p>
 <p>Because it resolves after the argument split, a dereferenced value is always
 data: one that happens to read <code>--verbose</code> or <code>note=x</code> or <code>{seq1+}</code> binds as a
@@ -1803,8 +1833,8 @@ rewritten automatically.</p>
 <td>Set a variable to a literal value</td>
 </tr>
 <tr>
-<td><code>/var.capture &lt;NAME&gt; &lt;cmd&gt;</code></td>
-<td>Run cmd and store its result as NAME</td>
+<td><code>/var.capture &lt;NAME&gt; cmd=&lt;cmd&gt;</code></td>
+<td>Run cmd and store its answer as NAME</td>
 </tr>
 <tr>
 <td><code>/var.clear</code></td>
@@ -1816,10 +1846,10 @@ rewritten automatically.</p>
 <p>Use <code>\$</code> to prevent expansion:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>/print \$(ADDR) = $(ADDR)     # prints: $(ADDR) = 01
 </span></code></pre></div>
-<p>Use <code>/term.send</code> to send a line with no expansion at all, or <code>/raw</code> to
+<p>Use <code>/term.send</code> to send a line with no expansion at all, or <code>/term.raw</code> to
 send the text with no line ending either:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>/term.send $(GPS),NMEA,0      # sends literal $(GPS),NMEA,0 and the line ending
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>/raw $(GPS),NMEA,0            # sends literal $(GPS),NMEA,0 and nothing after it
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>/term.raw $(GPS),NMEA,0            # sends literal $(GPS),NMEA,0 and nothing after it
 </span></code></pre></div>
 <h2 id="scope">Scope<a class="headerlink" href="#scope" title="Permanent link">&para;</a></h2>
 <p>User variables persist until a config loads, which starts clean. A script
@@ -1925,7 +1955,8 @@ after it ends. For a known start, make <code>/cfg.load</code> its first line. Us
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.3cb411a8.min.js"></script>
+      <script src="./assets/javascripts/bundle.9e76c64c.min.js"></script>
+      
       
     
   </body>

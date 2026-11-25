@@ -1,10 +1,13 @@
 
+
+
 <!doctype html>
 <html lang="en" class="no-js">
   <head>
     
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
+      
       
       
       
@@ -20,23 +23,24 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.1.1">
+      <meta name="generator" content="zensical-0.1.3">
     
     
       
-        <title>Firmware - Termapy Help v0.81.0</title>
+        <title>Firmware - Termapy Help v0.82.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.ebb7f775.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.e2cf241e.min.css">
       
         
           
         
         <link rel="stylesheet" href="./assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
       
       
 
@@ -87,7 +91,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.81.0" class="md-header__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.0" class="md-header__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -102,7 +106,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.81.0
+            Termapy Help v0.82.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +178,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.81.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.81.0
+    Termapy Help v0.82.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1051,7 +1055,8 @@
 </blockquote>
 <p>termapy ships the device-side sources a monitor compiles in to speak its
 protocols, so getting them is one command, not a trip to the repository.
-<code>/firmware</code> lists what ships; <code>.copy</code> writes it into your tree.</p>
+<code>/firmware</code> lists what ships; <code>.copy</code> writes it into the config's <code>firmware/</code>
+folder, which has the file commands every data folder has.</p>
 <table>
 <thead>
 <tr>
@@ -1074,15 +1079,33 @@ protocols, so getting them is one command, not a trip to the repository.
 <td><code>termapy_json.c</code>, <code>termapy_json.h</code></td>
 <td><a href="firmware-json.html">JSON integration</a></td>
 </tr>
+<tr>
+<td><code>monitor</code></td>
+<td>C</td>
+<td><code>termapy_monitor.c</code>, <code>termapy_monitor.h</code></td>
+<td><a href="boards.html#arduino-starters">Boards</a></td>
+</tr>
 </tbody>
 </table>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>/firmware                          what ships: target, language, files, size
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>/firmware.copy                     every module of the shipped language into the config's firmware/
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>/firmware.copy lang=c              the same, naming the language
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>/firmware.copy mem folder=fw       one module into fw/ under the config's folder, created if missing
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>/firmware.show json                open termapy_json.c in the system viewer
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>/firmware.dump mem termapy_mem.h   print one file to the terminal
+<p><code>mem</code> and <code>json</code> drop into a monitor you already have. <code>monitor</code> is a
+whole one for a device that has none: a table of commands with one-line
+help, <code>help</code>, <code>json on|off</code> and JSON requests, on top of <code>json</code> (and
+<code>mem</code> for the MEM commands). It is the C twin of the monitor the
+MicroPython board starters run, on the same wire, and the Arduino board
+starters are built on it.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>/firmware                              what ships: target, language, files, size (same as /firmware.lib)
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>/firmware.copy                         every module of the shipped language into the config's firmware/
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>/firmware.copy lang=c                  the same, naming the language
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>/firmware.copy mem folder=fw           one module into fw/ under the config's folder, created if missing
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>/firmware.lib.show json                open the shipped termapy_json.c in the system viewer
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>/firmware.lib.dump mem termapy_mem.h   print one shipped file to the terminal
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>/firmware.list                         the copies in this config's firmware/, newest first
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>/firmware.edit termapy_mem.c           open a copy in the system editor (also /edit.firmware)
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>/firmware.show, .dump, .rename, .delete   the folder's file commands, as /run has for run/
 </span></code></pre></div>
+<p>What ships is <code>/firmware.lib</code>, the noun beside the folder as <code>/dev.lib</code> is
+beside <code>dev/</code>, so the plain verbs (<code>.list</code>, <code>.show</code>, <code>.dump</code>) always mean this
+config's own files (<a href="commands.html#per-folder-file-commands">per-folder file commands</a>).</p>
 <p>A module's files follow its language: in C a module is a <code>.c</code> and its
 <code>.h</code>, so <code>mem</code> is <code>termapy_mem.c</code> and <code>termapy_mem.h</code>; a language with one
 file per module ships one. Like everything termapy writes for a config,
@@ -1094,11 +1117,13 @@ full path. <code>.copy</code> never overwrites: a file already in the folder fai
 the whole copy before anything is written, so a module you have edited
 stays yours. <code>lang=</code> names the language when the sources ship
 in several; today everything ships in C, so it is never needed. Over MCP,
-<code>/firmware.dump</code> is how an agent reads a source: the file's text is the
-command's value.</p>
+<code>/firmware.lib.dump</code> is how an agent reads a shipped source, and
+<code>/firmware.dump</code> a copied one: the file's text is the command's value.</p>
 <p>Each module is strict C99 with no dependency beyond the standard headers.
-The suite compiles both against a host harness (<code>tests/test_firmware_mem.py</code>,
-<code>tests/test_firmware_json.py</code>), so the shipped source is the tested source.</p>
+The suite compiles each against a host harness (<code>tests/test_firmware_mem.py</code>,
+<code>tests/test_firmware_json.py</code>, <code>tests/test_firmware_monitor.py</code>), so the
+shipped source is the tested source; the monitor's tests also run every
+line through the MicroPython monitor and require the same bytes back.</p>
 
 
 
@@ -1197,7 +1222,8 @@ The suite compiles both against a host harness (<code>tests/test_firmware_mem.py
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.3cb411a8.min.js"></script>
+      <script src="./assets/javascripts/bundle.9e76c64c.min.js"></script>
+      
       
     
   </body>

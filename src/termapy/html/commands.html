@@ -1,10 +1,13 @@
 
+
+
 <!doctype html>
 <html lang="en" class="no-js">
   <head>
     
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
+      
       
       
       
@@ -20,23 +23,24 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.1.1">
+      <meta name="generator" content="zensical-0.1.3">
     
     
       
-        <title>REPL Commands - Termapy Help v0.81.0</title>
+        <title>REPL Commands - Termapy Help v0.82.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.ebb7f775.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.e2cf241e.min.css">
       
         
           
         
         <link rel="stylesheet" href="./assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
       
       
 
@@ -87,7 +91,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.81.0" class="md-header__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.0" class="md-header__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -102,7 +106,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.81.0
+            Termapy Help v0.82.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +178,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.81.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.81.0
+    Termapy Help v0.82.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1220,7 +1224,7 @@ key or in an environment variable, uses one vocabulary, case-insensitive:</p>
 </tr>
 </tbody>
 </table>
-<p>A setting command (<code>/term.echo</code>, <code>/term.hex</code>, <code>/cli.completion</code>, ...) also
+<p>A setting command (<code>/term.echo</code>, <code>/term.hex</code>, <code>/term.completion</code>, ...) also
 takes the verb <code>toggle</code>, and a bare invocation shows the current value
 without changing it.  Leaving an optional boolean out means its documented
 default.  Any other word is an error that names the accepted tokens, never
@@ -1273,7 +1277,7 @@ has to match the whole name. Case never matters. With
 </table>
 <p>A pattern that matches nothing gives an empty list, not an error. The
 filters are <code>/env</code>, <code>/dev.lib</code>, <code>/proto.crc.list</code>, <code>/port.chip.list</code>,
-<code>termapy --chips</code>, <code>termapy --ports</code> (which reads every field of each
+<code>termapy --ports</code> (which reads every field of each
 row) and <code>/sym.search</code>, which shows an exact name alone before it reads
 the text as a pattern.</p>
 <p>A command that deletes or rewrites files takes a pattern the same way,
@@ -1333,7 +1337,7 @@ sends to the device) waits in the input line for Enter.</p>
 </tr>
 <tr>
 <td><code>/cap.stop</code></td>
-<td>Stop an active capture</td>
+<td>Stop the capture; report its bytes and lines</td>
 </tr>
 <tr>
 <td><code>/cap.struct &lt;f&gt; ...</code></td>
@@ -1352,8 +1356,8 @@ sends to the device) waits in the input line for Enter.</p>
 <td>TUI bare: open the Cfg picker. CLI bare: list configs. With args: get/set.</td>
 </tr>
 <tr>
-<td><code>/cfg.auto &lt;key&gt; &lt;val&gt;</code></td>
-<td>Set a config key without confirmation</td>
+<td><code>/cfg.save</code></td>
+<td>Write the settings this session changed into the config file</td>
 </tr>
 <tr>
 <td><code>/cfg.delete &lt;name&gt;</code></td>
@@ -1369,7 +1373,7 @@ sends to the device) waits in the input line for Enter.</p>
 </tr>
 <tr>
 <td><code>/cfg.file &lt;name&gt;</code></td>
-<td>Print a file from the config folder (subfolders allowed)</td>
+<td>Print a file from the config folder (subfolders allowed); <code>--display</code> opens it</td>
 </tr>
 <tr>
 <td><code>/cfg.list</code></td>
@@ -1381,7 +1385,7 @@ sends to the device) waits in the input line for Enter.</p>
 </tr>
 <tr>
 <td><code>/cfg.info {--display}</code></td>
-<td>Write and show the project report (tree, config, buttons, log and history tails); also written at exit; <code>--display</code> opens it</td>
+<td>Write the project report (tree, config, buttons, log and history tails) and show the config's folder tree, each file a link; <code>--json</code> gives the files by folder; also written at exit; <code>--display</code> opens it</td>
 </tr>
 <tr>
 <td><code>/cfg.load &lt;name&gt;</code></td>
@@ -1481,23 +1485,27 @@ sends to the device) waits in the input line for Enter.</p>
 </tr>
 <tr>
 <td><code>/firmware</code></td>
-<td>List the device-side sources termapy ships: target, language, files, size</td>
+<td>The device-side sources termapy ships and this config's <code>firmware/</code> folder (bare: <code>/firmware.lib</code>)</td>
 </tr>
 <tr>
 <td><code>/firmware.copy {name} {lang=&lt;l&gt;} {folder=&lt;path&gt;}</code></td>
 <td>Write the shipped sources into the config's <code>firmware/</code> folder (a relative <code>folder=</code> is under the config's folder): every module of a language, or one by name; never overwrites</td>
 </tr>
 <tr>
-<td><code>/firmware.dump &lt;name&gt; {file} {lang=&lt;l&gt;}</code></td>
+<td><code>/firmware.lib</code></td>
+<td>List the shipped modules: name, language, files, size (same as bare <code>/firmware</code>)</td>
+</tr>
+<tr>
+<td><code>/firmware.lib.dump &lt;name&gt; {file} {lang=&lt;l&gt;}</code></td>
 <td>Print one shipped source file (over MCP, the value an agent reads)</td>
 </tr>
 <tr>
-<td><code>/firmware.list</code></td>
-<td>Same as bare <code>/firmware</code></td>
+<td><code>/firmware.lib.show &lt;name&gt; {lang=&lt;l&gt;}</code></td>
+<td>Open a shipped module's main source in the system viewer</td>
 </tr>
 <tr>
-<td><code>/firmware.show &lt;name&gt; {lang=&lt;l&gt;}</code></td>
-<td>Open a target's main source in the system viewer</td>
+<td><code>/firmware.list</code></td>
+<td>List this config's <code>firmware/</code> folder, the copies (<a href="#per-folder-file-commands">per-folder family</a>)</td>
 </tr>
 <tr>
 <td><code>/grep &lt;pattern&gt;</code></td>
@@ -1648,15 +1656,15 @@ sends to the device) waits in the input line for Enter.</p>
 <td>TUI bare: open Port picker. CLI bare: list ports. With name: open it.</td>
 </tr>
 <tr>
-<td><code>/port.baud_rate {value} {custom=&lt;bool&gt;}</code></td>
-<td>Show or set baud rate (hardware only): a standard one, or any from 300 with <code>custom=true</code></td>
+<td><code>/port.baud_rate {value\|cycle} {custom=&lt;bool&gt;}</code></td>
+<td>Show or set baud rate (hardware only): a standard one, or any from 300 with <code>custom=true</code>; <code>cycle</code> steps to the next standard rate</td>
 </tr>
 <tr>
 <td><code>/port.break {ms}</code></td>
 <td>Send break signal (default 250ms)</td>
 </tr>
 <tr>
-<td><code>/port.byte_size {value}</code></td>
+<td><code>/port.byte_size {5\|6\|7\|8\|cycle}</code></td>
 <td>Show or set data bits (hardware only)</td>
 </tr>
 <tr>
@@ -1665,7 +1673,7 @@ sends to the device) waits in the input line for Enter.</p>
 </tr>
 <tr>
 <td><code>/port.connect {name} {baud} {mode} {custom=&lt;bool&gt;} {timeout=&lt;dur&gt;} {msg=&lt;text&gt;}</code></td>
-<td>Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81); a non-standard rate needs <code>custom=true</code>; <code>timeout=</code> keeps trying until the port opens (a board plugged in or rebooting), <code>msg=</code> says what for</td>
+<td>Connect with optional baud and mode (e.g. /port.connect COM3 9600 N81); a non-standard rate needs <code>custom=true</code>; <code>timeout=</code> keeps trying until the port opens (a board plugged in or rebooting), <code>msg=</code> says what for; naming another port while one is open switches to it</td>
 </tr>
 <tr>
 <td><code>/port.cts</code></td>
@@ -1680,12 +1688,12 @@ sends to the device) waits in the input line for Enter.</p>
 <td>Show DSR state (read-only)</td>
 </tr>
 <tr>
-<td><code>/port.dtr {on\|off}</code></td>
+<td><code>/port.dtr {on\|off\|toggle}</code></td>
 <td>Show or set DTR line</td>
 </tr>
 <tr>
-<td><code>/port.flow_control {m}</code></td>
-<td>Show or set flow control: none, rtscts, xonxoff, manual</td>
+<td><code>/port.flow_control {none\|rtscts\|xonxoff\|manual\|cycle}</code></td>
+<td>Show or set flow control</td>
 </tr>
 <tr>
 <td><code>/port.help</code></td>
@@ -1704,7 +1712,7 @@ sends to the device) waits in the input line for Enter.</p>
 <td>Show or set serial mode (e.g. /port.mode 9600 N81); a non-standard rate needs <code>custom=true</code></td>
 </tr>
 <tr>
-<td><code>/port.parity {value}</code></td>
+<td><code>/port.parity {N\|E\|O\|M\|S\|cycle}</code></td>
 <td>Show or set parity (hardware only)</td>
 </tr>
 <tr>
@@ -1712,12 +1720,16 @@ sends to the device) waits in the input line for Enter.</p>
 <td>Show RI state (read-only)</td>
 </tr>
 <tr>
-<td><code>/port.rts {on\|off}</code></td>
+<td><code>/port.rts {on\|off\|toggle}</code></td>
 <td>Show or set RTS line</td>
 </tr>
 <tr>
-<td><code>/port.stop_bits {value}</code></td>
+<td><code>/port.stop_bits {1\|1.5\|2\|cycle}</code></td>
 <td>Show or set stop bits (hardware only)</td>
+</tr>
+<tr>
+<td><code>/port.test &lt;port&gt;</code></td>
+<td>Open a port and close it again, to see that it answers (a typed network URL above all)</td>
 </tr>
 <tr>
 <td><code>/print &lt;text&gt;</code></td>
@@ -1804,6 +1816,10 @@ sends to the device) waits in the input line for Enter.</p>
 <td>Same flag as <code>/term.hex</code></td>
 </tr>
 <tr>
+<td><code>/proto.viz</code></td>
+<td>Packet visualizers in <code>viz/</code>: <code>.list</code> (bare), <code>.explore</code>, <code>.show</code>, <code>.dump</code>, <code>.edit</code>, <code>.rename</code>, <code>.delete</code></td>
+</tr>
+<tr>
 <td><code>/proto.list</code></td>
 <td>List .pro files in proto/, newest first, with size, age and each one's <code>name</code>; a name runs, its edit cell opens the editor</td>
 </tr>
@@ -1820,7 +1836,7 @@ sends to the device) waits in the input line for Enter.</p>
 <td>Print current protocol mode state</td>
 </tr>
 <tr>
-<td><code>/raw &lt;text&gt;</code></td>
+<td><code>/term.raw &lt;text&gt;</code></td>
 <td>Send text exactly as typed: no line ending, expansion or transforms</td>
 </tr>
 <tr>
@@ -1904,12 +1920,20 @@ sends to the device) waits in the input line for Enter.</p>
 <td>Clear the loaded symbol table</td>
 </tr>
 <tr>
+<td><code>/sym.list</code></td>
+<td>List the tables in <code>sym/</code>; in the TUI a click on one loads it (<a href="#per-folder-file-commands">per-folder family</a>)</td>
+</tr>
+<tr>
 <td><code>/dev.import &lt;file&gt; {format=&lt;value&gt;}</code></td>
 <td>Convert a vendor register description (CMSIS-SVD) into this config's <code>lib/</code> and reference it from <code>dev/</code> (<code>to=global</code> shares it)</td>
 </tr>
 <tr>
 <td><code>/dev.lib {pattern}</code></td>
-<td>List the parts the libraries hold (available, not loaded), with their layer</td>
+<td>List the parts the libraries hold (available, not loaded), with their layer; <code>.explore</code>, <code>.show</code>, <code>.dump</code>, <code>.rename</code>, <code>.delete</code> work on this config's <code>lib/</code></td>
+</tr>
+<tr>
+<td><code>/dev.delete &lt;part&gt;</code></td>
+<td>Remove a part from this config: its <code>dev/</code> file goes, after a yes, and the devices reload</td>
 </tr>
 <tr>
 <td><code>/dev.list</code></td>
@@ -1970,6 +1994,10 @@ sends to the device) waits in the input line for Enter.</p>
 <tr>
 <td><code>/term.json_fmt.indent {0\|2\|4\|cycle}</code></td>
 <td>Spaces per level for JSON on screen; 0 is one line</td>
+</tr>
+<tr>
+<td><code>/term.title {text\|auto}</code></td>
+<td>Show or set the terminal's title (the tab in Windows Terminal, iTerm, and VS Code once <code>vscode://settings/terminal.integrated.tabs.title</code> is <code>${sequence}</code>); bare shows it, <code>auto</code> is the config's own; a one-shot (<code>-e</code>, <code>--run</code>) leaves the shell's title alone</td>
 </tr>
 <tr>
 <td><code>/term.eol.markers {on\|off\|toggle}</code></td>
@@ -2047,6 +2075,14 @@ sends to the device) waits in the input line for Enter.</p>
 <td><code>/xfer.ymodem.send &lt;file&gt; ...</code></td>
 <td>Send file(s) to the device via YMODEM (batch)</td>
 </tr>
+<tr>
+<td><code>/xfer.zmodem.recv {dir}</code></td>
+<td>Receive file(s) from the device via ZMODEM (the device runs <code>sz</code>)</td>
+</tr>
+<tr>
+<td><code>/xfer.zmodem.send &lt;file&gt; ...</code></td>
+<td>Send file(s) to the device via ZMODEM (the device runs <code>rz</code>)</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Line counts:</strong> <code>/ss.txt</code>, <code>/log.dump</code>, and <code>/log.diag.dump</code> take an
@@ -2074,10 +2110,12 @@ optional <code>N</code>. <code>N&gt;0</code> saves/prints the <strong>last N</st
 <p>The CSVs in <code>prof/</code> have the per-folder file commands below
 (<code>/run.profile.list</code>, <code>.dump</code>, <code>.show</code>, ...).</p>
 <h2 id="per-folder-file-commands">Per-folder file commands<a class="headerlink" href="#per-folder-file-commands" title="Permanent link">&para;</a></h2>
-<p>Each per-config data folder has an owning top-level command (<code>/run</code> for
-<code>run/</code>, <code>/proto</code> for <code>proto/</code>, <code>/cap</code> for <code>cap/</code>, <code>/ss</code> for <code>ss/</code>,
-<code>/plugin</code> for <code>plugin/</code>, <code>/run.profile</code> for <code>prof/</code>) with one consistent
-family of file subcommands:</p>
+<p>Every per-config data folder has an owning command (<code>/run</code> for <code>run/</code>,
+<code>/proto</code> for <code>proto/</code>, <code>/cap</code> for <code>cap/</code>, <code>/ss</code> for <code>ss/</code>, <code>/plugin</code> for
+<code>plugin/</code>, <code>/run.profile</code> for <code>prof/</code>, <code>/sym</code> for <code>sym/</code>, <code>/dev</code> for <code>dev/</code>,
+<code>/dev.lib</code> for <code>lib/</code>, <code>/proto.viz</code> for <code>viz/</code>, <code>/firmware</code> for <code>firmware/</code>)
+with one consistent family of file subcommands, declared once per folder in
+termapy's folder table:</p>
 <table>
 <thead>
 <tr>
@@ -2090,7 +2128,7 @@ family of file subcommands:</p>
 <tr>
 <td><code>.list</code></td>
 <td>List files, newest first, with size and age</td>
-<td>all</td>
+<td>all (<code>/dev.list</code> lists the loaded devices and <code>/dev.lib</code> the library's parts: what the files mean)</td>
 </tr>
 <tr>
 <td><code>.explore</code></td>
@@ -2105,7 +2143,7 @@ family of file subcommands:</p>
 <tr>
 <td><code>.dump {name}</code></td>
 <td>Print the newest (or named) file to the terminal</td>
-<td>run, proto, plugin, cap, prof</td>
+<td>all but ss</td>
 </tr>
 <tr>
 <td><code>.rename &lt;old&gt; &lt;new&gt;</code></td>
@@ -2115,12 +2153,12 @@ family of file subcommands:</p>
 <tr>
 <td><code>.edit {name}</code></td>
 <td>Edit a file (TUI bare: the folder's picker); also <code>/edit.&lt;folder&gt;</code></td>
-<td>run, proto, plugin</td>
+<td>run, proto, plugin, viz, firmware</td>
 </tr>
 <tr>
 <td><code>.delete &lt;name&gt;</code></td>
 <td>Delete a file someone wrote, after a yes</td>
-<td>run, proto, plugin</td>
+<td>run, proto, plugin, viz, sym, dev, lib, firmware</td>
 </tr>
 <tr>
 <td><code>.delete &lt;name\|pattern&gt;</code></td>
@@ -2129,6 +2167,10 @@ family of file subcommands:</p>
 </tr>
 </tbody>
 </table>
+<p>What a plugin ships beside a folder is a noun of its own, so the plain verbs
+always mean the config's folder: <code>/firmware.lib</code> is the device code termapy
+ships (<code>/firmware.copy</code> puts it in <code>firmware/</code>), <code>/dev.lib</code> the parts a config
+picks from (<code>/dev.use</code> adds one to <code>dev/</code>).</p>
 <p>Examples:</p>
 <ul>
 <li><code>/run.list</code>: list scripts with size, age and title; in the TUI a name runs the script and its edit cell opens it in the editor</li>
@@ -2139,6 +2181,9 @@ family of file subcommands:</p>
 <li><code>/run.rename old.run new</code>: rename a script (<code>.run</code> is kept)</li>
 <li><code>/cap.delete adc_*</code>: delete the captures whose names start <code>adc_</code> (asks first; <code>*</code> is every capture)</li>
 <li><code>/run.profile.dump</code>: print the newest profile CSV to the terminal</li>
+<li><code>/sym.list</code>: list the symbol tables in <code>sym/</code>; in the TUI a click on one loads it</li>
+<li><code>/dev.delete acme-adc16</code>: remove a part from this config (its <code>dev/</code> file), after a yes</li>
+<li><code>/firmware.list</code>: list the device code copied into <code>firmware/</code>; <code>/firmware.lib</code> is what ships</li>
 </ul>
 
 
@@ -2238,7 +2283,8 @@ family of file subcommands:</p>
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.3cb411a8.min.js"></script>
+      <script src="./assets/javascripts/bundle.9e76c64c.min.js"></script>
+      
       
     
   </body>

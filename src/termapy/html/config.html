@@ -1,10 +1,13 @@
 
+
+
 <!doctype html>
 <html lang="en" class="no-js">
   <head>
     
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
+      
       
       
       
@@ -20,23 +23,24 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.1.1">
+      <meta name="generator" content="zensical-0.1.3">
     
     
       
-        <title>Configuration - Termapy Help v0.81.0</title>
+        <title>Configuration - Termapy Help v0.82.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.ebb7f775.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.e2cf241e.min.css">
       
         
           
         
         <link rel="stylesheet" href="./assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
       
       
 
@@ -87,7 +91,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.81.0" class="md-header__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.0" class="md-header__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -102,7 +106,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.81.0
+            Termapy Help v0.82.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +178,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.81.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.81.0
+    Termapy Help v0.82.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1309,15 +1313,20 @@
 <p>The OS default location is <code>%APPDATA%\termapy</code> on Windows,
 <code>~/Library/Application Support/termapy</code> on macOS, and
 <code>~/.config/termapy</code> on Linux (respects <code>XDG_CONFIG_HOME</code>).</p>
-<p>A port's own config (<code>termapy COM3</code>, see
-<a href="getting-started.html#quick-open-just-a-port">Quick open</a>) skips priority 3:
-it lives in the OS default unless <code>--cfg-dir</code> or <code>TERMAPY_CFG_DIR</code> names a
-folder, so opening a port inside a project adds nothing to it.</p>
 <h2 id="creating-a-new-config">Creating a new config<a class="headerlink" href="#creating-a-new-config" title="Permanent link">&para;</a></h2>
 <p>When you create a new config (first run, or <strong>Cfg → New</strong>), termapy shows
 a quick-setup dialog where you pick a name, a serial port, and a baud
 rate.  Hit <strong>Connect</strong> to save and connect, or <strong>Advanced</strong> to drop into
 the full JSON editor for fine-grained control.</p>
+<p>A config's name is its folder's and its file's, and a config travels in
+git, so termapy refuses a name any OS it supports cannot hold, on every
+OS: Windows' device names in any case and with any extension (<code>CON</code>,
+<code>NUL</code>, <code>AUX</code>, <code>PRN</code>, <code>COM0</code> to <code>COM9</code>, <code>LPT0</code> to <code>LPT9</code>), the characters
+<code>&lt; &gt; : " | ? *</code>, and a name ending in a dot.  This holds for a rename
+too, and for a file renamed in a data folder.  A device name is no
+config on any OS: termapy neither lists nor opens one, so <code>termapy COM7</code>
+is always the port.  A config made before with one of the characters
+still opens.</p>
 <p><img alt="New config quick-setup dialog" src="img/doc_30_new_cfg.png" /></p>
 <h2 id="json-config-file">JSON config file<a class="headerlink" href="#json-config-file" title="Permanent link">&para;</a></h2>
 <p>Each configuration is stored as a JSON file at <code>&lt;config_dir&gt;/&lt;name&gt;/&lt;name&gt;.cfg</code>.
@@ -1342,15 +1351,26 @@ a command's own <code>/help</code> page lists the keys it depends on in a CONFIG
 section; and the editor's help line names the commands that use the key
 under the cursor. A change by <code>/cfg &lt;key&gt; &lt;value&gt;</code> or a <code>/term.*</code> setter
 lasts the session; the editor's Save writes the file.</p>
+<p><strong>Unsaved session settings.</strong> A setting button whose value the session changed
+from the file ends in <code>*</code> (<code>Echo on*</code>). Exiting, loading a config and the editor's
+Save (a load) each end the session's changes, so in the TUI, when the session holds
+any, Exit (the button, Ctrl+Q, <code>/exit</code>), a config load (the picker, <code>/cfg.load</code>,
+the New Config wizard) and opening the editor first list them, the file's value
+beside the session's, and ask: <strong>Save and Exit</strong> (or Load, or Edit) writes just
+those keys into the file, a <code>$(env.NAME)</code> template in any other key staying as
+written; <strong>Exit Without Saving</strong> goes on and drops them; <strong>Cancel</strong> keeps the
+session. A script is never asked, nor the CLI or MCP, so a script that changes a
+setting and loads a config runs unattended. What you asked for at launch
+(<code>--no-color</code>, <code>--quiet</code>) is never counted as a change.</p>
 <p><strong>One check.</strong> A value is judged the same way wherever it comes from: a load
 warns about a bad one, the editor shows it red and its Save refuses, and <code>/cfg</code>
-and <code>/cfg.auto</code> refuse it (<code>Invalid max_lines: 0 (must be a positive integer)</code>).
+refuses it (<code>Invalid max_lines: 0 (must be a positive integer)</code>).
 <code>config_version</code> is termapy's to write, so <code>/cfg</code> refuses that too. A non-standard
 baud rate is flagged everywhere and allowed, since some hardware needs one.</p>
 <p>Here is an example config for a device called <code>iot_device</code>:</p>
 <!-- validate-config-keys -->
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="nt">"config_version"</span><span class="p">:</span><span class="w"> </span><span class="mi">39</span><span class="p">,</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="nt">"config_version"</span><span class="p">:</span><span class="w"> </span><span class="mi">42</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"IoT Device"</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">"border_color"</span><span class="p">:</span><span class="w"> </span><span class="s2">"blue"</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="nt">"serial"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
@@ -1464,12 +1484,12 @@ reported as a type warning.</p>
 <tr>
 <td><code>border_color</code></td>
 <td><code>""</code></td>
-<td>Title bar color (CSS name or hex like <code>#ff6600</code>)</td>
+<td>Title bar and output border color (CSS name or hex like <code>#ff6600</code>; empty is blue). A title-bar button that would blend into it is drawn a shade apart, and a name the TUI cannot draw is a config warning</td>
 </tr>
 <tr>
 <td><code>serial.port</code></td>
 <td><code>""</code></td>
-<td>Port spec. Accepts a literal device (<code>"COM4"</code>, <code>"/dev/ttyUSB0"</code>), a USB serial number (<code>"A1B2C3D4"</code>), a <code>\|</code>-separated fallback chain (<code>"A1B2C3D4\|COM3"</code>), a reserved name (<code>"DEMO"</code>), or a pyserial URL (<code>"rfc2217://host:2217"</code>). See <a href="ports.html">ports.md</a> for the grammar. Auto-detected when only one port is connected.</td>
+<td>Port spec. Accepts a literal device (<code>"COM4"</code>, <code>"/dev/ttyUSB0"</code> or its short name <code>"ttyUSB0"</code>), a USB serial number (<code>"A1B2C3D4"</code>), a <code>\|</code>-separated fallback chain (<code>"A1B2C3D4\|COM3"</code>), a reserved name (<code>"DEMO"</code>), or a pyserial URL (<code>"rfc2217://host:2217"</code>). See <a href="ports.html">ports.md</a> for the grammar. Auto-detected when only one port is connected.</td>
 </tr>
 <tr>
 <td><code>serial.baud_rate</code></td>
@@ -1544,7 +1564,7 @@ reported as a type warning.</p>
 <tr>
 <td><code>tx_char_delay_ms</code></td>
 <td><code>0</code></td>
-<td>Delay in ms after each character of a line sent to the device (TeraTerm's transmit delay, msec/char), for a device that drops bytes sent back to back; <code>0</code> = off. File transfers, <code>/proto</code> and <code>/raw</code> are never paced</td>
+<td>Delay in ms after each character of a line sent to the device (TeraTerm's transmit delay, msec/char), for a device that drops bytes sent back to back; <code>0</code> = off. File transfers, <code>/proto</code> and <code>/term.raw</code> are never paced</td>
 </tr>
 <tr>
 <td><code>tx_line_delay_ms</code></td>
@@ -1599,7 +1619,7 @@ reported as a type warning.</p>
 <tr>
 <td><code>echo_fmt</code></td>
 <td><code>[purple]$(CFG)&gt; {cmd}[/]</code></td>
-<td>Rich markup format for echoed commands</td>
+<td>Rich markup format for echoed commands. A style Rich cannot draw, or markup that does not parse, is a config warning, and the echo uses the default</td>
 </tr>
 <tr>
 <td><code>timestamps</code></td>
@@ -1639,12 +1659,12 @@ reported as a type warning.</p>
 <tr>
 <td><code>protocol</code></td>
 <td><code>text</code></td>
-<td>Wire format the device speaks: <code>"text"</code> (line-oriented) or <code>"ndjson"</code> (one JSON per line)</td>
+<td>Wire format the device speaks: <code>"text"</code> (lines as typed) or <code>"ndjson"</code> (one JSON per line). With <code>"ndjson"</code>, each device command in JSON mode (<code>/term.request on</code>, <code>--json</code>, MCP) is sent as <code>{"cmd":...,"args":...,"id":N}</code> and answered by the line carrying that id</td>
 </tr>
 <tr>
 <td><code>ndjson_field_routing</code></td>
 <td><code>{...}</code></td>
-<td>NDJSON: which JSON fields the MCP bridge routes on (response_id/error_field/event_field)</td>
+<td>NDJSON field names. <code>response_id</code> (default <code>id</code>) is the field a JSON-mode request's id goes in and its reply echoes; <code>error_field</code> and <code>event_field</code> are not read yet</td>
 </tr>
 <tr>
 <td><code>request_mode</code></td>
@@ -1674,7 +1694,7 @@ reported as a type warning.</p>
 <tr>
 <td><code>profile_path</code></td>
 <td><code>""</code></td>
-<td>Explicit v2 device profile.  MCP-only: <code>--mcp</code> loads it on connect.  Empty = convention</td>
+<td>Device profile loaded at every connect, in the TUI, the CLI and MCP; a bare name is beside the config.  Empty = only MCP loads one, <code>&lt;name&gt;.profile.json</code> by convention</td>
 </tr>
 <tr>
 <td><code>validate_typed_args</code></td>
@@ -1768,7 +1788,7 @@ reported as a type warning.</p>
 </tr>
 <tr>
 <td><code>custom_buttons</code></td>
-<td><code>[4 entries]</code></td>
+<td><code>[5 entries]</code></td>
 <td>Custom button objects (see <a href="custom-buttons.html">Custom Buttons</a>)</td>
 </tr>
 </tbody>
@@ -1931,7 +1951,8 @@ first with size, last-updated age, port, baud, and title.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.3cb411a8.min.js"></script>
+      <script src="./assets/javascripts/bundle.9e76c64c.min.js"></script>
+      
       
     
   </body>

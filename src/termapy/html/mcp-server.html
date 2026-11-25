@@ -1,10 +1,13 @@
 
+
+
 <!doctype html>
 <html lang="en" class="no-js">
   <head>
     
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
+      
       
       
       
@@ -20,23 +23,24 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.1.1">
+      <meta name="generator" content="zensical-0.1.3">
     
     
       
-        <title>MCP Server - Termapy Help v0.81.0</title>
+        <title>MCP Server - Termapy Help v0.82.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.ebb7f775.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.e2cf241e.min.css">
       
         
           
         
         <link rel="stylesheet" href="./assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
       
       
 
@@ -87,7 +91,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.81.0" class="md-header__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.0" class="md-header__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -102,7 +106,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.81.0
+            Termapy Help v0.82.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +178,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.81.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.81.0
+    Termapy Help v0.82.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1788,9 +1792,10 @@
 <li><strong>Shell escape (<code>/os</code>)</strong> never runs under MCP: it needs an interactive session, which the server never has.  <code>TERMAPY_OS_CMD_ENABLED</code> does not change that; it opens <code>/os</code> only at the TUI and CLI.</li>
 <li><strong>Renaming and deleting files</strong> are off limits.  Every <code>.rename</code> and <code>.delete</code> command (<code>/plugin.delete</code>, <code>/cap.rename</code>, <code>/cfg.delete</code>, ...) is refused, whether sent directly or inside another command, and neither <code>confirm=true</code> nor any flag changes that.  An agent cannot remove a capture, though it can write over one by reusing its name.</li>
 <li><strong>Code folders can't be written.</strong>  <code>plugin/</code> and <code>viz/</code> hold Python that runs at the next load, so nothing an agent runs can write there or in a folder below them, whichever command names the folder, and no flag changes that.</li>
-<li><strong>A write can replace a file only inside the config's folder.</strong>  There an agent works as a person does: <code>/cap.text</code>, <code>/cap.bin</code>, <code>/cap.struct</code>, <code>/cap.hex</code> and <code>/cap.poll --overwrite</code> start a file over, <code>/proto.crc.&lt;lang&gt; file=</code>, <code>/profile.save</code> and <code>/proto.run</code>'s <code>json_file</code> write over their own.  A file outside the folder is never replaced, and no flag changes that.  <code>/cfg.new</code> over an existing config still needs a person's yes, and <code>/firmware.copy</code>, <code>/board.firmware</code> and <code>/run.record</code> never overwrite for anyone.</li>
+<li><strong>A write can change a file only inside the config's folder.</strong>  There an agent works as a person does: <code>/cap.text</code>, <code>/cap.bin</code>, <code>/cap.struct</code>, <code>/cap.hex</code> and <code>/cap.poll --overwrite</code> start a file over or add to it, <code>/proto.crc.&lt;lang&gt; file=</code>, <code>/profile.save</code> and <code>/proto.run</code>'s <code>json_file</code> write over their own.  A file outside the folder is never replaced or added to, and no flag changes that.  <code>/cfg.new</code> over an existing config still needs a person's yes, and <code>/firmware.copy</code>, <code>/board.firmware</code> and <code>/run.record</code> never overwrite for anyone.</li>
+<li><strong>Nothing an agent leaves behind runs by itself in your session.</strong>  <code>on_connect_cmd</code>, <code>tui_on_connect_cmd</code> and <code>cli_on_connect_cmd</code> run at every connect in the TUI or CLI, with your reach rather than the agent's, so an agent cannot set them and no file write makes a config file.  <code>mcp_on_connect_cmd</code> runs only under MCP and stays the agent's, and so do <code>.run</code> scripts, which run when you name one.  No flag changes that.</li>
 <li><strong>File viewers / editors / explorers</strong> (<code>/show &lt;path&gt;</code>, <code>/edit</code>, <code>/cfg.explore</code>, the folder <code>.show</code>/<code>.explore</code> verbs) are unreachable -- they need a local desktop.</li>
-<li><strong>File access is meant to stay inside the config directory, and mostly does.</strong>  Captures (<code>/cap.text|bin|struct|hex</code>, <code>/cap.poll file=</code>), reads (<code>termapy://capture/&lt;name&gt;</code>, the <code>.dump</code> commands), <code>/profile.load|save</code>, <code>/cfg.load</code>, <code>/log.dump</code> and generated CRC source (<code>/proto.crc.&lt;lang&gt; file=</code>) refuse an absolute path or <code>../</code>, a path-valued cfg key (<code>log_file</code>) can't be pointed outside it via <code>/cfg.auto</code>, and <code>/proto.run</code> writes its results in the config's <code>proto/test/</code> wherever the script came from.  Known gaps remain while the server is a preview: some commands resolve a relative name from the folder termapy was started in, some Windows path forms (<code>\x</code>, <code>D:x</code>) pass the check, and a few file readers (<code>/profile.validate</code>, <code>/proto.run &lt;path&gt;</code>) are not checked.  Load profiles by <em>name</em>, and don't rely on the confinement to contain an agent.  To allow host-wide paths, set <code>TERMAPY_MCP_FS_UNCONFINED=1</code> in the server's shell.</li>
+<li><strong>File access is meant to stay inside the config directory, and mostly does.</strong>  Captures (<code>/cap.text|bin|struct|hex</code>, <code>/cap.poll file=</code>), reads (<code>termapy://capture/&lt;name&gt;</code>, the <code>.dump</code> commands), <code>/profile.load|save</code>, <code>/cfg.load</code>, <code>/log.dump</code> and generated CRC source (<code>/proto.crc.&lt;lang&gt; file=</code>) refuse an absolute path or <code>../</code>, a path-valued cfg key (<code>log_file</code>) can't be pointed outside it via <code>/cfg</code>, and <code>/proto.run</code> writes its results in the config's <code>proto/test/</code> wherever the script came from.  Known gaps remain while the server is a preview: some commands resolve a relative name from the folder termapy was started in, some Windows path forms (<code>\x</code>, <code>D:x</code>) pass the check, and a few file readers (<code>/profile.validate</code>, <code>/proto.run &lt;path&gt;</code>) are not checked.  Load profiles by <em>name</em>, and don't rely on the confinement to contain an agent.  To allow host-wide paths, set <code>TERMAPY_MCP_FS_UNCONFINED=1</code> in the server's shell.</li>
 <li><strong>Ports are the ones you allow.</strong>  <code>TERMAPY_ALLOWED_PORTS</code> decides which ports a server may open and list, and with it unset it opens none but the simulator and <code>loop://</code> (<a href="#which-ports-it-may-open">Which ports it may open</a>).  The check is where every port opens, so <code>/port.connect</code>, <code>/port &lt;x&gt;</code>, <code>/cfg port</code>, a config load and the server's first connect all meet it.</li>
 <li><strong>A network port needs two permissions.</strong>  pyserial "URL ports" (<code>socket://host:port</code>, <code>rfc2217://...</code>) open an outbound TCP connection, so one opens only when <code>TERMAPY_ALLOWED_PORTS</code> names its endpoint exactly <em>and</em> you set <code>TERMAPY_MCP_NET_EGRESS=1</code>, whatever route sent it.  A refused host is never looked up.  <code>spy://</code> <a href="ports.html#logging-the-raw-traffic">logs traffic to a file</a>, which stays in <code>cap/</code>, and is judged by the port it wraps.</li>
 <li><strong>The machine beyond the allowed devices is opt-in.</strong>  A program holding a port is named <code>another program</code> (the port still reads in use), and <code>/port.usb</code> (the whole USB bus), <code>/log.fingerprint</code> (OS, hostname, terminal environment) and <code>/app.alive</code> (the other termapy sessions, their PIDs, configs and ports) are refused.  <code>/port.list</code> still gives each allowed port's location and USB interface.  <code>TERMAPY_MCP_HOST_INFO=1</code> in the server's shell shows the agent the whole USB bus, the holders, the fingerprint and the sessions, for when you want it troubleshooting the machine and not just the board.</li>
@@ -1987,7 +1992,8 @@
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.3cb411a8.min.js"></script>
+      <script src="./assets/javascripts/bundle.9e76c64c.min.js"></script>
+      
       
     
   </body>

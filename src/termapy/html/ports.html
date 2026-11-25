@@ -1,10 +1,13 @@
 
+
+
 <!doctype html>
 <html lang="en" class="no-js">
   <head>
     
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
+      
       
       
       
@@ -20,23 +23,24 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.1.1">
+      <meta name="generator" content="zensical-0.1.3">
     
     
       
-        <title>Serial Ports - Termapy Help v0.81.0</title>
+        <title>Serial Ports - Termapy Help v0.82.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.ebb7f775.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.e2cf241e.min.css">
       
         
           
         
         <link rel="stylesheet" href="./assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
       
       
 
@@ -87,7 +91,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.81.0" class="md-header__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.0" class="md-header__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -102,7 +106,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.81.0
+            Termapy Help v0.82.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +178,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.81.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.81.0
+    Termapy Help v0.82.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -562,6 +566,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#how-termapy-writes-a-ports-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How termapy writes a port's name
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-your-com-number-keeps-changing" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -644,6 +659,28 @@
   
     <nav class="md-nav" aria-label="Advanced: URL-style ports">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-a-network-port-cannot-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What a network port cannot do
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sharing-a-port-termapy-serve" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Sharing a port: <code>termapy --serve</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#loopback" class="md-nav__link">
@@ -1511,6 +1548,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#how-termapy-writes-a-ports-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How termapy writes a port's name
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-your-com-number-keeps-changing" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1593,6 +1641,28 @@
   
     <nav class="md-nav" aria-label="Advanced: URL-style ports">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-a-network-port-cannot-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What a network port cannot do
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sharing-a-port-termapy-serve" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Sharing a port: <code>termapy --serve</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#loopback" class="md-nav__link">
@@ -1830,7 +1900,7 @@ doesn't expose it via the same path).</p>
 or a UART that cannot keep up at full speed. The symptom is a reply to a
 command you did not type, such as <code>Unknown command: AT+VE</code>. Pace what
 termapy sends, as TeraTerm's transmit delay does:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>/cfg.auto tx_char_delay_ms 1
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>/cfg tx_char_delay_ms 1
 </span></code></pre></div>
 <p><code>tx_char_delay_ms</code> hands each character of a line to the driver on its
 own, that many milliseconds apart; <code>tx_line_delay_ms</code> waits after each
@@ -1839,7 +1909,7 @@ The spacing is what termapy gives the driver: a USB adapter's driver can
 still group bytes, and its own settings (an FTDI adapter's Advanced port
 settings, say) are where to tune that. Every line sent to
 the device is paced: typed, from a script, pasted, or sent by an MCP
-agent. Binary is not: file transfers, <code>/proto</code> and <code>/raw</code> go out exactly
+agent. Binary is not: file transfers, <code>/proto</code> and <code>/term.raw</code> go out exactly
 as given.</p>
 <h2 id="when-youre-evaluating-whether-to-buy-a-faster-cable">When you're evaluating whether to buy a faster cable<a class="headerlink" href="#when-youre-evaluating-whether-to-buy-a-faster-cable" title="Permanent link">&para;</a></h2>
 <p>USB-serial chips come in two speed classes:</p>
@@ -1994,7 +2064,8 @@ the stream as 4 KB writes; the same adapter sending 192-byte writes lost
 nothing at any of these rates (see "Large sends go out in pieces" below).
 If every byte of a fast link matters, use hardware flow control or a block
 protocol that acknowledges and retransmits, <code>/xfer.xmodem</code> or
-<code>/xfer.ymodem</code>: termapy cannot recover bytes the adapter never delivered.</p>
+<code>/xfer.ymodem</code> (<code>/xfer.zmodem</code> detects a lost byte by CRC but does not
+retransmit): termapy cannot recover bytes the adapter never delivered.</p>
 <p><strong>What the layers mean for you:</strong></p>
 <ul>
 <li>The reader (what the MCP server uses) and the CLI kept pace with the line
@@ -2014,7 +2085,10 @@ protocol that acknowledges and retransmits, <code>/xfer.xmodem</code> or
 <h3 id="large-sends-go-out-in-pieces">Large sends go out in pieces<a class="headerlink" href="#large-sends-go-out-in-pieces" title="Permanent link">&para;</a></h3>
 <p>termapy hands anything longer than 192 bytes to the driver in 192-byte
 pieces, back to back (<code>tx_chunking</code>, on by default).  It helps large,
-high-speed transfers arrive intact.  Measured 2026-11-10 on the same rig:
+high-speed transfers arrive intact.  termapy's own hardware test sends
+16 KB this way at 921600 and requires every line back; the megabyte
+streams below are measurements, not tests, since a serial session is
+commands and replies with the odd kilobyte transfer.  Measured 2026-11-10 on the same rig:
 2 MB streams sent as 4 KB writes, the way a program usually writes, against
 the same streams sent as 192-byte writes, lines lost of 32768 in bare
 pyserial, termapy's reader and the CLI:</p>
@@ -2056,8 +2130,8 @@ The same stream crossed the wire at the same rate either way, so what
 changed is how the adapter's driver handled the writes, not what the
 receiver could take.  A device sending into termapy writes its own way;
 whether a receive-only link loses anything at these rates is not measured
-here.  <code>tx_chunking</code> off (<code>/cfg tx_chunking off</code> for the session,
-<code>/cfg.auto</code> to keep it) sends each write whole, as before.</p>
+here.  <code>tx_chunking</code> off (<code>/cfg tx_chunking off</code> for the session, then
+<code>/cfg.save</code> to keep it) sends each write whole, as before.</p>
 <p><strong>How it was measured.</strong>  A USB adapter with TX jumpered to RX, so every
 byte sent comes back, and four layers each on a fresh connection: bare
 pyserial (the adapter and driver ceiling), termapy's reader, the CLI and
@@ -2138,6 +2212,13 @@ any other program holds stays uncolored, so an uncolored port is not
 necessarily free.  An MCP client gets the same fact as data, <code>session</code> on
 each port record, naming the other session only as <code>another termapy
 session</code> unless the server has <code>TERMAPY_MCP_HOST_INFO=1</code>.</p>
+<p>A connect that fails because another termapy session holds the port says
+which session, from the same breadcrumbs, and how to free the port:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>Cannot open COM7: in use by termapy tui, PID 21552, config quick-COM7 -- stop it with /app.kill 21552, or termapy --kill 21552 from a shell
+</span></code></pre></div>
+<p>A config that names its port by USB serial number is matched as the port
+the number names.  Under MCP the holder is <code>another termapy session</code> and
+nothing is suggested, unless the server has <code>TERMAPY_MCP_HOST_INFO=1</code>.</p>
 <p><code>/port.info</code> and <code>/port.chip.in_use</code> report whether another process has
 the port open.  Termapy's own connection counts as "in use," so if you
 see <code>yes</code> while termapy is connected, that's expected.  This is handy
@@ -2186,10 +2267,28 @@ silently.</p>
 <h2 id="when-you-hit-permission-denied-on-linux">When you hit "Permission denied" on Linux<a class="headerlink" href="#when-you-hit-permission-denied-on-linux" title="Permanent link">&para;</a></h2>
 <p>Your user needs to be in the <code>dialout</code> group (Debian/Ubuntu) or <code>uucp</code>
 group (Arch/Fedora).  Add yourself and log out / back in:</p>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>sudo<span class="w"> </span>usermod<span class="w"> </span>-aG<span class="w"> </span>dialout<span class="w"> </span><span class="nv">$USER</span>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>sudo<span class="w"> </span>usermod<span class="w"> </span>-aG<span class="w"> </span>dialout<span class="w"> </span><span class="nv">$USER</span>
 </span></code></pre></div>
 <p><code>/port.chip.permissions</code> reports <code>ok</code> or <code>denied</code> for each port so you
 can tell ahead of time whether you'll be able to open it.</p>
+<h2 id="how-termapy-writes-a-ports-name">How termapy writes a port's name<a class="headerlink" href="#how-termapy-writes-a-ports-name" title="Permanent link">&para;</a></h2>
+<p>Type a port's name any way the system opens it; termapy writes it one way.
+On Windows that is <code>COM3</code>: <code>com3</code>, <code>Com3</code> and <code>\\.\COM3</code> all open it,
+and every list, the title bar and a new config say <code>COM3</code>.</p>
+<p>On Linux and macOS termapy shows a port by its short name: a device
+directly in <code>/dev</code> without the folder, and on macOS without <code>cu.</code>, so
+<code>/dev/ttyUSB0</code> is <code>ttyUSB0</code> and <code>/dev/cu.usbserial-A50285BI</code> is
+<code>usbserial-A50285BI</code>. The lists (<code>--ports</code>, <code>--watch</code>, <code>/port.list</code>, the
+pickers) and the title bar show it; <code>/port.info</code>, a port's tooltip and
+<code>--json</code> keep the full path, and a new config (<code>termapy PORT</code>, <code>--new</code>,
+<code>/cfg.new</code>) stores a port that is plugged in as the system lists it.</p>
+<p>Type either. A name with no <code>/</code> is a device in <code>/dev</code> (on macOS its <code>cu.</code>
+node), so <code>termapy ttyUSB0</code>, <code>/port.connect usbserial-A50285BI</code> and a
+config's <code>"port": "ttyACM0"</code> work as their paths do. A name with a <code>/</code> is
+used as typed: a <code>/dev/serial/by-id/...</code> link and a <code>/dev/pts/3</code> terminal
+work, and show in full, as does any port whose short name would read back
+as another. On macOS the short name means the <code>cu.</code> node, the one a
+terminal opens; for the dial-in node type <code>tty.usbserial-...</code> or its path.</p>
 <h2 id="when-your-com-number-keeps-changing">When your COM number keeps changing<a class="headerlink" href="#when-your-com-number-keeps-changing" title="Permanent link">&para;</a></h2>
 <p>Windows usually remembers each USB-serial cable by its serial number
 and sticks it on the same COM port every time -- but this falls
@@ -2201,7 +2300,7 @@ different port, unplug another cable, or reboot.</p>
 <code>/dev/ttyUSB*</code> paths change routinely.</p>
 <p><strong>The fix: identify the cable by its USB serial number, not by its
 device name.</strong> Termapy supports this in the <code>port</code> config field:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"A1B2C3D4"</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"A1B2C3D4"</span>
 </span></code></pre></div>
 <p>Find the serial number with <code>termapy --ports</code> (it's the rightmost
 column) or <code>/port.chip</code>.  At connect time, termapy scans every
@@ -2217,7 +2316,7 @@ TERMAPY-DEMO</code> connects to the simulator by serial number, and
 <h3 id="fallback-chain">Fallback chain<a class="headerlink" href="#fallback-chain" title="Permanent link">&para;</a></h3>
 <p>A <code>|</code>-separated spec tries each candidate in order; first to resolve
 wins:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"A1B2C3D4|COM3"</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"A1B2C3D4|COM3"</span>
 </span></code></pre></div>
 <p>Means <em>"prefer serial number A1B2C3D4; if it's not plugged in, fall
 back to literal COM3."</em>  Useful when you have a preferred cable at
@@ -2225,12 +2324,12 @@ your desk but want the config to still find <strong>something</strong> when
 you're traveling with a different one.</p>
 <p>Works for chips without serial numbers too -- just make sure the
 first candidate that <em>will</em> match your primary setup comes first:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"COM3|COM4|/dev/ttyUSB0"</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"COM3|COM4|/dev/ttyUSB0"</span>
 </span></code></pre></div>
 <h3 id="composes-with-environment-variables">Composes with environment variables<a class="headerlink" href="#composes-with-environment-variables" title="Permanent link">&para;</a></h3>
 <p>The env-expansion syntax (<code>$(env.NAME|fallback)</code>) and the
 port-resolution fallback (<code>|</code>) layer cleanly:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"$(env.DEVICE_SN)|COM3"</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"$(env.DEVICE_SN)|COM3"</span>
 </span></code></pre></div>
 <p><code>DEVICE_SN</code> gets expanded first (yielding e.g. <code>A1B2C3D4</code>), then the
 result is passed to port resolution which handles the pipe.  Each
@@ -2246,8 +2345,8 @@ fallback chain -- never silently pick a guess.</p>
 <h3 id="when-resolution-happens-termapy-tells-you">When resolution happens, termapy tells you<a class="headerlink" href="#when-resolution-happens-termapy-tells-you" title="Permanent link">&para;</a></h3>
 <p>After a successful connect using a non-literal spec, termapy prints
 one extra line to the screen:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>Resolved A1B2C3D4|COM3 -&gt; COM4 (serial number matched A1B2C3D4)
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>Connected: COM4 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
+<div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>Resolved A1B2C3D4|COM3 -&gt; COM4 (serial number matched A1B2C3D4)
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>Connected: COM4 115200 8N1  DTR=1 RTS=1 CTS=1 DSR=1 RI=0 CD=1
 </span></code></pre></div>
 <p>No surprise: you see the spec you wrote and the device you got.
 <code>/port.info</code> adds a <code>[resolved from &lt;spec&gt;]</code> annotation on the
@@ -2278,9 +2377,39 @@ port button's tooltip labels its rows as <code>/port.chip</code> does (<code>Ser
 <li><code>hwgrep://regex</code> -- find by device description</li>
 <li><code>spy://port?file=name</code> -- log every byte in both directions (see <a href="#logging-the-raw-traffic">Logging the raw traffic</a>)</li>
 </ul>
-<p>Just put the URL in the <code>port</code> config field. See <a href="https://pyserial.readthedocs.io/en/latest/url_handlers.html">pyserial's URL handler
+<p>Put the URL in the <code>port</code> config field, or type it in the TUI: Select
+Serial Port and the New Config wizard have a <strong>Network Port...</strong> button
+that swaps the port list for a field. <strong>Test</strong> opens the port and closes
+it again to see that it answers, as <code>/port.test &lt;url&gt;</code> does in any
+frontend; an open sets DTR and RTS, so a board that resets on them
+resets. <strong>Use</strong> takes the URL as a picked port. A port a <code>termapy
+--serve</code> on this machine shares is already a row there, by its URL. See
+<a href="https://pyserial.readthedocs.io/en/latest/url_handlers.html">pyserial's URL handler
 docs</a> for
 the full list.</p>
+<h3 id="what-a-network-port-cannot-do">What a network port cannot do<a class="headerlink" href="#what-a-network-port-cannot-do" title="Permanent link">&para;</a></h3>
+<p>A <code>socket://</code> port carries bytes and nothing else: the baud rate, frame,
+flow control, DTR, RTS and break never reach the device, and CTS, DSR and
+CD always read 1. So on an open <code>socket://</code> port the commands that set
+or read them (<code>/port.baud_rate</code>, <code>byte_size</code>, <code>parity</code>, <code>stop_bits</code>,
+<code>flow_control</code>, <code>mode</code>, <code>dtr</code>, <code>rts</code>, <code>cts</code>, <code>dsr</code>, <code>ri</code>, <code>cd</code>, <code>break</code>)
+refuse with the reason instead of reporting a change that never
+happened, and a button showing one of them reads <code>-</code>. <code>rfc2217://</code>
+carries all of them.</p>
+<p>No network keeps time: a delay stretches or vanishes on the way. So on
+either kind of network port, <code>/proto.send</code> refuses an inline <code>~Nms</code>
+delay; without one it sends as usual.</p>
+<p>Connecting runs none of these commands, so a config's own settings never
+stop a network port from opening. Only a line that sets one, typed,
+clicked or in an on-connect command, answers with the refusal.</p>
+<h3 id="sharing-a-port-termapy-serve">Sharing a port: <code>termapy --serve</code><a class="headerlink" href="#sharing-a-port-termapy-serve" title="Permanent link">&para;</a></h3>
+<p>An <code>rfc2217://</code> port needs something on the far side that holds the real
+port open. Another termapy can be that side: on the machine the device is
+plugged into, <code>termapy --serve COM3 --listen 192.168.1.57</code> serves it, and
+here the port is <code>rfc2217://192.168.1.57:2217</code>. RFC 2217 carries the baud
+rate, frame, DTR, RTS and break across. There is no login, so serve only
+on a network you trust; see <a href="cli.html#--serve-share-a-port-on-the-network"><code>--serve</code></a>
+for several ports, fixed TCP numbers and how it is stopped.</p>
 <h3 id="loopback">Loopback<a class="headerlink" href="#loopback" title="Permanent link">&para;</a></h3>
 <p><code>loop://</code> is worth calling out: it echoes whatever you write straight back,
 so it exercises the <em>real</em> serial read/write path with no hardware. That
@@ -2299,18 +2428,18 @@ same bytes out). Use the loopback to test the I/O plumbing, the demo to test
 device conversations.</p>
 <h3 id="logging-the-raw-traffic">Logging the raw traffic<a class="headerlink" href="#logging-the-raw-traffic" title="Permanent link">&para;</a></h3>
 <p>The session log (<code>/log</code>) covers everyday use, but it shows decoded text. When you need the exact bytes in both directions, <code>spy://</code> is pyserial's own traffic logger. Wrap the port name in the config:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spy://COM3?file=traffic.txt"</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spy://COM3?file=traffic.txt"</span>
 </span></code></pre></div>
 <p>Or turn it on from the REPL, and end it by naming the port again:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>/port spy://COM3?file=traffic.txt
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>/port COM3
+<div class="language-text highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>/port spy://COM3?file=traffic.txt
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>/port COM3
 </span></code></pre></div>
 <p>Each of those reopens the port, which resets a board that restarts on DTR.</p>
 <p>The log goes in the config's <code>cap/</code> folder, here <code>cap/traffic.txt</code>, so <code>/cap.list</code> shows it and <code>/cap.dump</code> prints it. <code>file=</code> takes only a path relative to that folder, such as <code>traffic.txt</code> or <code>wire/traffic.txt</code>. A full path or a <code>..</code> is refused, and the port does not open.</p>
 <p>The file holds one row per read or write: seconds since the port opened, direction, offset, hex, text.</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>000000.323 TX   0000  41 54 2B 56 45 52 0D                              AT+VER.
-</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>000000.340 RX   0000  41                                                A
-</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>000000.340 RX   0000  54 2B 56 45 52 0D                                 T+VER.
+<div class="language-text highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>000000.323 TX   0000  41 54 2B 56 45 52 0D                              AT+VER.
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>000000.340 RX   0000  41                                                A
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>000000.340 RX   0000  54 2B 56 45 52 0D                                 T+VER.
 </span></code></pre></div>
 <p>A reply can span rows, as this one does; that is how the reads fell, not how the device sent it. Rows labeled <code>CTS</code>, <code>DSR</code>, <code>RI</code>, <code>CD</code>, <code>Q-RX</code> and <code>Q-TX</code> are control-line state and pyserial's own calls, not traffic.</p>
 <p>The logging itself is pyserial's, and it behaves as pyserial does:</p>
@@ -2323,7 +2452,7 @@ device conversations.</p>
 </ul>
 <h2 id="limiting-which-ports-termapy-may-open">Limiting which ports termapy may open<a class="headerlink" href="#limiting-which-ports-termapy-may-open" title="Permanent link">&para;</a></h2>
 <p><code>TERMAPY_ALLOWED_PORTS</code> names the ports termapy may open and list on this machine. Set it in the environment termapy starts from, as one regular expression with <code>|</code> between the ports:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>TERMAPY_ALLOWED_PORTS=COM7|BG03U7VTA|/dev/ttyACM[0-9]
+<div class="language-text highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>TERMAPY_ALLOWED_PORTS=COM7|BG03U7VTA|/dev/ttyACM[0-9]
 </span></code></pre></div>
 <ul>
 <li><strong>A port matches whole, ignoring case.</strong> <code>COM1</code> allows <code>COM1</code> and never <code>COM10</code>.</li>
@@ -2337,7 +2466,7 @@ device conversations.</p>
 <li><strong><code>hwgrep://</code> is refused</strong> while the variable is set: pyserial picks its port after termapy has checked it. Name the port instead.</li>
 <li><strong>A network port must be named exactly.</strong> <code>socket://</code> and <code>rfc2217://</code> open only when an entry spells the endpoint out, <code>scheme://host:port</code>, with no wildcard. <code>.*</code> allows any device name and no network host:</li>
 </ul>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>TERMAPY_ALLOWED_PORTS=.*|rfc2217://10.0.0.5:2217
+<div class="language-text highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>TERMAPY_ALLOWED_PORTS=.*|rfc2217://10.0.0.5:2217
 </span></code></pre></div>
 <p>An entry matches the host as written. A host name is trusted to resolve where you expect, so name the IP address to pin it.
 - <strong>Read once, at start.</strong> A change takes effect the next time termapy starts. A value that is not a valid regular expression, or that holds a space (<code>COM7 | COM5</code>), stops termapy at startup with a message naming the variable. A comma is not a separator: <code>COM7,COM5</code> is one name, and matches nothing.</p>
@@ -2441,7 +2570,8 @@ device conversations.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.3cb411a8.min.js"></script>
+      <script src="./assets/javascripts/bundle.9e76c64c.min.js"></script>
+      
       
     
   </body>

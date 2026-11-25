@@ -101,6 +101,7 @@ class FakeSerialNDJSON:
         self._lock = threading.Lock()
         self._input_buf = bytearray()
         self._output_buf = bytearray()
+        self._break_condition = False
 
         # Banner is queued on first read; tracked so reset can re-arm it.
         self._banner_pending: bool = True
@@ -275,6 +276,23 @@ class FakeSerialNDJSON:
 
     def send_break(self, duration: float = 0.25) -> None:
         """No-op for simulated device."""
+
+    def reset_input_buffer(self) -> None:
+        """Discard replies not yet read (pyserial API parity), as ``FakeSerial`` does."""
+        with self._lock:
+            self._output_buf.clear()
+
+    def reset_output_buffer(self) -> None:
+        """Discard bytes not yet sent (pyserial API parity): none wait, a write is answered at once."""
+
+    @property
+    def break_condition(self) -> bool:
+        """The break line (pyserial API parity), held but never sent to the simulated device."""
+        return self._break_condition
+
+    @break_condition.setter
+    def break_condition(self, value: bool) -> None:
+        self._break_condition = bool(value)
 
     # -- Public test helpers (inject async traffic on demand) ─────────────
 

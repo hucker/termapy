@@ -2161,6 +2161,69 @@ class TestPathsStayLight:
             f"termapy.protocol loaded generators: {result.stdout}{result.stderr}"
         )
 
+    @pytest.mark.sw_loopback
+    def test_serve_loads_none_of_the_command_system(self, tmp_path):
+        """--serve serves loading no plugin framework, REPL engine, UI or code generator: a server needs none of the system."""
+        import socket
+        import subprocess
+        import sys as _sys
+
+        # Arrange -- a free TCP port; the probe waits until it answers, then
+        # interrupts the server as Ctrl+C does and reports what had loaded.
+        with socket.create_server(("127.0.0.1", 0)) as free:
+            tcp_port = free.getsockname()[1]
+        forbidden = (
+            "termapy.plugins",
+            "termapy.repl",
+            "textual",
+            "rich",
+            "prompt_toolkit",
+            "frist",
+            "crcglot",
+            "pygments",
+            "mcp",
+        )
+        code = (
+            "import _thread, json, socket, sys, threading, time\n"
+            f"sys.argv = ['termapy', '--serve', 'loop://={tcp_port}', '--listen', '127.0.0.1']\n"
+            "def probe():\n"
+            "    deadline = time.monotonic() + 30\n"
+            "    while time.monotonic() < deadline:\n"
+            "        try:\n"
+            f"            socket.create_connection(('127.0.0.1', {tcp_port}), timeout=0.5).close()\n"
+            "            break\n"
+            "        except OSError:\n"
+            "            time.sleep(0.02)\n"
+            "    time.sleep(0.5)\n"
+            "    _thread.interrupt_main()\n"
+            "threading.Thread(target=probe, daemon=True).start()\n"
+            "from termapy.entry import main\n"
+            "try:\n"
+            "    main()\n"
+            "except (SystemExit, KeyboardInterrupt):\n"
+            "    pass\n"
+            f"families = {forbidden!r}\n"
+            "loaded = [family for family in families if any("
+            "name == family or name.startswith(family + '.') for name in sys.modules)]\n"
+            "sys.__stdout__.write('\\nLOADED=' + json.dumps(loaded) + '\\n')\n"
+        )
+
+        # Act
+        result = subprocess.run(
+            [_sys.executable, "-c", code],
+            cwd=tmp_path,
+            env={**os.environ, "TERMAPY_STATE_DIR": str(tmp_path / "state")},
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        # Assert
+        marker = [line for line in result.stdout.splitlines() if line.startswith("LOADED=")]
+        assert marker, f"the probe did not finish:\n{result.stdout}\n{result.stderr}"
+        assert "->" in result.stdout, "the server listened and printed its banner"
+        assert json.loads(marker[0].removeprefix("LOADED=")) == [], "nothing of the command system"
+
     def test_cli_one_shot_loads_no_prompt(self, tmp_path):
         """A --cli -e one-shot never shows a prompt, so prompt_toolkit (and Textual) stay out."""
         # Arrange
@@ -2973,3 +3036,187 @@ class TestNoOpSaysSo:
         # Assert
         assert (result.success, cli.capture.active) == (True, False), "the capture stopped"
         assert capsys.readouterr().out == "", "the level silences the answer"
+
+
+@pytest.mark.rule("serve-local-by-default")
+class TestServeFlags:
+    """--serve's grammar at the parser: --listen's address, and what --serve stands beside."""
+
+    @pytest.mark.parametrize(
+        ("address", "message"),
+        [
+            ("0.0.0.0", "0.0.0.0 listens everywhere but gives a client no address to name"),
+            ("::", ":: listens everywhere but gives a client no address to name"),
+            ("192.168.1.57:2217", "192.168.1.57:2217 names a TCP port"),
+        ],
+    )
+    def test_listen_refuses_a_wildcard_and_a_port(self, address, message, capsys, monkeypatch):
+        """--listen takes one address a client can name: a wildcard and a HOST:PORT are usage errors."""
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--serve", "DEMO", "--listen", address])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        assert exc.value.code == 2, "argparse's usage exit"
+        assert message in capsys.readouterr().err
+
+    @pytest.mark.rule("serve-detaches")
+    def test_detach_needs_serve(self, capsys, monkeypatch):
+        """--detach alone is a usage error: it is how --serve runs in the background."""
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--detach"])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        assert exc.value.code == 2
+        assert "--detach needs --serve" in capsys.readouterr().err
+
+    def test_listen_needs_serve(self, capsys, monkeypatch):
+        """--listen alone is a usage error: it is where --serve listens."""
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--listen", "192.168.1.57"])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        assert exc.value.code == 2
+        assert "--listen needs --serve" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        ("extra", "named"),
+        [(["--demo"], "--demo"), (["--cli"], "--cli"), (["-e", "/print", "hi"], "-e")],
+    )
+    def test_serve_stands_alone(self, extra, named, capsys, monkeypatch):
+        """--serve runs no session, so a session flag beside it is a usage error naming that flag."""
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--serve", "DEMO", *extra])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        assert exc.value.code == 2
+        assert f"--serve cannot be combined with {named}" in capsys.readouterr().err
+
+    def test_a_bad_entry_is_a_usage_error(self, capsys, monkeypatch):
+        """An entry parse_entries refuses is reported as argparse reports a bad flag, before any port opens."""
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--serve", "COM3=2300", "COM4=2300"])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        assert exc.value.code == 2
+        assert "--serve: TCP port named twice: 2300" in capsys.readouterr().err
+
+
+def _free_tcp_port() -> int:
+    """A TCP port nothing on this machine listens on, for a server a test starts."""
+    import socket
+
+    with socket.create_server(("127.0.0.1", 0)) as probe:
+        return probe.getsockname()[1]
+
+
+@pytest.mark.rule("serve-detaches")
+@pytest.mark.slow  # a --serve process
+class TestServeDetach:
+    """--serve --detach starts the server as a process of its own and returns once it listens."""
+
+    @pytest.fixture
+    def isolated(self, tmp_path, monkeypatch) -> dict[str, str]:
+        """The child's breadcrumbs and logs in this test's folder, and this process reading the same ones."""
+        state, diag = tmp_path / "state", tmp_path / "diag"
+        monkeypatch.setenv("TERMAPY_STATE_DIR", str(state))
+        monkeypatch.setenv("TERMAPY_DIAG_DIR", str(diag))
+        return {**os.environ, "TERMAPY_STATE_DIR": str(state), "TERMAPY_DIAG_DIR": str(diag)}
+
+    @pytest.mark.sw_loopback
+    def test_it_returns_once_the_server_listens_and_kill_serve_stops_it(self, isolated, tmp_path):
+        """The command exits 0 naming the PID, the URL and the output file; the server answers, writes there, and leaves when asked."""
+        import socket
+        import subprocess
+        import sys as _sys
+
+        from termapy import breadcrumbs
+
+        # Arrange
+        tcp_port = _free_tcp_port()
+        command = [_sys.executable, "-m", "termapy", "--serve", f"loop://={tcp_port}"]
+        command += ["--listen", "127.0.0.1", "--detach"]
+
+        try:
+            # Act
+            started = subprocess.run(
+                command, env=isolated, capture_output=True, text=True, timeout=60
+            )
+            answered = socket.create_connection(("127.0.0.1", tcp_port), timeout=2)
+            answered.close()
+            outcome = breadcrumbs.stop_sessions(
+                breadcrumbs.select(breadcrumbs.read_running(), "serve")
+            )
+
+            # Assert
+            assert started.returncode == 0, started.stderr
+            assert "running in the background, PID" in started.stdout
+            assert f"rfc2217://127.0.0.1:{tcp_port}" in started.stdout, "where a client connects"
+            output = next((tmp_path / "diag").glob("*-serve.log"))
+            assert str(output) in started.stdout, "the output file is named"
+            assert len(outcome.left) == 1 and not outcome.refused, "it left when asked"
+            assert "termapy --serve (prototype)" in output.read_text(encoding="utf-8"), (
+                "its banner went to the file"
+            )
+            with pytest.raises(OSError):
+                socket.create_connection(("127.0.0.1", tcp_port), timeout=0.5)
+        finally:
+            for crumb in breadcrumbs.read_running():
+                if crumb.frontend == "serve":
+                    try:
+                        os.kill(crumb.pid, 15)
+                    except OSError:
+                        pass
+
+    def test_a_server_that_cannot_start_says_why(self, isolated):
+        """A port that will not open: the server's own reason is printed and its exit code returned, nothing left running."""
+        import subprocess
+        import sys as _sys
+
+        from termapy import breadcrumbs
+
+        # Act
+        started = subprocess.run(
+            [
+                _sys.executable,
+                "-m",
+                "termapy",
+                "--serve",
+                f"nosuchport={_free_tcp_port()}",
+                "--detach",
+            ],
+            env=isolated,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        # Assert
+        assert started.returncode == 1
+        assert "Cannot open nosuchport" in started.stderr, "the server's own reason"
+        assert "stopped as it started (exit 1)" in started.stderr
+        assert [crumb for crumb in breadcrumbs.read_running() if crumb.frontend == "serve"] == []

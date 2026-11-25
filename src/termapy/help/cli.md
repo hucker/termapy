@@ -261,10 +261,82 @@ Bare `--ports` (no filter) does NOT include `DEMO` in the listing --
 it only appears when you specifically ask for it, the same way
 pyserial's `loop://` URL handler is reachable but not enumerated.
 
+## `--serve`: share a port on the network
+
+**Status: prototype.** It may change or be removed in any release.
+
+`termapy --serve` puts serial ports on the network for another computer to
+open, over RFC 2217, the serial-over-TCP protocol pyserial speaks. It runs
+no TUI and none of the command system, so it starts in a fraction of a
+second. Name each port to share; each gets its own TCP port:
+
+```text
+termapy --serve COM3                              this machine only: rfc2217://localhost:2217
+termapy --serve COM3 COM5 --listen 192.168.1.57   two ports, open to the network
+termapy --serve BG03U7VTA=2300                    by USB serial number, on TCP port 2300
+termapy --serve DEMO                              the simulator, no hardware
+```
+
+```text
+termapy --serve (prototype): serial ports on the network over RFC 2217
+  COM3  ->  rfc2217://192.168.1.57:2217
+  COM5  ->  rfc2217://192.168.1.57:2218
+  Open to the network at 192.168.1.57. There is no login:
+  anyone who can reach this address can drive these ports.
+  Stop with Ctrl+C, or from any termapy: /app.kill serve (termapy --kill serve).
+```
+
+On the other computer the URL is the port, in a config or at the REPL:
+`/port rfc2217://192.168.1.57:2217`. RFC 2217 carries the settings across,
+so the baud rate, frame, DTR, RTS and break you set there reach the real
+port.
+
+- **The ports you name, and no others.** Unnamed ports stay free on this
+  machine. A port's TCP number is fixed by its place in the list or by
+  `=TCPPORT`, so a client's URL never changes.
+- **Opened as a session opens one.** `TERMAPY_ALLOWED_PORTS` applies, a
+  port open elsewhere is refused, and a port that will not open stops the
+  run before anything listens.
+- **One client per port at a time.** Another is refused at once, and the
+  server prints who holds the port. A client that vanishes without closing,
+  a laptop gone to sleep or off the network, is dropped within about a
+  minute, so it never holds the port for good.
+- **Unplugged or reset, it comes back.** The client is dropped and the
+  port is tried again about once a second while its URL keeps listening.
+  Name the port by its USB serial number, so a board that comes back as a
+  new COM number is still found.
+- **No login.** `--listen` with this machine's address opens the ports to
+  anyone who can reach it. Without `--listen`, only this machine can
+  connect, which still works through an SSH tunnel.
+- **A session kind of its own.** `--alive` lists it as `serve` with every
+  port it holds, where each answers and who is connected to it, a TUI that
+  tries one of them is told the server holds it, and `/app.kill serve` or
+  `termapy --kill serve` stops every port server.
+
+To run it in the background, add `--detach`. termapy starts the server as
+a process of its own, with no console, waits until it listens, and
+returns:
+
+```text
+$ termapy --serve COM7 --listen 192.168.1.57 --detach
+termapy --serve is running in the background, PID 11120:
+  COM7  ->  rfc2217://192.168.1.57:2217
+  Open to the network at 192.168.1.57. There is no login.
+  Its output: C:\Users\you\AppData\Local\termapy\log\20261124_164358-serve.log
+  Stop it with: termapy --kill serve
+```
+
+Closing the window it was started from does not stop it. Its banner and
+every event go to the output file, which the diagnostic log's own pruning
+removes in time. A server that cannot start, a port that will not open or
+a TCP port in use, prints its reason there and here, and `--detach` exits
+with its code. To start one at every logon, register the same command as a
+Task Scheduler task on Windows or a systemd unit on Linux or a Raspberry Pi.
+
 ## `--alive` and `--kill`: see and stop sessions
 
 Every running termapy -- a TUI, a CLI, an MCP server an editor started, a
-`--web` server -- leaves a breadcrumb in the app state folder
+`--web` server, a `--serve` port server -- leaves a breadcrumb in the app state folder
 (`%LOCALAPPDATA%\termapy\running\` on Windows) naming its config and the
 port it has open.  `--alive` lists them:
 
@@ -277,8 +349,20 @@ PID    MODE  CONFIG  PORT  SETTINGS    VERSION  STARTED              STARTED BY
 28172  tui   demo    DEMO  115200 8N1  0.80.0   2026-10-31 08:56:24  powershell.exe 17604
 ```
 
-SETTINGS is the open port's baud and frame.  STARTED BY is the program
-that started the session, past python, termapy and uv.  A one-shot (`-e`,
+SETTINGS is the open port's baud and frame.  ADDRESS appears while a
+server runs: where a `--serve` port server or a `--web` server answers,
+and for `--serve` the client on each port, so with several things running
+you can see which port is shared where and who holds it:
+
+```text
+PID    MODE   CONFIG  PORT        ADDRESS                                              STARTED
+-----  -----  ------  ----------  ---------------------------------------------------  -------------------
+64448  serve  -       COM7, COM4  192.168.1.57:2217 (192.168.1.20), 192.168.1.57:2218  2026-11-24 16:09:03
+77808  web    -       -           localhost:8000                                       2026-11-24 12:27:11
+```
+
+STARTED BY is the program that started the session, past python, termapy
+and uv.  A one-shot (`-e`,
 `--run`) records no version or starter, which take a tenth of a second to
 read.  A narrow terminal drops STARTED BY first.
 
@@ -295,6 +379,7 @@ cmd, PowerShell and Git Bash alike, `kill -9 22056` elsewhere):
 
 ```sh
 termapy --kill all      # every termapy, say before an update
+termapy --kill serve    # every session of that kind: tui, cli, mcp, web, vt100, serve
 termapy --kill 21552    # the session with that PID, as --alive lists it
 termapy --kill COM4     # whichever session holds COM4
 termapy --kill m3_bin   # the sessions on that config (m3* picks several)
@@ -336,6 +421,9 @@ form, shown first; `-h` prints the same help.
 | `-c`, `--cli`     | Plain-text mode instead of the TUI, an interactive REPL; `--run` and `-e` imply it.  With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |
 | `--vt100`         | Start in VT100 passthrough mode (see [VT100 mode](vt100.md)). |
 | `--web [[HOST:]PORT]` | Serve the TUI in a browser: `http://localhost:8000`, this machine only, unless `9000`, `192.168.1.50` or `192.168.1.50:9000` says otherwise. A network address opens it to other computers, with no login, so files stay inside the config folder as under MCP ([Browser](environment.md#browser-termapy---web)). A browser tab is a WEB session: the TUI without the console. |
+| `--serve PORT[=TCPPORT] ...` | Share serial ports on the network over RFC 2217, with no TUI (see [`--serve`](#--serve-share-a-port-on-the-network)). Each port gets its own TCP port, 2217 and up. |
+| `--listen HOST` | The address `--serve` listens on; this machine only without it. A network address has no login. |
+| `--detach` | With `--serve`, run the server in the background with no console; it prints its PID, addresses and output file, and returns. |
 | `--mcp`           | Run as a stdio MCP server for an AI agent (see [MCP server](mcp-server.md)); `--mcp-verbose` tees its log to stderr. |
 
 ### Run one thing and exit

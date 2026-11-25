@@ -2655,3 +2655,52 @@ and requires every line; its docstring says why it stops there. The 64 KB flood 
 driver-buffer test stays: it is a detector for silent byte loss, not a transfer. The megabyte
 tables in `help/ports.md` stay as dated measurements. **Behavior removed:** the hardware check of a
 2 MB stream.
+
+## 2026-11-24 — termapy --serve shares serial ports on the network, as a session kind of its own
+
+Chuck asked how to reach a serial port on another machine. pyserial's `rfc2217://` client is the
+near side and was always in termapy; the far side needed pyserial's example script,
+`rfc2217_server.py`, which is not installed with pyserial. termapy's vendored pyserial already has
+the server's protocol, `serial.rfc2217.PortManager`, so `termapy --serve PORT[=TCPPORT] ...` is
+the far side: each named port on its own TCP port, 2217 and up, one client at a time, the client's
+baud rate, frame and lines applied to the real port. Chuck's choices, asked one at a time: several
+ports per process, named one by one (M of N, so a client's URL never changes; no pattern or `all`
+form); one address for all of them, `--listen HOST`, loopback without it and never a wildcard,
+as `--web`; and a port that is unplugged or resets is reopened about once a second while its TCP
+port keeps listening, while a port that fails its first open ends the run (a mistyped name is an
+error, never a silent wait). A port opens through `config.open_serial`, so the allowlist, the
+exclusive lock and serial-number names hold (registry `serve-opens-like-a-session`); the bridge
+owns its threads and joins them (`serve-pumps-joined`); listening stays local by default
+(`serve-local-by-default`).
+
+After the first plan Chuck added two requirements. A port server is a session kind of its own,
+stopped through `/app.kill`: the kinds are one table, `breadcrumbs.SESSION_KINDS` (`tui`, `cli`,
+`mcp`, `web`, `vt100`, `serve`), a kind is a `/app.kill` and `--kill` target (`/app.kill serve`), a
+breadcrumb may name several ports (`Crumb.open_ports`), and the server answers a stop request as
+a session does (registry `session-kinds-one-table`). And a server, like a one-shot, starts fast
+because it needs none of the system: `flag-paths-light` now names the server path, and two
+top-level imports moved into the functions that use them (`port_control`'s plugin-framework
+imports, `config`'s `shutil`), which took the server path's imports from about 290 ms to about
+160 ms. The simulators gained the pyserial members an RFC 2217 client asks a port for
+(`reset_output_buffer`, `break_condition`), so `--serve DEMO` needs no hardware. Weighed and not
+taken: a raw `socket://` mode (netcat, PuTTY raw; the baud rate would be fixed on the server), a
+Windows service (pywin32), and a wall-clock ceiling test (it flakes; the module set is what
+regresses). Then, with several things running, Chuck wanted `--alive` to say more than the mode:
+a server's breadcrumb now names where it answers (`Crumb.address`: each `rfc2217://` URL, a `--web`
+server's `http://` one) and the client on each served port (`Crumb.clients`, the current one only,
+never a history), as JSON lists an older termapy ignores; `--alive` shows them in an ADDRESS column
+that hides while no server runs. The address is bound once at start; the client changes at each
+connect and leave, when the breadcrumb is rewritten, as a session's is at a connect. And starting
+one in the background took PowerShell's `Start-Process` with an argument list (Chuck: "what kind
+of insanity is that"), so `--detach` does it on every OS: the same command, started by
+`port_server.start_detached` with no console and no controlling terminal, its output in a
+`<stamp>-serve.log` the diagnostic log prunes, and the command returns once the new server's
+breadcrumb names the addresses asked for (registry `serve-detaches`); every event is in the
+server's diagnostic log too. Last, a client whose far end vanished without closing (a laptop
+asleep, Wi-Fi gone) sent nothing, so the server waited on it forever and refused every other
+client; each connection now has TCP keepalive (probes after 30 s of silence, every 5 s, given up
+after 4), and the receive that times out is told apart from the loop's own poll timeout by its
+errno, so the client ends and the port is free (registry `serve-pumps-joined`). **Behavior
+changed:** `/app.kill` and `--kill` take a kind as a target, and pick a config named like a kind
+as well; `crumb_holding` matches any port a breadcrumb names; `--alive` and `/app.alive` gain
+ADDRESS, and their JSON records `address` and `clients`.

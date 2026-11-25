@@ -385,6 +385,7 @@ _KILL_LONG_HELP = (
     "  others   every session but this one\n"
     "  all      every session, this one last\n"
     "  me       this session alone: the same as {prefix}exit\n"
+    f"  serve    every session of that kind: {', '.join(breadcrumbs.SESSION_KINDS)}\n"
     "  22056    the session with that PID ({prefix}app.alive lists them)\n"
     "  COM3     the session holding that port\n"
     "  rig      the sessions on that config (rig* picks several)\n"
@@ -465,9 +466,11 @@ COMMAND = Command(
             help="List the termapy sessions running on this machine.",
             long_help=(
                 "Every running termapy -- a TUI, a CLI, an MCP server, a web or\n"
-                "VT100 session -- with its mode, config, the port it has open and\n"
-                "its settings, its version and the program that started it (past\n"
-                "python, termapy and uv).  A one-shot (-e, --run) records no\n"
+                "VT100 session, a --serve port server -- with its mode, config, the\n"
+                "ports it has open and its settings, where a server answers and who\n"
+                "is on each served port, its version and the program that started\n"
+                "it (past python, termapy and uv).  A one-shot (-e,\n"
+                "--run) records no "
                 "version or starter.  --json adds the paths: config, Python, the\n"
                 "folder it started in, its session log, and the port's serial\n"
                 "number.  This session is marked (this).  {prefix}app.kill stops them;\n"
@@ -482,7 +485,7 @@ COMMAND = Command(
             needs=CapabilitySet(host_info=True),
         ),
         "kill": Command(
-            help="Stop termapy sessions: others, all, me, a PID, a port or a config; bare lists.",
+            help="Stop termapy sessions: others, all, me, a kind, a PID, a port or a config; bare lists.",
             long_help=_KILL_LONG_HELP,
             handler=_handler_kill,
             params=[
@@ -491,7 +494,7 @@ COMMAND = Command(
                     "str",
                     positional=True,
                     hint="<target>",
-                    help="others, all, me, a PID, a port such as COM3, or a config name; none lists",
+                    help="others, all, me, a kind such as serve, a PID, a port such as COM3, or a config name; none lists",
                 ),
                 ParamSpec(
                     "timeout",

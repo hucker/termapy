@@ -526,3 +526,47 @@ class TestPortListOnTheRig:
         assert str(caught.value) == expected
         probe = _open_raw(loopback_device, 115200)
         probe.close()  # the refusal left the port free: nothing held it open
+
+
+@pytest.mark.rule("serve-opens-like-a-session")
+class TestServedOverRfc2217:
+    """hw_loopback: termapy --serve shares the jumpered adapter, and a client's baud change reaches the wire."""
+
+    def test_a_served_adapter_round_trips_at_two_baud_rates(self, loopback_device):
+        """4 KB through rfc2217:// at 115200 comes back intact, 0xFF bytes and all, and 512 B again after the client moves to 9600."""
+        import serial
+
+        from termapy.port_server import Bridge, ServeEntry
+
+        # Arrange -- every byte value, so the protocol's 0xFF escaping is crossed both ways
+        payload = bytes(range(256)) * 16
+        bridge = Bridge.open(
+            [ServeEntry(loopback_device, 0)], "127.0.0.1", report=lambda line: None
+        )
+        bridge.start()
+        received: dict[int, bytes] = {}
+        try:
+            client = serial.serial_for_url(bridge.servers[0].url, baudrate=115200, timeout=1)
+            try:
+                for baud, data in ((115200, payload), (9600, payload[:512])):
+                    # Act
+                    client.baudrate = baud
+                    client.reset_input_buffer()
+                    client.write(data)
+                    got = b""
+                    deadline = time.monotonic() + 10
+                    while len(got) < len(data) and time.monotonic() < deadline:
+                        got += client.read(len(data) - len(got))
+                    received[baud] = got
+                served = bridge.servers[0]._port
+                assert served is not None, "the adapter is still open"
+                served_baud = served.baudrate
+            finally:
+                client.close()
+        finally:
+            bridge.stop()
+
+        # Assert
+        assert received[115200] == payload, "every byte, through the bridge and the jumper and back"
+        assert received[9600] == payload[:512], "intact after the client changed the baud rate"
+        assert served_baud == 9600, "the client's baud rate is the adapter's"

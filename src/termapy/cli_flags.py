@@ -38,7 +38,6 @@ known fleet without owning the machine's real ports.
 from __future__ import annotations
 
 import json
-import shutil
 import sys
 import time
 from datetime import datetime
@@ -113,6 +112,8 @@ def _table_row_width() -> int:
     budget when output is piped -- scripts expect every column.
     """
     if sys.stdout.isatty():
+        import shutil  # here: --serve imports this module and needs no table
+
         return shutil.get_terminal_size((80, 24)).columns
     return _PIPED_ROW_WIDTH
 
@@ -744,6 +745,202 @@ def run_kill(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> Non
     for line in outcome.refused_lines():
         print(f"termapy: {line}", file=sys.stderr)
     sys.exit(1 if outcome.refused else 0)
+
+
+def run_serve(args: argparse.Namespace, *, usage_error: Callable[[str], NoReturn]) -> NoReturn:
+    """``--serve``: share serial ports on the network over RFC 2217 until stopped, then exit.
+
+    With ``--detach`` it starts the same server as a process of its own
+    instead, and exits once that one listens (``_serve_detached``).
+
+    Every port opens first and every TCP port listens before the banner
+    prints; a port that will not open ends the run with exit 1 and nothing
+    served.  The process is the ``serve`` kind of session: its breadcrumb is
+    written before it serves, without the version (a tenth of a second,
+    read once the ports listen), so ``/app.kill serve``, ``--kill <pid>`` or
+    ``--kill <port>`` can stop it at once; a stop request or Ctrl+C closes
+    every client and port and exits 0.  Nothing here loads the command
+    system (registry ``flag-paths-light``).
+
+    Args:
+        args: Parsed CLI namespace: ``serve`` (the entries) and ``listen``.
+        usage_error: Reports a bad entry the way argparse reports a bad flag.
+    """
+    import threading
+
+    from termapy import breadcrumbs, diag_log, port_server
+    from termapy.defaults import DEFAULT_CMD_PREFIX
+    from termapy.env_flags import LOOPBACK_HOSTS
+    from termapy.port_control import same_port
+
+    try:
+        entries = port_server.parse_entries(args.serve)
+    except ValueError as e:
+        usage_error(f"--serve: {e}")
+    host = args.listen or port_server.DEFAULT_HOST
+    if args.detach:
+        _serve_detached(entries, host)
+    diag_path = diag_log.start("serve", "")
+    write_lock = threading.Lock()
+
+    def report(line: str) -> None:
+        # Every event is in the diagnostic log too, for a server no one watches.
+        diag_log.info("serve: %s", line)
+        # A server outlives its console (a closed pipe, a closed window):
+        # a line it cannot print is dropped, never a reason to stop serving
+        # or to miss a stop request.
+        try:
+            print(f"{datetime.now():%H:%M:%S}  {line}", flush=True)
+        except (OSError, ValueError):
+            pass
+
+    def leave(*, detailed: bool) -> None:
+        # Rewritten when a port is lost or reopened and a client comes or
+        # goes, so --alive names the devices, the URLs and who is on each.
+        with write_lock:
+            breadcrumbs.leave(
+                "serve",
+                port=breadcrumbs.PORT_LIST_SEPARATOR.join(entry.port for entry in entries),
+                open_port=breadcrumbs.PORT_LIST_SEPARATOR.join(bridge.devices),
+                address=[server.url for server in bridge.servers],
+                clients=[server.client_address for server in bridge.servers],
+                log=str(diag_path or ""),
+                detailed=detailed,
+            )
+
+    try:
+        bridge = port_server.Bridge.open(
+            entries, host, report=report, on_change=lambda: leave(detailed=True)
+        )
+    except port_server.ServeError as e:
+        print(f"termapy: {e}", file=sys.stderr)
+        sys.exit(1)
+    leave(detailed=False)
+    stop = threading.Event()
+
+    def stop_requested(by: int) -> None:
+        stop.set()  # first: nothing after it may keep the server from leaving
+        report(f"stop requested by termapy PID {by}")
+
+    breadcrumbs.on_stop_request(stop_requested)
+    bridge.start()
+    print("termapy --serve (prototype): serial ports on the network over RFC 2217")
+    width = max(
+        len(_served_name(server.name, server.device, same_port)) for server in bridge.servers
+    )
+    for server in bridge.servers:
+        print(f"  {_served_name(server.name, server.device, same_port):<{width}}  ->  {server.url}")
+    if host in LOOPBACK_HOSTS:
+        print("  This machine only: --listen <this machine's address> opens it to the network.")
+    else:
+        print(f"  Open to the network at {host}. There is no login:")
+        print("  anyone who can reach this address can drive these ports.")
+    print(
+        f"  Stop with Ctrl+C, or from any termapy: {DEFAULT_CMD_PREFIX}app.kill serve "
+        "(termapy --kill serve)."
+    )
+    print(flush=True)
+    # The version and the program that started this one, for --alive: read
+    # now that every port listens, never before.
+    leave(detailed=True)
+    try:
+        while not stop.wait(0.5):
+            pass
+    except KeyboardInterrupt:
+        report("stopping (Ctrl+C)")
+    finally:
+        bridge.stop()
+        breadcrumbs.release_stop_request(stop_requested)
+    report("stopped")
+    sys.exit(0)
+
+
+# How long ``--detach`` waits for the server it started to say it listens.
+DETACH_WAIT_S = 15.0
+
+
+def _serve_detached(entries: list, host: str) -> NoReturn:
+    """``--serve ... --detach``: start the server as a process of its own, wait until it listens, say where, and exit.
+
+    The server is this same command without ``--detach``, started by
+    ``port_server.start_detached`` with its output in the diagnostic log
+    folder, where the log's own pruning removes old files.  It is found by
+    its breadcrumb: a new ``serve`` session naming exactly the addresses
+    asked for, so an older server on other ports is never mistaken for it.
+    A server that stops at start (a port that will not open, a TCP port in
+    use) has its own output printed and its exit code returned; one that has
+    not answered within ``DETACH_WAIT_S`` is reported as such and left
+    running (registry ``serve-detaches``).
+
+    Args:
+        entries: The parsed ``--serve`` entries.
+        host: The address it listens on.
+    """
+    from termapy import breadcrumbs, diag_log, port_server
+    from termapy.env_flags import LOOPBACK_HOSTS
+    from termapy.folders import ensure_folder
+    from termapy.port_control import same_port
+    from termapy.scripting import filename_timestamp
+
+    folder = ensure_folder(diag_log.log_folder())
+    output = folder / f"{filename_timestamp()}-serve{diag_log.LOG_SUFFIX}"
+    expected = [breadcrumbs.listen_url("rfc2217", host, entry.tcp_port) for entry in entries]
+    before = {crumb.pid for crumb in breadcrumbs.read_running()}
+    process = port_server.start_detached(
+        [word for word in sys.argv[1:] if word != "--detach"], output
+    )
+    deadline = time.monotonic() + DETACH_WAIT_S
+    while time.monotonic() < deadline:
+        code = process.poll()
+        if code is not None:
+            try:
+                said = output.read_text(encoding="utf-8", errors="replace").strip()
+            except OSError:
+                said = ""
+            if said:
+                print(said, file=sys.stderr)
+            print(
+                f"termapy: the server stopped as it started (exit {code}); its output: {output}",
+                file=sys.stderr,
+            )
+            sys.exit(code or 1)
+        crumb = next(
+            (
+                crumb
+                for crumb in breadcrumbs.read_running()
+                if crumb.frontend == "serve"
+                and crumb.pid not in before
+                and list(crumb.address) == expected
+            ),
+            None,
+        )
+        if crumb is not None:
+            names = crumb.port.split(breadcrumbs.PORT_LIST_SEPARATOR)
+            rows = [
+                (_served_name(name, device, same_port), url)
+                for name, device, url in zip(names, crumb.open_ports, crumb.address, strict=False)
+            ]
+            width = max(len(name) for name, _ in rows)
+            print(f"termapy --serve is running in the background, PID {crumb.pid}:")
+            for name, url in rows:
+                print(f"  {name:<{width}}  ->  {url}")
+            if host not in LOOPBACK_HOSTS:
+                print(f"  Open to the network at {host}. There is no login.")
+            print(f"  Its output: {output}")
+            print("  Stop it with: termapy --kill serve")
+            sys.exit(0)
+        time.sleep(0.1)
+    print(
+        f"termapy: the server has not said it listens after {DETACH_WAIT_S:g} s; it may still be "
+        f"starting: its output is {output}, and termapy --alive lists it once it runs",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+
+def _served_name(typed: str, device: str, same_port: Callable[[str, str], bool]) -> str:
+    """``BG03U7VTA (COM7)`` when the name typed is not the device it opened, else the name."""
+    return typed if same_port(typed, device) else f"{typed} ({device})"
 
 
 def assume_yes(message: str) -> bool:

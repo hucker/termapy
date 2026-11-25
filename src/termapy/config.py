@@ -10,7 +10,6 @@ import copy
 import json
 import os
 import re
-import shutil
 import sys
 import threading
 from collections.abc import Mapping
@@ -974,6 +973,10 @@ def delete_config(config_path: str | Path) -> int:
         for file in files:
             file.unlink()
         return len(files)
+    # Here, not at the top: shutil brings three compression libraries, and
+    # every path that opens a port imports this module (registry flag-paths-light).
+    import shutil
+
     aside = folder.with_name(f".{folder.name}.deleting")
     if aside.exists():
         # A delete that failed partway left this; nothing in it is a config.

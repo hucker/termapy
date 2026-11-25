@@ -623,6 +623,16 @@ Just put the URL in the `port` config field. See [pyserial's URL handler
 docs](https://pyserial.readthedocs.io/en/latest/url_handlers.html) for
 the full list.
 
+### Sharing a port: `termapy --serve`
+
+An `rfc2217://` port needs something on the far side that holds the real
+port open. Another termapy can be that side: on the machine the device is
+plugged into, `termapy --serve COM3 --listen 192.168.1.57` serves it, and
+here the port is `rfc2217://192.168.1.57:2217`. RFC 2217 carries the baud
+rate, frame, DTR, RTS and break across. There is no login, so serve only
+on a network you trust; see [`--serve`](cli.md#--serve-share-a-port-on-the-network)
+for several ports, fixed TCP numbers and how it is stopped.
+
 ### Loopback
 
 `loop://` is worth calling out: it echoes whatever you write straight back,

@@ -179,6 +179,8 @@ Each `TERMAPY_MCP_*` flag takes any boolean token (`1`, `on`, `true`, `yes`, ...
 
 `termapy --web` served on a network address is confined the same way for files: a browser on another computer reaches the port with no login, so a path outside the config folder is refused unless `TERMAPY_WEB_FS_UNCONFINED=1` is set in the server's shell. Served on `localhost`, the viewer is you, and nothing is confined.
 
+`termapy --serve` shares serial ports on the network over RFC 2217 with no login: with `--listen` set to this machine's address, anyone who can reach it can drive the ports it names. Without `--listen` it serves this machine only. See [`--serve`](src/termapy/help/cli.md#--serve-share-a-port-on-the-network).
+
 `TERMAPY_ALLOWED_PORTS` limits the ports termapy opens and lists in every frontend: one regular expression over port names and USB serial numbers (`COM7|BG03U7VTA`). Unset, the TUI and CLI may open any port and an MCP server none. Keep it where an agent can't edit it; see [Serial ports](src/termapy/help/ports.md#limiting-which-ports-termapy-may-open) and [MCP server](src/termapy/help/mcp-server.md#which-ports-it-may-open).
 
 No flag opens the rest to an MCP client: a shell (`/os`), renaming or deleting files, writing into `plugin/` or `viz/`, replacing or adding to a file outside the config's folder, and setting a command your own sessions run at connect. These limit termapy's own commands; a client that can write files some other way is outside them.

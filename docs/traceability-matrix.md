@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 237: 222 registry rows (guarantees 185, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 233. Pinned by none: 4.
+Ids: 242: 227 registry rows (guarantees 190, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 238. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -435,7 +435,7 @@ Ids: 237: 222 registry rows (guarantees 185, assumptions 37), 15 spec sections i
 
 ### `flag-paths-light` (guarantee, structure)
 
-- `test_cli.py`: `TestPathsStayLight` (6 functions)
+- `test_cli.py`: `TestPathsStayLight` (7 functions)
 - `test_cli_improvements.py`: `TestCliFlagsImportDiscipline` (2 functions)
 - `test_mcp_entry.py`: `TestLazyImport.test_entry_import_does_not_pull_mcp_sdk`
 
@@ -956,11 +956,34 @@ Ids: 237: 222 registry rows (guarantees 185, assumptions 37), 15 spec sections i
 
 - `test_symbols_table.py`: `TestSectionAccess.test_file_stores_access_only_where_it_differs` **guard**, `TestSectionAccess.test_round_trip_keeps_an_override` **guard**, `TestSectionAccess.test_unstated_access_is_the_sections` **guard**
 
+### `serve-detaches` (guarantee, contract)
+
+- `test_cli.py`: `TestServeDetach` (2 functions), `TestServeFlags.test_detach_needs_serve` **guard**
+
+### `serve-local-by-default` (guarantee, contract)
+
+- `test_cli.py`: `TestServeFlags` (5 functions)
+
+### `serve-opens-like-a-session` (guarantee, contract)
+
+- `test_breadcrumbs.py`: `TestServeCrumb` (2 functions), `TestServerAddress` (4 functions)
+- `test_hw_loopback.py`: `TestServedOverRfc2217` (1 functions)
+- `test_port_server.py`: `TestOpening` (3 functions), `TestBridge.test_termapys_own_opener_reaches_a_served_simulator` **guard**, `TestBridge.test_the_client_is_named_while_connected_and_each_change_is_told` **guard**
+
+### `serve-pumps-joined` (guarantee, concurrency)
+
+- `test_port_server.py`: `TestBridge.test_a_client_connection_keeps_alive_at_the_set_timings` **guard**, `TestBridge.test_a_lost_port_drops_its_client_refuses_while_gone_and_is_reopened` **guard**, `TestBridge.test_a_vanished_client_is_dropped_and_frees_the_port` **guard**, `TestBridge.test_stop_twice_leaves_no_thread_and_closes_the_port` **guard**
+
 ### `session-changes-one-diff` (guarantee, requirement)
 
 - `test_app_pilot.py`: `TestUnsavedSettings.test_a_script_load_never_asks` **guard**, `TestUnsavedSettings.test_a_typed_load_asks_and_cancel_keeps_the_session`, `TestUnsavedSettings.test_ctrl_q_asks_too`, `TestUnsavedSettings.test_exit_asks_about_unsaved_settings` **guard**, `TestUnsavedSettings.test_the_editor_asks_about_unsaved_settings`, `TestUnsavedSettings.test_the_mark_goes_when_the_settings_are_saved`, `TestUnsavedSettings.test_with_nothing_changed_exit_leaves_at_once`, `TestUnsavedSettings.test_with_nothing_changed_the_editor_opens_at_once`
 - `test_architecture.py`: `test_editor_opener_guard_fires_on_a_probe` **guard**, `test_the_config_editor_has_one_opener` **guard**
 - `test_session_changes.py`: the module (15 functions)
+
+### `session-kinds-one-table` (guarantee, structure)
+
+- `test_architecture.py`: `test_every_session_kind_is_in_the_table` **guard**, `test_session_kind_guard_fires_on_a_probe` **probe**
+- `test_breadcrumbs.py`: `TestSessionKinds` (1 functions)
 
 ### `session-log-one-owner` (guarantee, structure)
 

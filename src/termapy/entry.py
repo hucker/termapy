@@ -136,6 +136,32 @@ def _web_address(text: str) -> tuple[str, int]:
     return host, int(port_text)
 
 
+def _listen_host(text: str) -> str:
+    """Read ``--listen``'s HOST: the address ``--serve`` listens on, never a wildcard.
+
+    One address for every served port; each port's TCP number is its
+    entry's (``COM3=2300``), so a ``HOST:PORT`` here is refused with that
+    hint.  An IPv6 address may come in brackets.  A wildcard is refused as
+    ``--web`` refuses one: the banner prints the URL a client names, and
+    ``0.0.0.0`` is no address a client can name (registry
+    ``serve-local-by-default``).
+    """
+    host = text[1:-1] if text.startswith("[") and text.endswith("]") else text
+    if not host:
+        raise argparse.ArgumentTypeError("Invalid address: an empty one")
+    if host.count(":") == 1:
+        raise argparse.ArgumentTypeError(
+            f"{text} names a TCP port; --listen takes an address, and a port's "
+            "TCP number follows it in --serve (COM3=2300)"
+        )
+    if host in ("0.0.0.0", "::"):
+        raise argparse.ArgumentTypeError(
+            f"{text} listens everywhere but gives a client no address to name; "
+            "give this machine's own address, e.g. 192.168.1.50"
+        )
+    return host
+
+
 # A print-and-exit flag with an in-app twin: the command that does the same
 # job inside a session, which a one-shot runs (registry flag-twins-declared).
 # Each flag's help ends with the sentence _same_as builds, and the CLI help
@@ -189,7 +215,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # group only if it holds an argument; -h is in the first.
     session = parser.add_argument_group(
         "Start a Session",
-        "Open the TUI (or --cli, --vt100, --web) on a config or a port.",
+        "Open the TUI (or --cli, --vt100, --web) on a config or a port, or share ports with --serve.",
     )
     oneshot = parser.add_argument_group(
         "Run One Thing and Exit",
@@ -326,6 +352,39 @@ def _build_parser() -> argparse.ArgumentParser:
             "[HOST:]PORT says otherwise: --web 9000 for another port, --web "
             "192.168.1.50 (this machine's network address) to open it from another "
             "computer.  There is no login: anyone who can reach it can drive the port"
+        ),
+    )
+    session.add_argument(
+        "--serve",
+        nargs="+",
+        default=None,
+        metavar="PORT[=TCPPORT]",
+        help=(
+            "Share serial ports on the network over RFC 2217, with no TUI: each "
+            "PORT (a name, a USB serial number, DEMO) on its own TCP port, 2217 "
+            "and up unless =TCPPORT says, for a client to open as "
+            "rfc2217://HOST:TCPPORT.  This machine only unless --listen.  "
+            "/app.kill serve stops it"
+        ),
+    )
+    session.add_argument(
+        "--detach",
+        action="store_true",
+        help=(
+            "With --serve, run the server in the background, with no console: "
+            "it prints its PID and addresses and returns, its output goes to a "
+            "file it names, and termapy --kill serve stops it"
+        ),
+    )
+    session.add_argument(
+        "--listen",
+        default=None,
+        type=_listen_host,
+        metavar="HOST",
+        help=(
+            "The address --serve listens on: this machine's network address "
+            "(192.168.1.50) opens the ports to other computers.  There is no "
+            "login: anyone who can reach it can drive the ports"
         ),
     )
     sessions.add_argument(
@@ -596,6 +655,33 @@ def main() -> None:
         run_kill(args, confirm=_flag_confirm(args))
     if args.validate_profile is not None:
         _run_validate_profile(args.validate_profile, strict=args.strict)
+
+    # --serve needs no config and none of the command system, so it starts
+    # here, before anything loads them (registry flag-paths-light).
+    if args.listen is not None and args.serve is None:
+        parser.error("--listen needs --serve")
+    if args.detach and args.serve is None:
+        parser.error("--detach needs --serve")
+    if args.serve is not None:
+        beside = [
+            name
+            for name, given in (
+                ("a config", args.config),
+                ("--demo", args.demo),
+                ("--web", args.web),
+                ("--mcp", args.mcp),
+                ("--vt100", args.vt100),
+                ("--cli", args.cli),
+                ("--run", args.run),
+                ("-e", args.exec_cmd),
+            )
+            if given
+        ]
+        if beside:
+            parser.error(f"--serve cannot be combined with {', '.join(beside)}")
+        from termapy.cli_flags import run_serve
+
+        run_serve(args, usage_error=parser.error)
 
     # --cfg-dir writes a module-global; do this before anything else
     # that might resolve configs.

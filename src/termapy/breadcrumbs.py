@@ -39,6 +39,23 @@ if TYPE_CHECKING:
 # The folder of breadcrumbs inside the app state folder.
 RUNNING_FOLDER = "running"
 
+# Every kind of session a breadcrumb can name, and what each is: the one table
+# of them (registry session-kinds-one-table).  A frontend's breadcrumb carries
+# one of these keys, /app.alive shows it as the MODE, and a key is an
+# /app.kill target that picks every session of that kind.
+SESSION_KINDS: dict[str, str] = {
+    "tui": "the TUI, in a terminal",
+    "cli": "the plain CLI",
+    "mcp": "an MCP server for an agent",
+    "web": "a --web server for browsers",
+    "vt100": "a VT100 passthrough session",
+    "serve": "a --serve port server, sharing serial ports on the network",
+}
+
+# Between the ports in one breadcrumb's open_port: a --serve process holds
+# several.  No port name termapy reads holds a comma.
+PORT_LIST_SEPARATOR = ", "
+
 
 # A Windows process access right, exit code and snapshot flag, from the Windows SDK.
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
@@ -60,10 +77,14 @@ class Crumb:
         token: When the process started (``process_token``); a live process
             with this PID and a different token is another program.
         started: Local start time, ISO 8601 to the second, for display.
-        frontend: ``textual``, ``cli``, ``mcp``, ``web`` or ``vt100``.
+        frontend: The session's kind, a key of ``SESSION_KINDS`` (``tui``,
+            ``serve``, ...).
         config: Absolute path of the loaded config; empty when none is loaded.
-        port: The config's port setting (a name or a serial-number spec).
-        open_port: The port the process has open now; empty when none.
+        port: The config's port setting (a name or a serial-number spec); a
+            ``serve`` process's entries as typed, joined as ``open_port`` is.
+        open_port: The port the process has open now; empty when none.  A
+            ``serve`` process holds several, joined by ``PORT_LIST_SEPARATOR``
+            (``open_ports`` reads them apart).
         settings: The open port's baud and frame, ``115200 8N1``; empty when none.
         port_serial: The open port's USB serial number; empty when none or unknown.
         version: The termapy version the process runs; empty for a one-shot,
@@ -74,6 +95,12 @@ class Crumb:
         python: The Python executable, which says which install runs it.
         cwd: The folder it started in.
         log: Its session log file; empty when it keeps none.
+        address: Where a server answers, for a client to name: a ``serve``
+            process's ``rfc2217://`` URLs in ``open_port``'s order, a ``web``
+            server's ``http://`` URL; empty for every other kind.
+        clients: For a ``serve`` process, the client on each served port, in
+            the same order, ``""`` where none is connected; the current one
+            only, never a history.
 
     Every path is absolute: the reader runs in another folder.
 
@@ -97,11 +124,18 @@ class Crumb:
     python: str = ""
     cwd: str = ""
     log: str = ""
+    address: tuple[str, ...] = ()
+    clients: tuple[str, ...] = ()
 
     @property
     def config_name(self) -> str:
         """The config's name, its file stem; empty when none is loaded."""
         return Path(self.config).stem if self.config else ""
+
+    @property
+    def open_ports(self) -> tuple[str, ...]:
+        """Every port the process has open now: one for a session, several for ``serve``."""
+        return tuple(port for port in self.open_port.split(PORT_LIST_SEPARATOR) if port)
 
     @property
     def summary(self) -> str:
@@ -397,6 +431,8 @@ class Breadcrumb:
         settings: str = "",
         port_serial: str = "",
         log: str = "",
+        address: Iterable[str] = (),
+        clients: Iterable[str] = (),
         detailed: bool = False,
     ) -> None:
         """Write or rewrite the breadcrumb, and arrange its removal at exit.
@@ -413,6 +449,8 @@ class Breadcrumb:
             settings: The open port's baud and frame, or empty.
             port_serial: The open port's USB serial number, or empty.
             log: The session log file, or empty.
+            address: Where a server answers (``Crumb.address``), or none.
+            clients: The client on each served port (``Crumb.clients``), or none.
             detailed: Also record the version and who started the process,
                 read on the first such write: a long-lived session's
                 breadcrumb, never a one-shot's.
@@ -435,6 +473,8 @@ class Breadcrumb:
             "python": self.python,
             "cwd": self.cwd,
             "log": _absolute(log),
+            "address": list(address),
+            "clients": list(clients),
         }
         path = self.path
         try:
@@ -468,6 +508,8 @@ def leave(
     settings: str = "",
     port_serial: str = "",
     log: str = "",
+    address: Iterable[str] = (),
+    clients: Iterable[str] = (),
     detailed: bool = False,
 ) -> None:
     """Write or refresh this process's breadcrumb: one per process, whichever frontend runs.
@@ -482,6 +524,8 @@ def leave(
         settings: The open port's baud and frame, or empty.
         port_serial: The open port's USB serial number, or empty.
         log: The session log file, or empty.
+        address: Where a server answers (``Crumb.address``), or none.
+        clients: The client on each served port (``Crumb.clients``), or none.
         detailed: Also record the version and who started this termapy
             (``Breadcrumb.write``); a one-shot leaves it False and stays fast.
     """
@@ -497,8 +541,20 @@ def leave(
         settings=settings,
         port_serial=port_serial,
         log=log,
+        address=address,
+        clients=clients,
         detailed=detailed,
     )
+
+
+def listen_url(scheme: str, host: str, port: int) -> str:
+    """The URL a client names to reach a server listening on ``host:port``: ``rfc2217://192.168.1.57:2217``.
+
+    The one spelling of a server's address, for the banner, ``--alive`` and
+    the breadcrumb alike; an IPv6 address goes in brackets.
+    """
+    where = f"[{host}]" if ":" in host else host
+    return f"{scheme}://{where}:{port}"
 
 
 # ── Reading and stopping ─────────────────────────────────────────────────────
@@ -530,9 +586,16 @@ def _load(path: Path) -> Crumb | None:
             python=str(record.get("python") or ""),
             cwd=str(record.get("cwd") or ""),
             log=str(record.get("log") or ""),
+            address=_strings(record.get("address")),
+            clients=_strings(record.get("clients")),
         )
     except (OSError, ValueError, KeyError, TypeError):
         return None
+
+
+def _strings(value: object) -> tuple[str, ...]:
+    """A breadcrumb's list of strings as a tuple; anything else (missing, an older format) is none."""
+    return tuple(str(item) for item in value) if isinstance(value, list) else ()
 
 
 def _is_live(crumb: Crumb) -> bool:
@@ -581,20 +644,23 @@ def prune_stale() -> int:
 
 
 def select(crumbs: Iterable[Crumb], target: str) -> list[Crumb]:
-    """The breadcrumbs ``target`` picks: ``all``, ``others``, a PID, a port, or a config name.
+    """The breadcrumbs ``target`` picks: ``all``, ``others``, a kind, a PID, a port, or a config name.
 
     ``others`` picks the same as ``all`` here: a session that asks drops
     itself from the result (``/app.kill``), and the ``--kill`` process is
-    not a session.  A target of digits picks the session with that PID (and
-    a config of that name, should one be called that).  A port is compared
-    the way termapy compares port names everywhere
-    (``port_control.same_port``), against the port open now and the
+    not a session.  A kind (a ``SESSION_KINDS`` key, ``serve``) picks every
+    session of that kind.  A target of digits picks the session with that
+    PID.  A port is compared the way termapy compares port names everywhere
+    (``port_control.same_port``), against every port open now and the
     config's setting.  A config name is exact, case ignored; a wildcard
-    makes either a glob (``matching``), so ``m3*`` picks several.
+    makes either a glob (``matching``), so ``m3*`` picks several.  The
+    forms are alternatives, so a config named like a kind or a PID is
+    picked as well: ``/app.kill`` lists what it picked before it asks.
 
     Args:
         crumbs: The running termapys.
-        target: ``all``, ``others``, a PID, a port such as ``COM3``, or a config name.
+        target: ``all``, ``others``, a kind such as ``serve``, a PID, a port
+            such as ``COM3``, or a config name.
 
     Returns:
         The picked breadcrumbs, in the order given.
@@ -607,7 +673,8 @@ def select(crumbs: Iterable[Crumb], target: str) -> list[Crumb]:
 
     picked: list[Crumb] = []
     for crumb in crumbs:
-        ports = [port for port in (crumb.open_port, crumb.port) if port]
+        named = [port for port in crumb.port.split(PORT_LIST_SEPARATOR) if port]
+        ports = [*crumb.open_ports, *named]
         name = crumb.config_name
         if is_glob(target):
             hit = bool(name and matches(name, target)) or any(
@@ -616,6 +683,7 @@ def select(crumbs: Iterable[Crumb], target: str) -> list[Crumb]:
         else:
             hit = (
                 (target.isdigit() and crumb.pid == int(target))
+                or crumb.frontend == target.casefold()
                 or name.casefold() == target.casefold()
                 or any(same_port(port, target) for port in ports)
             )
@@ -625,10 +693,11 @@ def select(crumbs: Iterable[Crumb], target: str) -> list[Crumb]:
 
 
 def suggest(crumbs: Iterable[Crumb], target: str) -> str:
-    """The did-you-mean for a target that picked nothing: the configs, ports and PIDs running, or a word.
+    """The did-you-mean for a target that picked nothing: the configs, ports, kinds and PIDs running, or a word.
 
     The words are the targets ``select`` reads itself, ``all`` and
-    ``others``, so ``other`` is answered with ``others``.
+    ``others``, so ``other`` is answered with ``others``; a kind is offered
+    when a session of it is running, so ``serv`` is answered with ``serve``.
 
     Returns:
         `` -- did you mean a, b?``, or ``""`` when nothing is close.
@@ -637,7 +706,8 @@ def suggest(crumbs: Iterable[Crumb], target: str) -> str:
 
     crumbs = list(crumbs)
     names = {crumb.config_name for crumb in crumbs if crumb.config_name}
-    names |= {crumb.open_port for crumb in crumbs if crumb.open_port}
+    names |= {port for crumb in crumbs for port in crumb.open_ports}
+    names |= {crumb.frontend for crumb in crumbs if crumb.frontend in SESSION_KINDS}
     names |= {str(crumb.pid) for crumb in crumbs}
     names |= {"all", "others"}
     return did_you_mean(closest(target, sorted(names)))
@@ -905,6 +975,8 @@ def session_record(crumb: Crumb) -> dict:
         "python": crumb.python,
         "cwd": crumb.cwd,
         "log": crumb.log,
+        "address": list(crumb.address),
+        "clients": list(crumb.clients),
         "started": crumb.started,
         "this_session": crumb.pid == os.getpid(),
     }
@@ -920,8 +992,9 @@ def _started_by(record: dict) -> str:
 def session_columns() -> tuple[Column, ...]:
     """The table's columns, read by ``/app.alive`` and ``termapy --alive`` alike.
 
-    A narrow frontend drops STARTED BY first, then STARTED, VERSION and
-    SETTINGS; a column every session leaves blank is hidden.  Built on each
+    A narrow frontend drops STARTED BY first, then ADDRESS, STARTED,
+    VERSION and SETTINGS; a column every session leaves blank is hidden, so
+    ADDRESS shows only while a ``serve`` or ``web`` server runs.  Built on each
     call so that importing this module loads no table code.
     """
     from termapy.plugins.views import Column
@@ -934,8 +1007,23 @@ def session_columns() -> tuple[Column, ...]:
         ),
         Column("CONFIG", lambda record: record["config"] or "-"),
         Column("PORT", lambda record: record["open_port"] or "-"),
+        Column("ADDRESS", _address_cell, drop=4, hide_empty=True),
         Column("SETTINGS", lambda record: record["settings"], drop=1, hide_empty=True),
         Column("VERSION", lambda record: record["version"], drop=2, hide_empty=True),
         Column("STARTED", lambda record: record["started"].replace("T", " "), drop=3),
-        Column("STARTED BY", _started_by, drop=4, hide_empty=True),
+        Column("STARTED BY", _started_by, drop=5, hide_empty=True),
     )
+
+
+def _address_cell(record: dict) -> str:
+    """``192.168.1.57:2217 (192.168.1.20), 192.168.1.57:2218``: where a server answers, and who is on each.
+
+    The scheme is left off: MODE says which kind of server it is.  A served
+    port with a client connected names the client after it.
+    """
+    clients = [*record["clients"], *([""] * len(record["address"]))]
+    cells = []
+    for url, client in zip(record["address"], clients, strict=False):
+        where = url.split("://", 1)[-1]
+        cells.append(f"{where} ({client})" if client else where)
+    return PORT_LIST_SEPARATOR.join(cells)

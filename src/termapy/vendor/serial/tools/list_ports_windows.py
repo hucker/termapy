@@ -211,7 +211,7 @@ def get_parent_serial_number(child_devinst, child_vid, child_pid, depth=0, last_
     # store what we found as a fallback for malformed serial values up the chain
     found_serial_number = serial_number
 
-    # Check that the USB serial number only contains alpha-numeric characters. It may be a windows
+    # Check that the USB serial number only contains alphanumeric characters. It may be a windows
     # device ID (ephemeral ID).
     if serial_number and not re.match(r'^\w+$', serial_number):
         serial_number = None
@@ -259,7 +259,6 @@ def iterate_comports():
 
     # repeat for all possible GUIDs
     for index in range(len(GUIDs)):
-        bInterfaceNumber = None
         g_hdi = SetupDiGetClassDevs(
             ctypes.byref(GUIDs[index]),
             None,
@@ -327,6 +326,7 @@ def iterate_comports():
             # in case of USB, make a more readable string, similar to that form
             # that we also generate on other platforms
             if szHardwareID_str.startswith('USB'):
+                bInterfaceNumber = None
                 m = re.search(r'VID_([0-9a-f]{4})(&PID_([0-9a-f]{4}))?(&MI_(\d{2}))?(\\(.*))?', szHardwareID_str, re.I)
                 if m:
                     info.vid = int(m.group(1), 16)
@@ -335,15 +335,15 @@ def iterate_comports():
                     if m.group(5):
                         bInterfaceNumber = int(m.group(5))
 
-                    # Check that the USB serial number only contains alpha-numeric characters. It
+                    # Check that the USB serial number only contains alphanumeric characters. It
                     # may be a windows device ID (ephemeral ID) for composite devices.
-                    if m.group(7) and re.match(r'^\w+$', m.group(7)):
+                    if m.group(7) and re.match(r'^[\w-]+$', m.group(7)):
                         info.serial_number = m.group(7)
                     else:
                         info.serial_number = get_parent_serial_number(devinfo.DevInst, info.vid, info.pid)
 
                 # calculate a location string
-                loc_path_str = ctypes.create_unicode_buffer(250)
+                loc_path_str = ctypes.create_unicode_buffer(500)
                 if SetupDiGetDeviceRegistryProperty(
                         g_hdi,
                         ctypes.byref(devinfo),

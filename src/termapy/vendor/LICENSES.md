@@ -18,9 +18,11 @@
 
 ## pyserial (serial/)
 
-- Source: <https://pypi.org/project/pyserial/>
-- Version: 3.5
+- Source: <https://github.com/pyserial/pyserial>, branch `master` at commit
+  `a5c48d445fbc1943d4fabf8d9090a50fda3172fd` (2026-02-27)
+- Version: 3.5 and the unreleased changes after it on `master`; `__version__` still reads `3.5`
 - License: BSD-3-Clause
 - Author: Chris Liechti
-- Last upstream release: November 2020
-- Modification: none (registered into sys.modules via vendor/__init__.py)
+- Last upstream release: 3.5, November 2020 (maintained again since late 2025, no release since)
+- Modification: none: the `serial/` package as that commit has it, which no longer ships
+  `serialcli.py` (IronPython) or `serialjava.py` (Jython) (registered into sys.modules via vendor/__init__.py)

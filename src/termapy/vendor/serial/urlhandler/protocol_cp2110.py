@@ -82,7 +82,7 @@ class Serial(SerialBase):
 
         self._hid_handle = hid.device()
         try:
-            portpath = self.from_url(self.portstr)
+            portpath = self.from_url(self.name)
             self._hid_handle.open_path(portpath)
         except OSError as msg:
             raise SerialException(msg.errno, "could not open port {}: {}".format(self._port, msg))
@@ -99,8 +99,8 @@ class Serial(SerialBase):
         else:
             self.is_open = True
             self._thread = threading.Thread(target=self._hid_read_loop)
-            self._thread.setDaemon(True)
-            self._thread.setName('pySerial CP2110 reader thread for {}'.format(self._port))
+            self._thread.daemon = True
+            self._thread.name = 'pySerial CP2110 reader thread for {}'.format(self._port)
             self._thread.start()
 
     def from_url(self, url):

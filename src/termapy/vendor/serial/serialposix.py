@@ -32,7 +32,6 @@ from __future__ import absolute_import
 import errno
 import fcntl
 import os
-import platform
 import select
 import struct
 import sys
@@ -81,12 +80,15 @@ if plat[:5] == 'linux':    # Linux (confirmed)  # noqa
     CMSPAR = 0o10000000000  # Use "stick" (mark/space) parity
 
     # baudrate ioctls
-    if platform.machine().startswith('mips'):
+    # termapy: os.uname().machine is what platform.machine() returns on POSIX;
+    # reading it here keeps `platform` out of every start (registry flag-paths-light).
+    _machine = os.uname().machine
+    if _machine.startswith('mips'):
         TCGETS2 = 0x4030542A
         TCSETS2 = 0x8030542B
         BAUDRATE_OFFSET = 10
         BOTHER = 0o010000
-    elif platform.machine().lower().startswith("ppc"):
+    elif _machine.lower().startswith("ppc"):
         TCGETS2 = 0x403c7413
         TCSETS2 = 0x803c7414
         BAUDRATE_OFFSET = 13

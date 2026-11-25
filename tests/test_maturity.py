@@ -148,7 +148,7 @@ class TestInheritance:
 class TestTheFamilies:
     @pytest.mark.rule("maturity-declared-once")
     def test_the_built_in_families_declare_their_levels(self, cli):
-        """MCP, devices, symbols, memory and ZMODEM are preview; boards and firmware prototype."""
+        """MCP, devices, symbols and memory are preview; boards, firmware and ZMODEM prototype."""
         actual = _non_stable_families(cli)
         expected = {
             "mcp": "preview",
@@ -157,7 +157,7 @@ class TestTheFamilies:
             "mem": "preview",
             "board": "prototype",
             "firmware": "prototype",
-            "xfer.zmodem": "preview",
+            "xfer.zmodem": "prototype",
         }
         assert actual == expected, (
             "a family changed level: update README, its page and the decision log"

@@ -166,8 +166,10 @@ COMMAND = Command(
             handler=None,
             needs=CapabilitySet.INTERACTIVE,
             # The engine is a 0.1 alpha with no mid-transfer error recovery
-            # (decision 2026-11-14); graduation is a dated decisions entry.
-            maturity="preview",
+            # (decision 2026-11-14), and a receive fails its CRC-32 check now
+            # and then on every OS (decision 2026-11-25); graduation is a
+            # dated decisions entry.
+            maturity="prototype",
             sub_commands={
                 "send": Command(
                     args="<file> {file2} ...",

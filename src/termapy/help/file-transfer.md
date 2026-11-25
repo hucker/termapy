@@ -98,10 +98,14 @@ folder as it was.
 
 ## ZMODEM
 
-**Status: preview.** ZMODEM is the protocol of a Linux serial console:
-`lrzsz` ships `rz` (receive) and `sz` (send) on OpenWrt, Buildroot and
-Yocto images and on any distribution. Start the device side first; termapy
-waits 10 seconds for the first frame.
+**Status: prototype.** ZMODEM is new and incomplete: its commands and
+behavior may change or be removed in any release. A receive can stop with
+`Data subpacket CRC-32 error`; nothing from a failed receive lands.
+
+ZMODEM is the protocol of a Linux serial console: `lrzsz` ships `rz`
+(receive) and `sz` (send) on OpenWrt, Buildroot and Yocto images and on
+any distribution. Start the device side first; termapy waits 10 seconds
+for the first frame.
 
 ### Send to rz
 

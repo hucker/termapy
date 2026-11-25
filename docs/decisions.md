@@ -2728,3 +2728,15 @@ completes (registry `xfer-recv-staged`). ZMODEM is a preview, so Chuck chose to 
 bug named in the release notes: every test where termapy receives is `xfail` on macOS, non-strict
 because it does not fail every run, from one marker in `tests/test_zmodem.py`. This widens the
 entry above from one test; the bug is the next thing debugged.
+
+## 2026-11-25 — ZMODEM is a prototype until its receive is fixed
+
+The release prep's tox run failed `TestRecvCommand::test_two_files_in_one_session` on Windows
+under Python 3.14 with the same `Data subpacket CRC-32 error` macOS CI showed, so the receive
+bug is on every OS, not macOS alone. Chuck chose to say so the way the dev-board commands do:
+`/xfer.zmodem` moves from preview to prototype (new and incomplete, may change or be removed,
+a note once a session when it first runs), its help page names the error, and the receive
+tests are known failures on every OS, non-strict, from the one marker in
+`tests/test_zmodem.py`. This widens the entries of 2026-11-24 above. It returns to preview,
+by a dated entry, once the receive is fixed. The same day he cancelled the v0.82.0 release to
+fix the network-port gaps first.

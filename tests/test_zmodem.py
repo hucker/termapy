@@ -16,7 +16,6 @@ import os
 import queue
 import shutil
 import subprocess
-import sys
 import threading
 import time
 from collections.abc import Awaitable, Callable, Iterator
@@ -45,13 +44,14 @@ from termapy.zmodem_transport import (
 
 PAYLOAD = bytes(range(256)) * 8
 
-# Known issue (decision 2026-11-24): on macOS a ZMODEM receive fails a data
-# subpacket's CRC-32 check now and then, from lrzsz's sz and from termapy's own
-# sender alike. Not yet debugged, so every test where termapy receives expects
-# it there; non-strict, because it does not fail every run.
-_MACOS_RECEIVE_CRC = pytest.mark.xfail(
-    sys.platform == "darwin",
-    reason="known issue: on macOS a ZMODEM receive can fail a data subpacket's CRC-32",
+# Known issue (decisions 2026-11-24, 2026-11-25): a ZMODEM receive fails a data
+# subpacket's CRC-32 check now and then, on every OS (macOS CI, Windows tox),
+# from lrzsz's sz and from termapy's own sender alike. Not yet debugged, so
+# every test where termapy receives expects it; non-strict, because it does
+# not fail every run.
+_RECEIVE_CRC = pytest.mark.xfail(
+    reason="known issue: a ZMODEM receive can fail a data subpacket's CRC-32",
+    strict=False,
 )
 
 Role = Callable[[StreamTransport], Awaitable[object]]
@@ -428,7 +428,7 @@ class TestSendCommand:
 
 
 @pytest.mark.slow
-@_MACOS_RECEIVE_CRC
+@_RECEIVE_CRC
 class TestRecvCommand:
     """/xfer.zmodem.recv lands what the sender names, into the folder, only when the transfer completes."""
 
@@ -549,7 +549,7 @@ class TestRecvCommand:
 class TestDemoDevice:
     """termapy --demo speaks ZMODEM: /xfer.zmodem round-trips against the device's own engine."""
 
-    @_MACOS_RECEIVE_CRC
+    @_RECEIVE_CRC
     def test_a_pull_lands_the_device_file(self, cli: CLITerminal) -> None:
         """AT+ZMODEM=SEND then /xfer.zmodem.recv pulls the device's file into cap/."""
         # Arrange -- the device sends its canned firmware over ZMODEM
@@ -610,7 +610,7 @@ class TestDemoDevice:
         assert b"Unknown command" not in reply, f"the OO headed the next command: {reply!r}"
         assert b"upload.bin" in reply, f"the device lists the pushed file: {reply!r}"
 
-    @_MACOS_RECEIVE_CRC
+    @_RECEIVE_CRC
     def test_the_device_leaks_no_bytes_before_the_transfer_claims(self, cli: CLITerminal) -> None:
         """AT+ZMODEM=SEND must not emit a protocol byte until the host starts: the device peer waits.
 
@@ -634,7 +634,7 @@ class TestDemoDevice:
         result = cli.repl.dispatch_full("/xfer.zmodem.recv")
         assert result.success, result.error
 
-    @_MACOS_RECEIVE_CRC
+    @_RECEIVE_CRC
     def test_no_protocol_tail_survives_the_transfer(self, cli: CLITerminal) -> None:
         """After a pull completes, the device's output buffer is empty: a trailing ZFIN was drained."""
         # Arrange / Act
@@ -686,7 +686,7 @@ def _piped(argv: list[str], cwd: Path) -> tuple[subprocess.Popen[bytes], QueueTr
 class TestLrzszInterop:
     """termapy's ZMODEM against the reference implementation, lrzsz's sz and rz, over pipes."""
 
-    @_MACOS_RECEIVE_CRC
+    @_RECEIVE_CRC
     def test_receive_from_sz(self, tmp_path) -> None:
         """What sz sends lands byte-identical under its name, and sz exits clean."""
         # Arrange

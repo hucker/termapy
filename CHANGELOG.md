@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.82.1 (2026-11-25)
+
+`termapy --serve --detach` no longer flashes a window on Windows, and
+network ports have a help page of their own.
+
+- **`--detach` opens no window on Windows**: the background server
+  started as a detached process, so the interpreter the venv's launcher
+  starts opened a console window of its own, which flashed on screen.
+  It now starts with no window. Closing the window it was started from
+  still does not stop it, and its output still goes to its log file.
+- **Network ports, a new help page** (`help/network-ports.md`): opening
+  a port on another machine (the Network Port... field, `/port.test`, a
+  config), what a network port's errors mean and what it cannot do,
+  sharing this machine's ports with `termapy --serve`, and the SSH
+  tunnel and WSL setups. The Serial ports and Command-line flags pages
+  point to it, and the README's "More, when you need it" table lists it.
+
 ## 0.82.0 (2026-11-25)
 
 Settings a session changes are marked, kept by `/cfg.save` and asked

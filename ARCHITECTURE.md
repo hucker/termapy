@@ -138,7 +138,7 @@ src/termapy/
 │   ├── aliases.py          #   USB manufacturer descriptor -> short display alias
 │   ├── chips.py            #   USB-serial chip identification by (vendor_id, product_id)
 │   └── vendors.py          #   USB Vendor ID -> silicon-vendor name lookup
-├── vendor/                 #              Vendored, unmaintained dependencies: pyserial, xmodem, ymodem (licenses in LICENSES.md)
+├── vendor/                 #              Vendored dependencies: pyserial, xmodem, ymodem (licenses in LICENSES.md)
 ├── widgets/                #              Custom Textual widgets for termapy's TUI
 │   ├── checkbox.py         #   StrongCheckbox -- a Checkbox with a clearer on/off glyph
 │   ├── link_log.py         #   LinkLog -- the output pane, whose links say on hover what a click does

@@ -2625,3 +2625,20 @@ printing what it is for and its subcommands is established behavior (registry `f
 `tests/test_family_intro.py`), so bare `/dev` keeps it and `/help dev` ends with no devices table.
 `/dev.list` is still the `dev/` family's list, the loaded devices. Behavior is as before the folder
 families.
+
+## 2026-11-24 — pyserial is vendored at its unreleased master, one commit
+
+pyserial is maintained again since late 2025 but has cut no release after 3.5 (November 2020), and
+3.5's RFC 2217 client calls `Thread.setDaemon` and `setName`, which Python has deprecated; that
+client is every `rfc2217://` port termapy opens, and `termapy --serve` stands on the same module.
+Chuck chose to vendor upstream's `master` at commit `a5c48d44` (2026-02-27) whole, after checking
+that the vendored copy carried no changes of its own (it was 3.5 byte for byte, apart from line
+endings). This reverses his 2026-10-31 call, made after a throwaway trial, not to vendor
+unreleased upstream. What changes for termapy: the thread fix; on Linux and macOS an open no
+longer clears the input buffer, so bytes a device sent before the port opened now arrive; Linux
+custom baud rates use the right `termios2` constants on more architectures; macOS skips `tcdrain`
+on a PTY, where it could block forever; `spy://` gains `rawlog=` and `log=`, which write to
+Python's logging; `serialcli.py` and `serialjava.py` are gone. termapy uses none of the internals
+that changed (`ListPortInfo.apply_usb_info`, `serialutil.Timeout`'s attributes, `portstr`).
+`vendor/LICENSES.md` names the commit; the vendoring rule of 2026-06-21 stands, and when pyserial
+releases past 3.5, it moves from `vendor/` to a declared dependency.

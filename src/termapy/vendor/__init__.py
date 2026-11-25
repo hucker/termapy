@@ -1,13 +1,16 @@
-"""Vendored, unmaintained dependencies: pyserial, xmodem, ymodem (licenses in LICENSES.md).
+"""Vendored dependencies: pyserial, xmodem, ymodem (licenses in LICENSES.md).
 
 Why vendor?
     Termapy bundles xmodem, ymodem, and pyserial to reduce the number
-    of pip-installed dependencies users need. These are pure-Python,
-    MIT-licensed libraries that rarely change (pyserial's last release
-    was November 2020). See LICENSES.md in this directory for details.
+    of pip-installed dependencies users need. These are pure-Python
+    libraries that rarely change. pyserial's last release was 3.5, in
+    November 2020; it is maintained again but has cut no release since,
+    so the copy here is its ``master`` at one commit, until a release
+    past 3.5 lets it become an ordinary dependency. See LICENSES.md in
+    this directory for the commit.
 
 How pyserial vendoring works:
-    pyserial's 28 source files all use absolute imports like
+    pyserial's 26 source files all use absolute imports like
     ``import serial`` and ``from serial.tools.list_ports import ...``.
     Rather than rewriting ~40 internal imports to relative paths, we
     add this vendor directory to the front of ``sys.path``. That way

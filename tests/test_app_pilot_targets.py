@@ -1756,14 +1756,20 @@ class TestFolderLinks:
                 # Act
                 await _submit(pilot, "/cfg.info")
 
-                # Assert
-                assert await until(pilot, lambda: has_link(app, "run.edit boot.run"), seconds=15), (
-                    "the dim edit beside the name"
+                # Assert -- the tree arrives in pieces, so wait for every link before
+                # reading one: under load the sym/ line came after the run/ ones.
+                expected = {
+                    "run.edit boot.run": "the dim edit beside the name",
+                    "run boot.run": "the name runs it",
+                    "run.list": "the folder lists its files",
+                    "sym.load table.json": "a table in sym/ loads",
+                    "cfg.file notes.json": "a file nothing declares prints",
+                    "cfg.file --display big.json": "a big one opens instead",
+                }
+                await until(
+                    pilot, lambda: all(has_link(app, command) for command in expected), seconds=15
                 )
-                assert has_link(app, "run boot.run"), "the name runs it"
-                assert has_link(app, "run.list"), "the folder lists its files"
-                assert has_link(app, "sym.load table.json"), "a table in sym/ loads"
-                assert has_link(app, "cfg.file notes.json"), "a file nothing declares prints"
-                assert has_link(app, "cfg.file --display big.json"), "a big one opens instead"
+                for command, intent in expected.items():
+                    assert has_link(app, command), intent
 
         asyncio.run(scenario())

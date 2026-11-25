@@ -44,6 +44,7 @@ from termapy.port_allow import (
     PortNotAllowedError,
     PortPolicy,
     not_allowed_message,
+    url_endpoint,
     url_scheme,
     wrapped_port,
 )
@@ -2065,10 +2066,14 @@ def resolve_port_for_open(
     Raises:
         AmbiguousSerialNumberError: As ``resolve_port``.
         PortNotAllowedError: The policy refuses the port; nothing was opened.
+        ValueError: A network URL with no ``host:port``, which pyserial
+            would fail on with a ``TypeError`` of its own.
     """
     policy = _policy(policy)
     facts = _gather_all_chip_facts(fast=True, source=source, policy=policy)
     resolved = _resolve_against(spec, facts)
+    if url_scheme(resolved) in NETWORK_SCHEMES and url_endpoint(resolved) is None:
+        raise ValueError(f"Invalid port: {resolved} (a network port is scheme://host:port)")
     try:
         return check_open(resolved, facts, policy=policy)
     except PortNotAllowedError:

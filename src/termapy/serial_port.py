@@ -69,6 +69,9 @@ class SerialPort:
         self._encoding = encoding
         self._last_rx = last_rx
         self._tx_chunking = tx_chunking or (lambda: False)
+        # The chunk that ended the last frame by arriving after its gap: the
+        # next read_raw's first bytes (read_raw), gone at a drain.
+        self._carry = b""
 
     @property
     def port(self) -> object:
@@ -124,7 +127,10 @@ class SerialPort:
         """Collect raw bytes using timeout-based framing.
 
         Drains the raw RX queue, accumulating bytes until a silence gap
-        indicates a complete frame, or the overall timeout expires.
+        indicates a complete frame, or the overall timeout expires.  A chunk
+        that arrives after the gap ends the frame and is kept as the next
+        read's first bytes, so a caller that reads until a reply is complete
+        (``/mem``, typed profile requests) loses none of it.
 
         Args:
             timeout_ms: Maximum time to wait for a response in milliseconds.
@@ -137,19 +143,26 @@ class SerialPort:
 
         collector = FrameCollector(timeout_ms=frame_gap_ms)
         deadline = time.monotonic() + timeout_ms / 1000.0
+        if self._carry:
+            collector.feed(self._carry, time.monotonic())
+            self._carry = b""
 
         while time.monotonic() < deadline:
             try:
                 chunk = self._rx_queue.get(timeout=0.01)
-                now = time.monotonic()
-                frame = collector.feed(chunk, now)
-                if frame is not None:
-                    return frame
             except queue.Empty:
-                now = time.monotonic()
-                frame = collector.flush(now)
+                frame = collector.flush(time.monotonic())
                 if frame is not None:
                     return frame
+                continue
+            now = time.monotonic()
+            # A chunk that comes after the gap starts the next frame: end this
+            # one and keep the chunk for the next read, never drop it.
+            frame = collector.flush(now)
+            if frame is not None:
+                self._carry = chunk
+                return frame
+            collector.feed(chunk, now)
 
         return collector.flush(time.monotonic()) or b""
 
@@ -170,10 +183,12 @@ class SerialPort:
         purge time cannot be caught by any buffer policy and still arrive.
 
         Returns:
-            Number of bytes discarded from the queue.  Driver-side bytes are
-            purged without being counted -- they were never handed to us.
+            Number of bytes discarded from the queue and ``read_raw``'s carry.
+            Driver-side bytes are purged without being counted -- they were
+            never handed to us.
         """
-        count = 0
+        count = len(self._carry)
+        self._carry = b""
         while not self._rx_queue.empty():
             try:
                 count += len(self._rx_queue.get_nowait())

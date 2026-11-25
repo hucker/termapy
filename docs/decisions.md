@@ -2642,3 +2642,16 @@ Python's logging; `serialcli.py` and `serialjava.py` are gone. termapy uses none
 that changed (`ListPortInfo.apply_usb_info`, `serialutil.Timeout`'s attributes, `portstr`).
 `vendor/LICENSES.md` names the commit; the vendoring rule of 2026-06-21 stands, and when pyserial
 releases past 3.5, it moves from `vendor/` to a declared dependency.
+
+## 2026-11-24 — termapy's hardware tests stop at 16 KB transfers
+
+The hw_loopback's chunked-write test sent 2 MB, the stream `help/ports.md` measured, and failed on
+the bench rig at 921600 since 2026-11-20, with bare pyserial losing lines too, so it measured the
+adapter and the PC rather than termapy, and it blocked the release gate. Chuck: serial interfaces
+and termapy are not meant for transfers like that; the median exchange is under 64 bytes, with an
+occasional one-way kilobyte, so fretting over 2 MB is not worth it, and 16 KB is the ceiling for a
+test transfer. The test now sends 16 KB (256 numbered lines) through `SerialPort.write` at 921600
+and requires every line; its docstring says why it stops there. The 64 KB flood of the
+driver-buffer test stays: it is a detector for silent byte loss, not a transfer. The megabyte
+tables in `help/ports.md` stay as dated measurements. **Behavior removed:** the hardware check of a
+2 MB stream.

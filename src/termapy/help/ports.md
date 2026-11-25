@@ -287,7 +287,10 @@ retransmit): termapy cannot recover bytes the adapter never delivered.
 
 termapy hands anything longer than 192 bytes to the driver in 192-byte
 pieces, back to back (`tx_chunking`, on by default).  It helps large,
-high-speed transfers arrive intact.  Measured 2026-11-10 on the same rig:
+high-speed transfers arrive intact.  termapy's own hardware test sends
+16 KB this way at 921600 and requires every line back; the megabyte
+streams below are measurements, not tests, since a serial session is
+commands and replies with the odd kilobyte transfer.  Measured 2026-11-10 on the same rig:
 2 MB streams sent as 4 KB writes, the way a program usually writes, against
 the same streams sent as 192-byte writes, lines lost of 32768 in bare
 pyserial, termapy's reader and the CLI:

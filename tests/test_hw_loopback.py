@@ -440,13 +440,23 @@ class TestSpyUrl:
 
 @pytest.mark.rule("tx-chunked-writes")
 class TestChunkedWrites:
-    """The claim help/ports.md makes: a large send through termapy's own write path arrives intact at 921600."""
+    """A large send through termapy's own write path, in tx_chunking's pieces, arrives intact at 921600.
 
-    def test_a_2mb_stream_through_termapys_write_arrives_intact(self, engine):
-        """2 MB of numbered lines written through SerialPort.write at 921600 come back with no line lost."""
+    The send is 16 KB, termapy's ceiling for a test: a serial session is
+    commands and replies, most under 64 bytes, with now and then a transfer
+    of a kilobyte or so one way (Chuck, 2026-11-24).  Until then this test
+    sent 2 MB, the stream help/ports.md measured, and it lost lines at
+    921600 on the bench rig with bare pyserial too, so it measured the
+    adapter and the PC rather than termapy.  Megabyte streams are not
+    something termapy is for; a link where they must arrive whole needs flow
+    control or a block protocol that retransmits (``/xfer.xmodem``).
+    """
+
+    def test_a_16kb_stream_through_termapys_write_arrives_intact(self, engine):
+        """16 KB of numbered lines written through SerialPort.write at 921600 come back with no line lost."""
         # Arrange -- the fixture's cfg leaves tx_chunking at its default, on;
-        # 32768 lines of 64 bytes, the stream help/ports.md measured.
-        count = 32768
+        # 256 lines of 64 bytes, 16 KB: termapy's largest test transfer.
+        count = 256
         fill = "x" * (64 - len("00000000 ") - len("\r\n"))
         data = "".join(f"{seq:08d} {fill}\r\n" for seq in range(count)).encode()
         seen: list[str] = []

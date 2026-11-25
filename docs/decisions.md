@@ -2728,3 +2728,19 @@ completes (registry `xfer-recv-staged`). ZMODEM is a preview, so Chuck chose to 
 bug named in the release notes: every test where termapy receives is `xfail` on macOS, non-strict
 because it does not fail every run, from one marker in `tests/test_zmodem.py`. This widens the
 entry above from one test; the bug is the next thing debugged.
+
+## 2026-11-25 — A network port refuses the commands it cannot carry out
+
+pyserial's `socket://` carries bytes and nothing else: it ignores the baud rate, frame, flow
+control, DTR, RTS and break, and reads CTS, DSR and CD as 1, so `/port.baud_rate 9600`,
+`/port.dtr off` and `/port.break` reported success on a port they never reached. Chuck chose to
+refuse what cannot work rather than warn, and asked whether that breaks a config pointed at a
+network port; it does not, since connecting runs none of these commands. Two session-state
+capabilities say it: `port_settings`, false only while a `socket://` port is open, which the
+`/port` setting commands declare (`CapabilitySet.PORT_SETTINGS`, so a bare query still answers
+the config's value with no port open) and the line commands with an open port
+(`SERIAL_LINES`); and `local_timing`, false while any network port is open, which
+`/proto.send` reads for an inline `~Nms` delay. `rfc2217://` carries the settings and lines, so
+only the delay refuses there. Framed request and reply commands (`/ping`, `/proto.*`,
+`/cap.poll`) keep working on a network port: their 50 ms silence framing can split or merge
+a reply over a network, a known limit, not refused (registry `socket-port-settings-refused`).

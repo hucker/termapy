@@ -64,7 +64,7 @@ from termapy.migration import (
     DEPRECATED_CFG,
     migrate_config,
 )
-from termapy.port_allow import PortPolicy
+from termapy.port_allow import PortPolicy, url_scheme
 from termapy.scripting import parse_bool, value_text
 
 if TYPE_CHECKING:
@@ -1041,8 +1041,13 @@ def hardware_signals(port_obj: object) -> str:
         port_obj: Serial port object (Serial or FakeSerial).
 
     Returns:
-        String like "DTR=1 RTS=1 CTS=0 DSR=0 RI=0 CD=0", or empty if unavailable.
+        String like "DTR=1 RTS=1 CTS=0 DSR=0 RI=0 CD=0", or empty if unavailable:
+        a closed or lost port, a backend without them, or a ``socket://``
+        port, whose fixed readings would only mislead.
     """
+    name = getattr(port_obj, "port", None)
+    if isinstance(name, str) and url_scheme(name) == "socket":
+        return ""
     try:
         parts = []
         for name, attr in [

@@ -264,7 +264,8 @@ All other paths relative to `src/termapy/`.
 - `needs=`: use the named `CapabilitySet` profiles (`.SERIAL_CONNECTED`,
   `.CONFIG_LOADED`, `.INTERACTIVE`, `.GUI_APPS`, `.FILE_EDITOR`,
   `.SESSION_LOG`, `.SCREEN_CAPTURE`, `.TUI_MODE`, `.BLOCK_UNTIL`,
-  `.SERIAL_INTERACTIVE`, `.CONFIG_GUI_APPS`, `.CAPTURE_START`, `.MANAGE_FILES`) for the recurring needs — one
+  `.SERIAL_INTERACTIVE`, `.CONFIG_GUI_APPS`, `.CAPTURE_START`, `.MANAGE_FILES`, `.PORT_SETTINGS`,
+  `.SERIAL_LINES`) for the recurring needs — one
   frozen shared instance each, docstring on hover; spell out unusual
   combinations inline; never a module-local `_NEEDS` constant.
   Missing session state is the gate's answer, never a handler's: a

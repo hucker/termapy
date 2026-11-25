@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 242: 227 registry rows (guarantees 190, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 238. Pinned by none: 4.
+Ids: 243: 228 registry rows (guarantees 191, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 239. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -1018,6 +1018,10 @@ Ids: 242: 227 registry rows (guarantees 190, assumptions 37), 15 spec sections i
 ### `sidecars-listed-once` (assumption, repository)
 
 - `test_config_rename.py`: `TestRenameConfig.test_non_standard_layout_renames_only_the_file`
+
+### `socket-port-settings-refused` (guarantee, contract)
+
+- `test_network_port_settings.py`: the module (7 functions)
 
 ### `spy-log-in-cap` (guarantee, contract)
 

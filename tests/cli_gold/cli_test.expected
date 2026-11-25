@@ -250,6 +250,8 @@ CAPABILITIES
   cli_repl              - the CLI's prompt (switch with /app.cli)  [CLI]
   config_loaded         - a loaded config  [session state: No config loaded.]
   serial_connected      - an open serial port  [session state: Not connected.]
+  port_settings         - a port whose settings and control lines reach the device  [session state: Not available on a socket:// port: it carries bytes, not port settings or lines.]
+  local_timing          - a port on this machine, whose timing no network changes  [session state: Not available on a network port: the network changes the timing.]
   profile_loaded        - a loaded device profile  [session state: No profile loaded.]
   symbols_loaded        - a loaded symbol table  [session state: No symbols loaded.]
   capture_idle          - no capture already running  [session state: Capture already active - use /cap.stop first.]

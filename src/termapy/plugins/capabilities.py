@@ -240,6 +240,35 @@ class CapabilitySet:
         attainable=True,
     )
 
+    # What:  The port's settings and control lines reach the device: any
+    #        port but a raw ``socket://`` one, which pyserial gives only
+    #        bytes (baud, frame, flow control, DTR, RTS and break go
+    #        nowhere; CTS, DSR and CD read 1).  ``rfc2217://`` carries them.
+    # Where: Dynamic -- evaluated per dispatch from the open port's
+    #        scheme, and true while no port is open, so a setting's bare
+    #        query still answers the config's value and the gate says "Not
+    #        connected." first.  The /port setting and line commands
+    #        declare it, so they refuse instead of claiming success
+    #        (registry ``socket-port-settings-refused``).
+    port_settings: bool = _restricted(
+        "a port whose settings and control lines reach the device",
+        state="Not available on a socket:// port: it carries bytes, not port settings or lines.",
+        attainable=True,
+    )
+
+    # What:  The port keeps the timing termapy sends: a port on this
+    #        machine, not one across a network (``socket://``,
+    #        ``rfc2217://``), where a delay can stretch or vanish on the way.
+    # Where: Dynamic -- evaluated per dispatch from the open port's
+    #        scheme, and true while no port is open.  A command whose
+    #        arguments ask for a timing (``/proto.send``'s inline
+    #        ``~Nms`` delays) reads it.
+    local_timing: bool = _restricted(
+        "a port on this machine, whose timing no network changes",
+        state="Not available on a network port: the network changes the timing.",
+        attainable=True,
+    )
+
     # What:  A device profile is loaded (``ctx.ns("active_profile")``).
     # Where: Dynamic -- evaluated per dispatch.  Commands that act on the
     #        loaded profile (/profile.save) declare it; the ones that report
@@ -376,6 +405,20 @@ class CapabilitySet:
     The command sends or reads bytes; dispatch answers ``Not connected.``
     before the handler runs instead of every handler re-checking."""
 
+    PORT_SETTINGS: ClassVar[CapabilitySet]
+    """Changes or shows a port setting the device must see (``port_settings=True``).
+
+    Baud, frame and flow control: a bare query answers the config's value
+    with no port open, and they refuse only on an open ``socket://`` port,
+    which carries none of them."""
+
+    SERIAL_LINES: ClassVar[CapabilitySet]
+    """Drives or reads a control line: an open port that carries them.
+
+    ``serial_connected=True, port_settings=True`` -- DTR, RTS, CTS, DSR, RI,
+    CD and break.  The gate answers "Not connected." first, then the
+    socket:// refusal."""
+
     CONFIG_LOADED: ClassVar[CapabilitySet]
     """Needs a LOADED config (``config_loaded=True``).
 
@@ -484,6 +527,8 @@ class CapabilitySet:
 # The named profiles declared as ClassVars above.  Assigned here because a
 # class body cannot reference the class it is defining.
 CapabilitySet.SERIAL_CONNECTED = CapabilitySet(serial_connected=True)
+CapabilitySet.PORT_SETTINGS = CapabilitySet(port_settings=True)
+CapabilitySet.SERIAL_LINES = CapabilitySet(serial_connected=True, port_settings=True)
 CapabilitySet.CONFIG_LOADED = CapabilitySet(config_loaded=True)
 CapabilitySet.INTERACTIVE = CapabilitySet(interactive=True)
 CapabilitySet.GUI_APPS = CapabilitySet(gui_apps=True)

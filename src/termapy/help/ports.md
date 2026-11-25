@@ -623,6 +623,25 @@ Just put the URL in the `port` config field. See [pyserial's URL handler
 docs](https://pyserial.readthedocs.io/en/latest/url_handlers.html) for
 the full list.
 
+### What a network port cannot do
+
+A `socket://` port carries bytes and nothing else: the baud rate, frame,
+flow control, DTR, RTS and break never reach the device, and CTS, DSR and
+CD always read 1. So on an open `socket://` port the commands that set
+or read them (`/port.baud_rate`, `byte_size`, `parity`, `stop_bits`,
+`flow_control`, `mode`, `dtr`, `rts`, `cts`, `dsr`, `ri`, `cd`, `break`)
+refuse with the reason instead of reporting a change that never
+happened, and a button showing one of them reads `-`. `rfc2217://`
+carries all of them.
+
+No network keeps time: a delay stretches or vanishes on the way. So on
+either kind of network port, `/proto.send` refuses an inline `~Nms`
+delay; without one it sends as usual.
+
+Connecting runs none of these commands, so a config's own settings never
+stop a network port from opening. Only a line that sets one, typed,
+clicked or in an on-connect command, answers with the refusal.
+
 ### Sharing a port: `termapy --serve`
 
 An `rfc2217://` port needs something on the far side that holds the real

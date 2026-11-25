@@ -1,5 +1,459 @@
 # Changelog
 
+## 0.82.0 (2026-11-25)
+
+Settings a session changes are marked, kept by `/cfg.save` and asked
+about before they are lost, and the buttons that change them show their
+value; `> file` and `>> file` write any command's output to the config's
+`cap/` folder; `termapy --serve` shares serial ports on the network over
+RFC 2217, and a network port can be typed and tested in the port dialogs
+and refuses what it cannot carry; ZMODEM transfers, as a prototype;
+short port names, and a busy port that names the termapy holding it;
+one-shots that take the rest of the line and open the port only when
+they need it; Arduino starters for the Pico and the ESP32-S3; and
+editors with no compiled dependency.
+
+### Settings you can see and keep
+
+- **Setting buttons show their value**: a custom button's name takes
+  `{value}`, filled with what its command answers, so `Baud {value}` on
+  `/port.baud_rate cycle` reads `Baud 115200` and repaints when the
+  setting moves. `/port.baud_rate`, `/port.byte_size`, `/port.parity`,
+  `/port.stop_bits` and `/port.flow_control` take `cycle`; `/port.dtr`
+  and `/port.rts` take `toggle`, and their buttons read `DTR 1`, or
+  `DTR -` with no port. Behavior changed: every new config starts with
+  EOL, Echo and Color buttons on in the right-hand column, and a Baud
+  button ready but off (a config written before keeps its own).
+  Behavior removed: the three disabled placeholder buttons (Btn2-Btn4)
+  in a new config.
+- **`/cfg.save` keeps what the session changed**: it writes only the
+  keys this session moved over the file as written, in every frontend,
+  and answers how many. A setter, a button and `/cfg <key> <value>` all
+  change the session alone. Behavior removed: `/cfg.auto`, and the TUI's
+  Yes/No dialog on `/cfg <key> <value>`; `/cfg` applies at once in every
+  frontend, as `/cfg.auto` did.
+- **Unsaved settings are marked and asked about**: a setting button
+  whose value differs from the file ends in `*`, and in the TUI Exit, a
+  config load, opening the config editor, `/app.cli`, `/app.vt100` and a
+  stop request list the changed keys and ask (Save and Exit, Exit
+  Without Saving, Cancel). An interactive CLI asks at `/exit`,
+  `/app.tui` and a config load. A script, a one-shot and MCP never ask,
+  and what a config's own on-connect commands set never counts as a
+  change. Behavior changed: a TUI with unsaved settings may outlast
+  `--kill`'s grace period to ask.
+- **A setting command answers with its value and nothing else**, on
+  query and on set: `/find.max_count 300` answers `300`,
+  `/port.baud_rate 9600` answers `9600` (not `Baud rate -> 9600`),
+  `/proto.hex` answers `on` or `off`, and stop bits stay whole (`1`, not
+  `1.0`), so `$(X) <- /port.baud_rate 9600` is `9600`. Behavior removed:
+  the `(session)`, `(disconnected)`, `(custom)` and `(default)` notes
+  and `/cfg`'s "already" line; the facts stay in `data`.
+
+### Redirects, captures and answers
+
+- **`> file` and `>> file` write a command's output to `cap/`**:
+  `/cfg.list > configs.txt` replaces, `/term.info --json >> info.jsonl`
+  appends one envelope per run, at the prompt, in a `.run` file and
+  under MCP; the reply names the file in full. The line becomes
+  `/cap.out <file> mode=new|append cmd=<line>`, a new command, and runs
+  at normal unless it names a level. A device line and a command that
+  takes its text as written (`/term.send`, `/expect`) keep `>` as text;
+  `/help redirect` explains it. Behavior changed: a termapy line ending
+  in a blank-separated `> name` or `>> name` now writes a file; and for
+  `/repeat`, `/ping`, `/cap.text`, `/cap.bin`, `/cap.poll` and
+  `/cap.wire`, `--json` or a level flag after `cmd=` belongs to the
+  inner line, so put it before `cmd=` for the command itself.
+- **`$(X) <- line` keeps what a person reads**: the value, or the page
+  the line prints at quiet when it has none, and with `--json` the
+  envelope on one line; `/help capture` is the page. Behavior changed:
+  `/var.capture NAME <command>` is `/var.capture NAME cmd=<command>` and
+  the positional form fails with its usage; `$(X) <- /cmd --json` stores
+  the line's envelope; `/repeat cmd=/print a = b` prints `a = b`, not
+  `a=b`.
+- **An answer is one typed value**: `/term.info`, `/term.json_fmt` and
+  `/proto.info` answer None, so `--json` no longer carries their facts
+  twice and a capture keeps the page; `/seq` answers its number of
+  counters and `/port.chip *` its number of ports; `/search`,
+  `/help.target`, `/firmware.copy`, `/board.firmware`,
+  `/proto.crc.<lang> file=`, `/app.explore`, `/app.kill` and the YMODEM
+  and ZMODEM sends answer their count, with the names in `data`.
+  Behavior changed for a script or an agent: `$(N) <- /search kettle`
+  is a count, `0` with no match, where it was the names or empty;
+  `/profile.info`, `/sym.info` with nothing loaded and a `/port.chip`
+  that finds no port answer None where they answered `""`.
+- **An answer that is text prints at quiet**: `/print --quiet foo`
+  prints `foo`, and so do `/print.r`, every folder `.dump`, `/log.dump`,
+  `/cfg.dump`, `/cfg.file`, `/show`, `/credits`, `/mcp.catalog`, the
+  `/app` dumps and `/run.help <script>`, keeping their dim color. The
+  unknown-variable warning shows at quiet too. Behavior changed: a quiet
+  script or an MCP reply now shows those lines, and a bare `$X = 5`,
+  never run, fails as an error instead of warning beside success.
+- **`/cap.stop` reports what the capture wrote**: its value is the
+  bytes, its data the file, bytes, lines and seconds, and the completion
+  line names them (`Capture complete: cap/log.txt (1.2 KB, 40 lines in
+  3.0s)`), following the level and `--json`. A command with nothing to
+  do now says so and still succeeds: `/app.tui` in the TUI (`Already in
+  the TUI.`), `/app.cli` in the CLI, `/cap.stop` with no capture,
+  `/find.clear` with no search, `/term.log` where there is no session
+  log. Behavior changed: `/cap.stop`'s value and data, and those five
+  lines, which were silent before.
+
+### Port names, busy ports and switching
+
+- **Port names are short, and any spelling reaches the port**: `COM3`,
+  `ttyUSB0`, `usbserial-A50285BI` in `--ports`, `--watch`, `/port.list`,
+  the pickers, the title bar and the connect line, while `/port.info`,
+  the tooltip and JSON keep the system's name. A typed name is read in
+  any case on Windows, with or without `\\.\`, and on Linux and macOS a
+  name with no `/` is that `/dev` device. A new config stores a
+  plugged-in port as the system lists it (`com4` becomes `COM4`). A
+  config that names its port by USB serial number shows the device
+  (`COM9`) in the title bar whether or not it is connected.
+- **A busy port names the termapy holding it**: `Cannot open COM7: in
+  use by termapy tui, PID 68312, config quick-COM7 -- stop it with
+  /app.kill 68312, or termapy --kill 68312 from a shell`, on every OS,
+  including a refused exclusive lock on macOS and Linux, which now reads
+  as in use. Behavior changed: `termapy COM7` with COM7 busy opens the
+  port's quick config instead of failing to load a config, and
+  `/cfg.load COM7` answers "No config matching" instead of reading the
+  device.
+- **`/port.connect <name>` beside an open port switches to it**: the
+  open port closes, then the named one opens, with its banners, title
+  and on-connect commands; the open port's own name only re-applies the
+  settings, and a name that will not open leaves the port closed with
+  the reason. Behavior changed: it used to change nothing and print
+  nothing. While `/port.connect timeout=` waits, its words show in the
+  TUI prompt's ghost text instead of as a line in the pane.
+
+### Sharing ports with `--serve` (prototype)
+
+- **`termapy --serve PORT[=TCPPORT] ... --listen HOST`** puts each named
+  port on its own TCP port, 2217 and up, for another computer to open as
+  `rfc2217://host:port`, with its baud rate, frame, DTR, RTS and break
+  carried across. It serves one client per port, reopens a port that is
+  unplugged or resets, drops a client that vanished, and `--detach`
+  starts it in the background. Ports open as a session opens them, so
+  `TERMAPY_ALLOWED_PORTS` and serial-number names apply, and `--serve
+  DEMO` needs no hardware. It loads none of the command system and
+  listens in about 0.3 s.
+- **`--listen` names the address, and termapy never guesses one**: a
+  machine has several (Wi-Fi, Ethernet, a VPN, a WSL or Hyper-V
+  adapter), and there is no login. Without `--listen`, `--serve` lists
+  this machine's addresses, `localhost` (this machine only) first and
+  the default route's marked, with an example built from the ports
+  named; a bare `--serve` lists the serial ports to share. A host name
+  listens on every address it names, so `rfc2217://localhost` opens at
+  once on Windows.
+- **`serve` is a session kind**: `/app.kill serve` and
+  `termapy --kill serve` stop every port server, and `--alive` and
+  `/app.alive` gain an ADDRESS column showing where a `--serve` or
+  `--web` server answers and who is on each port. Behavior changed:
+  `/app.kill` and `--kill` take a kind as a target, and pick a config
+  named like a kind too; the JSON records gain `address` and `clients`.
+
+### Network ports: typed, tested and honest
+
+- **Network Port... in the port dialogs**: Select Serial Port and the
+  New Config wizard swap the port list for a field that takes an
+  `rfc2217://host:port` or `socket://host:port` URL. **Test** opens the
+  port and closes it again to see that it answers, and **Use** takes it
+  as a picked port. A port a `termapy --serve` on this machine shares is
+  already a row, by its URL. Behavior changed: the picker opens even
+  when the machine has one port, where it picked that port without
+  asking.
+- **`/port.test <port>`** opens a port with the session's settings and
+  closes it again, in any frontend, answering with how long the open
+  took; it refuses the port the session has open. An open sets DTR and
+  RTS, which can reset a board at the far end.
+- **A `socket://` port refuses what it cannot carry**: it carries bytes
+  and nothing else, so `/port.baud_rate`, `byte_size`, `parity`,
+  `stop_bits`, `flow_control`, `mode`, `dtr`, `rts`, `cts`, `dsr`, `ri`,
+  `cd` and `break` refuse there with the reason, where they reported a
+  change that never reached the device. With no port open a bare query
+  still answers the config's value, and a button showing one reads `-`.
+  On any network port, `/proto.send` refuses an inline `~Nms` delay, a
+  timing no network keeps. `rfc2217://` carries the settings and lines.
+  Behavior changed: those commands no longer succeed on a `socket://`
+  port.
+- **A network port's failures in plain words**: `Nothing answers at
+  localhost:2217: no server listens there`, `The server at host:2217 did
+  not take the connection: busy with another client, or not an RFC 2217
+  server` and `The connection to host:2217 closed: the server stopped or
+  the network dropped it`, where pyserial named its internals. A URL
+  with no port (`socket://localhost`) is refused before it opens:
+  `Invalid port: socket://localhost (a network port is
+  scheme://host:port)`.
+
+### One-shots and command-line flags
+
+- **`-e` takes the rest of the line**: `termapy -e /help term.eol` and
+  `-e "/help term.eol"` are the same command, and quotes are needed only
+  when the command's own spacing matters or the shell would expand
+  something. Every word after `-e` belongs to the command, so termapy's
+  flags go before it. Still refused: a second `-e` and a line break;
+  new: `-e` with nothing after it.
+- **A one-shot opens the port only when its command needs it**:
+  `termapy my_cfg -e /port.list` with the board unplugged now answers.
+  A device line, a command that needs a connection, and the six that
+  use the port by their arguments (`/proto.send`, `/proto.crc.find`,
+  `/proto.crc.reverse`, `/profile.load cmd=`, `/cap.poll`,
+  `/var.capture`) connect first and fail as before; `--run` still
+  connects first.
+- **`--json` before `-e` is the command's `--json`**, so both
+  spellings print the same envelope, and a bare device line comes back
+  as the envelope of the exchange. The envelope is the whole answer: a
+  one-shot's device line no longer prints its `{"cmd": ...}` request
+  echo before it, and in the TUI a `--json` or `--silent` command no
+  longer prints its linked lines beside it. Behavior changed: no request
+  echo in a `-e` one-shot.
+- **`--help` groups the flags by job** (Start a Session, Run One Thing
+  and Exit, Settings, Ask About the Machine, Running Termapys), and the
+  common flags have short forms: `-p -w -i -u`, `-j`, `-V` for
+  `--version`, `-q -v`, `-c -r -d`. A flag with an in-app twin says
+  which (`--ports` is `/port.list` without a session). Behavior removed:
+  `--chips` and `--chips=PATTERN`; `-e /port.chip.list {pattern}` gives
+  the same table. Behavior changed: `/port.chip.list --json` records
+  carry `vid` and `pid` as numbers, as the flag's did.
+
+### Quick configs, new configs and names
+
+- **A quick config is a config**: launched inside a project it lives in
+  the project's `termapy_cfg/`, else in the user folder, and it is named
+  for the port's short name, so every spelling reaches one config and
+  the picker and `/cfg.list` list it. A port picked in the title bar of
+  a quick session opens that port's own quick config, and a quick
+  config ships with the Proto button off. Behavior changed: inside a
+  project, `termapy COM7` now creates `termapy_cfg/quick-COM7/` there;
+  on Linux and macOS the config is `quick-ttyUSB0`, not
+  `quick-dev-ttyUSB0`; a bare start never auto-loads a quick config or
+  shows one in its picker.
+- **A new config is made one way, and `--demo` keeps the demo**: a
+  config made with the New Config dialog's Connect writes what
+  `/cfg.new` writes for the same port, and the dialog gains a Baud Rate
+  heading and a Custom Rate... toggle. Behavior changed: dialog configs
+  reconnect at the next start; `--demo` no longer rewrites the demo
+  config and its files at each launch, so a setting saved there stays,
+  and `/demo.force` is the one reset. A later `--demo` still adds files
+  a newer termapy ships.
+- **No config takes a name an OS refuses**, on every OS, case ignored:
+  `CON`, `PRN`, `AUX`, `NUL`, `CONIN$`, `CONOUT$`, `COM0`-`COM9` and
+  `LPT0`-`LPT9` with any extension, the characters `< > : " | ? *`, and
+  a trailing dot, so a config made on Linux checks out on Windows.
+  `/cfg.new`, `--new`, the wizard, Save As, `/cfg.rename` and the
+  data-file renames refuse them; a config made before still opens.
+  Behavior removed: a config named for a device, possible only on Linux
+  or macOS before this release, is no longer listed or opened; rename
+  its folder and file by hand.
+
+### Data folders and `/cfg.info`
+
+- **Every data folder has the same file commands**: `/sym`, `/dev`,
+  `/dev.lib`, `/proto.viz` (new) and `/firmware` gain `.list`,
+  `.explore`, `.show`, `.dump`, `.rename` and `.delete`, as `/run` has,
+  plus `/edit.viz` and `/edit.firmware`. `/dev.list` stays the loaded
+  devices, `/dev.delete <part>` removes a part and reloads them, and a
+  click on a `/sym.list` row loads that table. Renamed, for the shipped
+  firmware catalog: `/firmware.list` -> `/firmware.lib` (bare
+  `/firmware` still lists it), `/firmware.show` -> `/firmware.lib.show`,
+  `/firmware.dump` -> `/firmware.lib.dump`. Behavior changed:
+  `/firmware.list`, `.show` and `.dump` now work on the config's own
+  `firmware/` folder.
+- **`/cfg.info` links its files and answers data**: in the TUI every
+  file in its tree is a link, the root lists every file but dotfiles,
+  and `/plugin.list` gains the EDIT link `/run.list` has. A click on a
+  file no command shows prints it with `/cfg.file`, or over 10 KB opens
+  it in the system viewer with the new `/cfg.file --display`, and
+  Escape (Ctrl+C in the CLI) stops a long print. Behavior changed:
+  `/cfg.info --json` answers the files by folder as data, with empty
+  `output_lines`, where it carried the drawn tree, and the tree shows at
+  quiet.
+
+### Renamed commands
+
+- **`/tui`, `/cli` and `/vt100` are `/app.tui`, `/app.cli` and
+  `/app.vt100`**, one command each in every frontend, and
+  `/cli.completion` is `/term.completion`; the TUI answers it with the
+  gate instead of "Unknown command". `/term.completion off` keeps the
+  CLI prompt working without suggestions, where it took no keys on
+  Windows.
+- **`/raw` is `/term.raw`**, beside `/term.send`. For these renames and
+  the `/firmware` catalog's, a config's command lines (on-connect keys,
+  custom buttons) are rewritten when it loads; an old spelling in your
+  own `.run` file fails with a did-you-mean naming the new one.
+
+### Terminal title and colors
+
+- **The terminal's title follows the session**: the config's title,
+  with the port and its settings while connected, in the TUI and the
+  interactive CLI, so a terminal tab no longer reads "python". A
+  one-shot and MCP leave it alone. `/term.title <text>` sets a session
+  title, `auto` returns to the config's, bare shows it. VS Code shows it
+  once `terminal.integrated.tabs.title` is `${sequence}`.
+- **A configured color is drawn or reported**: `border_color` is read
+  by the parser that draws it, so `darkorange` and `lightcoral` no
+  longer crash the TUI at start and an unknown color warns and draws
+  blue; title-bar buttons too close to the bar's color are shaded away
+  from it, so a red bar keeps a visible Disconnected badge. `echo_fmt`
+  is checked at load, in the editor, from `/cfg` and by `--check`, so a
+  stray closing tag no longer crashes the first echo. A dialog's box
+  brightens when it has focus. Behavior removed: Rich-style underscore
+  names (`light_blue`, `dark_brown`) warn and draw blue, and `lightgray`
+  draws CSS light gray.
+
+### Help and pointers
+
+- **`/help.more`** shows every folded command group on one page, named
+  in the landing page's "-- More --" header. The README now covers the
+  terminal and ends with a "More, when you need it" table linking each
+  group's help page.
+- **A `--flag` that names a subcommand points at it**: `/demo --force`
+  answers `Unknown flag: --force -- did you mean /demo.force?` before
+  the command runs. Behavior changed: it answered `Usage: /demo`.
+
+### ZMODEM (prototype)
+
+- **`/xfer.zmodem.send` and `/xfer.zmodem.recv`** transfer files over
+  ZMODEM, tested against lrzsz's `sz` and `rz` in both directions; the
+  demo device is a ZMODEM peer (`AT+ZMODEM=SEND`, `AT+ZMODEM=RECV`,
+  `zmodem_demo.run`). Marked prototype, new and incomplete: the engine,
+  the new `yesterwind-xyzmodem` dependency, is an alpha with no
+  mid-transfer recovery. Known issue: a ZMODEM receive can stop with
+  `Data subpacket CRC-32 error`, on any OS; nothing from a failed
+  receive lands, and the cause is not yet found. XMODEM and YMODEM stay
+  as they were, except that a ZMODEM or YMODEM receive lands its files
+  only when the transfer succeeds, and a YMODEM sender's file name is
+  reduced to its base name.
+
+### Board starters and device code (prototype)
+
+- **Arduino starters, `pico-arduino` and `esp32s3-arduino`**: the same
+  boards, commands and buttons as the MicroPython starters, on a C
+  monitor that answers the MicroPython one's wire byte for byte
+  (`termapy_monitor.c`, also `/firmware.copy monitor` for any C
+  device). `/mem.*` works on both, gated by the SDK's memory map, and
+  the install line names the attached board's port.
+- **`/board.update`** brings a board config made by an older termapy up
+  to date: it lists the profile and device-code copies that differ from
+  what ships, asks, replaces them, loads the profile and prints the
+  `mpremote` line; an MCP agent cannot run it. Behavior changed: a
+  config's `profile_path` now loads at connect in the TUI and the CLI
+  too, not only under MCP, and MCP reads a bare `profile_path` beside
+  the config instead of in the working folder.
+- **JSON mode sends ids to a device that takes JSON lines**: with
+  `protocol: "ndjson"` in the config, `/term.request on`, a `--json`
+  device line and MCP's profile commands send `{"cmd", "args", "id"}`
+  and take the reply carrying that id, so a late reply is never taken
+  for the next answer; none in time is `No reply with id N`. Board
+  configs set it, and `/board.update` adds it. REPL mode and text
+  devices are unchanged.
+- **The MicroPython monitor reaches `machine` by name**: `machine.freq`,
+  `machine.Pin.value 2 1`, `machine.I2C.scan 0`, found by attribute and
+  never evaluated as Python. The starters register their commands with
+  `@commands.command(name, help)` (a plain dict works too), every
+  MicroPython board answers `xmodem recv|send`, and the shipped firmware
+  imports only what the runtime provides.
+
+### A repeatable demo
+
+- **The demo device answers the same on every run**: `AT+RND`,
+  `AT+RND.CUSTOM` and `AT+RND.CUSTOM.REVEAL` are renamed `AT+PKT`,
+  `AT+PKT.CUSTOM` and `AT+PKT.CUSTOM.REVEAL`, and cycle through fixed
+  packets, so the CRC tour finds the algorithm and reverses the poly
+  every time. Every shipped demo script runs clean, and the demo folder
+  gets every file termapy ships. Behavior changed: the old names answer
+  `ERROR: Unknown command`, and the temperature and GPS readings repeat
+  a fixed sequence; a demo folder made before keeps its old
+  `crc_tour.run` until `/demo.force`.
+
+### Fences for agents and browsers
+
+- **An MCP client never leaves a command your session runs unasked**:
+  `/cfg` refuses it `on_connect_cmd`, `tui_on_connect_cmd` and
+  `cli_on_connect_cmd`, naming `mcp_on_connect_cmd`, which stays the
+  client's; no capture or `/profile.save` writes a `.cfg`; and an append
+  outside the config's folder is refused as a replace is, whatever
+  `TERMAPY_MCP_FS_UNCONFINED` says. Behavior removed: an MCP client
+  setting those three keys, appending outside the config's folder, and
+  writing a `.cfg`.
+- **A `--web` session served to the network is confined to the config
+  folder**, as an MCP server is; on a loopback address it keeps
+  host-wide paths, and `TERMAPY_WEB_FS_UNCONFINED=1` in the server's
+  shell lifts it. The banner lists the confinement, and the refusal
+  names both opt-ins. Behavior removed: a network-served `--web` session
+  reading or writing outside the config folder without the opt-in.
+
+### Dependencies, startup and platforms
+
+- **The editors highlight with Pygments, and tree-sitter is gone**: the
+  config, proto and script editors share one theme that matches
+  `/cfg.show`, a `.run` script is colored by termapy's own grammar, and
+  `true` and `false` color apart. Core termapy has no compiled
+  dependency left and runs on the free-threaded 3.14 and 3.15 builds
+  with the GIL off (the MCP extra excepted on Windows).
+- **Faster one-shots**: a library only one command needs (the
+  file-transfer engines, the board tables) loads when that command
+  runs, taking an idle `--cli --demo -e /print hi` from 676 to 505 ms.
+- **pyserial at its unreleased upstream master**: `rfc2217://` ports no
+  longer call Python's deprecated thread methods, custom baud rates use
+  the right constants on more Linux architectures, macOS no longer waits
+  forever draining a PTY, and `spy://` gains `rawlog=` and `log=`.
+  Behavior changed: on Linux and macOS an open no longer clears the
+  input buffer, so bytes a device sent before the port opened arrive.
+
+### Smaller fixes
+
+- **A paste runs past a failing line**, as a `.run` script does; only a
+  stop (Escape, an `/expect` timeout, a `/confirm` cancel, `/stop`) ends
+  the rest. Behavior removed: a paste of device lines into a closed port
+  answered `Not connected.` once and stopped; it now refuses each line.
+  `/run.last` still stops at its first failure.
+- **`/proto.crc.find cmd=` and `/proto.crc.reverse cmd=` drain stale
+  input first**: after any typed device command the captured frame led
+  with that command's reply, and find answered "No matches found."
+- **The title bar fits long port names**: the port button grows with
+  its label instead of keeping its first width, which cut the baud rate
+  off a long macOS name, and the config title gives way in a narrow
+  window so the port and connection buttons stay on screen. On macOS and
+  Linux, `/port.connect demo 9600` beside an open DEMO applies the baud
+  instead of closing and reopening it.
+- **`/confirm`, Stop bars, key pages and `/log.fingerprint`**: a stop
+  pressed after a `/confirm` is asked but before its dialog shows now
+  releases it; the script and capture Stop bars no longer turn on
+  buttons a rule hides; a config key's help page with no config loaded
+  no longer names a file to save to; `/log.fingerprint` keeps a space
+  after a long key.
+
+- **`/ping` times the round trip to the reply's first byte**: it stopped
+  the clock only after the frame gap's silence, so every time it
+  reported was about 50 ms high. Behavior changed: `/ping`'s times drop
+  by the frame gap (`proto_frame_gap_ms`).
+- **`/mem` and typed profile requests keep a reply's tail**: a chunk
+  that arrived just after the frame gap was dropped, and the read
+  waiting for the rest of the reply never saw it.
+
+### Plugin API changes
+
+- **`ctx.fs.guard_file_write`**, renamed from `guard_replace`, also
+  refuses a write that would make a config file, and capture commands
+  ask it for an append too. Behavior changed: `guard_replace` is gone; a
+  demo folder made before keeps a `plugin/traffic.py` that calls it
+  until `/demo.force`.
+- **`Command(uses_port=True)`** declares a command whose use of the
+  port depends on its arguments (`cmd=` sends, `bin=` does not): a
+  one-shot opens the port first, and `/help` shows a hedged
+  `serial_connected` row. It is the one license for a handler's own
+  `Not connected.` refusal.
+- **`ctx.serial.wait_for_data`** works in the CLI and under MCP: only
+  the TUI had wired it, and elsewhere it always answered that no data
+  had come.
+- **Two session-state capabilities**, `port_settings` and
+  `local_timing`, with the profiles `CapabilitySet.PORT_SETTINGS` and
+  `SERIAL_LINES`, for a command that needs a port's settings and lines,
+  or a port that keeps timing.
+- **`serial_engine.classify_serial_error`**, published (it was private),
+  words a port's open failure as a connect does, a network port's in
+  plain words.
+
 ## 0.81.0 (2026-11-13)
 
 A list of the ports termapy may open, meant for MCP registrations; a
@@ -156,7 +610,7 @@ config by itself and stays inside it.
 - Files you write (`.run`, `.cfg`, `.pro`, profiles) may start with a
   UTF-8 byte-order mark; it no longer breaks the first line.
 
-### Help
+### 0.80.0 Help
 
 - **`/help <cmd>` ends with a CONFIG section**: the config keys the
   command uses, their live values and how it uses each. `/help <key>`
@@ -188,7 +642,7 @@ config by itself and stays inside it.
   bottom bar, and `/term.info` reports them in every frontend. It replaces the example traffic plugin.
 - Bare `/var` is a table of every variable.
 
-### MCP
+### 0.80.0 MCP
 
 - **A server finds its project's config by rule**: the command line
   first (`--cfg-dir`, `TERMAPY_CFG_DIR`, a config named by its path),

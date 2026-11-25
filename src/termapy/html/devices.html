@@ -1,10 +1,13 @@
 
+
+
 <!doctype html>
 <html lang="en" class="no-js">
   <head>
     
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
+      
       
       
       
@@ -20,23 +23,24 @@
       
       
       <link rel="icon" href="./assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.1.1">
+      <meta name="generator" content="zensical-0.1.3">
     
     
       
-        <title>Devices - Termapy Help v0.81.0</title>
+        <title>Devices - Termapy Help v0.82.0</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.ebb7f775.min.css">
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.e2cf241e.min.css">
       
         
           
         
         <link rel="stylesheet" href="./assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
       
       
 
@@ -87,7 +91,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.81.0" class="md-header__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.0" class="md-header__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -102,7 +106,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.81.0
+            Termapy Help v0.82.0
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -174,13 +178,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.81.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.81.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.81.0
+    Termapy Help v0.82.0
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1267,7 +1271,17 @@ A format termapy doesn't know is a plugin converter with <code>KIND = "device"</
 <p>Two questions, two commands:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>/dev.list              # what THIS config loaded: layer and placement
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>/dev.lib {pattern}     # what the libraries hold; LOADED marks what this config has
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>/dev.delete &lt;part&gt;     # remove a part from this config: its dev/ file goes, after a yes
 </span></code></pre></div>
+<p><code>dev/</code> and <code>lib/</code> are data folders, so each has the <a href="commands.html#per-folder-file-commands">file commands every
+data folder has</a>: <code>/dev.explore</code>,
+<code>.show</code>, <code>.dump</code>, <code>.rename</code> and <code>.delete</code> work on <code>dev/</code>, and
+<code>/dev.lib.explore</code>, <code>.show</code>, <code>.dump</code>, <code>.rename</code> and <code>.delete</code> on this
+config's <code>lib/</code> (name a part by its path in the tree, <code>acme/adc/adc16</code>).
+Their <code>.list</code> is the two commands above: a <code>dev/</code> file is a loaded device
+and a library's root-level files say nothing, so each lists what its files
+mean. Deleting a <code>dev/</code> file reloads the devices, as <code>/dev.use</code> does after
+writing one.</p>
 <p>The <strong>library</strong> is a tree of parts, nested however suits you
 (<code>microchip/mcu/pic32cm/</code>, <code>lattice/fpga/</code>). There are two, layered the way
 <code>plugin/</code> and <code>dev/</code> are: the config's own <code>&lt;cfg&gt;/lib/</code> over the shared
@@ -1473,7 +1487,8 @@ implements.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="./assets/javascripts/bundle.3cb411a8.min.js"></script>
+      <script src="./assets/javascripts/bundle.9e76c64c.min.js"></script>
+      
       
     
   </body>

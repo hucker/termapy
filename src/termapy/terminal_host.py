@@ -709,6 +709,7 @@ class TerminalHost:
             write=self._serial_write,
             read_raw=self._serial_read_raw,
             drain=self._drain_rx_queue,
+            wait_for_data=self._serial_wait_for_data,
             wait_idle=lambda timeout_ms=100, max_wait_s=3.0: self._wait_for_idle(
                 timeout_ms, max_wait_s
             ),
@@ -975,6 +976,14 @@ class TerminalHost:
         if self.engine.serial_port:
             return self.engine.serial_port.read_raw(timeout_ms, frame_gap)
         return b""
+
+    def _serial_wait_for_data(self, timeout_ms: int = 250) -> bool:
+        """Block until RX arrives or *timeout_ms* elapses (delegates to SerialPort).
+
+        The port is read once: it can be disowned between a check and the call.
+        """
+        port = self.engine.serial_port
+        return port.wait_for_data(timeout_ms) if port is not None else False
 
     def _feed_rx_consumers(self, lines: list[str]) -> None:
         """Hand received lines to the consumers every frontend shares.

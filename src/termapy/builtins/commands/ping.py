@@ -47,8 +47,12 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
             ctx.serial.drain()
             start = time.perf_counter()
             ctx.serial.send(cmd)
-            response = ctx.serial.read_raw(timeout_ms=timeout_ms)
+            # The round trip ends when the reply starts, at its first byte,
+            # not at read_raw's end of frame, which waits out the frame gap's
+            # silence after the last byte and would add it to every time.
+            arrived = ctx.serial.wait_for_data(timeout_ms)
             ms = (time.perf_counter() - start) * 1000
+            response = ctx.serial.read_raw(timeout_ms=timeout_ms) if arrived else b""
         if response:
             times.append(ms)
             ctx.io.output(f"{cmd} -- {ms:.0f}ms", "green")
@@ -112,9 +116,10 @@ def _ping_record(cmd: str, times: list[float | None]) -> dict[str, Any]:
 COMMAND = Command(
     "Send a command and measure response time.",
     long_help=(
-        "Sends a command to the device and measures the round trip, count times,\n"
-        "then reports min/max/mean.  Each round trip prints its time; add .verbose\n"
-        "for each reply's text under it, or .quiet for the summary alone."
+        "Sends a command to the device and measures the round trip, from sending\n"
+        "to the reply's first byte, count times, then reports min/max/mean.  Each\n"
+        "round trip prints its time; add .verbose for each reply's text under it,\n"
+        "or .quiet for the summary alone."
     ),
     group="protocol",
     name="ping",

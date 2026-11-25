@@ -778,20 +778,20 @@ class TestReconnectLoop:
 
 
 class TestClassifySerialError:
-    """_classify_serial_error maps raw exceptions to friendly messages,
+    """classify_serial_error maps raw exceptions to friendly messages,
     and on Unix tries to name the process holding the port."""
 
     def test_permission_error_without_port_name(self):
         """A chained PermissionError reads as permission denied; no port means no holder."""
         # Arrange
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         inner = PermissionError("Access is denied")
         outer = Exception("open failed")
         outer.__cause__ = inner
 
         # Act
-        actual = _classify_serial_error(outer)
+        actual = classify_serial_error(outer)
 
         # Assert -- no port name passed, no holder lookup performed
         assert "Permission denied" in actual, "friendly permission message"
@@ -800,14 +800,14 @@ class TestClassifySerialError:
     def test_file_not_found_returns_helpful_message(self):
         """A chained FileNotFoundError reads as port not found and points at /port.list."""
         # Arrange
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         inner = FileNotFoundError("no such device")
         outer = Exception("open failed")
         outer.__cause__ = inner
 
         # Act
-        actual = _classify_serial_error(outer)
+        actual = classify_serial_error(outer)
 
         # Assert
         assert "Port not found" in actual, "friendly not-found message"
@@ -816,7 +816,7 @@ class TestClassifySerialError:
     def test_oserror_errno_13_treated_as_permission(self, monkeypatch):
         """A bare OSError with errno 13 (EACCES) is classified as permission denied."""
         # Arrange -- errno 13 is EACCES on POSIX
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         inner = OSError(13, "Permission denied")
         outer = Exception("open failed")
@@ -824,7 +824,7 @@ class TestClassifySerialError:
         # No holder lookup (port_name empty) so sys.platform doesn't matter.
 
         # Act
-        actual = _classify_serial_error(outer, port_name="")
+        actual = classify_serial_error(outer, port_name="")
 
         # Assert
         assert "Permission denied" in actual, "classified as in-use"
@@ -832,14 +832,14 @@ class TestClassifySerialError:
     def test_oserror_errno_2_treated_as_not_found(self):
         """A bare OSError with errno 2 (ENOENT) is classified as port not found."""
         # Arrange -- errno 2 is ENOENT
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         inner = OSError(2, "No such file")
         outer = Exception("open failed")
         outer.__cause__ = inner
 
         # Act
-        actual = _classify_serial_error(outer)
+        actual = classify_serial_error(outer)
 
         # Assert
         assert "Port not found" in actual, "classified as missing"
@@ -855,7 +855,7 @@ class TestClassifySerialError:
         outer.__cause__ = inner
 
         # Act
-        actual = se._classify_serial_error(outer, port_name="ttyUSB0")
+        actual = se.classify_serial_error(outer, port_name="ttyUSB0")
 
         # Assert
         assert "Permission denied" in actual, "still has the base message"
@@ -872,7 +872,7 @@ class TestClassifySerialError:
         outer.__cause__ = inner
 
         # Act
-        actual = se._classify_serial_error(outer, port_name="ttyUSB0")
+        actual = se.classify_serial_error(outer, port_name="ttyUSB0")
 
         # Assert
         assert "Permission denied" in actual, "base message intact"
@@ -883,7 +883,7 @@ class TestClassifySerialError:
         # Arrange -- mimic the exact shape pyserial raises on Windows when
         # another app holds the port: SerialException with the OSError
         # stringified into the message and no __cause__ chaining.
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         exc = Exception(
             "could not open port 'COM4': PermissionError(13, 'Access is denied.', None, 5)"
@@ -892,7 +892,7 @@ class TestClassifySerialError:
         assert exc.__cause__ is None, "pyserial doesn't chain; the test knows that"
 
         # Act
-        actual = _classify_serial_error(exc, port_name="COM4")
+        actual = classify_serial_error(exc, port_name="COM4")
 
         # Assert
         assert "Permission denied -- port may be in use" in actual, (
@@ -903,7 +903,7 @@ class TestClassifySerialError:
     def test_pyserial_windows_file_not_found_via_message(self):
         """An unchained Windows missing-port error is classified as not found by message."""
         # Arrange -- same pattern for a missing port.
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         exc = Exception(
             "could not open port 'COM99': "
@@ -911,7 +911,7 @@ class TestClassifySerialError:
         )
 
         # Act
-        actual = _classify_serial_error(exc, port_name="COM99")
+        actual = classify_serial_error(exc, port_name="COM99")
 
         # Assert
         assert "Port not found" in actual, f"classified as missing, got {actual!r}"
@@ -945,15 +945,117 @@ class TestANetworkPortWithoutAnEndpoint:
     def test_the_fallback_keeps_a_url_port_whole(self):
         """An unclassified open failure on a URL port drops only the prefix, not part of the URL."""
         # Arrange
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         error = Exception("could not open port socket://host:7000: the far end said no")
 
         # Act
-        actual = _classify_serial_error(error)
+        actual = classify_serial_error(error)
 
         # Assert
         assert actual == "the far end said no", "the reason, not //host:7000: ..."
+
+
+def _open_failure(message: str, context: BaseException | None = None) -> Exception:
+    """pyserial's open failure as it raises one: a SerialException, the socket error as its context."""
+    from serial import SerialException
+
+    error = SerialException(message)
+    error.__context__ = context
+    return error
+
+
+class TestNetworkPortWording:
+    """A network port's failure reads in plain words with its host:port; a device port keeps its own."""
+
+    @pytest.mark.parametrize(
+        ("port", "error", "expected"),
+        [
+            (
+                "rfc2217://localhost:2217",
+                _open_failure(
+                    "Could not open port rfc2217://localhost:2217: [WinError 10061] refused",
+                    ConnectionRefusedError(10061, "refused"),
+                ),
+                "Nothing answers at localhost:2217: no server listens there",
+            ),
+            (
+                "socket://10.0.0.9:7000",
+                _open_failure(
+                    "Could not open port socket://10.0.0.9:7000: timed out",
+                    TimeoutError("timed out"),
+                ),
+                "No answer from 10.0.0.9:7000 in time: the host is off or unreachable",
+            ),
+            (
+                "rfc2217://bench:2217",
+                _open_failure(
+                    "Remote does not seem to support RFC2217 or BINARY mode "
+                    "[we-BINARY:False(INACTIVE), we-RFC2217:False(REQUESTED)]"
+                ),
+                "The server at bench:2217 did not take the connection: busy with another "
+                "client, or not an RFC 2217 server",
+            ),
+        ],
+    )
+    def test_an_open_failure_reads_plainly(self, port, error, expected):
+        """A refused, unanswered or busy network port names what happened, not pyserial's internals."""
+        # Arrange
+        from termapy.serial_engine import classify_serial_error
+
+        # Act
+        actual = classify_serial_error(error, port)
+
+        # Assert
+        assert actual == expected
+
+    def test_a_device_port_keeps_its_own_words(self):
+        """The network wording is for a network port: a COM port's failure is classified as before."""
+        # Arrange
+        from termapy.serial_engine import classify_serial_error
+
+        error = _open_failure("could not open port COM3: refused", ConnectionRefusedError(1, "no"))
+
+        # Act
+        actual = classify_serial_error(error, "COM3")
+
+        # Assert
+        assert "Nothing answers" not in actual, "no host:port wording for a device"
+
+    def test_a_dropped_connection_reads_plainly_from_the_reader(self):
+        """The reader's lost network port names the connection that closed, not "reader thread died"."""
+        # Arrange
+        from serial import SerialException
+
+        errors: list[str] = []
+
+        class DroppedNetworkPort:
+            is_open = True
+            in_waiting = 1
+            port = "rfc2217://localhost:2300"
+
+            def read(self, n):
+                raise SerialException("connection failed (reader thread died)")
+
+            def close(self):
+                self.is_open = False
+
+        engine = SerialEngine(
+            cfg={"encoding": "utf-8", "eol_markers": False},
+            capture=CaptureEngine(),
+            open_fn=lambda c: DroppedNetworkPort(),
+        )
+        engine.connect()
+
+        # Act
+        worker = threading.Thread(target=lambda: engine.read_loop(on_error=errors.append))
+        worker.start()
+        worker.join(timeout=2.0)
+
+        # Assert
+        assert errors == [
+            "The connection to localhost:2300 closed: the server stopped or the network dropped it"
+        ], "the reader's one report, in plain words"
 
 
 class TestFindPortHolder:

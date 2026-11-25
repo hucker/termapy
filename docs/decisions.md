@@ -2756,3 +2756,49 @@ the config's value with no port open) and the line commands with an open port
 only the delay refuses there. Framed request and reply commands (`/ping`, `/proto.*`,
 `/cap.poll`) keep working on a network port: their 50 ms silence framing can split or merge
 a reply over a network, a known limit, not refused (registry `socket-port-settings-refused`).
+
+## 2026-11-25 — A network port is typed in the port dialogs and tested with /port.test
+
+Nothing discovers a serial port on another machine, so its URL has to be typed, and until now
+that meant editing the `.cfg` or typing `/port.connect`. Chuck asked for a way to enter one in
+the Select Serial Port dialog, with a test. `/port.test <port>` opens a port with the session's
+settings and closes it again, through the connect's own opener (the port policy, the exclusive
+lock) and its error wording (`serial_engine.classify_serial_error`, published for it); it
+refuses the port the session has open. Select Serial Port and the New Config wizard gain a
+**Network Port...** button that swaps the port list for a field, with Test and, in the picker,
+Use; Test dispatches `/port.test` from a worker, as a dialog action dispatches its command
+rather than open the port itself (registry `raw-primitive-one-home`), and Use dismisses the
+URL, so whatever applies a picked port applies it. A port a local `termapy --serve` shares is a
+row by its URL, read from the server's breadcrumb. **Behavior changed:** the picker opens even
+when the machine has one port, where it used to pick that port without asking, since the
+dialog is now also where a network port is typed.
+
+## 2026-11-25 — A network port answers fast and fails in plain words
+
+A read-only run against the COM4 bench board served over `rfc2217://localhost:2217` found three
+things. Every `rfc2217://localhost` open took 2.4 s on Windows where `127.0.0.1` took 0.4 s:
+`localhost` names `::1` first, `--serve` listened on `127.0.0.1` alone, and Windows takes two
+seconds to refuse an address nothing listens on. `--serve` now listens on every address its
+host names, one socket each on the one TCP port (registry `serve-local-by-default`). `/ping`
+stopped its clock when `read_raw` ended the frame, after the reply's last byte and the frame
+gap's silence, so every time it reported, on any port, was about 50 ms high; it now times
+the round trip to the reply's first byte, through `ctx.serial.wait_for_data`, which only the
+TUI had wired: the CLI and MCP got the handle's stub, which always said no, and
+`TerminalHost` now wires it for every frontend. And pyserial words a network port's failures by
+its internals (`[WinError 10061] ...`, `Remote does not seem to support RFC2217 or BINARY
+mode`, `connection failed (reader thread died)`); `serial_engine.network_error_text` says what
+happened with the `host:port` it concerns, at the open and in the reader. **Behavior changed:**
+`/ping`'s times drop by the frame gap.
+
+## 2026-11-25 — --serve makes you name the address it listens on
+
+Chuck asked why `--serve` defaulted to `localhost` when the point of the feature is the network.
+termapy can find the LAN address (the one the default route uses: here the Wi-Fi's, with the
+WSL vEthernet and link-local adapters beside it), but he chose to make the person pick: guessing
+is the problem, since the wrong adapter opens a port with no login to the wrong network. So
+`--listen` is required with `--serve`, and leaving it out is a usage error listing this
+machine's addresses (`port_server.listen_choices`: `localhost` for this machine only, then the
+default route's, marked, then the rest), with an example built from the ports named; a bare
+`--serve` lists the serial ports to share. The registry row `serve-local-by-default` becomes
+`serve-listen-named`. **Behavior changed:** `termapy --serve COM3` no longer serves on
+`localhost`; it says to add `--listen localhost` or an address.

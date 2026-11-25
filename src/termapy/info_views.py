@@ -55,22 +55,15 @@ def show_config_info(app: SerialTerminal, path: str) -> None:
 
 
 def show_port_picker(app: SerialTerminal) -> None:
-    """Open the PortPicker modal, or short-circuit to the only port.
+    """Open the PortPicker modal, every time.
 
-    When the system has exactly one serial port, skips the modal and
-    immediately calls ``app._on_port_picked`` with that port -- there's
-    nothing to pick.  With zero or multiple ports, push the modal.
+    It opens even when the machine has one port: the dialog also takes a
+    typed network port (Network Port...), and Enter picks the one row.
 
     Args:
         app: The SerialTerminal instance.
     """
-    from termapy.port_control import system_ports
-
-    ports = sorted(system_ports(), key=lambda p: p.device)
-    if len(ports) == 1:
-        app._on_port_picked(ports[0].device)
-        return
-    app.push_screen(PortPicker(), callback=app._on_port_picked)
+    app.push_screen(PortPicker(test_port=app._test_port), callback=app._on_port_picked)
 
 
 def show_commands(app: SerialTerminal) -> None:

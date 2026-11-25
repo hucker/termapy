@@ -322,7 +322,7 @@ class TestAmbiguousSerialNumberViaEngine:
 
 
 class TestClassifySerialErrorWithSpec:
-    """_classify_serial_error decorates "port not found" with a
+    """classify_serial_error decorates "port not found" with a
     per-candidate trace and a list of currently-connected ports when
     the spec is a multi-candidate chain.
     """
@@ -332,11 +332,11 @@ class TestClassifySerialErrorWithSpec:
         # Arrange -- the demo roster gives known enumeration, spec names
         # two non-existent candidates.
         from termapy.port_control import _build_demo_fleet
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         # Act -- synthesize a FileNotFoundError-like error.
         exc = FileNotFoundError("no such port")
-        actual = _classify_serial_error(exc, "BOGUS1|BOGUS2", source=_build_demo_fleet)
+        actual = classify_serial_error(exc, "BOGUS1|BOGUS2", source=_build_demo_fleet)
 
         # Assert
         assert "BOGUS1" in actual, f"first candidate named; got {actual!r}"
@@ -351,11 +351,11 @@ class TestClassifySerialErrorWithSpec:
     def test_not_found_single_candidate_uses_simple_message(self, tmp_path):
         """A lone port name keeps the short Port not found message with no candidate trace."""
         # Arrange
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         # Act -- plain single port name, no pipe.
         exc = FileNotFoundError("no such port")
-        actual = _classify_serial_error(exc, "COM99")
+        actual = classify_serial_error(exc, "COM99")
 
         # Assert -- keeps the short form for the common case.
         expected_substring = "Port not found"

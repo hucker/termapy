@@ -7,7 +7,9 @@ the ``_common`` submodule for shared constants and helpers.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from textual import events, on
 from textual.app import ComposeResult
@@ -19,10 +21,14 @@ from textual.widgets.option_list import Option
 from termapy.dialogs._common import (
     _DISMISS_BINDINGS,
     _MODAL_BTN_CSS,
+    NetworkPortBox,
     _populate_port_option_list,
     box_css,
 )
 from termapy.widgets import StrongCheckbox
+
+if TYPE_CHECKING:
+    from termapy.plugins import CmdResult
 
 
 class QuickSetup(ModalScreen[tuple | None]):
@@ -46,6 +52,8 @@ class QuickSetup(ModalScreen[tuple | None]):
         border-title-align: left;
     }}
     #qs-standard-baud {{ background: slategray; }}
+    #qs-network {{ background: slategray; }}
+    {box_css("#net-url", "tall")}
     #qs-port-list {{ height: 10; }}
     {box_css("#qs-name", "tall")}
     {box_css("#qs-port-list", "tall")}
@@ -82,9 +90,14 @@ class QuickSetup(ModalScreen[tuple | None]):
     # them, which is also what ``PortOptionList`` highlights.
     _FIRST_PORT_ROW = 2
 
-    def __init__(self, title: str = "New Config") -> None:
+    def __init__(
+        self, title: str = "New Config", test_port: Callable[[str], CmdResult] | None = None
+    ) -> None:
+        """Build the dialog; ``test_port`` answers the network field's Test (none: no Test button)."""
         super().__init__()
         self._title = title
+        self._test_port = test_port
+        self._network = False
         # Cached at compose-time so on_mount can re-render the port
         # list against the dialog's measured cell width.  Cheap to
         # call once; expensive to scan every resize.
@@ -132,6 +145,13 @@ class QuickSetup(ModalScreen[tuple | None]):
             if self._has_a_port_to_pick(port_list):
                 port_list.highlighted = self._FIRST_PORT_ROW
             yield port_list
+            net = NetworkPortBox(self._test_port, id="qs-net")
+            net.add_class("qs-hidden")
+            yield net
+            # Under the box it swaps, as Custom Rate... is.
+            network = Button("Network Port...", id="qs-network")
+            network.tooltip = "Type a port on another machine: rfc2217:// or socket://."
+            yield network
             yield Static("Baud Rate:", classes="qs-label")
             baud_list = OptionList(id="qs-baud-list")
             for baud in self._COMMON_BAUDS:
@@ -287,6 +307,22 @@ class QuickSetup(ModalScreen[tuple | None]):
         if self._has_a_port_to_pick(port_list):
             port_list.highlighted = self._FIRST_PORT_ROW
 
+    @on(Button.Pressed, "#qs-network")
+    def _toggle_network(self) -> None:
+        """Swap the port list for the network field, or back."""
+        self._network = not self._network
+        button = self.query_one("#qs-network", Button)
+        net = self.query_one("#qs-net", NetworkPortBox)
+        self.query_one("#qs-port-list").set_class(self._network, "qs-hidden")
+        net.set_class(not self._network, "qs-hidden")
+        if self._network:
+            button.label = "Local Ports"
+            button.tooltip = "Back to the ports on this machine."
+            net.focus_field()
+        else:
+            button.label = "Network Port..."
+            button.tooltip = "Type a port on another machine: rfc2217:// or socket://."
+
     _standard_baud: bool = True
 
     @on(Button.Pressed, "#qs-standard-baud")
@@ -352,12 +388,18 @@ class QuickSetup(ModalScreen[tuple | None]):
             return
         name = Path(name).stem
 
-        port_ol = self.query_one("#qs-port-list", OptionList)
-        if port_ol.highlighted is not None:
-            opt = port_ol.get_option_at_index(port_ol.highlighted)
-            port = str(opt.id) if not opt.disabled else ""
+        if self._network:
+            url = self.query_one("#qs-net", NetworkPortBox).checked_url()
+            if url is None:
+                return
+            port = url
         else:
-            port = ""
+            port_ol = self.query_one("#qs-port-list", OptionList)
+            if port_ol.highlighted is not None:
+                opt = port_ol.get_option_at_index(port_ol.highlighted)
+                port = str(opt.id) if not opt.disabled else ""
+            else:
+                port = ""
 
         result = self._read_baud()
         if result is None:

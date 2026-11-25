@@ -268,13 +268,29 @@ pyserial's `loop://` URL handler is reachable but not enumerated.
 `termapy --serve` puts serial ports on the network for another computer to
 open, over RFC 2217, the serial-over-TCP protocol pyserial speaks. It runs
 no TUI and none of the command system, so it starts in a fraction of a
-second. Name each port to share; each gets its own TCP port:
+second. Name each port to share, each on its own TCP port, and the address
+clients connect to:
 
 ```text
-termapy --serve COM3                              this machine only: rfc2217://localhost:2217
-termapy --serve COM3 COM5 --listen 192.168.1.57   two ports, open to the network
-termapy --serve BG03U7VTA=2300                    by USB serial number, on TCP port 2300
-termapy --serve DEMO                              the simulator, no hardware
+termapy --serve COM3 --listen 192.168.1.57             rfc2217://192.168.1.57:2217
+termapy --serve COM3 COM5 --listen 192.168.1.57        two ports
+termapy --serve BG03U7VTA=2300 --listen 192.168.1.57   by USB serial number, on TCP port 2300
+termapy --serve DEMO --listen localhost                the simulator, this machine only
+```
+
+termapy never picks the address: a machine has several (Wi-Fi, Ethernet, a
+VPN, a WSL or Hyper-V adapter), and the wrong one opens the port to the
+wrong network. Leave `--listen` out and it lists them, the default route's
+marked; leave the ports out and it lists those:
+
+```text
+$ termapy --serve COM3
+termapy: error: --serve needs --listen, the address clients connect to:
+  --listen localhost     this machine only
+  --listen 192.168.1.57  the default route's: your LAN, most likely
+  --listen 172.18.208.1
+e.g. termapy --serve COM3 --listen 192.168.1.57
+There is no login: anyone who can reach the address can drive the port.
 ```
 
 ```text
@@ -306,8 +322,10 @@ port.
   Name the port by its USB serial number, so a board that comes back as a
   new COM number is still found.
 - **No login.** `--listen` with this machine's address opens the ports to
-  anyone who can reach it. Without `--listen`, only this machine can
-  connect, which still works through an SSH tunnel.
+  anyone who can reach it. `--listen localhost` keeps them to this machine,
+  which still works through an SSH tunnel. A host name listens on every
+  address it names: `localhost` on both `::1` and `127.0.0.1`, so a client
+  tries no address that is not listening.
 - **A session kind of its own.** `--alive` lists it as `serve` with every
   port it holds, where each answers and who is connected to it, a TUI that
   tries one of them is told the server holds it, and `/app.kill serve` or

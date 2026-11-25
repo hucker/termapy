@@ -1304,11 +1304,11 @@ class TestBusyPortNamesItsSession:
     @pytest.mark.slow  # a child session
     def test_the_holder_is_named_with_its_pid_config_and_how_to_stop_it(self, state_dir):
         """The message names the session's frontend, PID and config, and both commands that ask it to leave."""
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         with _child_session(state_dir, config="rig.cfg", open_port="COM9") as (_child, crumb):
             # Act
-            actual = _classify_serial_error(_held_error(), "COM9")
+            actual = classify_serial_error(_held_error(), "COM9")
 
         # Assert
         expected = (
@@ -1321,12 +1321,12 @@ class TestBusyPortNamesItsSession:
     def test_a_serial_number_is_matched_as_the_port_it_names(self, state_dir):
         """A config naming its port by USB serial number finds the session holding that physical port."""
         from termapy.port_control import _build_demo_fleet
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         # Arrange -- in the demo fleet serial A1B2C3D4 is COM3
         with _child_session(state_dir, open_port="COM3") as (_child, crumb):
             # Act
-            actual = _classify_serial_error(_held_error(), "A1B2C3D4", source=_build_demo_fleet)
+            actual = classify_serial_error(_held_error(), "A1B2C3D4", source=_build_demo_fleet)
 
         # Assert
         assert actual.startswith(f"COM3 is in use by termapy cli, PID {crumb.pid}"), (
@@ -1336,11 +1336,11 @@ class TestBusyPortNamesItsSession:
     @pytest.mark.slow  # a child session
     def test_a_refused_lock_names_the_holder_too(self, state_dir):
         """On macOS and Linux a second termapy meets the first's lock, not a refused open: the session is named all the same."""
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         with _child_session(state_dir, open_port="COM9") as (_child, crumb):
             # Act
-            actual = _classify_serial_error(_locked_error(), "COM9")
+            actual = classify_serial_error(_locked_error(), "COM9")
 
         # Assert
         assert actual.startswith(f"in use by termapy cli, PID {crumb.pid}"), (
@@ -1353,7 +1353,7 @@ class TestBusyPortNamesItsSession:
 
         from termapy.config import open_serial
         from termapy.defaults import DEFAULT_CFG
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         if sys.platform == "win32":
             pytest.skip("Windows refuses the open itself; the lock is POSIX's")
@@ -1372,31 +1372,31 @@ class TestBusyPortNamesItsSession:
             os.close(master)
 
         # Act
-        actual = _classify_serial_error(refused.value, port)
+        actual = classify_serial_error(refused.value, port)
 
         # Assert
         assert actual.startswith("In use by another program"), actual
 
     def test_a_refused_lock_no_session_holds_says_another_program(self, state_dir):
         """A lock refused with no termapy holding the port reads as in use, never as a raw errno."""
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         # Act
-        actual = _classify_serial_error(_locked_error(), "COM9")
+        actual = classify_serial_error(_locked_error(), "COM9")
 
         # Assert
         assert actual.startswith("In use by another program"), actual
 
     def test_this_sessions_own_hold_suggests_nothing(self, state_dir):
         """A port this process holds reads as this session, with no command to stop itself."""
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         # Arrange
         crumb = Breadcrumb()
         crumb.write("cli", open_port="COM9")
         try:
             # Act
-            actual = _classify_serial_error(_held_error(), "COM9")
+            actual = classify_serial_error(_held_error(), "COM9")
         finally:
             crumb.remove()
 
@@ -1405,10 +1405,10 @@ class TestBusyPortNamesItsSession:
 
     def test_a_port_no_session_holds_keeps_the_general_answer(self, state_dir):
         """With no breadcrumb naming the port, the answer is the general one, never a guessed session."""
-        from termapy.serial_engine import _classify_serial_error
+        from termapy.serial_engine import classify_serial_error
 
         # Act
-        actual = _classify_serial_error(_held_error(), "COM9")
+        actual = classify_serial_error(_held_error(), "COM9")
 
         # Assert
         assert "termapy" not in actual, f"no session is named: {actual}"

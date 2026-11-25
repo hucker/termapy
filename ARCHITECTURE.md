@@ -86,7 +86,7 @@ src/termapy/
 │   ├── config_picker.py    #   ConfigPicker -- pick a config to load or edit, or create a new one
 │   ├── confirm_dialog.py   #   ConfirmDialog -- the generic Yes/Cancel prompt (/confirm, delete confirmations)
 │   ├── filename_dialog.py  #   FilenameDialog -- one-line filename prompt
-│   ├── port_picker.py      #   PortPicker -- pick a serial port from a list that follows USB plug and unplug
+│   ├── port_picker.py      #   PortPicker -- pick a serial port from a list that follows USB plug and unplug, or type a network port
 │   ├── proto_editor.py     #   ProtoEditor -- the .pro protocol-script editor, with TOML highlighting
 │   ├── proto_picker.py     #   ProtoPicker -- pick a .pro script to run or edit, or create one
 │   ├── quick_setup.py      #   QuickSetup -- the first-run / new-config wizard: name, port and baud rate on one screen
@@ -1108,6 +1108,7 @@ carries the current count).  Every test module and what it covers, from its docs
 | test_port_serial_resolution.py      | End-to-end tests for USB serial-number resolution in port specs                                                                                                                     |
 | test_port_server.py                 | termapy --serve's core: its entries, a bridge over RFC 2217, one client at a time, a lost port reopened, every thread joined                                                        |
 | test_port_state.py                  | A port's state color: green held by this termapy session, yellow by another termapy session                                                                                         |
+| test_port_url_entry.py              | A network port can be typed and tested: /port.test, the port dialogs' Network Port... field, and local --serve rows                                                                 |
 | test_post_dispatch_observer.py      | Tests for `ReplEngine.add_post_dispatch_observer` and friends                                                                                                                       |
 | test_print_lines.py                 | A file's text printed a person can stop: waiting.print_lines, behind /cfg.file and the .dump family                                                                                 |
 | test_profile_memory_block.py        | The profile `memory` block: schema-known, lint-warned, never load-blocking                                                                                                          |

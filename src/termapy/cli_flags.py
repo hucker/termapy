@@ -747,6 +747,42 @@ def run_kill(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> Non
     sys.exit(1 if outcome.refused else 0)
 
 
+def _serve_needs_ports() -> str:
+    """``--serve``'s usage error with no port named: the ports there are to pick from."""
+    from termapy.port_control import port_short_name, system_ports
+
+    names = [
+        port_short_name(port.device) for port in sorted(system_ports(), key=lambda p: p.device)
+    ]
+    listed = ", ".join(names) if names else "none is plugged in"
+    return (
+        f"--serve needs a port to share: {listed} (termapy --ports says which is which), "
+        "or DEMO, the simulator"
+    )
+
+
+def _serve_needs_listen(entries: list[str]) -> str:
+    """``--serve``'s usage error with no ``--listen``: this machine's addresses to pick from.
+
+    termapy never guesses the address (``port_server.listen_choices``): the
+    person serving names it, and this shows them the candidates.
+    """
+    from termapy.port_server import listen_choices
+
+    choices = listen_choices()
+    width = max(len(address) for address, _ in choices)
+    rows = [f"  --listen {address:<{width}}  {note}".rstrip() for address, note in choices]
+    example = choices[1][0] if len(choices) > 1 else choices[0][0]
+    return "\n".join(
+        [
+            "--serve needs --listen, the address clients connect to:",
+            *rows,
+            f"e.g. termapy --serve {' '.join(entries)} --listen {example}",
+            "There is no login: anyone who can reach the address can drive the port.",
+        ]
+    )
+
+
 def run_serve(args: argparse.Namespace, *, usage_error: Callable[[str], NoReturn]) -> NoReturn:
     """``--serve``: share serial ports on the network over RFC 2217 until stopped, then exit.
 
@@ -773,11 +809,15 @@ def run_serve(args: argparse.Namespace, *, usage_error: Callable[[str], NoReturn
     from termapy.env_flags import LOOPBACK_HOSTS
     from termapy.port_control import same_port
 
+    if not args.serve:
+        usage_error(_serve_needs_ports())
     try:
         entries = port_server.parse_entries(args.serve)
     except ValueError as e:
         usage_error(f"--serve: {e}")
-    host = args.listen or port_server.DEFAULT_HOST
+    if args.listen is None:
+        usage_error(_serve_needs_listen(args.serve))
+    host = args.listen
     if args.detach:
         _serve_detached(entries, host)
     diag_path = diag_log.start("serve", "")

@@ -3038,7 +3038,7 @@ class TestNoOpSaysSo:
         assert capsys.readouterr().out == "", "the level silences the answer"
 
 
-@pytest.mark.rule("serve-local-by-default")
+@pytest.mark.rule("serve-listen-named")
 class TestServeFlags:
     """--serve's grammar at the parser: --listen's address, and what --serve stands beside."""
 
@@ -3063,6 +3063,38 @@ class TestServeFlags:
         # Assert
         assert exc.value.code == 2, "argparse's usage exit"
         assert message in capsys.readouterr().err
+
+    def test_serve_needs_listen_and_lists_the_addresses(self, capsys, monkeypatch):
+        """With no --listen nothing is guessed: a usage error lists the addresses to name, localhost first."""
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--serve", "DEMO"])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        err = capsys.readouterr().err
+        assert exc.value.code == 2, "argparse's usage exit, before anything listens"
+        assert "--serve needs --listen, the address clients connect to:" in err
+        assert "--listen localhost" in err and "this machine only" in err, "localhost is a choice"
+        assert "e.g. termapy --serve DEMO --listen " in err, "an example with the user's own ports"
+
+    def test_a_bare_serve_lists_the_ports_to_share(self, capsys, monkeypatch):
+        """--serve with no port names the ports there are to pick from, and DEMO."""
+        # Arrange
+        monkeypatch.setattr("sys.argv", ["termapy", "--serve", "--listen", "localhost"])
+        from termapy.entry import main
+
+        # Act
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        # Assert
+        err = capsys.readouterr().err
+        assert exc.value.code == 2, "argparse's usage exit"
+        assert "--serve needs a port to share: " in err and "or DEMO, the simulator" in err
 
     @pytest.mark.rule("serve-detaches")
     def test_detach_needs_serve(self, capsys, monkeypatch):
@@ -3207,6 +3239,8 @@ class TestServeDetach:
                 "termapy",
                 "--serve",
                 f"nosuchport={_free_tcp_port()}",
+                "--listen",
+                "127.0.0.1",
                 "--detach",
             ],
             env=isolated,

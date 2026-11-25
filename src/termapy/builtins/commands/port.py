@@ -276,6 +276,48 @@ def _handler_disconnect(ctx: PluginContext, args: str) -> CmdResult:
     return CmdResult.ok(value=last_port)
 
 
+def _handler_test(ctx: PluginContext, args: str) -> CmdResult:
+    """Open a port with the session's settings and close it again, to see that it answers; a network URL above all.
+
+    The same opener as a connect (``config.open_serial``), so the port policy,
+    the exclusive lock and serial-number names apply, and a failure reads as
+    a connect's does (``serial_engine.classify_serial_error``).  The value is
+    True; ``data`` names the port and how long the open took.
+    """
+    import contextlib
+    import copy
+    import time
+
+    from termapy.config import cap_folder_of, open_serial
+    from termapy.port_allow import PortNotAllowedError
+    from termapy.serial_engine import classify_serial_error
+
+    target = args.strip()
+    if not target:
+        raise UsageError()
+    open_name = getattr(ctx.internal.port(), "port", None)
+    if (
+        ctx.serial.is_connected()
+        and isinstance(open_name, str)
+        and port_control.same_port(open_name, target)
+    ):
+        return CmdResult.fail(msg="Open in this session.")
+    cfg = copy.deepcopy(dict(ctx.cfg))
+    cfg["serial"]["port"] = target
+    started = time.monotonic()
+    try:
+        port = open_serial(cfg, cap_folder=cap_folder_of(ctx.config_path))
+    except PortNotAllowedError as e:
+        return CmdResult.fail(msg=str(e))
+    except (OSError, ValueError) as e:
+        return CmdResult.fail(msg=classify_serial_error(e, target, prefix=ctx.prefix))
+    seconds = time.monotonic() - started
+    with contextlib.suppress(OSError):
+        port.close()
+    ctx.io.result(f"{target} answers.")
+    return CmdResult.ok(value=True, data={"port": target, "seconds": round(seconds, 3)})
+
+
 def _handler_info(ctx: PluginContext, args: str) -> CmdResult:
     """Show port info for the currently-connected port.
 
@@ -668,6 +710,27 @@ COMMAND = Command(
             },
             needs=CapabilitySet.PORT_SETTINGS,
             state=True,
+        ),
+        "test": Command(
+            args="<port>",
+            help="Open a port and close it again, to see that it answers.",
+            long_help=(
+                "Opens the port named with the session's settings, then closes it:\n"
+                "a check that a network port answers before a config uses it.\n"
+                "\n"
+                "  {prefix}port.test rfc2217://192.168.1.57:2217\n"
+                "  {prefix}port.test socket://localhost:7000\n"
+                "\n"
+                "It opens the port the way a connect does, so the port policy\n"
+                "applies, and an open sets DTR and RTS: a board that resets on\n"
+                "them resets, here or across an RFC 2217 link.  The port this\n"
+                "session has open is refused: it answers already."
+            ),
+            handler=_handler_test,
+            cfg={
+                "serial.baud_rate": "the rate the test open uses",
+                "serial.port": "not changed: the port named is opened instead",
+            },
         ),
         "disconnect": Command(
             help="Disconnect from the serial port.",

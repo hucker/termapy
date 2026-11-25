@@ -144,7 +144,7 @@ def _listen_host(text: str) -> str:
     hint.  An IPv6 address may come in brackets.  A wildcard is refused as
     ``--web`` refuses one: the banner prints the URL a client names, and
     ``0.0.0.0`` is no address a client can name (registry
-    ``serve-local-by-default``).
+    ``serve-listen-named``).
     """
     host = text[1:-1] if text.startswith("[") and text.endswith("]") else text
     if not host:
@@ -356,15 +356,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     session.add_argument(
         "--serve",
-        nargs="+",
+        # "*", not "+": a bare --serve is answered with the ports to pick from.
+        nargs="*",
         default=None,
         metavar="PORT[=TCPPORT]",
         help=(
             "Share serial ports on the network over RFC 2217, with no TUI: each "
             "PORT (a name, a USB serial number, DEMO) on its own TCP port, 2217 "
             "and up unless =TCPPORT says, for a client to open as "
-            "rfc2217://HOST:TCPPORT.  This machine only unless --listen.  "
-            "/app.kill serve stops it"
+            "rfc2217://HOST:TCPPORT.  Needs --listen.  /app.kill serve stops it"
         ),
     )
     session.add_argument(
@@ -382,9 +382,10 @@ def _build_parser() -> argparse.ArgumentParser:
         type=_listen_host,
         metavar="HOST",
         help=(
-            "The address --serve listens on: this machine's network address "
-            "(192.168.1.50) opens the ports to other computers.  There is no "
-            "login: anyone who can reach it can drive the ports"
+            "The address --serve listens on, which it needs: localhost for this "
+            "machine only, or this machine's network address (192.168.1.50) to open "
+            "the ports to other computers; --serve without it lists them.  There is "
+            "no login: anyone who can reach it can drive the ports"
         ),
     )
     sessions.add_argument(

@@ -904,7 +904,7 @@ Every command runs on a worker thread, the serial reader is the only long-lived 
 </details>
 
 <details>
-<summary><strong>Test coverage</strong> - 7261 tests</summary>
+<summary><strong>Test coverage</strong> - 7948 tests</summary>
 
 Run the full suite with `uv run pytest`. (The count above is the one place it
 is tracked; `release_prep` refreshes it each release.) The coverage figure is

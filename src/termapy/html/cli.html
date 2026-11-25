@@ -13,7 +13,7 @@
       
       
       
-        <link rel="prev" href="./ports.html">
+        <link rel="prev" href="./network-ports.html">
       
       
         <link rel="next" href="./vt100.html">
@@ -27,7 +27,7 @@
     
     
       
-        <title>Command-Line Flags - Termapy Help v0.82.0</title>
+        <title>Command-Line Flags - Termapy Help v0.82.1</title>
       
     
     
@@ -91,7 +91,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.82.0" class="md-header__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.1" class="md-header__button md-logo" aria-label="Termapy Help v0.82.1" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -106,7 +106,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.82.0
+            Termapy Help v0.82.1
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -178,13 +178,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.82.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.1" class="md-nav__button md-logo" aria-label="Termapy Help v0.82.1" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.82.0
+    Termapy Help v0.82.1
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -360,6 +360,32 @@
     
   
   Serial Ports
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./network-ports.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Network Ports
 
     
   </span>
@@ -1795,100 +1821,31 @@ it only appears when you specifically ask for it, the same way
 pyserial's <code>loop://</code> URL handler is reachable but not enumerated.</p>
 <h2 id="-serve-share-a-port-on-the-network"><code>--serve</code>: share a port on the network<a class="headerlink" href="#-serve-share-a-port-on-the-network" title="Permanent link">&para;</a></h2>
 <p><strong>Status: prototype.</strong> It may change or be removed in any release.</p>
-<p><code>termapy --serve</code> puts serial ports on the network for another computer to
-open, over RFC 2217, the serial-over-TCP protocol pyserial speaks. It runs
-no TUI and none of the command system, so it starts in a fraction of a
-second. Name each port to share, each on its own TCP port, and the address
-clients connect to:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>termapy --serve COM3 --listen 192.168.1.57             rfc2217://192.168.1.57:2217
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>termapy --serve COM3 COM5 --listen 192.168.1.57        two ports
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>termapy --serve BG03U7VTA=2300 --listen 192.168.1.57   by USB serial number, on TCP port 2300
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>termapy --serve DEMO --listen localhost                the simulator, this machine only
-</span></code></pre></div>
-<p>termapy never picks the address: a machine has several (Wi-Fi, Ethernet, a
-VPN, a WSL or Hyper-V adapter), and the wrong one opens the port to the
-wrong network. Leave <code>--listen</code> out and it lists them, the default route's
-marked; leave the ports out and it lists those:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>$ termapy --serve COM3
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>termapy: error: --serve needs --listen, the address clients connect to:
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>  --listen localhost     this machine only
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>  --listen 192.168.1.57  the default route's: your LAN, most likely
-</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>  --listen 172.18.208.1
-</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>e.g. termapy --serve COM3 --listen 192.168.1.57
-</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>There is no login: anyone who can reach the address can drive the port.
-</span></code></pre></div>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>termapy --serve (prototype): serial ports on the network over RFC 2217
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>  COM3  -&gt;  rfc2217://192.168.1.57:2217
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>  COM5  -&gt;  rfc2217://192.168.1.57:2218
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>  Open to the network at 192.168.1.57. There is no login:
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>  anyone who can reach this address can drive these ports.
-</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>  Stop with Ctrl+C, or from any termapy: /app.kill serve (termapy --kill serve).
-</span></code></pre></div>
-<p>On the other computer the URL is the port, in a config or at the REPL:
-<code>/port rfc2217://192.168.1.57:2217</code>. RFC 2217 carries the settings across,
-so the baud rate, frame, DTR, RTS and break you set there reach the real
-port.</p>
-<ul>
-<li><strong>The ports you name, and no others.</strong> Unnamed ports stay free on this
-  machine. A port's TCP number is fixed by its place in the list or by
-  <code>=TCPPORT</code>, so a client's URL never changes.</li>
-<li><strong>Opened as a session opens one.</strong> <code>TERMAPY_ALLOWED_PORTS</code> applies, a
-  port open elsewhere is refused, and a port that will not open stops the
-  run before anything listens.</li>
-<li><strong>One client per port at a time.</strong> Another is refused at once, and the
-  server prints who holds the port. A client that vanishes without closing,
-  a laptop gone to sleep or off the network, is dropped within about a
-  minute, so it never holds the port for good.</li>
-<li><strong>Unplugged or reset, it comes back.</strong> The client is dropped and the
-  port is tried again about once a second while its URL keeps listening.
-  Name the port by its USB serial number, so a board that comes back as a
-  new COM number is still found.</li>
-<li><strong>No login.</strong> <code>--listen</code> with this machine's address opens the ports to
-  anyone who can reach it. <code>--listen localhost</code> keeps them to this machine,
-  which still works through an SSH tunnel. A host name listens on every
-  address it names: <code>localhost</code> on both <code>::1</code> and <code>127.0.0.1</code>, so a client
-  tries no address that is not listening.</li>
-<li><strong>A session kind of its own.</strong> <code>--alive</code> lists it as <code>serve</code> with every
-  port it holds, where each answers and who is connected to it, a TUI that
-  tries one of them is told the server holds it, and <code>/app.kill serve</code> or
-  <code>termapy --kill serve</code> stops every port server.</li>
-</ul>
-<p>To run it in the background, add <code>--detach</code>. termapy starts the server as
-a process of its own, with no console, waits until it listens, and
-returns:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>$ termapy --serve COM7 --listen 192.168.1.57 --detach
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>termapy --serve is running in the background, PID 11120:
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>  COM7  -&gt;  rfc2217://192.168.1.57:2217
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>  Open to the network at 192.168.1.57. There is no login.
-</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>  Its output: C:\Users\you\AppData\Local\termapy\log\20261124_164358-serve.log
-</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>  Stop it with: termapy --kill serve
-</span></code></pre></div>
-<p>Closing the window it was started from does not stop it. Its banner and
-every event go to the output file, which the diagnostic log's own pruning
-removes in time. A server that cannot start, a port that will not open or
-a TCP port in use, prints its reason there and here, and <code>--detach</code> exits
-with its code. To start one at every logon, register the same command as a
-Task Scheduler task on Windows or a systemd unit on Linux or a Raspberry Pi.</p>
+<p><code>termapy --serve PORT ... --listen HOST</code> shares serial ports on the
+network over RFC 2217, each on its own TCP port, for another computer to
+open as <code>rfc2217://HOST:2217</code>; <code>--detach</code> runs it in the background. Its
+addresses, ports, one client at a time, the background and the secure
+setups are on <a href="network-ports.html#sharing-this-machines-ports">Network ports</a>.</p>
 <h2 id="-alive-and-kill-see-and-stop-sessions"><code>--alive</code> and <code>--kill</code>: see and stop sessions<a class="headerlink" href="#-alive-and-kill-see-and-stop-sessions" title="Permanent link">&para;</a></h2>
 <p>Every running termapy -- a TUI, a CLI, an MCP server an editor started, a
 <code>--web</code> server, a <code>--serve</code> port server -- leaves a breadcrumb in the app state folder
 (<code>%LOCALAPPDATA%\termapy\running\</code> on Windows) naming its config and the
 port it has open.  <code>--alive</code> lists them:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>$ termapy --alive
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>running termapys - 2 sessions
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>PID    MODE  CONFIG  PORT  SETTINGS    VERSION  STARTED              STARTED BY
-</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>-----  ----  ------  ----  ----------  -------  -------------------  --------------------
-</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>21552  mcp   m3_bin  COM4  115200 8N1  0.80.0   2026-10-27 16:38:45  pwsh.exe 20112
-</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>28172  tui   demo    DEMO  115200 8N1  0.80.0   2026-10-31 08:56:24  powershell.exe 17604
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>$ termapy --alive
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>running termapys - 2 sessions
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>PID    MODE  CONFIG  PORT  SETTINGS    VERSION  STARTED              STARTED BY
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>-----  ----  ------  ----  ----------  -------  -------------------  --------------------
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>21552  mcp   m3_bin  COM4  115200 8N1  0.80.0   2026-10-27 16:38:45  pwsh.exe 20112
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>28172  tui   demo    DEMO  115200 8N1  0.80.0   2026-10-31 08:56:24  powershell.exe 17604
 </span></code></pre></div>
 <p>SETTINGS is the open port's baud and frame.  ADDRESS appears while a
 server runs: where a <code>--serve</code> port server or a <code>--web</code> server answers,
 and for <code>--serve</code> the client on each port, so with several things running
 you can see which port is shared where and who holds it:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>PID    MODE   CONFIG  PORT        ADDRESS                                              STARTED
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>-----  -----  ------  ----------  ---------------------------------------------------  -------------------
-</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>64448  serve  -       COM7, COM4  192.168.1.57:2217 (192.168.1.20), 192.168.1.57:2218  2026-11-24 16:09:03
-</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>77808  web    -       -           localhost:8000                                       2026-11-24 12:27:11
+<div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>PID    MODE   CONFIG  PORT        ADDRESS                                              STARTED
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>-----  -----  ------  ----------  ---------------------------------------------------  -------------------
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>64448  serve  -       COM7, COM4  192.168.1.57:2217 (192.168.1.20), 192.168.1.57:2218  2026-11-24 16:09:03
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>77808  web    -       -           localhost:8000                                       2026-11-24 12:27:11
 </span></code></pre></div>
 <p>STARTED BY is the program that started the session, past python, termapy
 and uv.  A one-shot (<code>-e</code>,
@@ -1904,13 +1861,13 @@ is up (3 s unless you give one), hung, partway through a firmware write,
 or started by an older termapy, keeps running, and the reply names the
 command that ends it (<code>taskkill -PID 22056 -F</code> on Windows, which works in
 cmd, PowerShell and Git Bash alike, <code>kill -9 22056</code> elsewhere):</p>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>all<span class="w">      </span><span class="c1"># every termapy, say before an update</span>
-</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>serve<span class="w">    </span><span class="c1"># every session of that kind: tui, cli, mcp, web, vt100, serve</span>
-</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>termapy<span class="w"> </span>--kill<span class="w"> </span><span class="m">21552</span><span class="w">    </span><span class="c1"># the session with that PID, as --alive lists it</span>
-</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>COM4<span class="w">     </span><span class="c1"># whichever session holds COM4</span>
-</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>m3_bin<span class="w">   </span><span class="c1"># the sessions on that config (m3* picks several)</span>
-</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>all<span class="w"> </span><span class="nv">timeout</span><span class="o">=</span>10s<span class="w">   </span><span class="c1"># give them longer to leave</span>
-</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>all<span class="w"> </span>-y<span class="w">            </span><span class="c1"># no question: yes (-y / --yes)</span>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>all<span class="w">      </span><span class="c1"># every termapy, say before an update</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>serve<span class="w">    </span><span class="c1"># every session of that kind: tui, cli, mcp, web, vt100, serve</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>termapy<span class="w"> </span>--kill<span class="w"> </span><span class="m">21552</span><span class="w">    </span><span class="c1"># the session with that PID, as --alive lists it</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>COM4<span class="w">     </span><span class="c1"># whichever session holds COM4</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>m3_bin<span class="w">   </span><span class="c1"># the sessions on that config (m3* picks several)</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>all<span class="w"> </span><span class="nv">timeout</span><span class="o">=</span>10s<span class="w">   </span><span class="c1"># give them longer to leave</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>termapy<span class="w"> </span>--kill<span class="w"> </span>all<span class="w"> </span>-y<span class="w">            </span><span class="c1"># no question: yes (-y / --yes)</span>
 </span></code></pre></div>
 <p>Inside termapy the same two are <code>/app.alive</code> and <code>/app.kill &lt;target&gt;</code>:
 <code>/app.kill others</code> stops every session but the one you type it in,
@@ -1984,7 +1941,7 @@ form, shown first; <code>-h</code> prints the same help.</p>
 </tr>
 <tr>
 <td><code>--detach</code></td>
-<td>With <code>--serve</code>, run the server in the background with no console; it prints its PID, addresses and output file, and returns.</td>
+<td>With <code>--serve</code>, run the server in the background with no window; it prints its PID, addresses and output file, and returns.</td>
 </tr>
 <tr>
 <td><code>--mcp</code></td>
@@ -2122,9 +2079,9 @@ See <a href="scripting.html#json-output-termrequest-on-or---json-per-call">Scrip
 <h2 id="one-shot-exec-e-exec">One-shot exec: <code>-e</code> / <code>--exec</code><a class="headerlink" href="#one-shot-exec-e-exec" title="Permanent link">&para;</a></h2>
 <p>Run a single command, print its output to stdout, exit with status 0
 (success) or 1 (failure):</p>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>termapy<span class="w"> </span>my_device<span class="w"> </span>-e<span class="w"> </span>AT+VER<span class="w">             </span><span class="c1"># send a device command</span>
-</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>termapy<span class="w"> </span>my_device<span class="w"> </span>-e<span class="w"> </span>/help<span class="w"> </span>port<span class="w">         </span><span class="c1"># run a slash command</span>
-</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>termapy<span class="w"> </span>my_device<span class="w"> </span>--exec<span class="w"> </span>/proto.crc.calc<span class="w"> </span>crc16-modbus<span class="w"> </span><span class="m">01</span><span class="w"> </span><span class="m">03</span><span class="w"> </span><span class="m">00</span><span class="w"> </span><span class="m">00</span><span class="w"> </span><span class="m">00</span><span class="w"> </span><span class="m">02</span>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>termapy<span class="w"> </span>my_device<span class="w"> </span>-e<span class="w"> </span>AT+VER<span class="w">             </span><span class="c1"># send a device command</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>termapy<span class="w"> </span>my_device<span class="w"> </span>-e<span class="w"> </span>/help<span class="w"> </span>port<span class="w">         </span><span class="c1"># run a slash command</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>termapy<span class="w"> </span>my_device<span class="w"> </span>--exec<span class="w"> </span>/proto.crc.calc<span class="w"> </span>crc16-modbus<span class="w"> </span><span class="m">01</span><span class="w"> </span><span class="m">03</span><span class="w"> </span><span class="m">00</span><span class="w"> </span><span class="m">00</span><span class="w"> </span><span class="m">00</span><span class="w"> </span><span class="m">02</span>
 </span></code></pre></div>
 <p>One command per invocation: a second <code>-e</code>, or a line break inside one,
 is refused.  Several commands go in a <code>.run</code> file, run with <code>--run</code>.</p>
@@ -2137,30 +2094,30 @@ with the port error.  A <code>--run</code> script always connects first.</p>
 <p>The general shape is <code>termapy &lt;cfg&gt; -e &lt;command&gt;</code>.  For a
 device whose cfg is <code>my_device</code>, asking for the firmware version
 might look like:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>$ termapy my_device -e "AT+VER"
-</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>Firmware v1.4.2
-</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>$ echo $?
-</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>0
+<div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>$ termapy my_device -e "AT+VER"
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>Firmware v1.4.2
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>$ echo $?
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>0
 </span></code></pre></div>
 <p>One line from the device, exit 0, no banner, no echo prefix, no
 ANSI -- ready to feed into <code>awk</code>, <code>grep</code>, or <code>jq</code>.</p>
 <p>If you don't have a cfg set up yet, swap the cfg name for <code>--demo</code>
 to use the bundled simulator (no hardware needed); the rest of the
 shape is identical:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>$ termapy --demo -e "AT+INFO"
-</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>Bassomatic v77 v1.0
-</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>Uptime: 0h 0m 0s
-</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>Free memory: 29135 bytes
+<div class="language-text highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>$ termapy --demo -e "AT+INFO"
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>Bassomatic v77 v1.0
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>Uptime: 0h 0m 0s
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>Free memory: 29135 bytes
 </span></code></pre></div>
 <h3 id="exit-code-contract">Exit code contract<a class="headerlink" href="#exit-code-contract" title="Permanent link">&para;</a></h3>
 <p>Exit <code>0</code> if termapy successfully dispatched the command, <code>1</code> if the
 dispatch itself failed.  <strong>Termapy's dispatch is what's checked, not
 the device's response.</strong>  An unknown slash command exits 1 because
 termapy can detect it locally:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>$ termapy --demo -e "/notacommand"
-</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>  Error: Unknown command: notacommand
-</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>$ echo $?
-</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>1
+<div class="language-text highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>$ termapy --demo -e "/notacommand"
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>  Error: Unknown command: notacommand
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>$ echo $?
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>1
 </span></code></pre></div>
 <p>But a device-side error text (e.g. the simulator's
 <code>"ERROR: Unknown command 'AT+NOPE'"</code>) still exits 0 -- termapy sent
@@ -2172,10 +2129,10 @@ args</code> does: the words after it, joined with single spaces, are the
 command, so quotes are optional and <code>-e</code> goes last -- every word after
 it belongs to the command, a <code>--flag</code> included.  Quote when the command's
 own spacing matters, or when the shell would expand something in it:</p>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>termapy<span class="w"> </span>cfg<span class="w"> </span>-e<span class="w"> </span>start_system<span class="w"> </span><span class="nv">a</span><span class="o">=</span><span class="m">23</span><span class="w"> </span><span class="nv">b</span><span class="o">=</span><span class="m">24</span><span class="w">     </span><span class="c1"># the rest of the line is the command</span>
-</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>termapy<span class="w"> </span>cfg<span class="w"> </span>-e<span class="w"> </span><span class="s2">"start_system a=23 b=24"</span><span class="w">   </span><span class="c1"># the same command</span>
-</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>termapy<span class="w"> </span>cfg<span class="w"> </span>-e<span class="w"> </span><span class="s2">"/print two  spaces"</span><span class="w">       </span><span class="c1"># quoted: the shell would collapse the run</span>
-</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>termapy<span class="w"> </span>cfg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'/print $(X)'</span><span class="w">              </span><span class="c1"># quoted: bash would expand $(X) itself</span>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>termapy<span class="w"> </span>cfg<span class="w"> </span>-e<span class="w"> </span>start_system<span class="w"> </span><span class="nv">a</span><span class="o">=</span><span class="m">23</span><span class="w"> </span><span class="nv">b</span><span class="o">=</span><span class="m">24</span><span class="w">     </span><span class="c1"># the rest of the line is the command</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>termapy<span class="w"> </span>cfg<span class="w"> </span>-e<span class="w"> </span><span class="s2">"start_system a=23 b=24"</span><span class="w">   </span><span class="c1"># the same command</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>termapy<span class="w"> </span>cfg<span class="w"> </span>-e<span class="w"> </span><span class="s2">"/print two  spaces"</span><span class="w">       </span><span class="c1"># quoted: the shell would collapse the run</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>termapy<span class="w"> </span>cfg<span class="w"> </span>-e<span class="w"> </span><span class="s1">'/print $(X)'</span><span class="w">              </span><span class="c1"># quoted: bash would expand $(X) itself</span>
 </span></code></pre></div>
 <p><strong>Suppressed chrome.</strong> Connect-time autorun (<code>on_connect_cmd</code>,
 the help banner), the "<code>Connected: ...</code>" banner, and the
@@ -2199,8 +2156,8 @@ will enumerate a fixed three-port synthetic fleet (FTDI FT232R on COM3,
 Silicon Labs CP2102 on COM4, Microsoft USB Serial on COM7) instead of
 calling the OS.  It is a switch, not a boolean: any non-empty value
 turns it on.</p>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nv">TERMAPY_DEMO_FLEET</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>termapy<span class="w"> </span>--ports<span class="w">    </span><span class="c1"># fake three-port table</span>
-</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="nv">TERMAPY_DEMO_FLEET</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>termapy<span class="w"> </span>--info<span class="o">=</span>COM4<span class="w">  </span><span class="c1"># fake CP2102 info dump</span>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nv">TERMAPY_DEMO_FLEET</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>termapy<span class="w"> </span>--ports<span class="w">    </span><span class="c1"># fake three-port table</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="nv">TERMAPY_DEMO_FLEET</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>termapy<span class="w"> </span>--info<span class="o">=</span>COM4<span class="w">  </span><span class="c1"># fake CP2102 info dump</span>
 </span></code></pre></div>
 <p>Useful for docs, screenshots, trying the tool before you own hardware,
 and cross-platform bug reports.  This is a sibling to the <code>DEMO</code> port
@@ -2237,7 +2194,7 @@ opens deterministically fail).</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="./ports.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: Serial Ports">
+          <a href="./network-ports.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: Network Ports">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
@@ -2247,7 +2204,7 @@ opens deterministically fail).</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                Serial Ports
+                Network Ports
               </div>
             </div>
           </a>

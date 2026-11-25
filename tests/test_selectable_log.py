@@ -409,8 +409,13 @@ class TestFollowHold:
                 log.deselect()
                 await pilot.pause()
                 assert log.auto_scroll is True, "following resumes"
-                assert round(log.scroll_offset.y) == round(log.max_scroll_y), (
-                    "and catches up to the end"
+                # The view catches up on a later refresh, not at once: wait for it.
+                caught_up = await until(
+                    pilot, lambda: round(log.scroll_offset.y) == round(log.max_scroll_y)
+                )
+                assert caught_up, (
+                    f"and catches up to the end: at {round(log.scroll_offset.y)} "
+                    f"of {round(log.max_scroll_y)}"
                 )
 
         _run(scenario)

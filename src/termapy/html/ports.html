@@ -16,7 +16,7 @@
         <link rel="prev" href="./config.html">
       
       
-        <link rel="next" href="./cli.html">
+        <link rel="next" href="./network-ports.html">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Serial Ports - Termapy Help v0.82.0</title>
+        <title>Serial Ports - Termapy Help v0.82.1</title>
       
     
     
@@ -91,7 +91,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./index.html" title="Termapy Help v0.82.0" class="md-header__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.1" class="md-header__button md-logo" aria-label="Termapy Help v0.82.1" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
@@ -106,7 +106,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Termapy Help v0.82.0
+            Termapy Help v0.82.1
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -178,13 +178,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./index.html" title="Termapy Help v0.82.0" class="md-nav__button md-logo" aria-label="Termapy Help v0.82.0" data-md-component="logo">
+    <a href="./index.html" title="Termapy Help v0.82.1" class="md-nav__button md-logo" aria-label="Termapy Help v0.82.1" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
 
     </a>
-    Termapy Help v0.82.0
+    Termapy Help v0.82.1
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -661,28 +661,6 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#what-a-network-port-cannot-do" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        What a network port cannot do
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#sharing-a-port-termapy-serve" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Sharing a port: <code>termapy --serve</code>
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#loopback" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -724,6 +702,32 @@
   
 </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./network-ports.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Network Ports
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1643,28 +1647,6 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#what-a-network-port-cannot-do" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        What a network port cannot do
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#sharing-a-port-termapy-serve" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Sharing a port: <code>termapy --serve</code>
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#loopback" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2377,39 +2359,13 @@ port button's tooltip labels its rows as <code>/port.chip</code> does (<code>Ser
 <li><code>hwgrep://regex</code> -- find by device description</li>
 <li><code>spy://port?file=name</code> -- log every byte in both directions (see <a href="#logging-the-raw-traffic">Logging the raw traffic</a>)</li>
 </ul>
-<p>Put the URL in the <code>port</code> config field, or type it in the TUI: Select
-Serial Port and the New Config wizard have a <strong>Network Port...</strong> button
-that swaps the port list for a field. <strong>Test</strong> opens the port and closes
-it again to see that it answers, as <code>/port.test &lt;url&gt;</code> does in any
-frontend; an open sets DTR and RTS, so a board that resets on them
-resets. <strong>Use</strong> takes the URL as a picked port. A port a <code>termapy
---serve</code> on this machine shares is already a row there, by its URL. See
-<a href="https://pyserial.readthedocs.io/en/latest/url_handlers.html">pyserial's URL handler
+<p>Put the URL in the <code>port</code> config field. A port on another machine,
+<code>socket://</code> or <code>rfc2217://</code>, has a page of its own,
+<a href="network-ports.html">Network ports</a>: typing one in the port dialog and
+testing it, what it cannot do, and sharing this machine's ports with
+<code>termapy --serve</code>. See <a href="https://pyserial.readthedocs.io/en/latest/url_handlers.html">pyserial's URL handler
 docs</a> for
 the full list.</p>
-<h3 id="what-a-network-port-cannot-do">What a network port cannot do<a class="headerlink" href="#what-a-network-port-cannot-do" title="Permanent link">&para;</a></h3>
-<p>A <code>socket://</code> port carries bytes and nothing else: the baud rate, frame,
-flow control, DTR, RTS and break never reach the device, and CTS, DSR and
-CD always read 1. So on an open <code>socket://</code> port the commands that set
-or read them (<code>/port.baud_rate</code>, <code>byte_size</code>, <code>parity</code>, <code>stop_bits</code>,
-<code>flow_control</code>, <code>mode</code>, <code>dtr</code>, <code>rts</code>, <code>cts</code>, <code>dsr</code>, <code>ri</code>, <code>cd</code>, <code>break</code>)
-refuse with the reason instead of reporting a change that never
-happened, and a button showing one of them reads <code>-</code>. <code>rfc2217://</code>
-carries all of them.</p>
-<p>No network keeps time: a delay stretches or vanishes on the way. So on
-either kind of network port, <code>/proto.send</code> refuses an inline <code>~Nms</code>
-delay; without one it sends as usual.</p>
-<p>Connecting runs none of these commands, so a config's own settings never
-stop a network port from opening. Only a line that sets one, typed,
-clicked or in an on-connect command, answers with the refusal.</p>
-<h3 id="sharing-a-port-termapy-serve">Sharing a port: <code>termapy --serve</code><a class="headerlink" href="#sharing-a-port-termapy-serve" title="Permanent link">&para;</a></h3>
-<p>An <code>rfc2217://</code> port needs something on the far side that holds the real
-port open. Another termapy can be that side: on the machine the device is
-plugged into, <code>termapy --serve COM3 --listen 192.168.1.57</code> serves it, and
-here the port is <code>rfc2217://192.168.1.57:2217</code>. RFC 2217 carries the baud
-rate, frame, DTR, RTS and break across. There is no login, so serve only
-on a network you trust; see <a href="cli.html#--serve-share-a-port-on-the-network"><code>--serve</code></a>
-for several ports, fixed TCP numbers and how it is stopped.</p>
 <h3 id="loopback">Loopback<a class="headerlink" href="#loopback" title="Permanent link">&para;</a></h3>
 <p><code>loop://</code> is worth calling out: it echoes whatever you write straight back,
 so it exercises the <em>real</em> serial read/write path with no hardware. That
@@ -2520,13 +2476,13 @@ device conversations.</p>
         
         
           
-          <a href="./cli.html" class="md-footer__link md-footer__link--next" aria-label="Next: Command-Line Flags">
+          <a href="./network-ports.html" class="md-footer__link md-footer__link--next" aria-label="Next: Network Ports">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Command-Line Flags
+                Network Ports
               </div>
             </div>
             <div class="md-footer__button md-icon">

@@ -619,45 +619,13 @@ Termapy supports every port format pyserial accepts, including:
 - `hwgrep://regex` -- find by device description
 - `spy://port?file=name` -- log every byte in both directions (see [Logging the raw traffic](#logging-the-raw-traffic))
 
-Put the URL in the `port` config field, or type it in the TUI: Select
-Serial Port and the New Config wizard have a **Network Port...** button
-that swaps the port list for a field. **Test** opens the port and closes
-it again to see that it answers, as `/port.test <url>` does in any
-frontend; an open sets DTR and RTS, so a board that resets on them
-resets. **Use** takes the URL as a picked port. A port a `termapy
---serve` on this machine shares is already a row there, by its URL. See
-[pyserial's URL handler
+Put the URL in the `port` config field. A port on another machine,
+`socket://` or `rfc2217://`, has a page of its own,
+[Network ports](network-ports.md): typing one in the port dialog and
+testing it, what it cannot do, and sharing this machine's ports with
+`termapy --serve`. See [pyserial's URL handler
 docs](https://pyserial.readthedocs.io/en/latest/url_handlers.html) for
 the full list.
-
-### What a network port cannot do
-
-A `socket://` port carries bytes and nothing else: the baud rate, frame,
-flow control, DTR, RTS and break never reach the device, and CTS, DSR and
-CD always read 1. So on an open `socket://` port the commands that set
-or read them (`/port.baud_rate`, `byte_size`, `parity`, `stop_bits`,
-`flow_control`, `mode`, `dtr`, `rts`, `cts`, `dsr`, `ri`, `cd`, `break`)
-refuse with the reason instead of reporting a change that never
-happened, and a button showing one of them reads `-`. `rfc2217://`
-carries all of them.
-
-No network keeps time: a delay stretches or vanishes on the way. So on
-either kind of network port, `/proto.send` refuses an inline `~Nms`
-delay; without one it sends as usual.
-
-Connecting runs none of these commands, so a config's own settings never
-stop a network port from opening. Only a line that sets one, typed,
-clicked or in an on-connect command, answers with the refusal.
-
-### Sharing a port: `termapy --serve`
-
-An `rfc2217://` port needs something on the far side that holds the real
-port open. Another termapy can be that side: on the machine the device is
-plugged into, `termapy --serve COM3 --listen 192.168.1.57` serves it, and
-here the port is `rfc2217://192.168.1.57:2217`. RFC 2217 carries the baud
-rate, frame, DTR, RTS and break across. There is no login, so serve only
-on a network you trust; see [`--serve`](cli.md#--serve-share-a-port-on-the-network)
-for several ports, fixed TCP numbers and how it is stopped.
 
 ### Loopback
 

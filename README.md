@@ -179,7 +179,7 @@ Each `TERMAPY_MCP_*` flag takes any boolean token (`1`, `on`, `true`, `yes`, ...
 
 `termapy --web` served on a network address is confined the same way for files: a browser on another computer reaches the port with no login, so a path outside the config folder is refused unless `TERMAPY_WEB_FS_UNCONFINED=1` is set in the server's shell. Served on `localhost`, the viewer is you, and nothing is confined.
 
-`termapy --serve` shares serial ports on the network over RFC 2217 with no login: with `--listen` set to this machine's address, anyone who can reach it can drive the ports it names. `--listen` is required, so termapy never guesses which address to open: `--listen localhost` serves this machine only, and leaving it out lists the choices. See [`--serve`](src/termapy/help/cli.md#--serve-share-a-port-on-the-network).
+`termapy --serve` shares serial ports on the network over RFC 2217 with no login: with `--listen` set to this machine's address, anyone who can reach it can drive the ports it names. `--listen` is required, so termapy never guesses which address to open: `--listen localhost` serves this machine only, and leaving it out lists the choices. See [Network ports](src/termapy/help/network-ports.md#sharing-this-machines-ports).
 
 `TERMAPY_ALLOWED_PORTS` limits the ports termapy opens and lists in every frontend: one regular expression over port names and USB serial numbers (`COM7|BG03U7VTA`). Unset, the TUI and CLI may open any port and an MCP server none. Keep it where an agent can't edit it; see [Serial ports](src/termapy/help/ports.md#limiting-which-ports-termapy-may-open) and [MCP server](src/termapy/help/mcp-server.md#which-ports-it-may-open).
 
@@ -886,6 +886,7 @@ Each of these is there when you need it and otherwise out of the way: `/help` fo
 | Firmware and JSON | The device-side kit: a command monitor, the MEM wire spec and JSON replies for C and MicroPython | [Firmware](src/termapy/help/firmware.md), [JSON integration](src/termapy/help/firmware-json.md) |
 | Dev boards | A starter project for the Raspberry Pi Pico and the ESP32-S3: device code, a config and a profile on day one | [Dev boards](src/termapy/help/boards.md) |
 | File transfer | XMODEM, YMODEM and ZMODEM send and receive from the prompt | [File transfer](src/termapy/help/file-transfer.md) |
+| Network ports | Open a serial port on another machine over RFC 2217 or TCP, type and test it in the port dialog, or share this machine's ports with `termapy --serve` | [Network ports](src/termapy/help/network-ports.md) |
 | Plugins | Add a command by dropping a `.py` file in a folder; every built-in is one | [Writing plugins](src/termapy/help/writing-plugins.md) |
 | MCP server | Drive termapy from an LLM through a conservative, sandboxed tool surface | [MCP server](src/termapy/help/mcp-server.md) |
 

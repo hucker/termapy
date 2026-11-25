@@ -22,6 +22,7 @@ nav:
   - Getting Started: getting-started.md
   - Configuration: config.md
   - Serial Ports: ports.md
+  - Network Ports: network-ports.md
   - Command-Line Flags: cli.md
   - VT100 Mode: vt100.md
   - Custom Buttons: custom-buttons.md

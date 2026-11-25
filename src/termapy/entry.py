@@ -371,7 +371,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--detach",
         action="store_true",
         help=(
-            "With --serve, run the server in the background, with no console: "
+            "With --serve, run the server in the background, with no window: "
             "it prints its PID and addresses and returns, its output goes to a "
             "file it names, and termapy --kill serve stops it"
         ),

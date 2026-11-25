@@ -41,6 +41,27 @@ class _Claim:
         return self.held
 
 
+class _LateQueue(queue.Queue[bytes]):
+    """An RX queue whose scripted chunks each arrive after a delay, with no empty poll before it.
+
+    It stands for a reply's next chunk landing after the frame gap but before
+    ``read_raw`` polls the queue empty: the moment a chunk used to be dropped.
+    Once the script is spent it is an ordinary, empty queue.
+    """
+
+    def __init__(self, script: list[tuple[float, bytes]]) -> None:
+        super().__init__()
+        self._script = list(script)
+
+    def get(self, block: bool = True, timeout: float | None = None) -> bytes:
+        """The next scripted chunk after its delay, else the real queue's answer."""
+        if self._script:
+            delay, chunk = self._script.pop(0)
+            time.sleep(delay)
+            return chunk
+        return super().get(block, timeout)
+
+
 # -- Properties ----------------------------------------------------------------
 
 
@@ -277,6 +298,49 @@ class TestReadRaw:
         # Assert
         assert b"\x01\x02" in actual, "contains first chunk"
         assert len(actual) >= 4, "both chunks assembled"
+
+    def test_a_chunk_after_the_gap_is_the_next_reads_frame(self):
+        """The chunk that ends a frame by arriving after its gap comes back from the next read, not lost."""
+        # Arrange -- "second" lands 80 ms after "first", past the 50 ms gap,
+        # with no empty poll between them.
+        rx_queue = _LateQueue([(0.0, b"first"), (0.08, b"second")])
+        sp = SerialPort(port=FakeSerial(), rx_queue=rx_queue)
+
+        # Act
+        actual_first = sp.read_raw(timeout_ms=1000, frame_gap_ms=50)
+        actual_second = sp.read_raw(timeout_ms=1000, frame_gap_ms=50)
+
+        # Assert
+        assert actual_first == b"first", "the frame ends at the gap"
+        assert actual_second == b"second", "the late chunk is the next read's frame, not dropped"
+
+    def test_late_chunks_read_back_one_frame_per_call(self):
+        """Frames that each arrive after the last one's gap read back one per call, in order."""
+        # Arrange
+        rx_queue = _LateQueue([(0.0, b"one"), (0.08, b"two"), (0.08, b"three")])
+        sp = SerialPort(port=FakeSerial(), rx_queue=rx_queue)
+        expected = [b"one", b"two", b"three"]
+
+        # Act
+        actual = [sp.read_raw(timeout_ms=1000, frame_gap_ms=50) for _ in expected]
+
+        # Assert
+        assert actual == expected, "each read returns its own frame and keeps the next"
+
+    def test_a_drain_discards_the_carried_chunk(self):
+        """A drain before the next exchange discards the carried chunk with the queue, and counts it."""
+        # Arrange
+        rx_queue = _LateQueue([(0.0, b"first"), (0.08, b"stale")])
+        sp = SerialPort(port=FakeSerial(), rx_queue=rx_queue)
+        sp.read_raw(timeout_ms=1000, frame_gap_ms=50)
+
+        # Act
+        actual_drained = sp.drain()
+        actual_after = sp.read_raw(timeout_ms=100, frame_gap_ms=50)
+
+        # Assert
+        assert actual_drained == len(b"stale"), "the carried chunk counts as drained"
+        assert actual_after == b"", "nothing is carried past a drain"
 
 
 # -- Wait for Idle -------------------------------------------------------------

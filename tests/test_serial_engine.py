@@ -1,5 +1,6 @@
 """Tests for SerialEngine - connection lifecycle and reader loop."""
 
+import copy
 import threading
 import time
 
@@ -914,6 +915,45 @@ class TestClassifySerialError:
 
         # Assert
         assert "Port not found" in actual, f"classified as missing, got {actual!r}"
+
+
+class TestANetworkPortWithoutAnEndpoint:
+    """A network URL with no host:port is refused before pyserial sees it, in plain words."""
+
+    @pytest.mark.parametrize(
+        "url", ["socket://localhost", "rfc2217://192.168.1.57", "socket://:7000"]
+    )
+    def test_the_connect_names_the_missing_part(self, url):
+        """Each spelling fails to connect with the same message both times, naming the form."""
+        # Arrange
+        from termapy.config import open_serial
+        from termapy.defaults import DEFAULT_CFG
+
+        cfg = copy.deepcopy(DEFAULT_CFG)
+        cfg["serial"]["port"] = url
+        engine = SerialEngine(cfg=cfg, capture=CaptureEngine(), open_fn=open_serial)
+        expected = (False, f"Invalid port: {url} (a network port is scheme://host:port)")
+
+        # Act
+        first = (engine.connect(), engine.last_error)
+        second = (engine.connect(), engine.last_error)
+
+        # Assert
+        assert first == expected, "refused before opening, with the form it needs"
+        assert second == first, "the same answer the second time"
+
+    def test_the_fallback_keeps_a_url_port_whole(self):
+        """An unclassified open failure on a URL port drops only the prefix, not part of the URL."""
+        # Arrange
+        from termapy.serial_engine import _classify_serial_error
+
+        error = Exception("could not open port socket://host:7000: the far end said no")
+
+        # Act
+        actual = _classify_serial_error(error)
+
+        # Assert
+        assert actual == "the far end said no", "the reason, not //host:7000: ..."
 
 
 class TestFindPortHolder:

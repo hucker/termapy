@@ -318,8 +318,9 @@ def _classify_serial_error(
         return _not_found()
 
     # Fall back to the original message, stripped of Python class noise.
+    # Split at ": ", not ":", so a URL port (socket://host:7000) stays whole.
     if "could not open port" in lowered:
-        return msg.split(":", 1)[-1].strip() if ":" in msg else msg
+        return msg.split(": ", 1)[-1].strip() if ": " in msg else msg
     return msg
 
 

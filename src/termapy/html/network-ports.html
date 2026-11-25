@@ -1,0 +1,1640 @@
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        <link rel="prev" href="./ports.html">
+      
+      
+        <link rel="next" href="./cli.html">
+      
+      
+        
+      
+      
+      <link rel="icon" href="./assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.1.3">
+    
+    
+      
+        <title>Network Ports - Termapy Help v0.82.1</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="./assets/stylesheets/modern/main.e2cf241e.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="./assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+    <script>__md_scope=new URL(".",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./index.html" title="Termapy Help v0.82.1" class="md-header__button md-logo" aria-label="Termapy Help v0.82.1" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Termapy Help v0.82.1
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Network Ports
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./index.html" title="Termapy Help v0.82.1" class="md-nav__button md-logo" aria-label="Termapy Help v0.82.1" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    Termapy Help v0.82.1
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./installation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Installation
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./environment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Environment & compatibility
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./demo.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Demo Mode
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./getting-started.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Getting Started
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./config.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Configuration
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./ports.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Serial Ports
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Network Ports
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="network-ports.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Network Ports
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#opening-a-network-port" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Opening a network port
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Opening a network port">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#when-it-does-not-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        When it does not answer
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-a-network-port-cannot-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What a network port cannot do
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sharing-this-machines-ports" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Sharing this machine's ports
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sharing this machine&#x27;s ports">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-background-detach" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        In the background: <code>--detach</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#secure-setups" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Secure setups
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Secure setups">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#through-an-ssh-tunnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Through an SSH tunnel
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wsl-docker-and-virtual-machines" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        WSL, Docker and virtual machines
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#other-programs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Other programs
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Command-Line Flags
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./vt100.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  VT100 Mode
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./custom-buttons.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Custom Buttons
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./toolbar.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Toolbar & Shortcuts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./commands.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  REPL Commands
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./variables.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Variables
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./scripting.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Scripting
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./serial-tools.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Serial Tools
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./protocol-testing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Protocol Testing
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./data-capture.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data Capture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./symbols.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Symbols
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./devices.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Devices
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Memory
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./firmware.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Firmware
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./firmware-json.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Integration
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./boards.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Dev Boards
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./file-transfer.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  File Transfer
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./writing-plugins.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Writing Plugins
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./device-help.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Device Help
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./authoring-profiles.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Authoring Profiles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./mcp-server.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MCP Server
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./using-git.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Using with Git
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./on-ai-assistance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  On AI Assistance
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./acknowledgments.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Acknowledgments
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#opening-a-network-port" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Opening a network port
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Opening a network port">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#when-it-does-not-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        When it does not answer
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-a-network-port-cannot-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What a network port cannot do
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sharing-this-machines-ports" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Sharing this machine's ports
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sharing this machine&#x27;s ports">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-background-detach" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        In the background: <code>--detach</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#secure-setups" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Secure setups
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Secure setups">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#through-an-ssh-tunnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Through an SSH tunnel
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wsl-docker-and-virtual-machines" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        WSL, Docker and virtual machines
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#other-programs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Other programs
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+
+<h1 id="network-ports">Network ports<a class="headerlink" href="#network-ports" title="Permanent link">&para;</a></h1>
+<p>A serial port does not have to be on this machine. pyserial, which opens
+every port termapy uses, reaches one across a network in two forms, and
+termapy can sit at either end:</p>
+<ul>
+<li><code>rfc2217://host:port</code>: RFC 2217, Telnet with serial port control. The
+  baud rate, frame, flow control, DTR, RTS and break cross the network,
+  so the far port behaves like a local one. <code>termapy --serve</code> speaks it,
+  as do <code>ser2net</code> and serial device servers.</li>
+<li><code>socket://host:port</code>: raw TCP. Bytes only: the far port keeps whatever
+  settings it was opened with.</li>
+</ul>
+<p>Nothing finds a port on another machine, so it is named: by its URL here,
+and by <code>--listen</code> on the machine that shares one.</p>
+<h2 id="opening-a-network-port">Opening a network port<a class="headerlink" href="#opening-a-network-port" title="Permanent link">&para;</a></h2>
+<p>In the TUI, the port button in the title bar opens Select Serial Port.
+<strong>Network Port...</strong> swaps the list for a field: type the URL, <strong>Test</strong>
+opens the port and closes it again to see that it answers, and <strong>Use</strong>
+takes it as a picked port. The New Config wizard has the same field. A
+port a <code>termapy --serve</code> on this machine shares is already a row, by its
+URL.</p>
+<p>Anywhere else, the URL is the port:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>/port.connect rfc2217://192.168.1.57:2217        at the REPL
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>/port.test rfc2217://192.168.1.57:2217           open and close it, in any frontend
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>"port": "rfc2217://192.168.1.57:2217"            in a config
+</span></code></pre></div>
+<p>An open sets DTR and RTS, here or across an RFC 2217 link, so a board
+that resets on them resets on a test too. Under MCP a network port also
+needs <code>TERMAPY_MCP_NET_EGRESS=1</code> and <code>TERMAPY_ALLOWED_PORTS</code> naming the
+host exactly; see <a href="mcp-server.html">MCP server</a>.</p>
+<h3 id="when-it-does-not-answer">When it does not answer<a class="headerlink" href="#when-it-does-not-answer" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>What happened</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Nothing answers at host:port: no server listens there</code></td>
+<td>The server is not running, or the TCP port is wrong</td>
+</tr>
+<tr>
+<td><code>No answer from host:port in time: the host is off or unreachable</code></td>
+<td>The machine is off, asleep, or not on this network</td>
+</tr>
+<tr>
+<td><code>The server at host:port did not take the connection: busy with another client, or not an RFC 2217 server</code></td>
+<td>A <code>--serve</code> port takes one client at a time; or the server speaks raw TCP, so use <code>socket://</code></td>
+</tr>
+<tr>
+<td><code>The connection to host:port closed: the server stopped or the network dropped it</code></td>
+<td>The far end went away during the session</td>
+</tr>
+<tr>
+<td><code>Invalid port: socket://host (a network port is scheme://host:port)</code></td>
+<td>The URL has no TCP port number</td>
+</tr>
+</tbody>
+</table>
+<h3 id="what-a-network-port-cannot-do">What a network port cannot do<a class="headerlink" href="#what-a-network-port-cannot-do" title="Permanent link">&para;</a></h3>
+<p>A <code>socket://</code> port carries bytes and nothing else: the baud rate, frame,
+flow control, DTR, RTS and break never reach the device, and CTS, DSR and
+CD always read 1. So on an open <code>socket://</code> port the commands that set
+or read them (<code>/port.baud_rate</code>, <code>byte_size</code>, <code>parity</code>, <code>stop_bits</code>,
+<code>flow_control</code>, <code>mode</code>, <code>dtr</code>, <code>rts</code>, <code>cts</code>, <code>dsr</code>, <code>ri</code>, <code>cd</code>, <code>break</code>)
+refuse with the reason instead of reporting a change that never
+happened, and a button showing one of them reads <code>-</code>. <code>rfc2217://</code>
+carries all of them.</p>
+<p>No network keeps time: a delay stretches or vanishes on the way. So on
+either kind of network port, <code>/proto.send</code> refuses an inline <code>~Nms</code>
+delay; without one it sends as usual.</p>
+<p>Connecting runs none of these commands, so a config's own settings never
+stop a network port from opening. Only a line that sets one, typed,
+clicked or in an on-connect command, answers with the refusal.</p>
+<h2 id="sharing-this-machines-ports">Sharing this machine's ports<a class="headerlink" href="#sharing-this-machines-ports" title="Permanent link">&para;</a></h2>
+<p><strong>Status: prototype.</strong> <code>--serve</code> may change or be removed in any release.</p>
+<p><code>termapy --serve</code> puts serial ports on the network for another computer to
+open, over RFC 2217. It runs no TUI and none of the command system, so it
+starts in a fraction of a second. Name each port to share, each on its own
+TCP port, and the address clients connect to:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>termapy --serve COM3 --listen 192.168.1.57             rfc2217://192.168.1.57:2217
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>termapy --serve COM3 COM5 --listen 192.168.1.57        two ports
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>termapy --serve BG03U7VTA=2300 --listen 192.168.1.57   by USB serial number, on TCP port 2300
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>termapy --serve DEMO --listen localhost                the simulator, this machine only
+</span></code></pre></div>
+<p>termapy never picks the address: a machine has several (Wi-Fi, Ethernet, a
+VPN, a WSL or Hyper-V adapter), and the wrong one opens the port to the
+wrong network. Leave <code>--listen</code> out and it lists them, the default route's
+marked; leave the ports out and it lists those:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>$ termapy --serve COM3
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>termapy: error: --serve needs --listen, the address clients connect to:
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>  --listen localhost     this machine only
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>  --listen 192.168.1.57  the default route's: your LAN, most likely
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>  --listen 172.18.208.1
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>e.g. termapy --serve COM3 --listen 192.168.1.57
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>There is no login: anyone who can reach the address can drive the port.
+</span></code></pre></div>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>termapy --serve (prototype): serial ports on the network over RFC 2217
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>  COM3  -&gt;  rfc2217://192.168.1.57:2217
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>  COM5  -&gt;  rfc2217://192.168.1.57:2218
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>  Open to the network at 192.168.1.57. There is no login:
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>  anyone who can reach this address can drive these ports.
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>  Stop with Ctrl+C, or from any termapy: /app.kill serve (termapy --kill serve).
+</span></code></pre></div>
+<p>On the other computer the URL is the port, as in
+<a href="#opening-a-network-port">Opening a network port</a>, and the baud rate,
+frame, DTR, RTS and break set there reach the real port.</p>
+<ul>
+<li><strong>The ports you name, and no others.</strong> Unnamed ports stay free on this
+  machine. A port's TCP number is fixed by its place in the list or by
+  <code>=TCPPORT</code>, so a client's URL never changes.</li>
+<li><strong>Opened as a session opens one.</strong> <code>TERMAPY_ALLOWED_PORTS</code> applies, a
+  port open elsewhere is refused, and a port that will not open stops the
+  run before anything listens.</li>
+<li><strong>One client per port at a time.</strong> Another is refused at once, and the
+  server prints who holds the port. A client that vanishes without closing,
+  a laptop gone to sleep or off the network, is dropped within about a
+  minute, so it never holds the port for good.</li>
+<li><strong>Unplugged or reset, it comes back.</strong> The client is dropped and the
+  port is tried again about once a second while its URL keeps listening.
+  Name the port by its USB serial number, so a board that comes back as a
+  new COM number is still found.</li>
+<li><strong>No login.</strong> <code>--listen</code> with this machine's address opens the ports to
+  anyone who can reach it. <code>--listen localhost</code> keeps them to this machine.
+  A host name listens on every address it names: <code>localhost</code> on both <code>::1</code>
+  and <code>127.0.0.1</code>, so a client tries no address that is not listening.</li>
+<li><strong>A session kind of its own.</strong> <code>--alive</code> lists it as <code>serve</code> with every
+  port it holds, where each answers and who is connected to it, a TUI that
+  tries one of them is told the server holds it, and <code>/app.kill serve</code> or
+  <code>termapy --kill serve</code> stops every port server.</li>
+</ul>
+<h3 id="in-the-background-detach">In the background: <code>--detach</code><a class="headerlink" href="#in-the-background-detach" title="Permanent link">&para;</a></h3>
+<p>To run it in the background, add <code>--detach</code>. termapy starts the server as
+a process of its own, with no window, waits until it listens, and
+returns:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>$ termapy --serve COM7 --listen 192.168.1.57 --detach
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>termapy --serve is running in the background, PID 11120:
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>  COM7  -&gt;  rfc2217://192.168.1.57:2217
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>  Open to the network at 192.168.1.57. There is no login.
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>  Its output: C:\Users\you\AppData\Local\termapy\log\20261124_164358-serve.log
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>  Stop it with: termapy --kill serve
+</span></code></pre></div>
+<p>Closing the window it was started from does not stop it. Its banner and
+every event go to the output file, which the diagnostic log's own pruning
+removes in time. A server that cannot start, a port that will not open or
+a TCP port in use, prints its reason there and here, and <code>--detach</code> exits
+with its code. To start one at every logon, register the same command as a
+Task Scheduler task on Windows or a systemd unit on Linux or a Raspberry Pi.</p>
+<h2 id="secure-setups">Secure setups<a class="headerlink" href="#secure-setups" title="Permanent link">&para;</a></h2>
+<h3 id="through-an-ssh-tunnel">Through an SSH tunnel<a class="headerlink" href="#through-an-ssh-tunnel" title="Permanent link">&para;</a></h3>
+<p><code>--serve</code> has no login and no encryption. SSH supplies both: serve on
+<code>localhost</code> on the machine with the device, and carry the port to yours
+through a tunnel.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>on the machine with the device:   termapy --serve COM4 --listen localhost
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>on yours:                         ssh -L 2217:localhost:2217 user@device-machine
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>then open:                        rfc2217://localhost:2217
+</span></code></pre></div>
+<p>Only someone who can log in over SSH reaches the port, and nothing
+listens on the network but SSH.</p>
+<h3 id="wsl-docker-and-virtual-machines">WSL, Docker and virtual machines<a class="headerlink" href="#wsl-docker-and-virtual-machines" title="Permanent link">&para;</a></h3>
+<p>A Linux program in WSL cannot see Windows' COM ports. <code>--serve</code> shares one
+without taking it from Windows: WSL reaches Windows at the address of
+Windows' WSL adapter (<code>ipconfig</code> names it <code>vEthernet (WSL)</code>; it is
+<code>172.18.208.1</code> in the list above), so serve on that address and open
+<code>rfc2217://172.18.208.1:2217</code> inside WSL. With WSL's mirrored networking
+mode, <code>--listen localhost</code> reaches it too. A container or a virtual
+machine reaches the host the same way, at its virtual adapter's address.</p>
+<h2 id="other-programs">Other programs<a class="headerlink" href="#other-programs" title="Permanent link">&para;</a></h2>
+<p>Anything built on pyserial opens the same URLs: pyserial's own terminal
+(<code>python -m serial.tools.miniterm rfc2217://host:2217</code>) and <code>esptool</code>
+(<code>--port rfc2217://host:2217</code>), so a board on another machine can be
+flashed across the network. Most other terminals, PuTTY and Tera Term
+among them, do not speak RFC 2217.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="./ports.html" class="md-footer__link md-footer__link--prev" aria-label="Previous: Serial Ports">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Serial Ports
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="./cli.html" class="md-footer__link md-footer__link--next" aria-label="Next: Command-Line Flags">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Command-Line Flags
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":".","features":["navigation.footer"],"redirect":null,"search":"./assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="./assets/javascripts/bundle.9e76c64c.min.js"></script>
+      
+      
+    
+  </body>
+</html>

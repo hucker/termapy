@@ -84,6 +84,7 @@ from termapy.plugins.capabilities import (
 from termapy.plugins.command import has_required_arg, interpolate_help
 from termapy.plugins.params import parse_params
 from termapy.plugins.views import ERROR_COLOR, error_pieces
+from termapy.port_allow import NETWORK_SCHEMES, url_scheme
 from termapy.scripting import (
     SETTING_CYCLE,
     SETTING_TOGGLE,
@@ -3146,6 +3147,17 @@ class ReplEngine:
             return refusal_text(name, missing, self.prefix)
         return None
 
+    def _open_port_scheme(self) -> str | None:
+        """The URL scheme of the open port (``socket``, ``rfc2217``), or None for a device or no port.
+
+        Read from the port object, not the config: a spec can be a chain
+        of fallbacks, and a ``spy://`` port reports the port it wraps.
+        """
+        port = getattr(getattr(self.ctx, "internal", None), "port", None)
+        port_obj = port() if port is not None else None
+        name = getattr(port_obj, "port", None)
+        return url_scheme(name) if isinstance(name, str) else None
+
     def _effective_capabilities(self) -> CapabilitySet:
         """Return the context's capabilities augmented with dynamic ones.
 
@@ -3156,6 +3168,8 @@ class ReplEngine:
             executes on a background thread where blocking is safe).
           - ``script_idle``: its inverse, true only outside a script.
           - ``serial_connected``: true only when a port is currently open.
+          - ``port_settings``: false only while a ``socket://`` port is open.
+          - ``local_timing``: false only while a network port is open.
           - ``config_loaded``: true only while a config is loaded.
 
         Kept here as a single point of truth for "what can this command
@@ -3174,6 +3188,15 @@ class ReplEngine:
         is_connected = getattr(serial, "is_connected", None) if serial is not None else None
         if is_connected is not None and is_connected():
             dynamic_fields["serial_connected"] = True
+        # A network port cannot do what a device port does: a raw socket://
+        # carries bytes and no settings or lines, and no network keeps
+        # time.  Both hold while no port is open, so the gate answers
+        # "Not connected." first (registry socket-port-settings-refused).
+        scheme = self._open_port_scheme()
+        if scheme != "socket":
+            dynamic_fields["port_settings"] = True
+        if scheme not in NETWORK_SCHEMES:
+            dynamic_fields["local_timing"] = True
         # ctx.config_path is what every handler reads; "" means none loaded.
         if self.ctx.config_path:
             dynamic_fields["config_loaded"] = True

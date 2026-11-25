@@ -30,7 +30,15 @@ from termapy.folders import (
 )
 from termapy.help_dynamic import compose, folder_line
 from termapy.matching import did_you_mean, matches
-from termapy.plugins import CapabilitySet, CmdResult, Column, Command, UsageError, escape_markup
+from termapy.plugins import (
+    CapabilitySet,
+    CmdResult,
+    Column,
+    Command,
+    UsageError,
+    escape_markup,
+    state_message,
+)
 from termapy.plugins.capabilities import STATE_MESSAGES
 from termapy.protocol import (
     CRC_CATALOGUE,
@@ -524,6 +532,12 @@ def _parse_send_algo(
     return None, False, False
 
 
+def _keeps_timing(ctx: PluginContext) -> bool:
+    """True unless the open port is across a network, where an inline delay cannot hold (``local_timing``)."""
+    effective = ctx.internal.effective_capabilities
+    return effective is None or effective().local_timing
+
+
 def _delay_at_least(seconds: float) -> None:
     """Delay for at least *seconds*. Spin-waits under 1ms for precision."""
     if seconds >= 0.001:
@@ -637,6 +651,10 @@ def _handler_send(ctx: PluginContext, args: str) -> CmdResult:
 
     if not ctx.serial.is_connected():
         return CmdResult.fail(msg=STATE_MESSAGES["serial_connected"])
+    # An inline delay is a timing the device must see; across a network
+    # it stretches or vanishes, so refuse it there (local_timing).
+    if has_delays and not _keeps_timing(ctx):
+        return CmdResult.fail(msg=state_message("local_timing", ctx.prefix))
 
     with ctx.serial.io():
         ctx.serial.drain()

@@ -2704,3 +2704,16 @@ errno, so the client ends and the port is free (registry `serve-pumps-joined`). 
 changed:** `/app.kill` and `--kill` take a kind as a target, and pick a config named like a kind
 as well; `crumb_holding` matches any port a breadcrumb names; `--alive` and `/app.alive` gain
 ADDRESS, and their JSON records `address` and `clients`.
+
+## 2026-11-24 — The vendored pyserial carries one change: no `platform` import
+
+The first CI run of pyserial's `master` failed `TestPathsStayLight` on every Linux and macOS job:
+`serialposix.py`, which Windows never loads, now imports `platform` at load, only to call
+`platform.machine()` when it picks Linux's `termios2` constants. On POSIX that value is
+`os.uname().machine`, so the copy reads it there and drops the import (marked `termapy:`, listed
+in `vendor/LICENSES.md`), and a one-shot still loads no `platform` (registry `flag-paths-light`).
+Chuck chose the patch over counting `platform` as a start-up library on POSIX. This amends the
+entry above that vendored `master` whole; it is a candidate for a pull request upstream. The same
+CI run found termapy's ZMODEM receive from lrzsz's `sz` failing its CRC-32 check on macOS, the
+first macOS run that had ZMODEM in it; ZMODEM is a preview, so that test is marked `xfail` on
+macOS and the release notes say so, until it is debugged on the Mac bench.

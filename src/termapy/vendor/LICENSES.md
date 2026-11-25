@@ -24,5 +24,8 @@
 - License: BSD-3-Clause
 - Author: Chris Liechti
 - Last upstream release: 3.5, November 2020 (maintained again since late 2025, no release since)
-- Modification: none: the `serial/` package as that commit has it, which no longer ships
+- The `serial/` package as that commit has it, which no longer ships
   `serialcli.py` (IronPython) or `serialjava.py` (Jython) (registered into sys.modules via vendor/__init__.py)
+- Modification: `serialposix.py` reads the machine from `os.uname().machine` instead of
+  `platform.machine()` (the same value on POSIX), so no start loads `platform`
+  (marked `termapy:`)

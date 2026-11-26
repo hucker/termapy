@@ -12,6 +12,7 @@ deciders their breadcrumbs, so no port or process is involved.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -27,6 +28,10 @@ from termapy.port_control import (
 )
 
 OWN_PID = 1000
+
+
+# A config path as this OS writes one: the tooltip shows its stem.
+_BENCH_CFG = str(Path("/proj/termapy_cfg/bench/bench.cfg"))
 
 
 def _crumb(pid: int, open_port: str, frontend: str = "mcp", **facts: Any) -> Crumb:
@@ -201,7 +206,7 @@ class TestWhoHoldsIt:
     @pytest.mark.parametrize(("hides_host", "expected_pid"), [(False, 17140), (True, None)])
     def test_the_holder_is_shown_only_with_the_host_view(self, hides_host, expected_pid):
         """The holder is the breadcrumb of the session holding the port; without the host view it is none."""
-        holder = holder_of("COM7", [_crumb(17140, "com7")], hides_host=hides_host)
+        holder = holder_of("COM7", [_crumb(17140, "COM7")], hides_host=hides_host)
         actual = holder.pid if holder else None
         assert actual == expected_pid
 
@@ -214,7 +219,7 @@ class TestWhoHoldsIt:
         # Arrange
         from termapy.port_format import facts_to_json_record
 
-        crumb = _crumb(17140, "COM7", config=r"C:\proj\termapy_cfg\bench\bench.cfg")
+        crumb = _crumb(17140, "COM7", config=_BENCH_CFG)
 
         # Act
         held = facts_to_json_record(ChipFacts(device="COM7", session="x", holder=crumb))
@@ -232,7 +237,7 @@ class TestWhoHoldsIt:
         crumb = _crumb(
             17140,
             "COM7",
-            config=r"C:\proj\termapy_cfg\bench\bench.cfg",
+            config=_BENCH_CFG,
             settings="115200 8N1",
             parent_pid=17604,
             parent_name="powershell.exe",

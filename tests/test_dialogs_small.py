@@ -575,7 +575,7 @@ def _held_fleet() -> list[ChipFacts]:
         started="2026-11-12T10:00:00",
         frontend="mcp",
         open_port="COM7",
-        config=r"C:\proj\termapy_cfg\bench\bench.cfg",
+        config=str(Path("/proj/termapy_cfg/bench/bench.cfg")),
         settings="115200 8N1",
     )
     held = ChipFacts(device="COM7", session="termapy mcp, PID 17140", holder=crumb)

@@ -152,13 +152,25 @@ class CLITerminal(TerminalHost):
         # Rich console for colored output
         from rich.console import Console
 
+        class _PipeConsole(Console):
+            """A Rich console that leaves a closed stdout to ``CLITerminal._print``.
+
+            Rich turns ``BrokenPipeError`` (POSIX) into ``SystemExit(1)``,
+            past ``_print``; Windows raises ``OSError(EINVAL)``, which Rich
+            lets through.  Raising it again gives both one handler.
+            """
+
+            def on_broken_pipe(self) -> None:
+                """Raise the closed pipe for ``_print`` rather than exit 1."""
+                raise BrokenPipeError(errno.EPIPE, os.strerror(errno.EPIPE))
+
         # soft_wrap: never inject hard newlines into long lines.  On a live
         # terminal the emulator wraps visually (looks identical); piped
         # output keeps each logical line intact, which is what makes
         # ``-e "/port.list --json" | jq`` (and grep over long device
         # lines) work.  Tables are pre-fitted to term_width upstream, so
         # their rendering is unchanged.
-        self.console = Console(
+        self.console: Console = _PipeConsole(
             no_color=no_color,
             highlight=False,
             width=term_width,

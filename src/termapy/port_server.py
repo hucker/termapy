@@ -627,12 +627,15 @@ class PortServer:
         self._changed()
 
     def _accept_loop(self) -> None:
-        """Accept clients until stopped, retrying a lost port about once a second."""
+        """Accept clients until stopped, checking an idle port and retrying a lost one about once a second."""
         retry_at = 0.0
         while not self._stop.is_set():
-            if self._port is None and time.monotonic() >= retry_at:
+            if time.monotonic() >= retry_at:
                 retry_at = time.monotonic() + _REOPEN_S
-                self._try_reopen()
+                if self._port is None:
+                    self._try_reopen()
+                else:
+                    self._check_idle_port()
             try:
                 ready, _, _ = select.select(self._listeners, [], [], _ACCEPT_POLL_S)
             except (OSError, ValueError):
@@ -645,6 +648,26 @@ class PortServer:
                 except OSError:
                     return
                 self._admit(conn, str(address[0]))
+
+    def _check_idle_port(self) -> None:
+        """Notice a port that vanished while no client used it, as a client's failed read would.
+
+        A client's pumps find a lost port when a read or write fails; with no
+        client nothing touched the port, so a device unplugged or re-enumerated
+        (a hub reset) left the server on a dead handle, still claiming the port
+        in its breadcrumb while another program opened the device that came
+        back (found 2026-11-25).  ``in_waiting`` asks the port's status and
+        reads no data: it fails on a device that is gone, on Windows and Linux.
+        """
+        with self._lock:
+            port = self._port
+            client = self._client
+        if port is None or (client is not None and client.alive):
+            return
+        try:
+            _ = port.in_waiting
+        except (SerialException, OSError) as e:
+            self.port_lost(port, e)
 
     def _try_reopen(self) -> None:
         """Open the lost port again; quiet while it is still gone."""

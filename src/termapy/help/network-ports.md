@@ -119,8 +119,9 @@ frame, DTR, RTS and break set there reach the real port.
   server prints who holds the port. A client that vanishes without closing,
   a laptop gone to sleep or off the network, is dropped within about a
   minute, so it never holds the port for good.
-- **Unplugged or reset, it comes back.** The client is dropped and the
-  port is tried again about once a second while its URL keeps listening.
+- **Unplugged or reset, it comes back.** The server notices within about
+  a second, whether or not a client is connected: a client is dropped, and
+  the port is tried again about once a second while its URL keeps listening.
   Name the port by its USB serial number, so a board that comes back as a
   new COM number is still found.
 - **No login.** `--listen` with this machine's address opens the ports to

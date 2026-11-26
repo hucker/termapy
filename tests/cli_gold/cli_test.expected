@@ -359,7 +359,7 @@ demo> /print === section: config dump ===
   === section: config dump ===
 demo> /cfg.dump
   {
-      "config_version": 42,
+      "config_version": 43,
       "title": "Demo Device",
       "border_color": "",
       "serial": {

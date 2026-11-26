@@ -343,7 +343,7 @@ class CLITerminal(TerminalHost):
         """Ask at the prompt before ``verb`` drops unsaved settings; a yes goes on, ``/cfg.save`` keeps them.
 
         Asked only where someone can answer: a terminal, outside a script
-        and a one-shot.  A stop request from ``--kill`` does not ask: it
+        and a one-shot.  A stop request from ``--stop`` does not ask: it
         arrives while the prompt owns the terminal.
         """
         changes = self.session_changes()

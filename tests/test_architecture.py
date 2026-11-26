@@ -1926,9 +1926,9 @@ def test_folder_family_guard_fires_on_a_probe():
 
 # ── Guard: a session's kind is a row of one table (registry session-kinds-one-table) ──
 #
-# 2026-11-24: --serve made a sixth kind of session, and /app.kill serve stops
+# 2026-11-24: --serve made a sixth kind of session, and /app.stop serve stops
 # every one; a kind spelled in one frontend and missing from the table would
-# be a session /app.kill could not name.  Every literal a breadcrumb carries as
+# be a session /app.stop could not name.  Every literal a breadcrumb carries as
 # its frontend -- a ``front_end`` class attribute, the first argument of a
 # ``breadcrumbs.leave`` call -- is a ``breadcrumbs.SESSION_KINDS`` key.
 
@@ -2974,7 +2974,7 @@ NOT_IN_GOLD: dict[str, str] = {
     "app.config.dump": "prints the user's app-wide config, which differs per machine",
     "app.config.edit": _OPENS_APP,
     "app.explore": _OPENS_APP,
-    "app.kill": "ends other termapy processes on this machine, after a yes; tests/test_breadcrumbs.py drives it",
+    "app.stop": "ends other termapy processes on this machine, after a yes; tests/test_breadcrumbs.py drives it",
     "app.list": "lists the user's app folder, which differs per machine",
     "app.alive": "lists the termapy processes on this machine, by PID and start time",
     "app.state": _PATH,
@@ -5517,8 +5517,8 @@ RAW_NAME_HOMES: dict[str, frozenset[str]] = {
     "read_running": frozenset(
         {
             "breadcrumbs.py",  # defined
-            "builtins/commands/app.py",  # /app.alive, /app.kill (host_info), /app.list's count
-            "cli_flags.py",  # --alive, --kill: the operator at the command line
+            "builtins/commands/app.py",  # /app.alive, /app.stop (host_info), /app.list's count
+            "cli_flags.py",  # --alive, --stop: the operator at the command line
             "port_control.py",  # which session holds a port, behind env_flags.port_policy
             "serial_engine.py",  # which session holds a port a connect found busy, as its lsof does
         }

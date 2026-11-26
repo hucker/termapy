@@ -97,7 +97,7 @@ def app_factory(tmp_path):
 class TestAppBoots:
     """Booting the real app is itself coverage: __init__ and compose run."""
 
-    @pytest.mark.rule("kill-asks-first")
+    @pytest.mark.rule("stop-asks-first")
     def test_a_request_to_leave_exits_as_exit_does(self, app_factory, tmp_path, monkeypatch):
         """Another termapy's request ends the TUI through its own teardown: history, Session End."""
         # Arrange
@@ -4315,7 +4315,7 @@ class TestUnsavedSettings:
         _run(scenario)
 
     @pytest.mark.rule("leave-asks-unsaved")
-    def test_a_kill_request_asks_before_leaving(self, app_factory):
+    def test_a_stop_request_asks_before_leaving(self, app_factory):
         """Another termapy's stop request meets the Exit question when a setting is unsaved; the TUI stays until it is answered."""
         app, _, _ = app_factory()
 

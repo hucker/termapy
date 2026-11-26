@@ -219,7 +219,7 @@ COMMAND = Command(
         "Every termapy MCP server has the same command line, so the pid\n"
         "is how to find a particular one in tasklist or ps.  On Windows\n"
         "under uv it is the interpreter, whose parent is a launcher;\n"
-        "ending it (taskkill /F /PID <pid>, or kill <pid>) ends the\n"
+        "ending it (taskkill -PID <pid> -F, or kill <pid>) ends the\n"
         "launchers too and frees termapy.exe.\n"
         "\n"
         "Both commands work in any frontend (TUI/CLI/MCP); they don't\n"

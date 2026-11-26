@@ -419,7 +419,7 @@ A connect that fails because another termapy session holds the port says
 which session, from the same breadcrumbs, and how to free the port:
 
 ```text
-Cannot open COM7: in use by termapy tui, PID 21552, config quick-COM7 -- stop it with /app.kill 21552, or termapy --kill 21552 from a shell
+Cannot open COM7: in use by termapy tui, PID 21552, config quick-COM7 -- stop it with /app.stop 21552, or termapy --stop 21552 from a shell
 ```
 
 A config that names its port by USB serial number is matched as the port

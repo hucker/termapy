@@ -1486,7 +1486,7 @@ class TestHelpFlag:
         # Assert
         assert positions == sorted(positions), "the five groups, in this order"
         under = {}
-        for flag in ("--demo", "--run", "--quiet", "--ports", "--kill"):
+        for flag in ("--demo", "--run", "--quiet", "--ports", "--stop"):
             # The flag's own row starts a line, short form first when it has one; the name also appears inside other rows' text.
             # argparse writes a short form's metavar before Python 3.13 (`-r RUN, --run RUN`), not from 3.13 (`-r, --run RUN`).
             match = re.search(rf"^  (?:-\w[^,\n]*, )?{re.escape(flag)}\b", out, re.MULTILINE)
@@ -1500,7 +1500,7 @@ class TestHelpFlag:
             "--run": "Run One Thing and Exit",
             "--quiet": "Settings",
             "--ports": "Ask About the Machine (No Session, No Port Opened)",
-            "--kill": "Running Termapys",
+            "--stop": "Running Termapys",
         }, "each sample flag under its group's title"
 
     @pytest.mark.rule("flag-twins-declared")
@@ -2107,9 +2107,9 @@ class TestPathsStayLight:
     a ZMODEM transfer.
     """
 
-    @pytest.mark.parametrize("flag", ["--ports", "--usb", "--alive", "--kill"])
+    @pytest.mark.parametrize("flag", ["--ports", "--usb", "--alive", "--stop"])
     def test_print_and_exit_flags_load_nothing_heavy(self, tmp_path, flag):
-        """--ports, --usb, --alive and --kill load no UI framework, no metadata and no frist."""
+        """--ports, --usb, --alive and --stop load no UI framework, no metadata and no frist."""
         # Act
         actual = _loaded_after(flag, cwd=tmp_path)
 
@@ -3180,7 +3180,7 @@ class TestServeDetach:
         return {**os.environ, "TERMAPY_STATE_DIR": str(state), "TERMAPY_DIAG_DIR": str(diag)}
 
     @pytest.mark.sw_loopback
-    def test_it_returns_once_the_server_listens_and_kill_serve_stops_it(self, isolated, tmp_path):
+    def test_it_returns_once_the_server_listens_and_stop_serve_stops_it(self, isolated, tmp_path):
         """The command exits 0 naming the PID, the URL and the output file; the server answers, writes there, and leaves when asked."""
         import socket
         import subprocess

@@ -1,4 +1,4 @@
-"""Breadcrumbs: every running termapy leaves a file saying what it holds, so ``--alive`` and ``--kill`` can find it.
+"""Breadcrumbs: every running termapy leaves a file saying what it holds, so ``--alive`` and ``--stop`` can find it.
 
 One small JSON file per process, ``running/<pid>.json`` in the app state
 folder (``app_dirs.app_state_dir``): the frontend, the config, the port it
@@ -7,9 +7,9 @@ breadcrumb when it starts, rewrites it when it connects, disconnects or
 switches config, and removes it when it exits.  A process that is killed
 or crashes leaves its file behind, naming a PID that has gone or now
 belongs to another program; the start token tells the two apart, so a
-stale breadcrumb is never acted on (registry ``kill-verifies-identity``).
+stale breadcrumb is never acted on (registry ``stop-verifies-identity``).
 
-Stopping a session asks it and never ends it (registry ``kill-asks-first``):
+Stopping a session asks it and never ends it (registry ``stop-asks-first``):
 a request file, ``running/<pid>.stop``, which the session's ``StopWatch``
 finds within 100 ms and answers by leaving the way ``/exit`` makes it
 leave.  A session still running after the grace period is reported with
@@ -42,7 +42,7 @@ RUNNING_FOLDER = "running"
 # Every kind of session a breadcrumb can name, and what each is: the one table
 # of them (registry session-kinds-one-table).  A frontend's breadcrumb carries
 # one of these keys, /app.alive shows it as the MODE, and a key is an
-# /app.kill target that picks every session of that kind.
+# /app.stop target that picks every session of that kind.
 SESSION_KINDS: dict[str, str] = {
     "tui": "the TUI, in a terminal",
     "cli": "the plain CLI",
@@ -438,7 +438,7 @@ class Breadcrumb:
         """Write or rewrite the breadcrumb, and arrange its removal at exit.
 
         Written whole and then renamed into place, so a reader never sees half
-        a file.  A failed write is swallowed: it costs only ``--kill``'s view
+        a file.  A failed write is swallowed: it costs only ``--stop``'s view
         of this process, never the session.
 
         Args:
@@ -647,7 +647,7 @@ def select(crumbs: Iterable[Crumb], target: str) -> list[Crumb]:
     """The breadcrumbs ``target`` picks: ``all``, ``others``, a kind, a PID, a port, or a config name.
 
     ``others`` picks the same as ``all`` here: a session that asks drops
-    itself from the result (``/app.kill``), and the ``--kill`` process is
+    itself from the result (``/app.stop``), and the ``--stop`` process is
     not a session.  A kind (a ``SESSION_KINDS`` key, ``serve``) picks every
     session of that kind.  A target of digits picks the session with that
     PID.  A port is compared the way termapy compares port names everywhere
@@ -655,7 +655,7 @@ def select(crumbs: Iterable[Crumb], target: str) -> list[Crumb]:
     config's setting.  A config name is exact, case ignored; a wildcard
     makes either a glob (``matching``), so ``m3*`` picks several.  The
     forms are alternatives, so a config named like a kind or a PID is
-    picked as well: ``/app.kill`` lists what it picked before it asks.
+    picked as well: ``/app.stop`` lists what it picked before it asks.
 
     Args:
         crumbs: The running termapys.
@@ -739,7 +739,7 @@ def request_stop(crumb: Crumb, *, by: int | None = None) -> bool:
 
     Writes ``running/<pid>.stop`` holding the session's start token, so a
     PID the OS has since given to another termapy never acts on it
-    (registry ``kill-verifies-identity``), and the PID that asked.  Written
+    (registry ``stop-verifies-identity``), and the PID that asked.  Written
     whole and renamed into place, under a name of its own: the session
     rewrites its breadcrumb through ``<pid>.tmp``.
 
@@ -923,7 +923,7 @@ def stop_sessions(
     wait is ``grace_s`` at most, however many there are.  A session still
     running after it, hung or older than stop requests, keeps running and
     is reported with the command that ends it (registry
-    ``kill-asks-first``).  Its request is withdrawn; what is gone loses its
+    ``stop-asks-first``).  Its request is withdrawn; what is gone loses its
     request and breadcrumb files.
 
     Args:
@@ -994,9 +994,9 @@ def session_columns() -> tuple[Column, ...]:
 
     A narrow frontend drops STARTED BY first, then ADDRESS, STARTED,
     VERSION and SETTINGS; a column every session leaves blank is hidden, so
-    ADDRESS shows only while a ``serve`` or ``web`` server runs.  KILL is a
+    ADDRESS shows only while a ``serve`` or ``web`` server runs.  STOP is a
     link on every session but this one, which ``/exit`` ends: a click runs
-    ``/app.kill <pid>``, which asks first.  It shows only where a click
+    ``/app.stop <pid>``, which asks first.  It shows only where a click
     reaches it (the TUI), and not at all when this session runs alone.  Built
     on each call so that importing this module loads no table code.
     """
@@ -1005,9 +1005,9 @@ def session_columns() -> tuple[Column, ...]:
     return (
         Column("PID", lambda record: str(record["pid"]), right=True),
         Column(
-            "KILL",
-            lambda record: "" if record["this_session"] else "kill",
-            run=lambda record: f"app.kill {record['pid']}",
+            "STOP",
+            lambda record: "" if record["this_session"] else "stop",
+            run=lambda record: f"app.stop {record['pid']}",
             style=lambda record: "dim",
             hide_empty=True,
             link_only=True,

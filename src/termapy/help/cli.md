@@ -275,7 +275,7 @@ open as `rfc2217://HOST:2217`; `--detach` runs it in the background. Its
 addresses, ports, one client at a time, the background and the secure
 setups are on [Network ports](network-ports.md#sharing-this-machines-ports).
 
-## `--alive` and `--kill`: see and stop sessions
+## `--alive` and `--stop`: see and stop sessions
 
 Every running termapy -- a TUI, a CLI, an MCP server an editor started, a
 `--web` server, a `--serve` port server -- leaves a breadcrumb in the app state folder
@@ -308,11 +308,11 @@ and uv.  A one-shot (`-e`,
 `--run`) records no version or starter, which take a tenth of a second to
 read.  A narrow terminal drops STARTED BY first.
 
-In the TUI, `/app.alive` adds a KILL column: a `kill` link on every
-session but your own, which runs `/app.kill <pid>` for that row and asks
+In the TUI, `/app.alive` adds a STOP column: a `stop` link on every
+session but your own, which runs `/app.stop <pid>` for that row and asks
 first.  The command line has nothing to click, so `--alive` leaves it out.
 
-`--kill` stops them, after a yes; bare, it lists them as `--alive` does.
+`--stop` stops them, after a yes; bare, it lists them as `--alive` does.
 Each session is asked to leave and leaves as `/exit` does: its terminal
 restored, its port closed, its history saved, its session log ended.
 A TUI holding unsaved settings asks about them first, as its Exit does,
@@ -324,18 +324,18 @@ command that ends it (`taskkill -PID 22056 -F` on Windows, which works in
 cmd, PowerShell and Git Bash alike, `kill -9 22056` elsewhere):
 
 ```sh
-termapy --kill all      # every termapy, say before an update
-termapy --kill serve    # every session of that kind: tui, cli, mcp, web, vt100, serve
-termapy --kill 21552    # the session with that PID, as --alive lists it
-termapy --kill COM4     # whichever session holds COM4
-termapy --kill m3_bin   # the sessions on that config (m3* picks several)
-termapy --kill all timeout=10s   # give them longer to leave
-termapy --kill all -y            # no question: yes (-y / --yes)
+termapy --stop all      # every termapy, say before an update
+termapy --stop serve    # every session of that kind: tui, cli, mcp, web, vt100, serve
+termapy --stop 21552    # the session with that PID, as --alive lists it
+termapy --stop COM4     # whichever session holds COM4
+termapy --stop m3_bin   # the sessions on that config (m3* picks several)
+termapy --stop all timeout=10s   # give them longer to leave
+termapy --stop all -y            # no question: yes (-y / --yes)
 ```
 
-Inside termapy the same two are `/app.alive` and `/app.kill <target>`:
-`/app.kill others` stops every session but the one you type it in,
-`/app.kill all` that one too, and `/app.kill me` that one alone, which is
+Inside termapy the same two are `/app.alive` and `/app.stop <target>`:
+`/app.stop others` stops every session but the one you type it in,
+`/app.stop all` that one too, and `/app.stop me` that one alone, which is
 `/exit`.  When a target picks the session you type it in, that one goes
 last, through `/exit`, so it saves its history.
 `/app.alive.json` adds what does not fit a row: the config, the Python
@@ -379,7 +379,7 @@ form, shown first; `-h` prints the same help.
 | `-e`, `--exec CMD...` | Run one command and exit (CLI mode).  The command is the rest of the line, quotes optional, so `-e` goes last.  Implies `--cli` and `--no-color`.  See [One-shot exec](#one-shot-exec--e----exec) below. |
 | `-r`, `--run SCRIPT` | Run a `.run` script headlessly, then exit.                    |
 | `--proto NAME`    | Run a `.pro` protocol test headlessly and write JSON results (see [Protocol testing](protocol-testing.md)). |
-| `-y`, `--yes`     | Answer yes to the command line's questions: `--kill`, `--new`'s overwrite, a CLI session's. Not the TUI's dialogs; never under `--mcp`. |
+| `-y`, `--yes`     | Answer yes to the command line's questions: `--stop`, `--new`'s overwrite, a CLI session's. Not the TUI's dialogs; never under `--mcp`. |
 
 ### Settings
 
@@ -410,8 +410,8 @@ Shape a CLI run's output; each lasts this run.
 
 | Flag              | What it does                                                  |
 | ----------------- | ------------------------------------------------------------- |
-| `--alive`         | List the termapys running on this machine (see [`--alive` and `--kill`](#--alive-and---kill-see-and-stop-sessions) above). Same as `-e /app.alive`. |
-| `--kill TARGET`   | Ask the termapys a TARGET picks to exit; bare, list them (same section). Same as `-e /app.kill`. |
+| `--alive`         | List the termapys running on this machine (see [`--alive` and `--stop`](#--alive-and---stop-see-and-stop-sessions) above). Same as `-e /app.alive`. |
+| `--stop TARGET`   | Ask the termapys a TARGET picks to exit; bare, list them (same section). Same as `-e /app.stop`. |
 
 Any REPL command also accepts `--json` to render its result as a JSON
 envelope -- `termapy -e /port.list --json` pipes cleanly to `jq`.

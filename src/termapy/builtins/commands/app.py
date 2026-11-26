@@ -16,7 +16,7 @@ Command surface:
 - ``/app.config.dump``  print ``config.json`` contents to the terminal
 - ``/app.config.edit``  open ``config.json`` in the system editor
 - ``/app.alive``        list the termapys running on this machine
-- ``/app.kill``         stop the termapys a target picks, after a yes; bare, list them
+- ``/app.stop``         stop the termapys a target picks, after a yes; bare, list them
 
 There is no bare ``/app`` -- every action is a subcommand.  Both
 ``state.json`` and ``config.json`` expose ``.edit`` for symmetry,
@@ -296,8 +296,8 @@ def _handler_ver_info(ctx: PluginContext, args: str) -> CmdResult:
 
 
 _APP_LONG_HELP = """\
-Sessions: {prefix}app.alive lists them; {prefix}app.kill others stops every
-one but this, {prefix}app.kill all this one too (last, through {prefix}exit).
+Sessions: {prefix}app.alive lists them; {prefix}app.stop others stops every
+one but this, {prefix}app.stop all this one too (last, through {prefix}exit).
 
 Files: {prefix}app.state and {prefix}app.config print a path; add .dump to print
 the file, .edit to open it.  state.json is written by termapy (update-check
@@ -306,7 +306,7 @@ preferences, though no feature reads it yet.  {prefix}app.ver.latest and
 {prefix}app.ver.info compare with PyPI."""
 
 
-# ── /app.alive, /app.kill ─────────────────────────────────────────────────────
+# ── /app.alive, /app.stop ─────────────────────────────────────────────────────
 
 
 def _handler_alive(ctx: PluginContext, args: str) -> CmdResult:
@@ -321,19 +321,19 @@ def _handler_alive(ctx: PluginContext, args: str) -> CmdResult:
     )
 
 
-def _handler_kill(ctx: PluginContext, args: str) -> CmdResult:
+def _handler_stop(ctx: PluginContext, args: str) -> CmdResult:
     """Stop the termapys a target picks, after a yes (``breadcrumbs.stop_sessions``).
 
     Each one is asked to leave the way ``/exit`` makes it leave; one still
     running after the grace period keeps running, and the failure names the
-    command that ends it (registry ``kill-asks-first``).  ``others`` is every session but this one (tmux's
+    command that ends it (registry ``stop-asks-first``).  ``others`` is every session but this one (tmux's
     ``kill-session -a``); ``me`` is this session alone, and is ``/exit``, which
     asks only about unsaved settings;
     ``all`` and any target that picks this session include it.  This
-    session is never killed: it goes last, through ``exit``, so it saves
+    session is never sent a request: it goes last, through ``exit``, so it saves
     its history and ends its log like any exit.  If another session would
     not stop, this one stays open to show why.  Bare, it stops nothing and
-    answers with ``/app.alive``'s list, as bare ``termapy --kill`` does.
+    answers with ``/app.alive``'s list, as bare ``termapy --stop`` does.
     """
     target = ctx.arg("target") or ""
     if not target:
@@ -375,7 +375,7 @@ def _handler_kill(ctx: PluginContext, args: str) -> CmdResult:
     )
 
 
-_KILL_LONG_HELP = (
+_STOP_LONG_HELP = (
     "Stops termapy sessions, after a yes.  Each is asked to leave the way\n"
     "{prefix}exit leaves, restoring its terminal and saving its history.  termapy\n"
     "never ends one itself: one still running when timeout= is up (default\n"
@@ -390,12 +390,12 @@ _KILL_LONG_HELP = (
     "  COM3     the session holding that port\n"
     "  rig      the sessions on that config (rig* picks several)\n"
     "\n"
-    "This session is never killed: when a target picks it, it goes last,\n"
+    "This session is never sent a request: when a target picks it, it goes last,\n"
     "through {prefix}exit, so it saves its history and ends its log.  Use it\n"
     "for a clean system, say before an update, when a forgotten MCP server\n"
     "still holds a port.  Not over MCP: an agent cannot end your sessions.\n"
     "Bare, it stops nothing and lists the sessions, as {prefix}app.alive does.\n"
-    "From the command line: termapy --alive and termapy --kill <target>."
+    "From the command line: termapy --alive and termapy --stop <target>."
 )
 
 
@@ -473,8 +473,8 @@ COMMAND = Command(
                 "--run) records no "
                 "version or starter.  --json adds the paths: config, Python, the\n"
                 "folder it started in, its session log, and the port's serial\n"
-                "number.  This session is marked (this).  {prefix}app.kill stops them,\n"
-                "and in the TUI each other session's kill link runs it for that PID;\n"
+                "number.  This session is marked (this).  {prefix}app.stop stops them,\n"
+                "and in the TUI each other session's stop link runs it for that PID;\n"
                 "termapy --alive prints the same list from the command line."
             ),
             handler=_handler_alive,
@@ -485,10 +485,10 @@ COMMAND = Command(
             # (decision 2026-11-12).
             needs=CapabilitySet(host_info=True),
         ),
-        "kill": Command(
+        "stop": Command(
             help="Stop termapy sessions: others, all, me, a kind, a PID, a port or a config; bare lists.",
-            long_help=_KILL_LONG_HELP,
-            handler=_handler_kill,
+            long_help=_STOP_LONG_HELP,
+            handler=_handler_stop,
             params=[
                 ParamSpec(
                     "target",

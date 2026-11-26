@@ -4496,7 +4496,7 @@ def _run_web_mode(args: argparse.Namespace) -> None:
     # The child knows it is served (Textual's App.is_web) and publishes the
     # WEB row; the address above is the one thing it cannot see for itself.
     # The server holds no serial port (each browser session is a TUI
-    # process with its own breadcrumb); this one lets --kill find it.
+    # process with its own breadcrumb); this one lets --stop find it.
     from termapy import breadcrumbs
 
     # Where the server answers, for --alive: it listens there for its whole run.

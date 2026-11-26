@@ -1580,7 +1580,7 @@ SIGTERM would serve, but a TUI or CLI does not handle it. A request the session 
 same on every OS. One request per session, not one shared file (Chuck's first sketch): a shared
 file cannot carry a target (`COM4`, `m3_bin`), a session started during the stop would see it and
 leave, and one left behind by a crashed asker would stop every termapy after it. The token is the
-session's, so a PID the OS reuses never acts on a request (`kill-verifies-identity`), and
+session's, so a PID the OS reuses never acts on a request (`stop-verifies-identity`), and
 `prune_stale` deletes a request no live session carries. No automatic hard kill as the fallback
 (Chuck): a session that did not leave may be mid-flash or mid-transfer, and ending it is the
 person's call, made knowing that, with the command in hand.
@@ -1591,7 +1591,7 @@ normal unwind would hang until the client wrote. The teardown it runs first is t
 shutdown always runs (`MCPHost.shut_down`), queued on the command worker behind any command in
 flight. Handling SIGTERM in every frontend, for `kill <pid>` and `docker stop`, is a separate item.
 **Where:** `breadcrumbs.request_stop` / `StopWatch` / `on_stop_request` / `stop_sessions`,
-`TerminalHost._watch_for_stop` and each frontend's `_leave_on_request`; registry `kill-asks-first`;
+`TerminalHost._watch_for_stop` and each frontend's `_leave_on_request`; registry `stop-asks-first`;
 `help/cli.md`.
 
 ## 2026-11-12 — `--web [[HOST:]PORT]` is the one web flag; `/cli` and `/vt100` need a console
@@ -2836,3 +2836,15 @@ help text (registry `help-text-not-behavior`). **Behavior changed:** the `/` pop
 `n/a` (on Windows the latency timer points to Device Manager); on macOS the gate refuses
 `/port.usb` with the capability's hint instead of the handler's "USB tree is not available on
 darwin", which `termapy --usb` keeps, since a flag calls the core directly.
+
+## 2026-11-26 — Stopping a session is /app.stop; kill is left for a forced end
+
+`/app.kill` and `termapy --kill` never ended a process: they ask each session to leave the way
+`/exit` leaves, wait, and name the OS command that forces one that stays (registry
+`stop-asks-first`). The name promised more than the command does, and the code behind it already
+said stop (`request_stop`, `stop_sessions`, `running/<pid>.stop`). They are now `/app.stop` and
+`termapy --stop`, and `/app.alive`'s link column is STOP, as `docker stop` asks and waits where
+`docker kill` forces. The registry ids follow (`stop-asks-first`, `stop-verifies-identity`).
+`kill` stays free for a command that forces an end, which termapy does not have.
+**Behavior changed:** the old names are gone, with no alias. Config migration v43 renames the
+command in the on-connect keys and custom buttons; a `.run` file that names it is not rewritten.

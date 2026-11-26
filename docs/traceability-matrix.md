@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 243: 228 registry rows (guarantees 191, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 239. Pinned by none: 4.
+Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 241. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -120,7 +120,7 @@ Ids: 243: 228 registry rows (guarantees 191, assumptions 37), 15 spec sections i
 
 ### `capability-declared-once` (guarantee, structure)
 
-- `test_help_capabilities.py`: the module (13 functions)
+- `test_help_capabilities.py`: the module (15 functions)
 - `test_plugins.py`: `TestRequirementHints.test_every_restrictive_field_has_a_hint` **guard**, `TestRequirementHints.test_hints_fit_the_requires_stem` **guard**
 
 ### `capture-owns-claim` (guarantee, concurrency)
@@ -501,6 +501,11 @@ Ids: 243: 228 registry rows (guarantees 191, assumptions 37), 15 spec sections i
 
 - `test_help_page.py`: the module (14 functions) **guard**
 
+### `help-text-not-behavior` (guarantee, structure)
+
+- `test_app_pilot_views.py`: `TestCommandPopup.test_a_help_line_hides_no_command`
+- `test_architecture.py`: `test_help_text_guard_fires_on_a_probe` **guard**, `test_no_code_decides_from_help_text` **guard**
+
 ### `hex-capture-refuses-non-hex` (guarantee, requirement)
 
 - `test_capture.py`: `TestHexCapture.test_a_non_hex_line_aborts_the_capture` **guard**
@@ -582,7 +587,7 @@ Ids: 243: 228 registry rows (guarantees 191, assumptions 37), 15 spec sections i
 
 ### `link-explains-itself` (guarantee, requirement)
 
-- `test_help_capabilities.py`: the module (13 functions)
+- `test_help_capabilities.py`: the module (15 functions)
 - `test_help_idioms.py`: the module (28 functions) **guard**
 - `test_help_links.py`: `test_every_command_a_click_can_run_has_a_verb`
 
@@ -1163,6 +1168,11 @@ Ids: 243: 228 registry rows (guarantees 191, assumptions 37), 15 spec sections i
 - `test_folder_ops_delete.py`: `test_bare_is_a_usage_error`
 - `test_term_send.py`: `TestTermSendErrors.test_no_args_returns_usage`
 - `test_usage_error.py`: the module (11 functions)
+
+### `usb-tree-capability` (guarantee, contract)
+
+- `test_help_capabilities.py`: `test_every_frontend_has_the_usb_tree_where_the_os_does`, `test_the_usb_tree_is_detected_from_the_os` **guard**
+- `test_port_commands.py`: `TestUsbTree.test_without_a_reader_the_gate_refuses_the_tree` **guard**
 
 ### `uses-port-declared` (guarantee, contract)
 

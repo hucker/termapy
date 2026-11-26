@@ -2813,3 +2813,26 @@ console that is never shown, and the interpreter shares it. It is still not the 
 `--detach` was typed in, so closing that window does not reach the server, and the process group
 of its own still keeps a Ctrl+C there from reaching it. Windows ignores `CREATE_NO_WINDOW` beside
 `DETACHED_PROCESS`, so the second is gone (registry `serve-detaches`). Released as 0.82.1.
+
+## 2026-11-25 — A command names the ability it needs, never the OS
+
+Asked whether an OS-specific command should declare a capability such as `windows_required`, we
+read every `sys.platform` check behind a command. Most are one command doing what each OS allows
+(the in-use column of `--watch`, the in-use probe of `--ports`, the launcher `/cfg.icon` makes)
+and have nothing to refuse. The `/port.chip` fields only some OSes report (`negotiated`,
+`latency_timer`, `driver`, `permissions`) answer `n/a` elsewhere, a true answer that depends on
+the chip as much as the OS. One command cannot work at all on one OS: `/port.usb` has no reader
+on macOS. It now needs the `usb_tree` capability, named for the ability rather than an OS: a
+capability says what a command needs, never where it runs, and an OS name would turn false the
+day a reader is written (macOS keeps the tree in its IOKit registry; termapy reads none).
+`capabilities.detect_usb_tree` is the one answer, read by every frontend's row and by
+`usb_tree.gather_usb_tree` (registry `usb-tree-capability`).
+
+The same reading found the `/` popup hiding, off Linux, every command whose help line matched
+"linux ... only" (`app._LINUX_ONLY_RE`): a fact the code relied on lived in prose, so rewording
+a help line changed the UI. The regex is gone, and a guard keeps code from deciding anything from
+help text (registry `help-text-not-behavior`). **Behavior changed:** the `/` popup lists
+`/port.chip.negotiated` and `/port.chip.latency_timer` on every OS, where off Linux they answer
+`n/a` (on Windows the latency timer points to Device Manager); on macOS the gate refuses
+`/port.usb` with the capability's hint instead of the handler's "USB tree is not available on
+darwin", which `termapy --usb` keeps, since a flag calls the core directly.

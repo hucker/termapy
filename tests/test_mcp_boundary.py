@@ -1047,8 +1047,7 @@ class TestHostView:
         actual = json.loads(result.stdout.splitlines()[-1])
         assert actual["host_info"] is expected_view, "the flag decides the capability"
         gated = {
-            line: "requires the host_info capability" in error
-            for line, error in actual["errors"].items()
+            line: "requires the host_info" in error for line, error in actual["errors"].items()
         }
         expected = dict.fromkeys(gated, not expected_view)
         assert gated == expected, "and whether each machine view is refused at the gate"
@@ -1058,10 +1057,8 @@ class TestHostView:
         # Act
         answer = _call(host, "/port.usb")
 
-        # Assert
-        assert "requires the host_info capability" in answer["error"], (
-            "the capability gate refuses it"
-        )
+        # Assert -- on macOS the refusal names usb_tree beside host_info
+        assert "requires the host_info" in answer["error"], "the capability gate refuses it"
         assert answer["data"] is None, "no node of the bus comes back"
 
     @pytest.mark.parametrize(

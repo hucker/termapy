@@ -392,6 +392,33 @@ class TestCommandPopup:
 
         _run(scenario)
 
+    @pytest.mark.rule("help-text-not-behavior")
+    def test_a_help_line_hides_no_command(self, app_factory):
+        """The popup lists the chip fields only Linux reports on every OS; elsewhere they answer n/a."""
+
+        async def scenario():
+            app, _, _ = app_factory()
+            async with app.run_test(size=_SIZE) as pilot:
+                await pilot.pause()
+                app.query_one("#cmd", Input).value = "/port.chip."
+
+                # Act
+                app._show_commands()
+                await pilot.pause()
+
+                # Assert
+                popup = app.query_one("#history-popup", OptionList)
+                ids = [
+                    option.id
+                    for option in (popup.get_option_at_index(i) for i in range(popup.option_count))
+                    if option.id
+                ]
+                fields = ("port.chip.negotiated", "port.chip.latency_timer")
+                listed = [name for name in fields if any(name in option_id for option_id in ids)]
+                assert listed == list(fields), "a help line saying Linux only hides nothing"
+
+        _run(scenario)
+
     def test_no_match_shows_a_placeholder(self, app_factory):
         """A filter nothing matches shows a disabled placeholder naming it."""
 

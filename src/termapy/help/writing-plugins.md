@@ -814,8 +814,9 @@ command that reaches past the device declares the one it needs:
 
 - `host_info`, for a command that describes the machine beyond the
   allowed devices: its USB bus, other programs, the OS or the hostname
-  (`TERMAPY_MCP_HOST_INFO`). `/port.usb`, `/app.alive` and
-  `/log.fingerprint` declare `needs=CapabilitySet(host_info=True)`.
+  (`TERMAPY_MCP_HOST_INFO`). `/app.alive` and `/log.fingerprint`
+  declare `needs=CapabilitySet(host_info=True)`; `/port.usb` adds
+  `usb_tree=True`, an OS whose USB tree termapy reads.
 - `filesystem_unconfined`, for a path outside the config's folder
   (`TERMAPY_MCP_FS_UNCONFINED`). You rarely declare it: `ctx.fs.resolve`
   and its guards apply it for you.

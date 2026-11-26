@@ -10,7 +10,6 @@ VS Code's integrated terminal can be jerky due to its rendering pipeline.
 
 import argparse
 import os
-import re
 import sys
 import threading
 import time
@@ -3655,12 +3654,6 @@ class SerialTerminal(TerminalHost, App):
     # line indented to the same column.  Tuned so the three or four
     # most common commands fit on one line without wrap.
     _CMDS_HELP_COL = 50
-
-    # Regex matching help strings that flag a command as Linux-only
-    # (e.g. "Linux only", "Linux + FTDI only", "only on linux").
-    # Case-insensitive.  Used to hide those commands from the /
-    # popup on non-Linux platforms.
-    _LINUX_ONLY_RE = re.compile(r"linux[^.\n]*only|only[^.\n]*linux", re.IGNORECASE)
 
     def _show_commands(self) -> None:
         """Delegate to ``info_views.show_commands``."""

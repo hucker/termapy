@@ -78,6 +78,11 @@ _SIZE_RE = re.compile(r"\s+\d+(?:\.\d)? +(?:B|KB|MB)\b")
 # tx_bytes stays exact: every write finishes before the next script line.
 _RX_BYTES_RE = re.compile(r"^(\s*rx_bytes\s*: )\d+$")
 
+# /help capability's usb_tree row names the frontends that have the USB tree,
+# and that is every one on Windows and Linux and none on macOS (registry
+# usb-tree-capability); mask the list so the gold reads the same on each.
+_USB_TREE_ROW_RE = re.compile(r"^(\s*usb_tree\s+- .*  )\[[^\]]*\]$")
+
 # A path under the run's config root, once the root reads <CFG_DIR>: its
 # separators are the platform's, so they are read as /.
 _CFG_PATH_RE = re.compile(r"<CFG_DIR>\S*")
@@ -102,6 +107,7 @@ def _normalize(text: str) -> list[str]:
     - Verbose timing lines like '[1/3] AT (0.015s)' (nondeterministic)
     - ``"elapsed_s": <n>`` inside JSON envelopes -> ``"elapsed_s": 0``
     - ``/term.info``'s ``rx_bytes`` count -> ``<N>`` (the last reply may still be arriving)
+    - ``/help capability``'s ``usb_tree`` frontends -> ``[<OS>]`` (they follow the OS)
     - File sizes in listings (``1.2 KB``) -> ``<SIZE>`` (CRLF/LF checkouts differ),
       and a listing's header padding and dash row, whose widths follow them
     - The run's config root replaced with <CFG_DIR>, before this runs
@@ -120,6 +126,7 @@ def _normalize(text: str) -> list[str]:
             continue
         line = _ELAPSED_RE.sub('"elapsed_s": 0', line)
         line = _RX_BYTES_RE.sub(r"\1<N>", line)
+        line = _USB_TREE_ROW_RE.sub(r"\1[<OS>]", line)
         line = _SIZE_RE.sub("  <SIZE>", line)
         line = _collapse_listing_header(line)
         line = _collapse_listing_separator(line)

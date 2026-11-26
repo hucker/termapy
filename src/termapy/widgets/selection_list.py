@@ -7,11 +7,29 @@ from typing import Generic, TypeVar
 from rich.segment import Segment
 from textual import events
 from textual.strip import Strip
-from textual.widgets import SelectionList
+from textual.widgets import OptionList, SelectionList
 from textual.widgets._toggle_button import ToggleButton
 from textual.widgets.option_list import OptionDoesNotExist
 
 SelectionType = TypeVar("SelectionType")
+
+
+def hovered_option(option_list: OptionList, event: events.MouseMove) -> int | None:
+    """The index of the one-line option under the pointer, or None off every option.
+
+    From the pointer's own y, not the base class's ``_mouse_hovering_over``:
+    that is read out of the style under the cursor, which on the first move
+    into a row still carries the row before it, so a tooltip read from it
+    trailed the mouse by one.  Measured from the content area, not the
+    widget's edge: a border puts row 0 one line down, and ``event.y`` counts
+    the border as a row.  One line per option: a list whose rows wrap would
+    need the option's own height.
+    """
+    offset = event.get_content_offset(option_list)
+    if offset is None:
+        return None
+    index = offset.y + option_list.scroll_offset.y
+    return index if 0 <= index < option_list.option_count else None
 
 
 class StrongSelectionList(SelectionList[SelectionType], Generic[SelectionType]):
@@ -54,19 +72,8 @@ class StrongSelectionList(SelectionList[SelectionType], Generic[SelectionType]):
         tips = getattr(self, "_option_tips", None)
         if not tips:
             return
-        # From the pointer's own y, not the base class's
-        # ``_mouse_hovering_over``: that is read out of the style under
-        # the cursor, which on the first move into a row still carries
-        # the row before it, so the tooltip trailed the mouse by one.
-        # Measured from the content area, not the widget's edge: a border
-        # puts row 0 one line down, and event.y counted the border as a row.
-        offset = event.get_content_offset(self)
-        tip = None
-        if offset is not None:
-            _, scroll_y = self.scroll_offset
-            index = offset.y + scroll_y
-            if 0 <= index < self.option_count:
-                tip = tips.get(self.get_option_at_index(index).value)
+        index = hovered_option(self, event)
+        tip = None if index is None else tips.get(self.get_option_at_index(index).value)
         if tip != self.tooltip:
             self.tooltip = tip
 

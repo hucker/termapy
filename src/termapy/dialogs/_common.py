@@ -697,22 +697,63 @@ class PortOptionList(OptionList):
     row would wrap.  A rebuild keeps the highlighted port by its id.
     """
 
-    def __init__(self, facts: list[ChipFacts], *, id: str | None = None) -> None:
-        """Build the list from the ports' facts (``_port_facts``)."""
+    def __init__(self, facts: list[ChipFacts], *, id: str | None = None, tip: str = "") -> None:
+        """Build the list from the ports' facts (``_port_facts``).
+
+        Args:
+            facts: The ports, in the order shown.
+            id: The widget id.
+            tip: The list's own tooltip, what a click does; a held port's row
+                shows who holds it above it.
+        """
         super().__init__(id=id)
         self._rows: list[tuple[str, dict]] = []
         self._colors: dict[str, str] = {}
+        # Who holds each held port, by device (port_format.holder_tip).
+        self._holders: dict[str, Text] = {}
+        self._list_tip = tip
+        # The device whose holder the tooltip shows; None for the list's own.
+        self._showing: str | None = None
+        self.tooltip = Text(tip) if tip else None
         # 0 until layout measures the list: fill at the table's full width.
         self._row_width = 0
         self.set_facts(facts)
 
     def set_facts(self, facts: list[ChipFacts]) -> None:
         """Show these ports instead, as a plug or unplug changes them."""
-        from termapy.port_format import row_from_facts
+        from termapy.port_format import holder_record, holder_tip, row_from_facts
 
         self._rows = [row_from_facts(fact) for fact in facts]
         self._colors = _port_colors(facts)
+        tips = {fact.device: holder_tip(fact.session, holder_record(fact)) for fact in facts}
+        self._holders = {
+            device: Text.assemble(*((piece.text, piece.style) for piece in pieces))
+            for device, pieces in tips.items()
+            if device and pieces
+        }
         self._fill()
+
+    def on_mouse_move(self, event: events.MouseMove) -> None:
+        """Say who holds the port under the pointer, as ``/port.list``'s tooltip does; elsewhere the list's own."""
+        from termapy.widgets.selection_list import hovered_option
+
+        index = hovered_option(self, event)
+        port_id = None if index is None else self.get_option_at_index(index).id
+        showing = port_id if port_id in self._holders else None
+        if showing == self._showing:
+            return  # unchanged: re-setting would restart the tooltip's delay
+        self._showing = showing
+        own = Text(self._list_tip) if self._list_tip else None
+        if showing is None:
+            self.tooltip = own
+            return
+        holder = self._holders[showing]
+        self.tooltip = Text("\n\n").join([holder, own]) if own else holder
+
+    def on_leave(self, _event: events.Leave) -> None:
+        """Back to the list's own tooltip when the pointer leaves, so it never names the wrong port."""
+        self._showing = None
+        self.tooltip = Text(self._list_tip) if self._list_tip else None
 
     def table_width(self) -> int:
         """The columns the table takes with every column whole."""

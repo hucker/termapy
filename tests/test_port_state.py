@@ -12,19 +12,32 @@ deciders their breadcrumbs, so no port or process is involved.
 from __future__ import annotations
 
 import sys
+from typing import Any
 
 import pytest
 
-from termapy.breadcrumbs import Crumb
-from termapy.port_control import THIS_SESSION, ChipFacts, port_state_style, session_holding
+from termapy.breadcrumbs import Breadcrumb, Crumb, session_record
+from termapy.port_control import (
+    THIS_SESSION,
+    ChipFacts,
+    fill_sessions,
+    holder_of,
+    port_state_style,
+    session_holding,
+)
 
 OWN_PID = 1000
 
 
-def _crumb(pid: int, open_port: str, frontend: str = "mcp") -> Crumb:
-    """A running termapy's breadcrumb holding ``open_port``."""
+def _crumb(pid: int, open_port: str, frontend: str = "mcp", **facts: Any) -> Crumb:
+    """A running termapy's breadcrumb holding ``open_port``, with any more of its facts."""
     return Crumb(
-        pid=pid, token="t", started="2026-11-12T10:00:00", frontend=frontend, open_port=open_port
+        pid=pid,
+        token="t",
+        started="2026-11-12T10:00:00",
+        frontend=frontend,
+        open_port=open_port,
+        **facts,
     )
 
 
@@ -158,3 +171,95 @@ class TestTheColor:
             ChipFacts(device="COM5", session="termapy cli, PID 9"),
         ]
         assert _port_colors(facts) == {"COM3": "green", "COM5": "yellow"}
+
+
+@pytest.fixture
+def state_dir(tmp_path, monkeypatch):
+    """A private app state folder, so the breadcrumb a test writes reaches no other test."""
+    folder = tmp_path / "state"
+    monkeypatch.setenv("TERMAPY_STATE_DIR", str(folder))
+    return folder
+
+
+class TestWhoHoldsIt:
+    """A listed port carries the holding session's breadcrumb, which the port cell's tooltip shows."""
+
+    def test_a_listing_fills_the_holder_from_the_breadcrumbs(self, state_dir):
+        """A port this process's breadcrumb holds gets the session and that breadcrumb; another port gets neither."""
+        # Arrange
+        Breadcrumb().write("cli", open_port="COM7", settings="9600 8N1")
+        facts = [ChipFacts(device="COM7"), ChipFacts(device="COM4")]
+
+        # Act
+        fill_sessions(facts)
+
+        # Assert
+        actual = [(fact.session, fact.holder.settings if fact.holder else None) for fact in facts]
+        assert actual == [(THIS_SESSION, "9600 8N1"), (None, None)]
+
+    @pytest.mark.rule("mcp-host-info-opt-in")
+    @pytest.mark.parametrize(("hides_host", "expected_pid"), [(False, 17140), (True, None)])
+    def test_the_holder_is_shown_only_with_the_host_view(self, hides_host, expected_pid):
+        """The holder is the breadcrumb of the session holding the port; without the host view it is none."""
+        holder = holder_of("COM7", [_crumb(17140, "com7")], hides_host=hides_host)
+        actual = holder.pid if holder else None
+        assert actual == expected_pid
+
+    def test_a_port_no_session_holds_has_no_holder(self):
+        """A port no breadcrumb names has no holder, which says nothing about other programs."""
+        assert holder_of("COM7", [_crumb(17140, "COM3")], hides_host=False) is None
+
+    def test_the_record_carries_the_sessions_alive_record(self):
+        """A port's JSON record holds its holder as /app.alive answers that session, and null with none."""
+        # Arrange
+        from termapy.port_format import facts_to_json_record
+
+        crumb = _crumb(17140, "COM7", config=r"C:\proj\termapy_cfg\bench\bench.cfg")
+
+        # Act
+        held = facts_to_json_record(ChipFacts(device="COM7", session="x", holder=crumb))
+        free = facts_to_json_record(ChipFacts(device="COM4"))
+
+        # Assert
+        actual = (held["holder"], free["holder"])
+        assert actual == (session_record(crumb), None)
+
+    def test_the_port_cells_tooltip_says_who_holds_it(self):
+        """Hovering a held port shows the session in its color, then its config, settings and start."""
+        # Arrange
+        from termapy.port_format import PORT_TABLE_COLUMNS, facts_to_json_record
+
+        crumb = _crumb(
+            17140,
+            "COM7",
+            config=r"C:\proj\termapy_cfg\bench\bench.cfg",
+            settings="115200 8N1",
+            parent_pid=17604,
+            parent_name="powershell.exe",
+        )
+        session = "termapy mcp, PID 17140"
+        record = facts_to_json_record(ChipFacts(device="COM7", session=session, holder=crumb))
+
+        # Act
+        link = PORT_TABLE_COLUMNS[0].link(record)
+
+        # Assert
+        assert link is not None, "the port cell is a link"
+        assert isinstance(link.tip, tuple), "the tip is pieces, so its first line can take a color"
+        actual = ("".join(piece.text for piece in link.tip), link.tip[0].style)
+        expected = (
+            "Held by termapy mcp, PID 17140\n"
+            "Config: bench\n"
+            "Settings: 115200 8N1\n"
+            "Started: 2026-11-12 10:00:00 by powershell.exe 17604",
+            "yellow",
+        )
+        assert actual == expected
+
+    def test_a_port_no_session_holds_has_no_tooltip_extra(self):
+        """A free port's cell keeps the plain tooltip: what a click does and nothing about a holder."""
+        from termapy.port_format import PORT_TABLE_COLUMNS, facts_to_json_record
+
+        link = PORT_TABLE_COLUMNS[0].link(facts_to_json_record(ChipFacts(device="COM4")))
+        assert link is not None, "the port cell is a link"
+        assert link.tip == "", "no tip: the link reads as a plain one"

@@ -609,7 +609,7 @@ Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections i
 - `test_help_groups.py`: `test_the_records_carry_group_command_level_and_help`
 - `test_help_idioms.py`: `TestAPluginGetsAllOfIt.test_its_table_is_data_for_a_script`, `TestTheList.test_the_records_are_the_table`
 - `test_sym_commands.py`: `TestDevList.test_no_devices_says_so`, `TestDevRegs.test_data_carries_the_safety_facts_and_fields`, `TestSymSearch.test_the_matches_are_a_table`
-- `test_views.py`: the module (42 functions)
+- `test_views.py`: the module (44 functions)
 
 ### `load-report-one-table` (assumption, contract)
 
@@ -641,6 +641,7 @@ Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections i
 
 - `test_mcp_boundary.py`: `TestHostView` (6 functions)
 - `test_mcp_server.py`: `TestLogCommandsAvailableInMCP.test_log_fingerprint_registered_but_gated_on_host_info`
+- `test_port_state.py`: `TestWhoHoldsIt.test_the_holder_is_shown_only_with_the_host_view`
 
 ### `mcp-no-auto-run` (guarantee, contract)
 

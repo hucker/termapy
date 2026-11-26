@@ -29,7 +29,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from termapy.matching import matches
-from termapy.plugins.views import Column
+from termapy.plugins.views import Column, Piece
 from termapy.port_control import CHIP_FIELD_LABELS, port_short_name, port_state_style
 from termapy.usb import USB_SERIAL_CHIPS, ChipInfo, mfg as _mfg_alias
 from termapy.usb_tree import ascii_fold
@@ -305,6 +305,10 @@ def facts_to_json_record(facts: ChipFacts) -> dict:
         # (``port_control.fill_sessions``): "this session" or "termapy mcp,
         # PID 17140".  Other programs are not seen here.
         "session": facts.session,
+        # That session as /app.alive answers it (``breadcrumbs.session_record``):
+        # its mode, PID, config, settings and start.  None when no termapy
+        # holds the port, or under MCP without the host view.
+        "holder": holder_record(facts),
         "driver": facts.driver,
         # Physical bus location, "1-2.3" -- bus, then one hop per hub
         # tier.  Disambiguates two devices with the same VID/PID and
@@ -388,6 +392,35 @@ _RECORD_CELLS: dict[str, Callable[[dict], str]] = {
 }
 
 
+def holder_record(facts: ChipFacts) -> dict | None:
+    """The breadcrumb of the session holding the port, as ``/app.alive``'s record; None when ``holder`` is."""
+    if facts.holder is None:
+        return None
+    from termapy.breadcrumbs import session_record
+
+    return session_record(facts.holder)
+
+
+def holder_tip(session: str | None, holder: dict | None) -> tuple[Piece, ...]:
+    """Who holds a port and what that session is doing, for the port's tooltip in a list.
+
+    ``/port.list``'s port cell and the port picker's row both show it: the
+    first line in the port's session color, then the session's facts as
+    ``/app.alive`` shows them (``breadcrumbs.holder_lines``).  Nothing when
+    no session holds the port, or the host view hides it (``holder`` None).
+
+    Args:
+        session: The port's ``session``: ``this session`` or ``termapy mcp, PID 17140``.
+        holder: That session's record (``holder_record``).
+    """
+    if holder is None or not session:
+        return ()
+    from termapy.breadcrumbs import holder_lines
+
+    details = "".join(f"\n{line}" for line in holder_lines(holder))
+    return (Piece(f"Held by {session}", style=port_state_style(session)), Piece(details))
+
+
 def _port_column(name: str) -> Column:
     """One ``/port.list`` column from the schema's facts: header, cell, drop rank, optionality."""
     return Column(
@@ -400,8 +433,14 @@ def _port_column(name: str) -> Column:
             if name == "port"
             else None
         ),
-        # The port's name is colored by who holds it (port_state_style).
+        # The port's name is colored by who holds it (port_state_style), and
+        # hovering it shows that session (its breadcrumb).
         style=(lambda record: port_state_style(record["session"])) if name == "port" else None,
+        tip=(
+            (lambda record: holder_tip(record.get("session"), record.get("holder")))
+            if name == "port"
+            else None
+        ),
         drop=(len(DROP_ORDER) - DROP_ORDER.index(name)) if name in DROP_ORDER else 0,
         hide_empty=name in OPTIONAL_COLUMNS,
     )

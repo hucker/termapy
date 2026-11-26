@@ -84,9 +84,6 @@ class PortPicker(ModalScreen[str | None]):
         self.dismiss(None)
 
     def on_mount(self) -> None:
-        self.query_one(
-            "#port-list", OptionList
-        ).tooltip = "Connected serial ports.  Click a row or press Enter to select."
         self.query_one("#port-cancel", Button).tooltip = "Close without selecting a port."
         self.query_one("#port-use", Button).tooltip = "Use the network port typed above."
         # Live refresh: poll once a second so plug / unplug events
@@ -101,7 +98,11 @@ class PortPicker(ModalScreen[str | None]):
         from termapy.port_control import system_ports
 
         self._ports = sorted(system_ports(), key=lambda p: p.device)
-        port_list = PortOptionList(_port_facts(self._ports), id="port-list")
+        port_list = PortOptionList(
+            _port_facts(self._ports),
+            id="port-list",
+            tip="Connected serial ports.  Click a row or press Enter to select.",
+        )
         with Vertical(id="port-dialog") as dialog:
             dialog.styles.width = port_list.dialog_width()
             yield Static("Select Serial Port", id="port-title")

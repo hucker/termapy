@@ -15,9 +15,11 @@ import time
 from pathlib import Path
 
 import pytest
+from rich.text import Text
 from textual.app import App
 from textual.widgets import Button, Input, OptionList, Static, TextArea
 
+from termapy.breadcrumbs import Crumb
 from termapy.defaults import PROTO_TEMPLATE, SCRIPT_TEMPLATE
 from termapy.dialogs import (
     PortPicker,
@@ -28,7 +30,7 @@ from termapy.dialogs import (
     UpdateAvailableDialog,
 )
 from termapy.dialogs._common import PathLink, PortOptionList
-from termapy.port_control import _build_demo_fleet, loopback_port_facts
+from termapy.port_control import ChipFacts, _build_demo_fleet, loopback_port_facts
 
 
 class _Host(App):
@@ -565,7 +567,66 @@ class _PortListHost(App):
         yield PortOptionList([*_build_demo_fleet(), loopback_port_facts()], id="ports")
 
 
+def _held_fleet() -> list[ChipFacts]:
+    """COM4 free, COM7 held by an MCP session on the bench config."""
+    crumb = Crumb(
+        pid=17140,
+        token="t",
+        started="2026-11-12T10:00:00",
+        frontend="mcp",
+        open_port="COM7",
+        config=r"C:\proj\termapy_cfg\bench\bench.cfg",
+        settings="115200 8N1",
+    )
+    held = ChipFacts(device="COM7", session="termapy mcp, PID 17140", holder=crumb)
+    return [ChipFacts(device="COM4"), held]
+
+
+class _HeldPortsHost(App):
+    """A port list where one port is held by another termapy session."""
+
+    CSS = "PortOptionList { width: 70; height: 10; }"
+
+    def compose(self):
+        yield PortOptionList(_held_fleet(), id="ports", tip="Pick a port.")
+
+
 class TestPortOptionList:
+    def test_a_held_ports_row_says_who_holds_it(self):
+        """Hovering a held port's row shows its session above the list's tip; a free row shows the tip alone."""
+
+        async def scenario():
+            app = _HeldPortsHost()
+            async with app.run_test(size=(100, 20)) as pilot:
+                await pilot.pause()
+                port_list = app.query_one("#ports", PortOptionList)
+                top = port_list.content_region.y - port_list.region.y
+                left = port_list.content_region.x - port_list.region.x
+
+                # Act -- the header and separator are rows 0 and 1, COM4 2, COM7 3
+                await pilot.hover("#ports", offset=(left + 1, top + 3))
+                await pilot.pause()
+                held = port_list.tooltip
+                await pilot.hover("#ports", offset=(left + 1, top + 2))
+                await pilot.pause()
+                free = port_list.tooltip
+
+                # Assert
+                assert isinstance(held, Text) and isinstance(free, Text), "literal text, no markup"
+                actual = (held.plain, free.plain)
+                expected = (
+                    "Held by termapy mcp, PID 17140\n"
+                    "Config: bench\n"
+                    "Settings: 115200 8N1\n"
+                    "Started: 2026-11-12 10:00:00\n"
+                    "\n"
+                    "Pick a port.",
+                    "Pick a port.",
+                )
+                assert actual == expected
+
+        _run(scenario)
+
     @pytest.mark.rule("pickers-fit-content")
     def test_a_narrow_list_drops_columns_instead_of_wrapping(self):
         """Given less room than the table needs, the rows refit to the measured width by dropping columns."""

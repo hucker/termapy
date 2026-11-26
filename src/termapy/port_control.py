@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 if TYPE_CHECKING:
     from types import ModuleType
 
+    from termapy.breadcrumbs import Crumb
     from termapy.plugins.views import Item
 
 from termapy import env_flags
@@ -608,6 +609,10 @@ class ChipFacts:
     # PID 17140``.  None when no termapy holds it, which says nothing about
     # any other program.
     session: str | None = None
+    # That session's breadcrumb, for a listing to show what it is doing (the
+    # port's tooltip in /port.list).  None when no termapy holds the port,
+    # or under MCP without the host view, where ``session`` names no one.
+    holder: Crumb | None = None
     # Silicon-vendor name resolved from the VID via ``usb_vendor``.
     # Independent of ``manufacturer`` (which is the descriptor / INF
     # string) -- they can disagree, and that disagreement is itself
@@ -1353,12 +1358,29 @@ def session_holding(
     return "another termapy session" if hides_host else f"termapy {crumb.frontend}, PID {crumb.pid}"
 
 
+def holder_of(device: str, crumbs: list[Any], *, hides_host: bool | None = None) -> Crumb | None:
+    """The breadcrumb of the termapy session holding ``device``, for a listing to show; None when none does.
+
+    ``session_holding``'s twin: where that one leaves the session unnamed
+    (MCP without ``TERMAPY_MCP_HOST_INFO``), this shows nothing of it, this
+    session's own included (registry ``mcp-host-info-opt-in``).
+
+    Args:
+        device: The port, as the system lists it.
+        crumbs: The running termapys (``breadcrumbs.read_running``).
+        hides_host: Show no session; None asks this process's policy.
+    """
+    if hides_host is None:
+        hides_host = env_flags.port_policy().hides_host
+    return None if hides_host else crumb_holding(device, crumbs)
+
+
 def fill_sessions(facts_list: list[ChipFacts]) -> None:
-    """Mark each port a termapy session holds, from the breadcrumbs, opening nothing.
+    """Mark each port a termapy session holds, and the session's breadcrumb, from the breadcrumbs, opening nothing.
 
     A listing that colors ports by state calls this; resolution and the
-    reconnect loop never do.  A port no session holds keeps ``session``
-    None: termapy does not see other programs here.
+    reconnect loop never do.  A port no session holds keeps ``session`` and
+    ``holder`` None: termapy does not see other programs here.
     """
     from termapy import breadcrumbs
 
@@ -1366,9 +1388,11 @@ def fill_sessions(facts_list: list[ChipFacts]) -> None:
     if not crumbs:
         return
     own_pid = os.getpid()
+    hides_host = env_flags.port_policy().hides_host
     for fact in facts_list:
         if fact.device:
-            fact.session = session_holding(fact.device, crumbs, own_pid)
+            fact.session = session_holding(fact.device, crumbs, own_pid, hides_host=hides_host)
+            fact.holder = holder_of(fact.device, crumbs, hides_host=hides_host)
 
 
 def _check_in_use(device: str, connected_port: str = "") -> str:

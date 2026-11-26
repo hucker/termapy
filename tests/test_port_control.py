@@ -2017,6 +2017,7 @@ class TestListPortRecords:
             "serial_number",
             "in_use",
             "session",
+            "holder",
             "driver",
             "location",
             "interface_number",

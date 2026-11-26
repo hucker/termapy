@@ -407,9 +407,13 @@ the background.  termapy knows from the breadcrumb every running termapy
 leaves, so it opens no port to find out, and it works the same on every
 OS.  Only termapy sessions are seen this way: a port PuTTY, Arduino IDE or
 any other program holds stays uncolored, so an uncolored port is not
-necessarily free.  An MCP client gets the same fact as data, `session` on
-each port record, naming the other session only as `another termapy
-session` unless the server has `TERMAPY_MCP_HOST_INFO=1`.
+necessarily free.  In the TUI, hovering a colored name in `/port.list` or the port picker
+says which session holds it and what it is doing: its config, baud and
+frame, when it started and from what program (`/app.alive` lists them
+all).  An MCP client gets the same facts as data: `session` on each port
+record, and `holder`, that session's `/app.alive` record.  Without
+`TERMAPY_MCP_HOST_INFO=1` on the server, `session` names another session
+only as `another termapy session` and `holder` is null.
 
 A connect that fails because another termapy session holds the port says
 which session, from the same breadcrumbs, and how to free the port:

@@ -6,6 +6,7 @@ import copy
 import json
 import os
 import re
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -2506,7 +2507,6 @@ class TestWatchPortWidth:
         import argparse
 
         from termapy import cli_flags
-        from termapy.port_control import ChipFacts
 
         short = _synthetic_facts(
             ("/dev/ttyUSB0", "FTDI", "FTDI FT232R", "0403:6001", "AAA"),
@@ -2514,7 +2514,7 @@ class TestWatchPortWidth:
         long_fleet = short + _synthetic_facts(
             ("/dev/cu.usbserial-VERYLONGNAME0123456789", "FTDI", "FTDI FT230X", "0403:6015", "BBB"),
         )
-        flipped = [ChipFacts(**{**vars(facts), "in_use": "yes"}) for facts in long_fleet]
+        flipped = [replace(facts, in_use="yes") for facts in long_fleet]
         monkeypatch.setattr(cli_flags, "_WATCH_INTERVAL_S", 0)
         snapshots = [short, long_fleet, flipped]
         looks = [0]

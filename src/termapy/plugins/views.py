@@ -129,6 +129,9 @@ class Column:
         style: The Rich style a cell is drawn in, for its record
             (``/help.group``'s level column: green, yellow, red).  None:
             the row's color.  Plain consumers see the text alone.
+        tip: More for the cell's tooltip, for its record (who holds a
+            port): the link's ``Link.tip``.  Needs ``run`` or ``prefill``,
+            since a tooltip belongs to a link; empty adds nothing.
         drop: How expendable the column is when the table is wider than the
             frontend (registry ``table-fits-the-frontend``): 0 is never
             dropped; of the rest the highest goes first.
@@ -144,20 +147,25 @@ class Column:
     style: Callable[[Record], str] | None = None
     drop: int = 0
     hide_empty: bool = False
+    tip: Callable[[Record], str | tuple[Piece, ...]] | None = None
 
     def __post_init__(self) -> None:
-        """Refuse a column that would both run and prefill, or a negative drop rank."""
+        """Refuse a column that would both run and prefill, a tip with no link, or a negative drop rank."""
         if self.run is not None and self.prefill is not None:
             raise ValueError(f"Column {self.title}: run= and prefill= are exclusive")
+        if self.tip is not None and self.run is None and self.prefill is None:
+            raise ValueError(f"Column {self.title}: tip= needs run= or prefill=")
         if self.drop < 0:
             raise ValueError(f"Column {self.title}: drop= is 0 or more")
 
     def link(self, record: Record) -> Link | None:
-        """What clicking this column's cell does for ``record``, or None."""
+        """What clicking this column's cell does for ``record``, and its tooltip's extra, or None."""
+        # An empty tip, of either kind, is no tip: the link reads as a plain one.
+        tip = (self.tip(record) if self.tip is not None else "") or ""
         if self.run is not None:
-            return Link(self.run(record))
+            return Link(self.run(record), tip=tip)
         if self.prefill is not None:
-            return Link(self.prefill(record), run=False)
+            return Link(self.prefill(record), run=False, tip=tip)
         return None
 
 

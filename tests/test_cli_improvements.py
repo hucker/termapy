@@ -17,6 +17,7 @@ import json
 import subprocess
 import sys
 from contextlib import redirect_stdout
+from typing import Any
 
 import pytest
 
@@ -104,7 +105,7 @@ def _ports_args(**overrides) -> argparse.Namespace:
 
 def _make_facts(**kw) -> ChipFacts:
     """Build a ChipFacts with sensible defaults for tests."""
-    base = dict(
+    base: dict[str, Any] = dict(
         device="COM4",
         description="USB Serial Converter",
         manufacturer="FTDI",
@@ -191,6 +192,7 @@ class TestPortsJsonShape:
             "serial_number",
             "in_use",
             "session",
+            "holder",
             "driver",
             "location",
             "interface_number",

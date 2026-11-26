@@ -1027,3 +1027,22 @@ def _address_cell(record: dict) -> str:
         where = url.split("://", 1)[-1]
         cells.append(f"{where} ({client})" if client else where)
     return PORT_LIST_SEPARATOR.join(cells)
+
+
+def holder_lines(record: dict) -> list[str]:
+    """What a session holding a port is doing, a line a fact, for the port's tooltip in a list.
+
+    The facts ``/app.alive`` shows of it, from its ``session_record``, in
+    that table's words: config, settings, the address it serves, when it
+    started and from what, its version.  A blank fact is left out.
+    """
+    by = _started_by(record)
+    started = record["started"].replace("T", " ") + (f" by {by}" if by else "")
+    facts = (
+        ("Config", record["config"]),
+        ("Settings", record["settings"]),
+        ("Address", _address_cell(record)),
+        ("Started", started),
+        ("Version", record["version"]),
+    )
+    return [f"{label}: {text}" for label, text in facts if text]

@@ -207,6 +207,7 @@ Each `--ports --json` record has a stable schema:
   "serial_number": "AL01ABCD",
   "in_use": false,
   "session": null,
+  "holder": null,
   "driver": "ftdi_sio",
   "location": "Hub_#0009.Port_#0004",
   "interface_number": null
@@ -240,6 +241,9 @@ now.
 every running termapy leaves: `"termapy mcp, PID 17140"`, or `null` when
 no termapy holds it.  Only termapy sessions are seen there, on every OS,
 so `null` does not mean free: PuTTY or another program may have it.
+`holder` is that session as `termapy --alive --json` describes it: its
+mode, PID, config, port settings, when it started and from what program;
+`null` when `session` is.
 `in_use` is `true` or `false` only when something checked (the in-use
 probe `--ports --json` runs, or a session's breadcrumb), and `null` when
 nothing did.  At a terminal `--ports` colors a port another termapy

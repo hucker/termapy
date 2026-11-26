@@ -523,6 +523,31 @@ def test_run_and_prefill_are_exclusive():
         raise AssertionError("a column with both run= and prefill= was accepted")
 
 
+def test_a_tip_needs_a_link():
+    """A column with a tooltip but no link is refused when it is built: a tooltip belongs to a link."""
+    with pytest.raises(ValueError, match="tip= needs run= or prefill="):
+        Column("X", str, tip=str)
+
+
+def test_a_columns_tip_rides_on_its_link():
+    """A column's tip, for each record, is the extra on the link its cell carries; with none the link has none."""
+    # Arrange
+    tipped = Column(
+        "X",
+        str,
+        prefill=lambda record: f"open {record['name']}",
+        tip=lambda record: f"about {record['name']}",
+    )
+    plain = Column("X", str, run=lambda record: f"open {record['name']}")
+
+    # Act
+    actual = (tipped.link({"name": "a"}), plain.link({"name": "a"}))
+
+    # Assert
+    expected = (Link("open a", run=False, tip="about a"), Link("open a"))
+    assert actual == expected
+
+
 def test_output_segments_joins_where_nothing_can_click():
     """Without a link renderer the pieces are one plain output line; with one, the pieces go to it."""
     # Arrange

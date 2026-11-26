@@ -601,7 +601,7 @@ Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections i
 - `test_help_links.py`: `test_a_bare_form_only_opens_or_shows`, `test_a_file_rows_edit_cell_is_a_link_and_not_a_field`, `test_a_page_runs_nothing_but_pages_and_bare_forms`, `test_a_row_draws_the_same_characters_in_the_same_styles`, `test_every_help_link_names_a_command_that_exists`, `test_the_landscape_lists_the_scripts_as_help_run_does`, `test_the_page_lines_draw_the_same_characters_in_the_same_styles`
 - `test_help_page.py`: `TestADefaultPage.test_the_available_note_links_the_capability`
 - `test_port_commands.py`: `TestPortList.test_the_port_cell_prefills_a_connect`
-- `test_views.py`: `test_segments_join_to_exactly_the_plain_lines`, `test_the_three_lists_reach_a_clicking_frontend_with_their_links`
+- `test_views.py`: `test_a_link_only_column_shows_only_where_a_click_reaches_it`, `test_alive_links_kill_for_every_session_but_this_one`, `test_segments_join_to_exactly_the_plain_lines`, `test_the_three_lists_reach_a_clicking_frontend_with_their_links`
 
 ### `list-one-format` (guarantee, structure)
 
@@ -609,7 +609,7 @@ Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections i
 - `test_help_groups.py`: `test_the_records_carry_group_command_level_and_help`
 - `test_help_idioms.py`: `TestAPluginGetsAllOfIt.test_its_table_is_data_for_a_script`, `TestTheList.test_the_records_are_the_table`
 - `test_sym_commands.py`: `TestDevList.test_no_devices_says_so`, `TestDevRegs.test_data_carries_the_safety_facts_and_fields`, `TestSymSearch.test_the_matches_are_a_table`
-- `test_views.py`: the module (44 functions)
+- `test_views.py`: the module (47 functions)
 
 ### `load-report-one-table` (assumption, contract)
 

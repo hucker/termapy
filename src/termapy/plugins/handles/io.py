@@ -137,6 +137,10 @@ class IOHandle:
         if self._shows(OUTPUT_MIN_RANK):
             self._write_pieces(segments, color)
 
+    def can_click(self) -> bool:
+        """Whether this frontend renders links: the TUI does; the CLI, MCP and a capture join the text."""
+        return self._write_segments is not None
+
     def _write_pieces(self, segments: Sequence[Piece], color: str) -> None:
         """The pieces as links where the frontend can click, else as their joined text."""
         if self._write_segments is not None:

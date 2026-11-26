@@ -904,7 +904,7 @@ def _write_table(ctx: PluginContext, view: TableView, name: str, limit: int) -> 
     row does is the list's (registry ``links-are-data``).
     """
     shown = replace(view, records=view.records[:limit], total=len(view.records))
-    for segments, color in shown.segment_lines():
+    for segments, color in shown.segment_lines(clickable=ctx.io.can_click()):
         pieces = [piece._replace(style=piece.style or color) for piece in segments]
         ctx.io.output_markup_segments([Piece("  "), *pieces])
     _write_more_link(ctx, len(view.records) - len(shown.records), name)

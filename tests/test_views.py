@@ -9,6 +9,7 @@ captured output stands in for the host.
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
@@ -548,6 +549,32 @@ def test_a_columns_tip_rides_on_its_link():
     assert actual == expected
 
 
+def test_link_only_needs_a_link():
+    """A column that is only its link, with no link, is refused when it is built."""
+    with pytest.raises(ValueError, match="link_only= needs run= or prefill="):
+        Column("X", str, link_only=True)
+
+
+@pytest.mark.rule("links-are-data")
+def test_a_link_only_column_shows_only_where_a_click_reaches_it():
+    """A link-only column is in the clickable layout and out of the plain one; other columns are in both."""
+    # Arrange
+    name = Column("NAME", lambda record: record["name"])
+    go = Column(
+        "GO", lambda record: "go", run=lambda record: f"go {record['name']}", link_only=True
+    )
+    view = TableView("Things", "thing", (name, go), ({"name": "lab"},))
+
+    # Act
+    clickable = view.segment_lines()[1][0][0].text
+    unclickable = view.segment_lines(clickable=False)[1][0][0].text
+    plain = view.lines()[1][0]
+
+    # Assert
+    actual = (clickable.split(), unclickable.split(), plain.split())
+    assert actual == (["NAME", "GO"], ["NAME"], ["NAME"])
+
+
 def test_output_segments_joins_where_nothing_can_click():
     """Without a link renderer the pieces are one plain output line; with one, the pieces go to it."""
     # Arrange
@@ -615,6 +642,33 @@ def test_the_three_lists_reach_a_clicking_frontend_with_their_links(tmp_path, mo
     assert links == expected, (
         "each list's names are the commands a click runs, then the EDIT cell's"
     )
+
+
+@pytest.mark.rule("links-are-data")
+def test_alive_links_kill_for_every_session_but_this_one(tmp_path, monkeypatch, capsys):
+    """In a frontend that can click, /app.alive's KILL links another session's PID to /app.kill; the CLI shows no KILL column."""
+    # Arrange -- this session and another live one, the parent process
+    from termapy.breadcrumbs import Breadcrumb
+
+    monkeypatch.setenv("TERMAPY_STATE_DIR", str(tmp_path / "state"))
+    eng = _cli_engine(tmp_path)
+    Breadcrumb().write("cli")
+    Breadcrumb(pid=os.getppid()).write("tui")
+
+    # Act -- the CLI first, as it is; then the same host given a frontend that clicks
+    capsys.readouterr()
+    eng.dispatch("app.alive")
+    plain = capsys.readouterr().out
+    links: list[str] = []
+    eng.ctx.io._write_segments = lambda pieces, color: links.extend(
+        piece.link.command for piece in pieces if piece.link is not None
+    )
+    eng.dispatch("app.alive")
+
+    # Assert
+    assert links == [f"app.kill {os.getppid()}"], "one kill link, the other session's"
+    assert "PID" in plain, "the CLI printed the table"
+    assert "KILL" not in plain, "nothing in the CLI can click it"
 
 
 def test_a_folder_list_opens_each_file_through_its_own_show(tmp_path):

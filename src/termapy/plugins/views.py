@@ -132,6 +132,10 @@ class Column:
         tip: More for the cell's tooltip, for its record (who holds a
             port): the link's ``Link.tip``.  Needs ``run`` or ``prefill``,
             since a tooltip belongs to a link; empty adds nothing.
+        link_only: The column is its link and nothing else, a word to click
+            (``/app.alive``'s KILL): shown where a click reaches it (the
+            TUI), left out where none can (the CLI, MCP, a plain listing),
+            where it would be dead text.  Needs ``run`` or ``prefill``.
         drop: How expendable the column is when the table is wider than the
             frontend (registry ``table-fits-the-frontend``): 0 is never
             dropped; of the rest the highest goes first.
@@ -148,13 +152,16 @@ class Column:
     drop: int = 0
     hide_empty: bool = False
     tip: Callable[[Record], str | tuple[Piece, ...]] | None = None
+    link_only: bool = False
 
     def __post_init__(self) -> None:
-        """Refuse a column that would both run and prefill, a tip with no link, or a negative drop rank."""
+        """Refuse a column that would both run and prefill, a tip or link_only with no link, or a negative drop rank."""
         if self.run is not None and self.prefill is not None:
             raise ValueError(f"Column {self.title}: run= and prefill= are exclusive")
         if self.tip is not None and self.run is None and self.prefill is None:
             raise ValueError(f"Column {self.title}: tip= needs run= or prefill=")
+        if self.link_only and self.run is None and self.prefill is None:
+            raise ValueError(f"Column {self.title}: link_only= needs run= or prefill=")
         if self.drop < 0:
             raise ValueError(f"Column {self.title}: drop= is 0 or more")
 
@@ -202,14 +209,17 @@ class TableView:
         output); columns are two spaces apart and as wide as their widest
         cell or title; trailing padding is stripped.  The header and the
         dash row are dim.  An empty table is its title alone,
-        ``<title> - empty``.  The text of :meth:`segment_lines`, joined.
+        ``<title> - empty``.  The text of :meth:`segment_lines`, joined, as
+        a frontend that cannot click shows it: no ``link_only`` column.
         """
         return [
             ("".join(piece.text for piece in pieces), color)
-            for pieces, color in self.segment_lines(width)
+            for pieces, color in self.segment_lines(width, clickable=False)
         ]
 
-    def segment_lines(self, width: int | None = None) -> list[tuple[list[Piece], str]]:
+    def segment_lines(
+        self, width: int | None = None, *, clickable: bool = True
+    ) -> list[tuple[list[Piece], str]]:
         """The table as lines of pieces, each with what clicking it does.
 
         The one layout: :meth:`lines` joins these, so the plain table and
@@ -223,10 +233,12 @@ class TableView:
                 row is still too wide, the column with the highest ``drop``
                 goes, the rightmost of equals; a ``drop`` of 0 never goes
                 (registry ``table-fits-the-frontend``).
+            clickable: Whether the frontend can click (``IOHandle.can_click``);
+                where it cannot, a ``link_only`` column is left out.
         """
         if not self.records:
             return [([Piece(f"{self.title} - empty")], "")]
-        columns, cells = self._fitted(width)
+        columns, cells = self._fitted(width, clickable)
         widths = [
             max(len(column.title), *(len(row[index]) for row in cells))
             for index, column in enumerate(columns)
@@ -252,10 +264,12 @@ class TableView:
             lines.append((_rstripped(pieces), ""))
         return lines
 
-    def _fitted(self, width: int | None) -> tuple[list[Column], list[list[str]]]:
+    def _fitted(self, width: int | None, clickable: bool) -> tuple[list[Column], list[list[str]]]:
         """The columns that show at ``width`` and their cells, one row per record."""
         kept = [
-            (column, [column.cell(record) for record in self.records]) for column in self.columns
+            (column, [column.cell(record) for record in self.records])
+            for column in self.columns
+            if clickable or not column.link_only
         ]
         kept = [
             (column, values)

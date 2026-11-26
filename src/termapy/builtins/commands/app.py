@@ -473,7 +473,8 @@ COMMAND = Command(
                 "--run) records no "
                 "version or starter.  --json adds the paths: config, Python, the\n"
                 "folder it started in, its session log, and the port's serial\n"
-                "number.  This session is marked (this).  {prefix}app.kill stops them;\n"
+                "number.  This session is marked (this).  {prefix}app.kill stops them,\n"
+                "and in the TUI each other session's kill link runs it for that PID;\n"
                 "termapy --alive prints the same list from the command line."
             ),
             handler=_handler_alive,

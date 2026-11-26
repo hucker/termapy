@@ -994,13 +994,24 @@ def session_columns() -> tuple[Column, ...]:
 
     A narrow frontend drops STARTED BY first, then ADDRESS, STARTED,
     VERSION and SETTINGS; a column every session leaves blank is hidden, so
-    ADDRESS shows only while a ``serve`` or ``web`` server runs.  Built on each
-    call so that importing this module loads no table code.
+    ADDRESS shows only while a ``serve`` or ``web`` server runs.  KILL is a
+    link on every session but this one, which ``/exit`` ends: a click runs
+    ``/app.kill <pid>``, which asks first.  It shows only where a click
+    reaches it (the TUI), and not at all when this session runs alone.  Built
+    on each call so that importing this module loads no table code.
     """
     from termapy.plugins.views import Column
 
     return (
         Column("PID", lambda record: str(record["pid"]), right=True),
+        Column(
+            "KILL",
+            lambda record: "" if record["this_session"] else "kill",
+            run=lambda record: f"app.kill {record['pid']}",
+            style=lambda record: "dim",
+            hide_empty=True,
+            link_only=True,
+        ),
         Column(
             "MODE",
             lambda record: record["frontend"] + (" (this)" if record["this_session"] else ""),

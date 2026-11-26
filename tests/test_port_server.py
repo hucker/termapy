@@ -21,6 +21,7 @@ import pytest
 import serial
 from serial import SerialException
 
+from termapy import port_server
 from termapy.config import open_serial
 from termapy.demo import FakeSerial
 from termapy.port_allow import PortAllowlist, PortPolicy
@@ -616,3 +617,69 @@ class TestOpening:
 
         # Assert
         assert opened[0].is_open is False, "the port opened for it is closed again"
+
+
+class _StalledPort:
+    """A served port whose device takes nothing: every write waits out its write timeout, as one under held flow control does."""
+
+    def __init__(self) -> None:
+        self.inner = serial.serial_for_url("loop://", timeout=0.05)
+        self.write_timeout: float | None = None
+        self.baudrate = 115200
+
+    def write(self, data: bytes) -> int:
+        """Wait out the timeout, then raise as pyserial does when nothing went out."""
+        time.sleep(self.write_timeout or 0)
+        raise serial.SerialTimeoutException("Write timeout")
+
+    def __getattr__(self, name: str):
+        return getattr(self.inner, name)
+
+
+class TestPumpFailures:
+    """What the network pump does when the device or the client misbehaves: one line said, the port kept."""
+
+    @pytest.mark.rule("serve-pumps-joined")
+    def test_a_port_that_takes_nothing_drops_the_client_and_keeps_serving(
+        self, served, monkeypatch
+    ):
+        """A write the device never takes ends that client within the write timeout, and the next client is admitted."""
+        # Arrange -- a short timeout, so the test waits a fraction of a second
+        monkeypatch.setattr(port_server, "WRITE_TIMEOUT_S", 0.3)
+        stalled = _StalledPort()
+        bridge, events = served("stalled", opener=lambda cfg, policy=None: stalled)
+        server = bridge.servers[0]
+
+        # Act
+        first = _client(server)
+        first.write(b"AT\r")
+        dropped = _until(lambda: any("took nothing" in event for event in events))
+        first.close()
+        second_admitted = _until(lambda: not server.client_address)
+
+        # Assert
+        assert stalled.write_timeout == 0.3, "the served port opened with a write timeout"
+        assert dropped, f"the blocked client was dropped and said so: {events}"
+        assert second_admitted and server.connected, "the slot is free and the port still served"
+
+    def test_a_malformed_option_drops_the_client_in_one_line(self, served):
+        """A short SET_BAUDRATE from a client ends that client with one report line; the port serves the next."""
+        # Arrange
+        bridge, events = served("loop://")
+        server = bridge.servers[0]
+        host, port = server.url.removeprefix("rfc2217://").rsplit(":", 1)
+        malformed = b"\xff\xfa\x2c\x01\x00\x01\xff\xf0"  # SET_BAUDRATE with two of its four bytes
+
+        # Act
+        raw = socket.create_connection((host.strip("[]"), int(port)), timeout=2)
+        raw.sendall(malformed)
+        said = _until(lambda: any("malformed option" in event for event in events))
+        raw.close()
+        after = _client(server)
+        after.write(b"still")
+        reply = _read(after, 5)
+        after.close()
+
+        # Assert
+        assert said, f"the drop is one report line: {events}"
+        assert reply == b"still", "the next client is served"

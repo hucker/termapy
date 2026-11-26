@@ -978,7 +978,7 @@ Ids: 246: 231 registry rows (guarantees 194, assumptions 37), 15 spec sections i
 
 ### `serve-pumps-joined` (guarantee, concurrency)
 
-- `test_port_server.py`: `TestBridge.test_a_client_connection_keeps_alive_at_the_set_timings` **guard**, `TestBridge.test_a_healthy_idle_port_is_checked_and_kept`, `TestBridge.test_a_lost_port_drops_its_client_refuses_while_gone_and_is_reopened` **guard**, `TestBridge.test_a_port_lost_with_no_client_is_noticed_and_reopened` **guard**, `TestBridge.test_a_vanished_client_is_dropped_and_frees_the_port` **guard**, `TestBridge.test_stop_twice_leaves_no_thread_and_closes_the_port` **guard**
+- `test_port_server.py`: `TestBridge.test_a_client_connection_keeps_alive_at_the_set_timings` **guard**, `TestBridge.test_a_healthy_idle_port_is_checked_and_kept`, `TestBridge.test_a_lost_port_drops_its_client_refuses_while_gone_and_is_reopened` **guard**, `TestBridge.test_a_port_lost_with_no_client_is_noticed_and_reopened` **guard**, `TestBridge.test_a_vanished_client_is_dropped_and_frees_the_port` **guard**, `TestBridge.test_stop_twice_leaves_no_thread_and_closes_the_port` **guard**, `TestPumpFailures.test_a_port_that_takes_nothing_drops_the_client_and_keeps_serving`
 
 ### `session-changes-one-diff` (guarantee, requirement)
 

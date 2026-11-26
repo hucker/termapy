@@ -34,6 +34,7 @@ import copy
 import errno
 import select
 import socket
+import struct
 import threading
 import time
 from collections.abc import Callable
@@ -41,7 +42,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from serial import SerialException
+from serial import SerialException, SerialTimeoutException
 from serial.rfc2217 import PortManager
 
 from termapy.breadcrumbs import listen_url
@@ -74,6 +75,14 @@ KEEPALIVE_INTERVAL_S = 5
 KEEPALIVE_PROBES = 4
 # How long a stop waits for each thread: every loop wakes within a poll.
 _JOIN_S = 2.0
+# How long a write to the port may take before the device is taken to be
+# refusing data (flow control held, CTS never asserted).  Each write is a
+# second's worth of bytes at the port's rate (``_write_all``), so a slow
+# baud rate never trips it.  Without it one blocked write held the client
+# slot for the server's life (review 2026-11-26, N1).
+WRITE_TIMEOUT_S = 5.0
+# The smallest slice ``_write_all`` cuts, so a very low rate still moves.
+_MIN_WRITE_SLICE = 64
 
 Report = Callable[[str], None]
 Opener = Callable[..., Any]
@@ -230,10 +239,29 @@ _READ_TIMEOUT_S = 0.05
 
 
 def _ready(port: Any) -> Any:
-    """``port`` with a short read timeout, so its pump wakes to see a stop; returned for chaining."""
+    """``port`` with a short read timeout, so its pump wakes to see a stop, and a write timeout; returned for chaining."""
     if not getattr(port, "timeout", None):
         port.timeout = _READ_TIMEOUT_S
+    if getattr(port, "write_timeout", None) is None:
+        port.write_timeout = WRITE_TIMEOUT_S
     return port
+
+
+def _write_all(port: Any, payload: bytes) -> None:
+    """Write ``payload`` to ``port`` in slices of about a second each at its baud rate.
+
+    Each slice finishes well inside ``WRITE_TIMEOUT_S`` at any rate the
+    device accepts, so a timeout means the device took nothing, not that the
+    rate was slow.
+
+    Raises:
+        SerialTimeoutException: A slice did not go out in ``WRITE_TIMEOUT_S``.
+        SerialException: The port failed.
+    """
+    rate = int(getattr(port, "baudrate", 0) or 0)
+    step = max(_MIN_WRITE_SLICE, rate // 10)
+    for start in range(0, len(payload), step):
+        port.write(payload[start : start + step])
 
 
 def _keep_alive(conn: socket.socket) -> None:
@@ -376,14 +404,37 @@ class _Client:
                 break
             try:
                 payload = b"".join(self.manager.filter(data))
-            except ValueError as e:
-                # A setting the port refuses (a baud rate the driver will not
-                # take): the client hears no change, the session goes on.
-                self.server.report(f"{self.server.name}: {self.who} asked for a bad setting: {e}")
+            except (ValueError, SerialException) as e:
+                # A setting the port refuses: pyserial restores a refused value
+                # it caught itself, and a driver's refusal (SetCommState) is a
+                # SerialException.  The client hears no change and the session
+                # goes on; a port that just went is the out-pump's next read to find.
+                self.server.report(
+                    f"{self.server.name}: {self.who} asked for a setting the port refused: {e}"
+                )
                 continue
+            except (struct.error, KeyError, IndexError, TypeError) as e:
+                # A malformed RFC 2217 option (a value too short, an unknown
+                # code): a client that speaks it wrongly is ended in one line,
+                # not a thread traceback (review 2026-11-26, N2).
+                self.server.report(
+                    f"{self.server.name}: {self.who} sent a malformed option and was dropped: "
+                    f"{type(e).__name__}: {e}"
+                )
+                break
+            except OSError:
+                break  # a reply to the client could not be sent: it is gone
             try:
                 if payload:
-                    self.port.write(payload)
+                    _write_all(self.port, payload)
+            except SerialTimeoutException:
+                # The device took nothing (flow control held): this client ends
+                # and frees the slot; the port stays served for the next one.
+                self.server.report(
+                    f"{self.server.name}: {self.who} dropped: the port took nothing for "
+                    f"{WRITE_TIMEOUT_S:g} s (flow control held?)"
+                )
+                break
             except (SerialException, OSError) as e:
                 self.server.port_lost(self.port, e)
                 break

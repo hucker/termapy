@@ -645,8 +645,8 @@ def test_the_three_lists_reach_a_clicking_frontend_with_their_links(tmp_path, mo
 
 
 @pytest.mark.rule("links-are-data")
-def test_alive_links_kill_for_every_session_but_this_one(tmp_path, monkeypatch, capsys):
-    """In a frontend that can click, /app.alive's KILL links another session's PID to /app.kill; the CLI shows no KILL column."""
+def test_alive_links_stop_for_every_session_but_this_one(tmp_path, monkeypatch, capsys):
+    """In a frontend that can click, /app.alive's STOP links another session's PID to /app.stop; the CLI shows no STOP column."""
     # Arrange -- this session and another live one, the parent process
     from termapy.breadcrumbs import Breadcrumb
 
@@ -666,9 +666,9 @@ def test_alive_links_kill_for_every_session_but_this_one(tmp_path, monkeypatch, 
     eng.dispatch("app.alive")
 
     # Assert
-    assert links == [f"app.kill {os.getppid()}"], "one kill link, the other session's"
+    assert links == [f"app.stop {os.getppid()}"], "one stop link, the other session's"
     assert "PID" in plain, "the CLI printed the table"
-    assert "KILL" not in plain, "nothing in the CLI can click it"
+    assert "STOP" not in plain, "nothing in the CLI can click it"
 
 
 def test_a_folder_list_opens_each_file_through_its_own_show(tmp_path):

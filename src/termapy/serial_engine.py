@@ -86,7 +86,7 @@ def _session_holding_port(
     every OS and opens nothing.  The spec is resolved first, so a USB
     serial number or a chain is matched as the physical port it names.
     Another session is named with its PID and config and the command that
-    asks it to leave (``/app.kill``, or ``termapy --kill`` from a shell);
+    asks it to leave (``/app.stop``, or ``termapy --stop`` from a shell);
     under MCP without ``TERMAPY_MCP_HOST_INFO`` it stays unnamed and
     nothing is suggested (decision 2026-11-12).
 
@@ -123,8 +123,8 @@ def _session_holding_port(
         return text
     config = f", config {crumb.config_name}" if crumb.config_name else ""
     return (
-        f"{text}{config} -- stop it with {prefix}app.kill {crumb.pid}, "
-        f"or termapy --kill {crumb.pid} from a shell"
+        f"{text}{config} -- stop it with {prefix}app.stop {crumb.pid}, "
+        f"or termapy --stop {crumb.pid} from a shell"
     )
 
 

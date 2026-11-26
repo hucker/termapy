@@ -294,11 +294,11 @@ class TerminalHost:
     _watch_stop_at_start: ClassVar[bool] = True
 
     def _watch_for_stop(self) -> None:
-        """Answer a request to leave (``/app.kill``, ``--kill``) with :meth:`_leave_on_request`.
+        """Answer a request to leave (``/app.stop``, ``--stop``) with :meth:`_leave_on_request`.
 
         The request is ``breadcrumbs.request_stop``'s; this process's watch
         finds it within ``STOP_POLL_S`` and calls the method on its own thread
-        (registry ``kill-asks-first``).
+        (registry ``stop-asks-first``).
         """
         from termapy import breadcrumbs
 

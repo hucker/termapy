@@ -567,22 +567,13 @@ Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections i
 - `test_demo_ndjson.py`: `TestJsonModeIdsAgainstDemoJson` (2 functions)
 - `test_request_response.py`: `TestJsonModeIds` (5 functions)
 
-### `kill-asks-first` (guarantee, contract)
-
-- `test_app_pilot.py`: `TestAppBoots.test_a_request_to_leave_exits_as_exit_does`
-- `test_breadcrumbs.py`: `TestFrontendsLeaveWhenAsked` (2 functions), `TestStopRequest` (3 functions), `TestStopSessions` (4 functions), `TestStopWatch` (6 functions), `TestAppCommands.test_a_prompt_that_starts_after_the_request_ends_at_once`, `TestAppCommands.test_a_request_before_the_script_starts_is_not_lost`, `TestAppCommands.test_a_session_that_does_not_leave_fails_with_the_command`, `TestAppCommands.test_a_waiting_prompt_ends_as_ctrl_d_when_asked`
-
-### `kill-verifies-identity` (guarantee, contract)
-
-- `test_breadcrumbs.py`: `TestReadRunning.test_a_reused_pid_is_not_the_same_process` **guard**, `TestStopRequest.test_another_process_under_the_pid_ignores_it` **guard**
-
 ### `labels-title-case` (assumption, requirement)
 
 - `test_port_commands.py`: `TestChip.test_display_labels_are_title_case`
 
 ### `leave-asks-unsaved` (guarantee, requirement)
 
-- `test_app_pilot.py`: `TestCfgAppliesAtOnce.test_cfg_applies_with_no_dialog_and_counts_as_unsaved` **guard**, `TestUnsavedSettings.test_a_kill_request_asks_before_leaving` **guard**, `TestUnsavedSettings.test_a_mode_switch_asks_and_cancel_stays` **guard**
+- `test_app_pilot.py`: `TestCfgAppliesAtOnce.test_cfg_applies_with_no_dialog_and_counts_as_unsaved` **guard**, `TestUnsavedSettings.test_a_mode_switch_asks_and_cancel_stays` **guard**, `TestUnsavedSettings.test_a_stop_request_asks_before_leaving` **guard**
 - `test_session_changes.py`: `test_a_cli_exit_asks_only_where_someone_can_answer` **guard**, `test_a_cli_load_asks_before_dropping_unsaved_settings` **guard**
 
 ### `link-explains-itself` (guarantee, requirement)
@@ -601,7 +592,7 @@ Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections i
 - `test_help_links.py`: `test_a_bare_form_only_opens_or_shows`, `test_a_file_rows_edit_cell_is_a_link_and_not_a_field`, `test_a_page_runs_nothing_but_pages_and_bare_forms`, `test_a_row_draws_the_same_characters_in_the_same_styles`, `test_every_help_link_names_a_command_that_exists`, `test_the_landscape_lists_the_scripts_as_help_run_does`, `test_the_page_lines_draw_the_same_characters_in_the_same_styles`
 - `test_help_page.py`: `TestADefaultPage.test_the_available_note_links_the_capability`
 - `test_port_commands.py`: `TestPortList.test_the_port_cell_prefills_a_connect`
-- `test_views.py`: `test_a_link_only_column_shows_only_where_a_click_reaches_it`, `test_alive_links_kill_for_every_session_but_this_one`, `test_segments_join_to_exactly_the_plain_lines`, `test_the_three_lists_reach_a_clicking_frontend_with_their_links`
+- `test_views.py`: `test_a_link_only_column_shows_only_where_a_click_reaches_it`, `test_alive_links_stop_for_every_session_but_this_one`, `test_segments_join_to_exactly_the_plain_lines`, `test_the_three_lists_reach_a_clicking_frontend_with_their_links`
 
 ### `list-one-format` (guarantee, structure)
 
@@ -1064,6 +1055,15 @@ Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections i
 
 - `test_architecture.py`: `test_reading_a_commands_state_changes_nothing` **guard**, `test_state_read_guard_fires_on_a_probe` **probe**
 - `test_help_state.py`: the module (35 functions) **guard**
+
+### `stop-asks-first` (guarantee, contract)
+
+- `test_app_pilot.py`: `TestAppBoots.test_a_request_to_leave_exits_as_exit_does`
+- `test_breadcrumbs.py`: `TestFrontendsLeaveWhenAsked` (2 functions), `TestStopRequest` (3 functions), `TestStopSessions` (4 functions), `TestStopWatch` (6 functions), `TestAppCommands.test_a_prompt_that_starts_after_the_request_ends_at_once`, `TestAppCommands.test_a_request_before_the_script_starts_is_not_lost`, `TestAppCommands.test_a_session_that_does_not_leave_fails_with_the_command`, `TestAppCommands.test_a_waiting_prompt_ends_as_ctrl_d_when_asked`
+
+### `stop-verifies-identity` (guarantee, contract)
+
+- `test_breadcrumbs.py`: `TestReadRunning.test_a_reused_pid_is_not_the_same_process` **guard**, `TestStopRequest.test_another_process_under_the_pid_ignores_it` **guard**
 
 ### `suffix-words-reserved` (guarantee, structure)
 

@@ -674,10 +674,10 @@ def run_alive() -> NoReturn:
     sys.exit(0)
 
 
-def run_kill(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> None:
-    """``--kill``: stop the termapys a target picks, or, bare, list them as ``--alive`` does.
+def run_stop(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> None:
+    """``--stop``: stop the termapys a target picks, or, bare, list them as ``--alive`` does.
 
-    Bare ``--kill`` lists them and changes nothing.  ``--kill all``, a PID, a
+    Bare ``--stop`` lists them and changes nothing.  ``--stop all``, a PID, a
     port (``COM3``) or a config name lists the ones it picks, asks, and stops
     them (``breadcrumbs.stop_sessions``: each is asked to leave, and one
     still running after the grace period is named with the command that
@@ -689,17 +689,17 @@ def run_kill(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> Non
     or a process would not stop.
 
     ``timeout=DUR`` beside the target sets how long to wait for the
-    sessions to leave, as on ``/app.kill`` (default ``STOP_GRACE_S``).
+    sessions to leave, as on ``/app.stop`` (default ``STOP_GRACE_S``).
 
     Args:
-        args: Parsed CLI namespace; ``kill`` is the words after the flag,
+        args: Parsed CLI namespace; ``stop`` is the words after the flag,
             ``[]`` when bare.
         confirm: Asks the yes/no question (``confirm_on_stdin`` at a terminal).
     """
     from termapy import breadcrumbs
     from termapy.scripting import parse_duration
 
-    words = list(args.kill)
+    words = list(args.stop)
     timeout = breadcrumbs.STOP_GRACE_S
     for word in [word for word in words if word.casefold().startswith("timeout=")]:
         words.remove(word)
@@ -709,15 +709,15 @@ def run_kill(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> Non
             print(f"termapy: Invalid timeout: {word.partition('=')[2]}", file=sys.stderr)
             sys.exit(1)
     if len(words) > 1:
-        print(f"termapy: --kill takes one target, got {' '.join(words)}", file=sys.stderr)
+        print(f"termapy: --stop takes one target, got {' '.join(words)}", file=sys.stderr)
         sys.exit(1)
     target = words[0] if words else ""
     if not target:
         run_alive()
     if target.casefold() == "me":
         print(
-            "termapy: --kill me means the session it is typed in, and a command line is "
-            "not a session: type app.kill me in the session you mean",
+            "termapy: --stop me means the session it is typed in, and a command line is "
+            "not a session: type app.stop me in the session you mean",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -793,8 +793,8 @@ def run_serve(args: argparse.Namespace, *, usage_error: Callable[[str], NoReturn
     prints; a port that will not open ends the run with exit 1 and nothing
     served.  The process is the ``serve`` kind of session: its breadcrumb is
     written before it serves, without the version (a tenth of a second,
-    read once the ports listen), so ``/app.kill serve``, ``--kill <pid>`` or
-    ``--kill <port>`` can stop it at once; a stop request or Ctrl+C closes
+    read once the ports listen), so ``/app.stop serve``, ``--stop <pid>`` or
+    ``--stop <port>`` can stop it at once; a stop request or Ctrl+C closes
     every client and port and exits 0.  Nothing here loads the command
     system (registry ``flag-paths-light``).
 
@@ -876,8 +876,8 @@ def run_serve(args: argparse.Namespace, *, usage_error: Callable[[str], NoReturn
         print(f"  Open to the network at {host}. There is no login:")
         print("  anyone who can reach this address can drive these ports.")
     print(
-        f"  Stop with Ctrl+C, or from any termapy: {DEFAULT_CMD_PREFIX}app.kill serve "
-        "(termapy --kill serve)."
+        f"  Stop with Ctrl+C, or from any termapy: {DEFAULT_CMD_PREFIX}app.stop serve "
+        "(termapy --stop serve)."
     )
     print(flush=True)
     # The version and the program that started this one, for --alive: read
@@ -967,7 +967,7 @@ def _serve_detached(entries: list, host: str) -> NoReturn:
             if host not in LOOPBACK_HOSTS:
                 print(f"  Open to the network at {host}. There is no login.")
             print(f"  Its output: {output}")
-            print("  Stop it with: termapy --kill serve")
+            print("  Stop it with: termapy --stop serve")
             sys.exit(0)
         time.sleep(0.1)
     print(

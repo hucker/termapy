@@ -172,7 +172,7 @@ FLAG_TWINS: dict[str, str] = {
     "--version": "app.ver",
     "--usb": "port.usb",
     "--alive": "app.alive",
-    "--kill": "app.kill",
+    "--stop": "app.stop",
     "--validate-profile": "profile.validate",
 }
 
@@ -364,7 +364,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "Share serial ports on the network over RFC 2217, with no TUI: each "
             "PORT (a name, a USB serial number, DEMO) on its own TCP port, 2217 "
             "and up unless =TCPPORT says, for a client to open as "
-            "rfc2217://HOST:TCPPORT.  Needs --listen.  /app.kill serve stops it"
+            "rfc2217://HOST:TCPPORT.  Needs --listen.  /app.stop serve stops it"
         ),
     )
     session.add_argument(
@@ -373,7 +373,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "With --serve, run the server in the background, with no window: "
             "it prints its PID and addresses and returns, its output goes to a "
-            "file it names, and termapy --kill serve stops it"
+            "file it names, and termapy --stop serve stops it"
         ),
     )
     session.add_argument(
@@ -397,14 +397,14 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     sessions.add_argument(
-        "--kill",
+        "--stop",
         nargs="*",
         default=None,
         metavar="TARGET [timeout=DUR]",
         help=(
             "Stop the termapys a TARGET picks -- all, a PID, a port (COM3) or a "
             "config name -- after a yes, waiting timeout= (default 3s) "
-            "for them to leave.  Bare, list them as --alive does." + _same_as("--kill")
+            "for them to leave.  Bare, list them as --alive does." + _same_as("--stop")
         ),
     )
     oneshot.add_argument(
@@ -412,7 +412,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--yes",
         action="store_true",
         help=(
-            "Answer yes to the command line's questions: --kill, --new's overwrite, "
+            "Answer yes to the command line's questions: --stop, --new's overwrite, "
             "and a CLI session's (--cli, -e, --run).  Not the TUI's dialogs, and "
             "never under --mcp"
         ),
@@ -572,13 +572,13 @@ def _run_validate_profile(path_str: str, strict: bool = False) -> None:
 
 
 def _no_terminal_to_confirm(question: str) -> bool:
-    """The answer to ``--new``'s and ``--kill``'s question when stdin is not a terminal: always No."""
+    """The answer to ``--new``'s and ``--stop``'s question when stdin is not a terminal: always No."""
     print(f"termapy: {question} No terminal to answer on, so no.", file=sys.stderr)
     return False
 
 
 def _flag_confirm(args: argparse.Namespace) -> Callable[[str], bool]:
-    """How ``--kill`` and ``--new`` ask: yes under ``--yes``, else on stdin, else no."""
+    """How ``--stop`` and ``--new`` ask: yes under ``--yes``, else on stdin, else no."""
     from termapy.cli_flags import assume_yes, confirm_on_stdin
 
     if args.yes:
@@ -650,10 +650,10 @@ def main() -> None:
         from termapy.cli_flags import run_alive
 
         run_alive()
-    if args.kill is not None:
-        from termapy.cli_flags import run_kill
+    if args.stop is not None:
+        from termapy.cli_flags import run_stop
 
-        run_kill(args, confirm=_flag_confirm(args))
+        run_stop(args, confirm=_flag_confirm(args))
     if args.validate_profile is not None:
         _run_validate_profile(args.validate_profile, strict=args.strict)
 

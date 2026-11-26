@@ -1085,6 +1085,30 @@ def test_v40_to_v41_renames_raw_to_term_raw():
     )
 
 
+def test_v42_to_v43_renames_app_kill_to_app_stop():
+    """Migration v42->v43 renames /app.kill in a button and an on-connect key; its target and /app.alive stay."""
+    # Arrange
+    cfg = {
+        "config_version": 42,
+        "on_connect_cmd": "/app.kill serve",
+        "custom_buttons": [
+            {"enabled": True, "name": "Stop", "command": "{prefix}app.kill others"},
+            {"enabled": True, "name": "Alive", "command": "{prefix}app.alive"},
+        ],
+    }
+
+    # Act
+    migrated = migrate_config(cfg)
+
+    # Assert
+    actual = (
+        migrated["on_connect_cmd"],
+        [button["command"] for button in migrated["custom_buttons"]],
+    )
+    expected = ("/app.stop serve", ["{prefix}app.stop others", "{prefix}app.alive"])
+    assert actual == expected, "the command moves; its target and the other /app commands stay"
+
+
 def test_migration_steps_recorded_per_version():
     """Each step with a migrator appends a labeled line to _migration_steps."""
     # Arrange -- a config from v17 runs every migrator since.

@@ -133,7 +133,7 @@ class Column:
             port): the link's ``Link.tip``.  Needs ``run`` or ``prefill``,
             since a tooltip belongs to a link; empty adds nothing.
         link_only: The column is its link and nothing else, a word to click
-            (``/app.alive``'s KILL): shown where a click reaches it (the
+            (``/app.alive``'s STOP): shown where a click reaches it (the
             TUI), left out where none can (the CLI, MCP, a plain listing),
             where it would be dead text.  Needs ``run`` or ``prefill``.
         drop: How expendable the column is when the table is wider than the

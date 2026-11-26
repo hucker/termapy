@@ -102,7 +102,7 @@ termapy --serve (prototype): serial ports on the network over RFC 2217
   COM5  ->  rfc2217://192.168.1.57:2218
   Open to the network at 192.168.1.57. There is no login:
   anyone who can reach this address can drive these ports.
-  Stop with Ctrl+C, or from any termapy: /app.kill serve (termapy --kill serve).
+  Stop with Ctrl+C, or from any termapy: /app.stop serve (termapy --stop serve).
 ```
 
 On the other computer the URL is the port, as in
@@ -130,8 +130,8 @@ frame, DTR, RTS and break set there reach the real port.
   and `127.0.0.1`, so a client tries no address that is not listening.
 - **A session kind of its own.** `--alive` lists it as `serve` with every
   port it holds, where each answers and who is connected to it, a TUI that
-  tries one of them is told the server holds it, and `/app.kill serve` or
-  `termapy --kill serve` stops every port server.
+  tries one of them is told the server holds it, and `/app.stop serve` or
+  `termapy --stop serve` stops every port server.
 
 ### In the background: `--detach`
 
@@ -145,7 +145,7 @@ termapy --serve is running in the background, PID 11120:
   COM7  ->  rfc2217://192.168.1.57:2217
   Open to the network at 192.168.1.57. There is no login.
   Its output: C:\Users\you\AppData\Local\termapy\log\20261124_164358-serve.log
-  Stop it with: termapy --kill serve
+  Stop it with: termapy --stop serve
 ```
 
 Closing the window it was started from does not stop it. Its banner and

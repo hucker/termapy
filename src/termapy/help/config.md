@@ -87,7 +87,7 @@ Here is an example config for a device called `iot_device`:
 <!-- validate-config-keys -->
 ```json
 {
-    "config_version": 42,
+    "config_version": 43,
     "title": "IoT Device",
     "border_color": "blue",
     "serial": {

@@ -687,7 +687,9 @@ class ReplEngine:
                     # clickable, every other frontend prints the joined
                     # text (registry links-are-data), fitted to the
                     # frontend's width (registry table-fits-the-frontend).
-                    for segments, color in view.segment_lines(self.ctx.io.width()):
+                    for segments, color in view.segment_lines(
+                        self.ctx.io.width(), clickable=self.ctx.io.can_click()
+                    ):
                         self.ctx.io.result_segments(segments, color)
             finally:
                 self.ctx._call_level = saved_level

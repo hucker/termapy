@@ -308,6 +308,10 @@ and uv.  A one-shot (`-e`,
 `--run`) records no version or starter, which take a tenth of a second to
 read.  A narrow terminal drops STARTED BY first.
 
+In the TUI, `/app.alive` adds a KILL column: a `kill` link on every
+session but your own, which runs `/app.kill <pid>` for that row and asks
+first.  The command line has nothing to click, so `--alive` leaves it out.
+
 `--kill` stops them, after a yes; bare, it lists them as `--alive` does.
 Each session is asked to leave and leaves as `/exit` does: its terminal
 restored, its port closed, its history saved, its session log ended.

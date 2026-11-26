@@ -1069,3 +1069,47 @@ class TestHostView:
         from termapy.serial_engine import shown_holder
 
         assert shown_holder("python (PID 8842)", hides_host=hides_host) == expected
+
+
+class TestConfigValuesHeldToTheirUse:
+    """A value an MCP client writes into a config is judged by the rules of its later use, not only by its type."""
+
+    @pytest.mark.rule("cfg-values-held-to-their-use")
+    @pytest.mark.parametrize("value", ["p.cfg", "../other/other.cfg", "plugin/planted.py"])
+    def test_a_log_file_that_would_append_into_a_config_or_code_is_refused(self, host, value):
+        """log_file naming a config or a plugin is refused, so no later session appends its log into one."""
+        # Act
+        result = _call(host, f"/cfg log_file {value}")
+
+        # Assert
+        assert result["success"] is False, f"{value} is refused"
+        assert host.ctx.cfg["log_file"] == "", "the session holds nothing to save"
+
+    @pytest.mark.rule("cfg-values-held-to-their-use")
+    def test_a_log_file_in_the_config_folder_is_the_clients(self, host):
+        """A plain relative log_file lands in the config's folder and is allowed."""
+        # Act
+        result = _call(host, "/cfg log_file logs/session.log")
+
+        # Assert
+        assert result["success"] is True, result["error"]
+
+    @pytest.mark.rule("cfg-values-held-to-their-use")
+    def test_a_network_port_the_list_does_not_name_is_never_written(self, host, monkeypatch):
+        """Under an allow list, /cfg.new and /cfg port refuse a host the list does not name, and no config is made."""
+        # Arrange -- the operator allows COM7 only; the fleet keeps enumeration off real hardware
+        from termapy import env_flags
+        from termapy.port_allow import PortAllowlist
+
+        monkeypatch.setattr(env_flags, "ALLOWED_PORTS", PortAllowlist.parse("COM7"))
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+        url = "rfc2217://10.0.0.5:2217"
+
+        # Act
+        made = _call(host, f"/cfg.new planted {url}")
+        set_port = _call(host, f"/cfg port {url}")
+
+        # Assert
+        assert (made["success"], set_port["success"]) == (False, False), (made, set_port)
+        assert not (_folder(host).parent / "planted").exists(), "no config was written"
+        assert host.ctx.cfg["serial"]["port"] == "DEMO", "the session port is unchanged"

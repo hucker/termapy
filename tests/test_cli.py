@@ -3316,3 +3316,47 @@ class TestJsonOnMachineFlags:
         # Assert
         record = json.loads(capsys.readouterr().out)
         assert (code, bool(record["version"])) == (0, True)
+
+
+class TestEditConfined:
+    """/edit stays in the config's folders where the host is confined (a --web session served to the network)."""
+
+    @staticmethod
+    def _confine(cli) -> list:
+        from termapy.plugins import CapabilitySet
+
+        cli.ctx.capabilities = CapabilitySet(interactive=True, file_editor=True)
+        cli.ctx.sync_capabilities()
+        opened: list = []
+        cli.ctx.fs._open_file_impl = lambda path: opened.append(path)
+        return opened
+
+    @pytest.mark.rule("web-network-confined")
+    @pytest.mark.parametrize("name", ["../../outside.run", "run/../../../outside.run"])
+    def test_a_name_that_leaves_the_folder_is_refused(self, cli, name):
+        """A .. name is refused with the confinement sentence before anything is looked up or opened."""
+        # Arrange
+        opened = self._confine(cli)
+        outside = Path(cli.ctx.fs.scripts_dir).parent.parent / "outside.run"
+        outside.write_text("# Outside\n", encoding="utf-8")
+
+        # Act
+        result = cli.repl.dispatch(f"edit {name}")
+
+        # Assert
+        assert (result.success, opened) == (False, []), result.error
+        assert "outside the config sandbox" in result.error, "the refusal says why"
+
+    @pytest.mark.rule("web-network-confined")
+    def test_an_absolute_name_is_refused(self, cli, tmp_path):
+        """An absolute path is refused the same way."""
+        # Arrange
+        opened = self._confine(cli)
+        outside = tmp_path / "abs.run"
+        outside.write_text("# Abs\n", encoding="utf-8")
+
+        # Act
+        result = cli.repl.dispatch(f"edit {outside}")
+
+        # Assert
+        assert (result.success, opened) == (False, []), result.error

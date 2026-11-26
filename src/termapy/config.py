@@ -513,6 +513,34 @@ def apply_open_settings(
         cfg["echo"] = echo
 
 
+def check_port_allowed(port: str, *, source: PortSource | None = None) -> None:
+    """Refuse a port the port policy in force would not open, before a config holds it.
+
+    A config's port opens at a person's next start, where no allow list may
+    be set, so a port an MCP client or a listed session writes into a config
+    is judged now by the opener's own check (``resolve_port_for_open``,
+    registry ``cfg-values-held-to-their-use``).  Nothing is opened.  With no
+    policy in force every port is allowed, as at the opener.
+
+    Args:
+        port: The port as typed.
+        source: A substitute port list, as ``resolve_port`` takes it.
+
+    Raises:
+        ValueError: The policy refuses the port, or the name is ambiguous.
+    """
+    from termapy.env_flags import port_policy
+    from termapy.port_control import AmbiguousSerialNumberError, resolve_port_for_open
+
+    policy = port_policy()
+    if not policy.in_force:
+        return
+    try:
+        resolve_port_for_open(port, source=source, policy=policy)
+    except AmbiguousSerialNumberError as e:
+        raise ValueError(str(e)) from e
+
+
 def new_config_from_args(name: str, settings: str, *, source: PortSource | None = None) -> dict:
     """``NAME PORT [SETTING ...]`` as a new config: what ``--new`` and ``/cfg.new`` read.
 
@@ -536,7 +564,8 @@ def new_config_from_args(name: str, settings: str, *, source: PortSource | None 
 
     Raises:
         ValueError: The name fails ``validate_file_stem``, a setting is not
-            ``/port.connect``'s, or there is no port.
+            ``/port.connect``'s, there is no port, or the port policy in
+            force refuses the port (``check_port_allowed``).
     """
     from termapy.port_control import listed_name, parse_open_args, present_ports
 
@@ -548,6 +577,7 @@ def new_config_from_args(name: str, settings: str, *, source: PortSource | None 
         raise ValueError(error)
     if not port:
         raise ValueError("A port is required")
+    check_port_allowed(port, source=source)
     return new_config(
         name,
         port=listed_name(port, present_ports(source=source)),
@@ -1099,12 +1129,18 @@ def session_log_file(cfg: Mapping[str, Any], config_path: str | None) -> Path | 
 
     The TUI's ``session_log_path`` is this; nothing else reads ``log_file``
     or calls ``cfg_log_path`` for the session log (registry
-    ``session-log-one-owner``).  A relative ``log_file`` resolves against
-    the working directory, as it always has.
+    ``session-log-one-owner``).  A relative ``log_file`` is under the
+    config's folder, as every write a config makes is (registry
+    ``writes-in-cfg-folder``); against the working directory, a
+    ``log_file`` naming a config's own ``.cfg`` appended the log into it
+    (review 2026-11-26, F2).
     """
     configured = cfg_value(cfg, "log_file")
     if configured:
-        return Path(configured).resolve()
+        path = Path(configured)
+        if config_path and not path.is_absolute():
+            path = Path(config_path).parent / path
+        return path.resolve()
     if config_path:
         return Path(cfg_log_path(config_path))
     return None

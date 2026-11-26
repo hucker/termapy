@@ -74,6 +74,10 @@ def _handler_root(ctx: PluginContext, args: str) -> CmdResult:
     name = args.strip()
     if not name:
         raise UsageError()
+    # An absolute or `..` name leaves the config's folders: a --web session
+    # served to the network opened any .run or .pro on the serving machine
+    # (registry web-network-confined; review 2026-11-26, N4).
+    ctx.fs.guard_external_path(name)
     path = _resolve_file(ctx, name)
     if path is None:
         place = _search_place(ctx, name)

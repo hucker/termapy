@@ -15,7 +15,7 @@ rule's guard is marked **guard**, its probe **probe**; a whole module or a
 class that carries the marker is listed once with its test count. The first
 table is the ids no test pins. The process is [traceability.md](traceability.md).
 
-Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 241. Pinned by none: 4.
+Ids: 246: 231 registry rows (guarantees 194, assumptions 37), 15 spec sections in `param-spec-implementation.md`. Pinned by at least one test: 242. Pinned by none: 4.
 
 ## Pinned by no test
 
@@ -168,6 +168,10 @@ Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections i
 - `test_cfg_schema.py`: the module (35 functions) **guard**
 - `test_repl_cfg.py`: `TestCfgAuto.test_auto_matches_a_choice_in_any_case`, `TestCfgAuto.test_auto_refuses_a_value_outside_the_choices`, `TestCfgChange.test_a_choice_in_another_case_is_stored_as_the_config_spells_it`
 - `test_term_request.py`: `TestJsonLayout.test_a_bad_indent_in_a_cfg_warns_at_load`
+
+### `cfg-values-held-to-their-use` (guarantee, contract)
+
+- `test_mcp_boundary.py`: `TestConfigValuesHeldToTheirUse.test_a_log_file_in_the_config_folder_is_the_clients`, `TestConfigValuesHeldToTheirUse.test_a_log_file_that_would_append_into_a_config_or_code_is_refused` **guard**, `TestConfigValuesHeldToTheirUse.test_a_network_port_the_list_does_not_name_is_never_written` **guard**
 
 ### `cfg-written-in-order` (guarantee, structure)
 
@@ -1234,6 +1238,7 @@ Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections i
 
 ### `web-network-confined` (guarantee, contract)
 
+- `test_cli.py`: `TestEditConfined.test_a_name_that_leaves_the_folder_is_refused`, `TestEditConfined.test_an_absolute_name_is_refused`
 - `test_environments.py`: `test_a_confinement_refusal_names_every_opt_in` **guard**, `test_served_on_this_machine_keeps_host_wide_file_access` **guard**, `test_served_to_the_network_keeps_files_in_the_config_folder` **guard**, `test_the_web_opt_in_lifts_the_confinement` **guard**
 
 ### `widget-text-literal` (guarantee, data)

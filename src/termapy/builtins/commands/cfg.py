@@ -27,6 +27,7 @@ from termapy.config import (
     cfg_path_for_name,
     cfg_value_text,
     check_cfg_value,
+    check_port_allowed,
     config_names,
     config_summary,
     create_config,
@@ -36,6 +37,7 @@ from termapy.config import (
     is_config_file,
     new_config_from_args,
     rename_config,
+    session_log_file,
 )
 from termapy.config_resolve import resolve_config
 from termapy.defaults import CFG_CHOICES, cfg_key, cfg_slot, cfg_value
@@ -171,6 +173,16 @@ def _typed_value(ctx: PluginContext, container: Mapping, key: str, value_str: st
         # A path key turns a later read or load into a file primitive
         # (log_file -> /log.dump), so it is held to the MCP sandbox.
         ctx.fs.guard_external_path(value_str, f"cfg {key}")
+    if key == "log_file" and value_str:
+        # The session log is appended to at every start, so the file it
+        # names is held to the write guards where the log will land: never
+        # a config, never a code folder (registry cfg-values-held-to-their-use).
+        target = session_log_file({key: value_str}, ctx.config_path or None)
+        if target is not None:
+            ctx.fs.guard_code_folder(target.parent)
+            ctx.fs.guard_file_write(target)
+    if key == "port" and value_str:
+        check_port_allowed(value_str)
     if key in CFG_CHOICES:
         return cfg_choice(key, value_str)
     try:

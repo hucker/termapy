@@ -3022,8 +3022,6 @@ NOT_IN_GOLD: dict[str, str] = {
     "mcp.info": "prints the process id",
     "os": "runs a shell command, gated by TERMAPY_OS_CMD_ENABLED, a machine setting",
     "ping": _TIMED,
-    "port.chip": _HARDWARE,
-    "port.chip.description": _HARDWARE,
     "port.chip.list": _HARDWARE,
     "port.list": _HARDWARE,
     "port.usb": _HARDWARE,

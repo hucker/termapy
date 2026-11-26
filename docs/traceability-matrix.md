@@ -708,6 +708,7 @@ Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections i
 
 - `test_app_pilot.py`: `TestNoOpSaysSo.test_app_tui_in_the_tui_says_it_is_already_there`, `TestNoOpSaysSo.test_cap_stop_answers_with_what_the_capture_wrote`
 - `test_cli.py`: `TestNoOpSaysSo.test_a_no_op_says_so_and_succeeds`, `TestNoOpSaysSo.test_cap_stop_answers_with_what_the_capture_wrote`
+- `test_cli_exec.py`: `TestOneShotHangs.test_a_ui_switch_in_a_one_shot_is_refused`
 - `test_find.py`: `TestClear.test_clear_on_idle_says_there_is_no_search`
 
 ### `number-vocabularies` (assumption, data)

@@ -493,6 +493,12 @@ every line succeeded, `1` when a line failed or the script was not
 found, `130` on Ctrl+C.  A script runs past a failing line, so the exit
 code is how a CI step learns that one did.
 
+Three things a one-shot never does: start a TUI (`-e` with no command
+is a usage error, exit `2`, and `/app.tui` in a one-shot or a `--run`
+script answers `Not available in a one-shot.`), wait on a
+reader that left (when the process reading stdout closes the pipe, as
+`| head` does, termapy stops quietly), or print a traceback for either.
+
 **Quoting.** `-e` takes the rest of the command line, as `ssh host cmd
 args` does: the words after it, joined with single spaces, are the
 command, so quotes are optional and `-e` goes last -- every word after

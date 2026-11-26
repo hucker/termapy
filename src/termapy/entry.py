@@ -57,6 +57,10 @@ class _ExecCommand(argparse.Action):
                 f"{option_string} takes one command; put several in a .run file and use --run"
             )
         command = " ".join(words)
+        if not command.strip():
+            # An empty or blank command is falsy where --exec implies --cli,
+            # so it once started the TUI and hung an unattended agent.
+            parser.error(f"{option_string} needs a command: the words after it, quotes optional")
         if len(command.splitlines()) > 1:
             parser.error(
                 f"{option_string} takes one command, without line breaks; "

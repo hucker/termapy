@@ -110,7 +110,9 @@ class TestHelpPages:
             "the config's value, not the default"
         )
         assert "A change by /cfg <key> <value> lasts the session" in full
-        assert "(/cfg.edit) saves it to c.cfg." in full, "the file is named"
+        assert "/cfg.save keeps it in c.cfg." in full, (
+            "the file is named, with the command that writes it"
+        )
 
     def test_a_command_without_declarations_has_no_config_section(self, cli, capsys):
         """A command that declares no keys shows no CONFIG section."""
@@ -130,7 +132,7 @@ class TestHelpPages:
         assert "USED BY" in page
         assert "/grep  caps the matches shown" in page
         assert "A change by /cfg max_grep_lines <value> lasts the session" in page
-        assert "saves it to c.cfg." in page
+        assert "/cfg.save keeps it in c.cfg." in page
 
     def test_a_bare_leaf_resolves_to_the_nested_key(self, cli, capsys):
         """/help baud_rate is the serial.baud_rate page, with the setters and readers that declared it."""

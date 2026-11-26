@@ -137,7 +137,7 @@ FILE
 USED BY
   /term.output  the value a load starts from
 
-  A change by /cfg output_level <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
+  A change by /cfg output_level <value> lasts the session; /cfg.save keeps it in demo.cfg.
 demo> /help cycle
 NAME
   cycle - Move a setting to its next value, wrapping at the end; made for a custom button.
@@ -332,7 +332,7 @@ DESCRIPTION
 
 CONFIG
   hex = false  the value a load starts from
-  A change by /cfg <key> <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
+  A change by /cfg <key> <value> lasts the session; /cfg.save keeps it in demo.cfg.
 
 AVAILABLE
   TUI: yes   WEB: yes   CLI: yes (current)   MCP: yes
@@ -1017,7 +1017,7 @@ USED BY
   /port.connect  set for the session before opening
   /term.echo     the value a load starts from
 
-  A change by /cfg echo <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
+  A change by /cfg echo <value> lasts the session; /cfg.save keeps it in demo.cfg.
 demo> /help port
 NAME
   /port - Serial port tools: connect, disconnect, list, configure.
@@ -1078,7 +1078,7 @@ DESCRIPTION
   Three modes:
     /cfg                  - TUI: open Cfg picker.  CLI: list configs.
     /cfg baud_rate        - show current value of 'baud_rate'
-    /cfg baud_rate 115200 - change it (the TUI asks first)
+    /cfg baud_rate 115200 - change it for the session (/cfg.save keeps it)
 
   The value is read as the key's type: a number, text, a boolean word
   (/help boolean), or one of a key's fixed values in any case
@@ -1616,7 +1616,7 @@ FILE
 USED BY
   /grep  caps the matches shown
 
-  A change by /cfg max_grep_lines <value> lasts the session; the config editor (/cfg.edit) saves it to demo.cfg.
+  A change by /cfg max_grep_lines <value> lasts the session; /cfg.save keeps it in demo.cfg.
 demo> /search max_grep_lines
 /grep <pattern> - Search the scrollback for lines matching a pattern (case-insensitive regex).
   (cfg) max_grep_lines: caps the matches shown

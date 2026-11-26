@@ -62,7 +62,8 @@ and how it is spelled there, and the commands that use it, each with how;
 a command's own `/help` page lists the keys it depends on in a CONFIG
 section; and the editor's help line names the commands that use the key
 under the cursor. A change by `/cfg <key> <value>` or a `/term.*` setter
-lasts the session; the editor's Save writes the file.
+lasts the session; `/cfg.save` writes it to the file, in every frontend, as
+the editor's Save does in the TUI.
 
 **Unsaved session settings.** A setting button whose value the session changed
 from the file ends in `*` (`Echo on*`). Exiting, loading a config and the editor's

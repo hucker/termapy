@@ -220,8 +220,8 @@ def _cfg_toggle(ctx: PluginContext, args: str, key: str) -> CmdResult:
     Bare invocation QUERIES (shows state, mutates nothing); ``on``/``off``
     sets; the explicit verb ``toggle`` flips; anything else errors.
     Applies via ``ctx.internal.apply_cfg`` for the session (only when the
-    value actually changes); nothing here writes to disk.  The config
-    editor's Save (``/cfg.edit``) is the only path that persists.
+    value actually changes); nothing here writes to disk.  ``/cfg.save``
+    keeps the session's changes in the file.
     """
     try:
         action = parse_bool_setting(args)

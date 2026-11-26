@@ -4801,3 +4801,40 @@ class TestTitleBarFits:
                 )
 
         _run(scenario)
+
+
+class TestSaveBeforeLoad:
+    """A Save answered at a load's unsaved question is what the load reads."""
+
+    @pytest.mark.rule("config-load-deterministic")
+    def test_save_at_the_load_question_keeps_the_saved_setting(self, app_factory):
+        """Change a setting, load the same config, answer Save: the session shows the saved value and nothing unsaved."""
+        app, _, path = app_factory(title="Before")
+
+        async def scenario():
+            from termapy.dialogs import SessionChanges
+
+            async with app.run_test(size=(120, 40)) as pilot:
+                # Arrange -- a setting changed for the session only
+                result, _ = await dispatch_on_worker(pilot, app, "/cfg title After")
+                assert result.success, result.error
+
+                # Act -- reload the same config and answer Save
+                worker, outcome = start_on_worker(app, f"/cfg.load {path}")
+                await until(pilot, lambda: _showing(app, SessionChanges, "#changes-save"))
+                await pilot.click("#changes-save")
+                await _await_until(lambda: not worker.is_alive(), "the load finished")
+
+                # Assert
+                disk = json.loads(Path(path).read_text(encoding="utf-8"))
+                actual = (
+                    outcome["result"].success,
+                    disk["title"],
+                    app.cfg["title"],
+                    list(app.session_changes()),
+                )
+                assert actual == (True, "After", "After", []), (
+                    "the load read the file the Save wrote, so the session is a fresh start on it"
+                )
+
+        _run(scenario)

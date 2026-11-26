@@ -1,4 +1,4 @@
-"""Tests for ``config.rename_config``, ``config.delete_config`` and ``config.validate_file_stem``.
+"""Tests for ``config.rename_config``, ``config.delete_config``, ``config.write_config_file`` and ``config.validate_file_stem``.
 
 A config is ``termapy_cfg/<name>/<name>.cfg``: the folder carries the
 run/, proto/, cap/ ... data, so renaming must move the folder and the
@@ -19,7 +19,9 @@ from termapy.config import (
     delete_config_question,
     rename_config,
     validate_file_stem,
+    write_config_file,
 )
+from termapy.config_resolve import resolve_config
 
 
 def _make_cfg(root: Path, name: str, *, folder: str | None = None, history: bool = False):
@@ -287,3 +289,70 @@ class TestDeleteConfig:
 
         # Assert
         assert actual == expected
+
+
+class TestRenameAndWriteFailures:
+    """A rename or a write that fails partway leaves the config as it was, findable by its name."""
+
+    @pytest.mark.skipif(
+        sys.platform != "win32",
+        reason="only Windows refuses to move a folder with a file open in it",
+    )
+    def test_a_refused_folder_move_leaves_the_config_where_it_was(self, tmp_path):
+        """A folder move the OS refuses undoes the file renames, so the config keeps its name and is found."""
+        # Arrange -- a file held open inside the folder
+        old = _make_cfg(tmp_path, "bench", history=True)
+        held = (old.parent / "run" / "hello.run").open(encoding="utf-8")
+
+        # Act
+        try:
+            with pytest.raises(OSError):
+                rename_config(str(old), "lab")
+        finally:
+            held.close()
+
+        # Assert
+        actual = sorted(path.name for path in old.parent.iterdir())
+        assert actual == ["bench.cfg", "bench.history", "run"], "every rename was undone"
+        assert not (tmp_path / "lab").exists(), "nothing was left under the new name"
+
+    def test_a_write_that_fails_partway_leaves_the_old_config(self, tmp_path):
+        """A write that fails partway (a value JSON cannot hold) leaves the old file whole and no partial beside it."""
+        # Arrange
+        path = tmp_path / "bench.cfg"
+        write_config_file(path, {"title": "old"})
+
+        # Act
+        with pytest.raises(TypeError):
+            write_config_file(path, {"title": "new", "note": object()})
+
+        # Assert
+        actual = (
+            json.loads(path.read_text(encoding="utf-8")),
+            sorted(p.name for p in tmp_path.iterdir()),
+        )
+        assert actual == ({"title": "old"}, ["bench.cfg"]), "the old config, whole, and no .tmp"
+
+    def test_a_dotted_name_resolves_to_its_own_config(self, tmp_path, monkeypatch):
+        """A bare name with a dot is the config's whole name: v1.2 finds v1.2/v1.2.cfg, not v1/v1.cfg."""
+        # Arrange
+        old = _make_cfg(tmp_path, "v1.2")
+        monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
+
+        # Act
+        actual = resolve_config("v1.2")
+
+        # Assert
+        assert actual == str(old)
+
+    def test_a_typed_cfg_extension_still_comes_off(self, tmp_path, monkeypatch):
+        """A name typed with .cfg resolves as the bare name does."""
+        # Arrange
+        old = _make_cfg(tmp_path, "bench")
+        monkeypatch.setenv("TERMAPY_CFG_DIR", str(tmp_path))
+
+        # Act
+        actual = resolve_config("bench.cfg")
+
+        # Assert
+        assert actual == str(old)

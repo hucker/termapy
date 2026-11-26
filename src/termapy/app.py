@@ -1736,12 +1736,13 @@ class SerialTerminal(TerminalHost, App):
         is applied.  ``_switch_config`` rebuilds the screen, so it runs on
         main, and ``_on_main`` waits for it from the dispatch worker.
         """
+        # The question first, so a Save there is what the load reads (F1).
+        if not self._may_leave("Load"):
+            return CmdResult.fail(msg="Canceled.")
         try:
             cfg = load_config(config_path)
         except CONFIG_LOAD_ERRORS as e:
             return CmdResult.fail(msg=f"Cannot load config: {e}")
-        if not self._may_leave("Load"):
-            return CmdResult.fail(msg="Canceled.")
         self._on_main(self._switch_config, cfg, config_path)
         self._on_main(self._show_config_info, config_path)
         return CmdResult.ok(value=config_path)
@@ -1921,12 +1922,18 @@ class SerialTerminal(TerminalHost, App):
             return
         action = result[0]
         if action == "load":
-            try:
-                cfg = load_config(result[1])
-            except CONFIG_LOAD_ERRORS as e:
-                self._status(f"Failed to load config: {e}", "red")
-                return
-            self._ask_unsaved_then("Load", lambda: self._check_port_and_switch(cfg, result[1]))
+            chosen = str(result[1])
+
+            def load_then_switch() -> None:
+                # After the question, so a Save there is what is loaded (F1).
+                try:
+                    cfg = load_config(chosen)
+                except CONFIG_LOAD_ERRORS as e:
+                    self._status(f"Failed to load config: {e}", "red")
+                    return
+                self._check_port_and_switch(cfg, chosen)
+
+            self._ask_unsaved_then("Load", load_then_switch)
         elif action == "new":
             self._new_config()
         elif action == "edit":

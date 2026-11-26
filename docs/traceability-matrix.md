@@ -229,7 +229,7 @@ Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections i
 
 ### `config-load-deterministic` (guarantee, requirement)
 
-- `test_app_pilot.py`: `TestTrafficCounts.test_a_config_load_hides_the_counts`
+- `test_app_pilot.py`: `TestSaveBeforeLoad.test_save_at_the_load_question_keeps_the_saved_setting`, `TestTrafficCounts.test_a_config_load_hides_the_counts`
 - `test_architecture.py`: `test_module_state_allowlist_has_no_stale_entries`, `test_module_state_finder_sees_what_a_function_writes` **probe**, `test_module_state_is_in_ns_or_says_why` **guard**
 - `test_config_load_state.py`: the module (29 functions) **guard**
 - `test_title_bar.py`: `test_update_port_is_not_a_config_load`

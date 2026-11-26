@@ -1038,6 +1038,7 @@ COMMAND = Command(
             handler=_handler_stop,
         ),
         "wire": Command(
+            uses_port=True,  # cmd= goes to the device; a one-shot opens the port first
             help="Run a command and show TX/RX bytes as inline hex + repr.",
             # Plain string -- /cap.wire is inline-only, no file output, so
             # the "N files in cap/" prefix that other cap.* commands use

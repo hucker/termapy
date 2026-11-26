@@ -29,38 +29,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
 
-class _Version(argparse.Action):
-    """``--version``: looks the installed version up only when asked.
-
-    ``importlib.metadata`` costs ~50 ms to import, and every invocation
-    builds the parser, so an eager lookup charged ``--ports``, the CLI and
-    the MCP server for a string only ``--version`` prints.
-    """
-
-    def __init__(
-        self, option_strings: Sequence[str], dest: str = argparse.SUPPRESS, **kwargs: Any
-    ) -> None:
-        super().__init__(option_strings, dest, nargs=0, default=argparse.SUPPRESS, **kwargs)
-
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        values: str | Sequence[Any] | None,
-        option_string: str | None = None,
-    ) -> None:
-        from importlib.metadata import PackageNotFoundError, version
-
-        try:
-            installed = version("termapy")
-        except PackageNotFoundError:
-            # Running from a git clone without `pip install .` -- version
-            # metadata isn't available.  Anything else is a real bug.
-            installed = "unknown"
-        print(f"termapy {installed}")
-        parser.exit()
-
-
 class _ExecCommand(argparse.Action):
     """``-e``: the rest of the command line is the one command, as ``ssh host cmd args`` reads it.
 
@@ -205,7 +173,8 @@ def _build_parser() -> argparse.ArgumentParser:
         epilog=(
             "exit codes (one-shot --exec / --run):\n"
             "  0    success -- the command or script ran and reported success\n"
-            "  1    failure -- command failed, could not connect, or config error\n"
+            "  1    failure -- the command failed, a script line failed or the script did not\n"
+            "       start, could not connect, or config error\n"
             "  2    usage error -- bad arguments (e.g. --run and --exec together)\n"
             "  130  interrupted with Ctrl+C"
         ),
@@ -237,7 +206,7 @@ def _build_parser() -> argparse.ArgumentParser:
     machine.add_argument(
         "-V",
         "--version",
-        action=_Version,
+        action="store_true",
         help="Show the installed version and exit." + _same_as("--version"),
     )
     session.add_argument(
@@ -492,8 +461,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "-j",
         "--json",
         action="store_true",
-        help="Emit JSON: the records instead of a column-aligned table for "
-        "--ports and --usb; with -e, the command's own --json, "
+        help="Emit JSON: the records instead of a table for --ports, --usb, "
+        "--info, --alive and --version; with -e, the command's own --json, "
         "its JSON envelope.",
     )
     machine.add_argument(
@@ -630,6 +599,10 @@ def main() -> None:
 
     # CLI-only flags: dispatch before anything touches Textual.  Each
     # of these calls sys.exit() internally, so control never returns.
+    if args.version:
+        from termapy.cli_flags import run_version
+
+        run_version(args)
     if args.info is not None:
         from termapy.cli_flags import run_info
 
@@ -649,7 +622,7 @@ def main() -> None:
     if args.alive:
         from termapy.cli_flags import run_alive
 
-        run_alive()
+        run_alive(args)
     if args.stop is not None:
         from termapy.cli_flags import run_stop
 
@@ -795,13 +768,6 @@ def main() -> None:
 
     if args.run or args.exec_cmd:
         args.cli = True  # --run / --exec imply --cli
-
-    if args.json and args.exec_cmd:
-        # --json anywhere on the line means JSON out: with -e it is the
-        # command's own flag, so `termapy --json -e /port.list` is
-        # `termapy -e /port.list --json`.  A doubled flag is harmless
-        # (registry json-flag-reaches-the-command).
-        args.exec_cmd = f"{args.exec_cmd} --json"
 
     if args.exec_cmd:
         # --exec is for piping/scripting; ANSI escapes pollute captured

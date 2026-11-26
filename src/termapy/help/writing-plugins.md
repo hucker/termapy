@@ -754,7 +754,10 @@ sends, `/proto.crc.find bin=...` does not.  Such a command declares
 returns `STATE_MESSAGES["serial_connected"]` when the arguments need the
 port.  The declaration is the one license for that check, and a one-shot
 (`termapy cfg -e ...`) opens the port before running the command, as it
-does for a declared need.
+does for a declared need.  A command that runs lines it is given and never
+looks at the port itself (`/run`, `/repeat cmd=...`) declares
+`runs_lines=True` instead: the lines it runs are usually device lines, so a
+one-shot opens the port for them too.
 
 ## Serial I/O pattern
 

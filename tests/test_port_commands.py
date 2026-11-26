@@ -892,12 +892,14 @@ class TestChip:
         assert {"COM3", "COM4", "COM7"} <= set(actual), "one record per roster port"
 
     def test_the_fleet_is_authoritative_for_the_reserved_name(self, cli, capsys, monkeypatch):
-        """With a fleet active, bare /port.chip on the DEMO cfg finds no match: a substitute roster never synthesizes."""
+        """With a fleet active, bare /port.chip on the DEMO cfg finds no match and fails: a substitute roster never synthesizes."""
         monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
         capsys.readouterr()
         result = cli.repl.dispatch_full("/port.chip")
         assert "No port matching 'DEMO'" in capsys.readouterr().out
-        assert result.value is None, "a warning is not a dump"
+        assert (result.success, result.error) == (False, "No port matching 'DEMO'"), (
+            "a port that is not there is a failure, not a page"
+        )
 
     def test_a_field_for_one_port_is_the_bare_value(self, cli, monkeypatch):
         """/port.chip.serial COM4 returns just the field, the shape a script captures."""

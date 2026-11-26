@@ -614,3 +614,8 @@ MEM.R 0x1000 2 --json
 /print === section: spy log stays in cap ===
 /port spy://NO-SUCH-PORT?file=../traffic.txt
 /port DEMO
+
+# -- A port page for a port that is not there is a failure --------------------
+/print === section: missing port fails ===
+/port.chip.driver COM99
+/port.chip COM99

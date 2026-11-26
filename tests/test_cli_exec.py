@@ -256,3 +256,114 @@ class TestCliExec:
         # Assert
         assert result.returncode == 2, f"a usage error; stderr={result.stderr!r}"
         assert "without line breaks" in result.stderr, "names what is wrong"
+
+
+class TestOneShotAnswers:
+    """What a one-shot tells an agent: the port when a line needs it, the exit status, the flag as data."""
+
+    @pytest.mark.rule("oneshot-connects-on-need")
+    def test_a_command_that_runs_a_device_line_gets_the_port(self, tmp_path):
+        """/cap.wire cmd= declares uses_port, so the one-shot opens the port and its bytes go out."""
+        # Act
+        result = _run("-e", "/cap.wire cmd=AT+INFO", "--json", cfg_dir=str(tmp_path))
+
+        # Assert -- the envelope is the first line; the wire dump follows it
+        envelope = json.loads(result.stdout.splitlines()[0])
+        assert envelope["success"] is True, envelope
+        assert "41 54 2B 49 4E 46 4F" in result.stdout, (
+            "the TX hex of AT+INFO is in the dump: the port was open before /cap.wire sent"
+        )
+
+    @pytest.mark.rule("oneshot-connects-on-need")
+    def test_a_run_one_shot_gets_the_port_for_its_script(self, tmp_path):
+        """-e /run <script> declares runs_lines, so the script's device line is answered."""
+        # Arrange
+        script = tmp_path / "info.run"
+        script.write_text("# Info\nAT+INFO\n", encoding="utf-8")
+
+        # Act
+        result = _run("-e", f"/run {script}", cfg_dir=str(tmp_path))
+
+        # Assert
+        output = result.stdout + result.stderr
+        assert STATE_MESSAGES["serial_connected"] not in output, output
+        assert "Free memory" in result.stdout, "the device answered the script's line"
+
+    def test_a_run_script_with_a_failing_line_exits_1_and_runs_on(self, tmp_path):
+        """--run exits 1 when a line failed, and still ran past it (run-ends-only-at-a-stop)."""
+        # Arrange
+        script = tmp_path / "bad.run"
+        script.write_text("# Bad\n/nosuchcmd\n/print after\n", encoding="utf-8")
+
+        # Act
+        result = _run("--run", str(script), cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 1, result.stdout
+        assert "after" in result.stdout, "the line after the failure still ran"
+
+    def test_a_missing_run_script_exits_1_and_names_it(self, tmp_path):
+        """--run of a script that is not there exits 1 and says which one."""
+        # Act
+        result = _run("--run", str(tmp_path / "absent.run"), cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 1, result.stdout
+        assert "absent" in result.stdout, "the missing script is named"
+
+    def test_a_clean_run_script_exits_0(self, tmp_path):
+        """--run of a script whose every line succeeds exits 0."""
+        # Arrange
+        script = tmp_path / "fine.run"
+        script.write_text("# Fine\n/print ok\n", encoding="utf-8")
+
+        # Act
+        result = _run("--run", str(script), cfg_dir=str(tmp_path))
+
+        # Assert
+        assert (result.returncode, "ok" in result.stdout) == (0, True), result.stdout
+
+    @pytest.mark.rule("json-flag-reaches-the-command")
+    def test_json_before_exec_keeps_the_line_as_typed(self, tmp_path):
+        """--json before -e rides as the command's suffix, so the line's own spacing survives."""
+        # Act
+        result = _run("--json", "-e", "/print a  b", cfg_dir=str(tmp_path))
+
+        # Assert
+        envelope = json.loads(result.stdout)
+        assert envelope["success"] is True, envelope
+        assert "a  b" in envelope["output_lines"], (
+            "two spaces kept: the flag was not pasted onto the line"
+        )
+
+    @pytest.mark.rule("json-flag-reaches-the-command")
+    def test_json_before_exec_stays_out_of_a_cmd_value(self, tmp_path):
+        """--json before -e never lands inside cmd=, so the outer command answers the envelope."""
+        # Act
+        result = _run("--json", "-e", "/repeat count=1 cmd=/app.ver", cfg_dir=str(tmp_path))
+
+        # Assert
+        envelope = json.loads(result.stdout)
+        assert envelope["success"] is True, envelope
+
+    @pytest.mark.rule("failure-is-failure")
+    def test_a_port_page_for_a_missing_port_fails(self, tmp_path):
+        """/port.chip on a port that is not there is a failure, in the envelope and the exit status."""
+        # Act
+        result = _run("-e", "/port.chip COM99", "--json", cfg_dir=str(tmp_path))
+
+        # Assert
+        envelope = json.loads(result.stdout)
+        assert (result.returncode, envelope["success"]) == (1, False), envelope
+        assert "COM99" in envelope["error"], "the error names the port"
+
+    @pytest.mark.rule("failure-is-failure")
+    def test_a_port_field_for_a_missing_port_fails(self, tmp_path):
+        """/port.chip.<field> on a port that is not there fails instead of answering the message as its value."""
+        # Act
+        result = _run("-e", "/port.chip.driver COM99", "--json", cfg_dir=str(tmp_path))
+
+        # Assert
+        envelope = json.loads(result.stdout)
+        assert (result.returncode, envelope["success"]) == (1, False), envelope
+        assert envelope["value"] in ("", None), "no value is handed on for a missing port"

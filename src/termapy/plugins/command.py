@@ -602,6 +602,12 @@ class Command:
             argument, so a click on it must not run it.  Not inherited.
             Requires ``safety="safe"``, no ``picker`` and no required
             argument, checked at construction.
+        runs_lines: True when the command runs lines it is given rather than
+            using the port itself: a script (``/run``), a ``cmd=`` value
+            (``/repeat``).  The gate cannot answer for those lines and the
+            handler never checks the port, so this is what makes a one-shot
+            open it first (registry ``oneshot-connects-on-need``); a
+            handler that checks the port itself declares ``uses_port``.
         uses_port: True when the command uses the open port only for some
             of its arguments (``/proto.crc.find cmd=`` sends, ``bin=`` does
             not), so the gate cannot answer for it: its handler checks
@@ -640,6 +646,7 @@ class Command:
     shows: bool = False
     state: bool = False
     uses_port: bool = False
+    runs_lines: bool = False
     intro: str = ""
 
     def __post_init__(self) -> None:
@@ -1002,6 +1009,8 @@ class PluginInfo:
             ``/help`` runs it for CURRENT STATE.
         uses_port: ``Command.uses_port``: it may use the open port, by
             argument, so a one-shot connects first.
+        runs_lines: ``Command.runs_lines``: it runs lines it is given, so a
+            one-shot connects first.
         intro: ``Command.intro``: what this family is for, first on its page.
     """
 
@@ -1027,6 +1036,7 @@ class PluginInfo:
     shows: bool = False
     state: bool = False
     uses_port: bool = False
+    runs_lines: bool = False
     intro: str = ""
 
     def __post_init__(self) -> None:

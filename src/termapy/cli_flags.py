@@ -75,7 +75,9 @@ def run_info(args: argparse.Namespace, *, source: PortSource | None = None) -> N
     ``/port.chip`` if you want colored output.
 
     Exits with status 0 if at least one port matched and was printed,
-    or 1 if the named port wasn't found or no ports are connected.
+    or 1 if the named port wasn't found or no ports are connected.  With
+    ``--json`` the page is its record, the ``data`` of ``/port.chip --json``,
+    and a problem goes to stderr so stdout stays JSON.
     """
     from termapy import port_control
     from termapy.markup import markup_to_plain
@@ -83,8 +85,12 @@ def run_info(args: argparse.Namespace, *, source: PortSource | None = None) -> N
 
     report = port_control.chip_info(args.info, current_port="", source=source)
     if report.problem is not None:
-        print(report.problem[0])
+        wants_json = getattr(args, "json", False)
+        print(report.problem[0], file=sys.stderr if wants_json else sys.stdout)
         sys.exit(1)
+    if getattr(args, "json", False):
+        print(json.dumps(report.data, indent=2))
+        sys.exit(0)
     for line in RecordView(report.items).lines():
         print(markup_to_plain(line))
     sys.exit(0)
@@ -658,15 +664,40 @@ def _print_sessions(crumbs: Iterable[Crumb]) -> None:
         print(text)
 
 
-def run_alive() -> NoReturn:
+def run_version(args: argparse.Namespace) -> NoReturn:
+    """``--version``: print the installed version and exit 0; ``{\"version\": ...}`` with ``--json``.
+
+    ``importlib.metadata`` costs about 50 ms to import and is read only
+    here (registry ``flag-paths-light``); a git clone that was never
+    installed has no metadata and says ``unknown``.
+    """
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        installed = version("termapy")
+    except PackageNotFoundError:
+        installed = "unknown"
+    if getattr(args, "json", False):
+        print(json.dumps({"version": installed}))
+    else:
+        print(f"termapy {installed}")
+    sys.exit(0)
+
+
+def run_alive(args: argparse.Namespace) -> NoReturn:
     """``--alive``: list the termapys running on this machine, as ``/app.alive`` does, and exit 0.
 
     A running termapy is found by the breadcrumb it leaves, so one started
-    before breadcrumbs existed is not seen.
+    before breadcrumbs existed is not seen.  With ``--json`` the answer is
+    the session records, ``/app.alive --json``'s ``data``, an empty list
+    when none runs.
     """
     from termapy import breadcrumbs
 
     running = breadcrumbs.read_running()
+    if getattr(args, "json", False):
+        print(json.dumps([breadcrumbs.session_record(crumb) for crumb in running], indent=2))
+        sys.exit(0)
     if not running:
         print("No termapy is running.")
     else:
@@ -713,7 +744,7 @@ def run_stop(args: argparse.Namespace, *, confirm: Callable[[str], bool]) -> Non
         sys.exit(1)
     target = words[0] if words else ""
     if not target:
-        run_alive()
+        run_alive(args)
     if target.casefold() == "me":
         print(
             "termapy: --stop me means the session it is typed in, and a command line is "

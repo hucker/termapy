@@ -202,11 +202,13 @@ def _assert_gold(script_name: str, expected_name: str, tmp_path: Path) -> None:
     # Act
     result = _run_cli_script(script_name, tmp_path)
 
-    # A clean gold run exits 0 and writes nothing to stderr; check both
-    # before the stdout diff so a late crash or a leaked traceback is
-    # reported as itself instead of hiding behind a confusing output diff.
-    assert result.returncode == 0, (
-        f"CLI exited {result.returncode} (expected 0); stderr:\n{result.stderr}"
+    # The gold script exercises error paths on purpose, so --run exits 1
+    # (a line failed); stderr stays empty, and that is the crash detector:
+    # check both before the stdout diff so a late crash or a leaked traceback
+    # is reported as itself instead of hiding behind a confusing output diff.
+    assert result.returncode == 1, (
+        f"CLI exited {result.returncode} (expected 1: the script has failing lines); "
+        f"stderr:\n{result.stderr}"
     )
     assert "Traceback (most recent call last)" not in result.stderr, (
         f"CLI leaked a traceback to stderr:\n{result.stderr}"

@@ -111,7 +111,7 @@ class TestCrcFindCli:
         result = _run_cli(tmp_path, [line])
 
         # Assert -- fail is a CmdResult.fail (not a crash) and usage printed.
-        assert result.returncode == 0, f"exit code: {result.returncode}"
+        assert (result.returncode, result.stderr) == (1, ""), f"exit code: {result.returncode}"
         assert "Usage" in result.stdout, (
             f"missing bin/asc must print usage. stdout: {result.stdout!r}"
         )
@@ -125,7 +125,7 @@ class TestCrcFindCli:
         result = _run_cli(tmp_path, [line])
 
         # Assert
-        assert result.returncode == 0, f"exit code: {result.returncode}"
+        assert (result.returncode, result.stderr) == (1, ""), f"exit code: {result.returncode}"
         assert "Parse error" in result.stdout, (
             f"bad hex must produce the shared reader's Parse error. stdout: {result.stdout!r}"
         )

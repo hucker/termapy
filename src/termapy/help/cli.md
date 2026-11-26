@@ -403,7 +403,7 @@ Shape a CLI run's output; each lasts this run.
 | `-w`, `--watch`   | Print port events as they happen (see [`--watch`](#--watch-live-log-of-port-events) above). |
 | `-i`, `--info [PORT]` | Chip details for one or every port (see [`--info`](#--info-chip-details-for-one-or-every-port) above). Same as `-e /port.chip`. |
 | `-u`, `--usb`     | Whole USB tree with serial ports marked, in color at a terminal (Windows and Linux); pairs with `--json`. Same as `-e /port.usb`. |
-| `-j`, `--json`    | JSON instead of a table for `--ports` and `--usb`; with `-e`, the command's own `--json` (see [JSON output](#json-output) above). The chip lookup table is `-e /port.chip.list --json`. |
+| `-j`, `--json`    | JSON instead of a table for `--ports`, `--usb`, `--info`, `--alive` and `--version`; with `-e`, the command's own `--json` (see [JSON output](#json-output) above). The chip lookup table is `-e /port.chip.list --json`. |
 | `--validate-profile PATH` | Validate a device profile (.json or .toml) against the schema; exit 0 if valid, 1 with errors. `--strict` treats compatibility warnings as errors, for CI. Same as `-e /profile.validate`. |
 
 ### Running termapys
@@ -487,6 +487,11 @@ But a device-side error text (e.g. the simulator's
 the command and got a reply.  Reading device errors from exit codes
 requires a device profile that parses the response, or you can
 ``grep -q`` the stdout yourself.
+
+`--run` follows the same contract for the whole script: exit `0` when
+every line succeeded, `1` when a line failed or the script was not
+found, `130` on Ctrl+C.  A script runs past a failing line, so the exit
+code is how a CI step learns that one did.
 
 **Quoting.** `-e` takes the rest of the command line, as `ssh host cmd
 args` does: the words after it, joined with single spaces, are the

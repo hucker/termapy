@@ -106,8 +106,11 @@ def test_a_demo_script_runs_without_an_error(script: Path, tmp_path: Path) -> No
     ]
     demonstrated_device = set(DEMONSTRATED_DEVICE_ERRORS.get(script.name, ()))
 
-    # Assert
-    assert completed.returncode == 0, f"{script.name} crashed: {completed.stderr}"
+    # Assert -- --run exits 1 exactly when a line failed; stderr empty means no crash
+    expected_code = 1 if errors else 0
+    assert (completed.returncode, completed.stderr) == (expected_code, ""), (
+        f"{script.name} crashed or misreported its exit: {completed.stderr}"
+    )
     unexpected = [error for error in errors if error not in allowed]
     assert unexpected == [], f"{script.name} failed on lines it should not: {unexpected}"
     assert demonstrated <= set(errors), f"{script.name} no longer demonstrates its miss"

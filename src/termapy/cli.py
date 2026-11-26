@@ -69,6 +69,7 @@ class CLITerminal(TerminalHost):
         no_color: bool = False,
         run_script: str | None = None,
         exec_cmd: str | None = None,
+        exec_json: bool = False,
         term_width: int | None = None,
         zero_config: bool = False,
         output_level: str | None = None,
@@ -100,6 +101,7 @@ class CLITerminal(TerminalHost):
         self.no_color = no_color
         self.run_script = run_script
         self.exec_cmd = exec_cmd
+        self._exec_json = exec_json
         self.term_width = term_width
         self.zero_config = zero_config
         self.output_level = output_level
@@ -108,6 +110,7 @@ class CLITerminal(TerminalHost):
         # A wait's words are printed once, at its first tick (_delay_progress).
         self._wait_label_shown = False
         self._exec_exit_code = 0
+        self._run_exit_code = 0
         # Set by /exit and /app.tui (_request_exit); the prompt loop ends on it.
         self._exit_requested = False
         # -y / --yes: every question this session asks is answered yes.
@@ -574,21 +577,41 @@ class CLITerminal(TerminalHost):
             alt = scripts_dir / script_path.name
             if alt.exists():
                 script_path = alt
-        path, _ = self.repl.start_script(str(script_path))
+        path, started = self.repl.start_script(str(script_path))
+        if path is None:
+            # A script that never started is the run's failure, said once.
+            self.write(f"Error: {started.error}", "red")
+            self._run_exit_code = 1
         if self._exit_requested:
             # start_script clears the stop for a new script, so a request to
             # leave that came in while the session started would be lost.
             self.repl._script_stop.set()
+        failed = 0
+
+        def dispatch(line: str) -> CmdResult:
+            # A script runs past a failing line (registry run-ends-only-at-a-stop);
+            # the exit code still says one failed, so a CI step can tell.  A
+            # line a stop request cut short (a canceled delay) is the stop's
+            # doing, not the script's: the session leaves as asked, exit 0.
+            nonlocal failed
+            result = self.ctx.dispatch(line)
+            if not result.success and not self._exit_requested:
+                failed += 1
+            return result
+
         if path:
             try:
                 self.repl.run_script(
                     path,
                     write=self.status,
-                    dispatch=self.ctx.dispatch,
+                    dispatch=dispatch,
                     verbose=True,
                 )
             except KeyboardInterrupt:
                 self._raw("\nScript interrupted")
+                self._run_exit_code = 130  # SIGINT convention
+            if failed and self._run_exit_code == 0:
+                self._run_exit_code = 1
         actual = self.engine.open_device or self.cfg["serial"]["port"]
         self.engine.disconnect()
         msg = f"Disconnected: {actual}" if actual else "Disconnected."
@@ -633,6 +656,8 @@ class CLITerminal(TerminalHost):
         def _bump_last_rx(_data: bytes) -> None:
             last_arrival[0] = _time.monotonic()
 
+        if self._exec_json:
+            command = self.repl.with_json(command)
         try:
             with self.ctx.serial.rx_observer(_bump_last_rx):
                 result = self.ctx.dispatch(command)
@@ -950,6 +975,7 @@ def _run_cli_mode(args: argparse.Namespace) -> str | None:
         no_color=args.no_color,
         run_script=run_script,
         exec_cmd=exec_cmd,
+        exec_json=bool(getattr(args, "json", False)),
         term_width=getattr(args, "term_width", None),
         output_level=getattr(args, "output_level", None),
         assume_yes=getattr(args, "yes", False),
@@ -957,6 +983,8 @@ def _run_cli_mode(args: argparse.Namespace) -> str | None:
     result = cli.run()
     if exec_cmd:
         sys.exit(cli._exec_exit_code)
+    if run_script:
+        sys.exit(cli._run_exit_code)
     if result:
         args.config = cli.config_path
     return result

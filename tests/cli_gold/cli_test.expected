@@ -2494,4 +2494,7 @@ Disconnected: DEMO
   Cannot open spy://NO-SUCH-PORT?file=../traffic.txt: Invalid spy file: ../traffic.txt (use a path relative to cap/)
 Connected: DEMO
   Port changed to DEMO (session)
+  === section: missing port fails ===
+  Error: No port matching 'COM99'
+  Error: No port matching 'COM99'
 Disconnected: DEMO

@@ -1099,6 +1099,79 @@ def test_matcher_guard_fires_on_a_probe():
     assert len(found) == 2, "both fnmatch imports flagged; the matcher import is not"
 
 
+# A command's help text is prose for a person, never a switch (registry
+# help-text-not-behavior, decision 2026-11-25).  Until then the / popup hid
+# every command whose help line matched "linux ... only", so rewording a help
+# line changed the UI; what a command can do where it runs is a capability.
+_HELP_FIELDS = {"help", "long_help"}
+_REGEX_METHODS = {"search", "match", "fullmatch", "findall", "finditer"}
+_TEXT_METHODS = {"startswith", "endswith", "find", "count"}
+
+
+def _reads_help(node: ast.AST) -> bool:
+    """Whether ``node`` reads a ``help`` or ``long_help`` attribute anywhere inside it."""
+    return any(
+        isinstance(inner, ast.Attribute) and inner.attr in _HELP_FIELDS for inner in ast.walk(node)
+    )
+
+
+def _help_text_tests(tree: ast.AST, rel: str) -> list[str]:
+    """Every regex match, text test or ``in`` in ``rel`` that reads a help text directly."""
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            method = node.func.attr
+            regex = method in _REGEX_METHODS and any(_reads_help(arg) for arg in node.args)
+            text = method in _TEXT_METHODS and _reads_help(node.func.value)
+            if regex or text:
+                found.append(f"{rel}:{node.lineno}  {ast.unparse(node)}")
+        elif isinstance(node, ast.Compare) and any(
+            isinstance(op, (ast.In, ast.NotIn)) for op in node.ops
+        ):
+            if any(_reads_help(comparator) for comparator in node.comparators):
+                found.append(f"{rel}:{node.lineno}  {ast.unparse(node)}")
+    return found
+
+
+@pytest.mark.rule("help-text-not-behavior")
+def test_no_code_decides_from_help_text():
+    """No module matches a regex over, text-tests or in-tests a command's help or long_help."""
+    # Arrange / Act
+    violations = [
+        line
+        for path in _package_python_files()
+        for line in _help_text_tests(
+            ast.parse(path.read_text(encoding="utf-8")), path.relative_to(SRC.parent).as_posix()
+        )
+    ]
+
+    # Assert
+    assert violations == [], (
+        "help text is prose for a person, never a switch:\n  "
+        + "\n  ".join(violations)
+        + "\n\nWhat a command can do where it runs is a capability its needs="
+        "\ndeclares (CapabilitySet.usb_tree is the OS case), read by name."
+    )
+
+
+@pytest.mark.rule("help-text-not-behavior")
+def test_help_text_guard_fires_on_a_probe():
+    """The guard flags a regex over help, a text test on long_help and an in-test against help, and passes a name test."""
+    # Arrange
+    probe = (
+        'if LINUX_RE.search(plugin.help or ""):\n    pass\n'
+        'if plugin.long_help.startswith("Linux"):\n    pass\n'
+        'if "only" in plugin.help:\n    pass\n'
+        'if "chip" in plugin.name:\n    pass\n'
+    )
+
+    # Act
+    found = _help_text_tests(ast.parse(probe), "probe")
+
+    # Assert
+    assert len(found) == 3, "the three help-text tests are flagged; the name test is not"
+
+
 # The demo device answers the same on every run (registry demo-deterministic):
 # a reply that changes steps through a fixed cycle, never a random draw, so the
 # CRC tour, the tests and the gold see the same bytes.  Until 2026-11-23 AT+RND

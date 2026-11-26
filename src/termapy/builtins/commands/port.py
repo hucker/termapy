@@ -129,19 +129,13 @@ def _handler_list(ctx: PluginContext, args: str) -> CmdResult:
 
 
 def _handler_usb(ctx: PluginContext, args: str) -> CmdResult:
-    """The USB device tree as a page, its nested records as data and its serial-port count as the value; fails on an unsupported platform."""
-    from termapy.usb_tree import (
-        UnsupportedPlatform,
-        count_ports,
-        gather_usb_tree,
-        render_tree_pieces,
-        to_json_records,
-    )
+    """The USB device tree as a page, its nested records as data and its serial-port count as the value.
 
-    try:
-        roots = gather_usb_tree()
-    except UnsupportedPlatform as exc:
-        return CmdResult.fail(msg=str(exc))
+    Where the OS has no reader the gate refuses it first (``usb_tree``).
+    """
+    from termapy.usb_tree import count_ports, gather_usb_tree, render_tree_pieces, to_json_records
+
+    roots = gather_usb_tree()
     # The tree is the data (the shape ``--usb --json`` prints), its drawing
     # the page dispatch prints for a person (registry record-one-format).
     return CmdResult.record(
@@ -619,13 +613,12 @@ COMMAND = Command(
                 "bus 1, root-hub port 8, then port 4 of the hub there.\n"
                 "A ':N' child is interface N of the device above it, not\n"
                 "another tier.\n"
-                "\n"
-                "Windows and Linux only.\n"
             ),
             handler=_handler_usb,
             # The machine's whole bus: an MCP server answers it only under
-            # TERMAPY_MCP_HOST_INFO (decision 2026-11-12).
-            needs=CapabilitySet(host_info=True),
+            # TERMAPY_MCP_HOST_INFO (decision 2026-11-12), and only an OS
+            # termapy reads the tree of answers it at all (decision 2026-11-25).
+            needs=CapabilitySet(host_info=True, usb_tree=True),
         ),
         "help": Command(
             help="Show {prefix}port help.",

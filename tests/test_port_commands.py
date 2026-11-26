@@ -18,13 +18,14 @@ from __future__ import annotations
 
 import json
 import sys
+from dataclasses import replace
 
 import pytest
 
 from termapy.cli import CLITerminal
 from termapy.demo import FakeSerial
 from termapy.plugins import CmdResult
-from termapy.plugins.capabilities import STATE_MESSAGES
+from termapy.plugins.capabilities import STATE_MESSAGES, refusal_text
 
 
 def _demo_port(cli: CLITerminal) -> FakeSerial:
@@ -1074,7 +1075,22 @@ class TestUsbTree:
             )
         else:
             assert result.success is False
-            assert "USB tree is not available" in result.error
+            assert "requires the usb_tree capability" in result.error, "the gate refuses it"
+
+    @pytest.mark.rule("usb-tree-capability")
+    def test_without_a_reader_the_gate_refuses_the_tree(self, cli, capsys):
+        """Where termapy reads no USB tree the gate refuses /port.usb with the capability's hint, and no tree comes back."""
+        # Arrange
+        cli.repl.ctx.capabilities = replace(cli.repl.ctx.capabilities, usb_tree=False)
+
+        # Act
+        result = cli.repl.dispatch_full("/port.usb")
+
+        # Assert
+        assert result.success is False
+        expected = refusal_text("port.usb", ["usb_tree"], "/")
+        assert result.error == expected, "the gate's one refusal, naming the ability"
+        assert result.data is None, "no tree comes back"
 
     @pytest.mark.skipif(
         not (sys.platform == "win32" or sys.platform.startswith("linux")),

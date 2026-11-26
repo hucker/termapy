@@ -116,9 +116,10 @@ device plugged into a hub at `1-8.4`, and writing an interface that way
 would claim a hub exists where there isn't one.
 
 `termapy --usb --json` emits the same tree as nested records for
-scripting.  Windows and Linux only; macOS reports that it isn't
-supported rather than printing an empty tree, which would read as "no
-devices".
+scripting.  Windows and Linux only: `/port.usb` needs the `usb_tree`
+capability, an OS whose USB tree termapy reads, and on macOS it is
+refused with that reason (`termapy --usb` says so too) rather than
+printing an empty tree, which would read as "no devices".
 
 ## The bundled USB vendor database
 

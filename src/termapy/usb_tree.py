@@ -34,6 +34,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from termapy.plugins.capabilities import detect_usb_tree
 from termapy.plugins.views import Piece
 
 if TYPE_CHECKING:
@@ -624,14 +625,14 @@ def gather_usb_tree(
     """
     if source is not None:
         records = list(source())
-    elif sys.platform == "win32":
-        records = _windows_records()
-    elif sys.platform.startswith("linux"):
-        records = _linux_records()
-    else:
+    elif not detect_usb_tree():
         raise UnsupportedPlatform(
             f"USB tree is not available on {sys.platform} (Windows and Linux only)"
         )
+    elif sys.platform == "win32":
+        records = _windows_records()
+    else:
+        records = _linux_records()
     roots = build_tree(records)
     from termapy.env_flags import port_policy
 

@@ -19,7 +19,6 @@ to ``palette_provider.PaletteProvider`` to feed Textual's built-in
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -84,7 +83,6 @@ def show_commands(app: SerialTerminal) -> None:
     popup = app.query_one("#history-popup", OptionList)
     popup.clear_options()
     prefix = cmd_prefix(app.cfg)
-    skip_linux_only = sys.platform != "linux"
 
     # Build the filter from the current input.  Users can have the
     # prefix typed (``/po``) or not (``po``) -- strip once so the
@@ -117,8 +115,6 @@ def show_commands(app: SerialTerminal) -> None:
 
     groups: dict[str, list] = {}
     for name, plugin in app.repl._plugins.items():
-        if skip_linux_only and app._LINUX_ONLY_RE.search(plugin.help or ""):
-            continue
         if filter_term and filter_term not in name.lower():
             continue
         groups.setdefault(plugin.source, []).append((name, plugin))

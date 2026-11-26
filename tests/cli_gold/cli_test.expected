@@ -263,6 +263,7 @@ CAPABILITIES
   filesystem_unconfined - host-wide file access (TERMAPY_MCP_FS_UNCONFINED=1 under MCP, TERMAPY_WEB_FS_UNCONFINED=1 for --web on the network)  [TUI CLI]
   network_egress        - outbound network access (TERMAPY_MCP_NET_EGRESS=1 under MCP)  [TUI WEB CLI]
   host_info             - a view of the host machine (TERMAPY_MCP_HOST_INFO=1 under MCP)  [TUI WEB CLI]
+  usb_tree              - an OS whose USB tree termapy reads (Windows or Linux)  [TUI WEB CLI MCP]
 
 SEE ALSO
   /help.idioms

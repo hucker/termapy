@@ -393,6 +393,15 @@ class CapabilitySet:
         "a view of the host machine (TERMAPY_MCP_HOST_INFO=1 under MCP)",
     )
 
+    # What:  termapy reads this OS's USB tree: every hub, device and
+    #        interface as connected (``/port.usb``).  A fact of the OS, not
+    #        of the frontend: Windows has a reader (the registry and
+    #        cfgmgr32), Linux has one (sysfs), macOS has none.  Named for
+    #        the ability, never for an OS (decision 2026-11-25).
+    # Where: every frontend on Windows or Linux, by :func:`detect_usb_tree`;
+    #        none on macOS.  Under MCP the tree also needs ``host_info``.
+    usb_tree: bool = _restricted("an OS whose USB tree termapy reads (Windows or Linux)")
+
     # ── Named profiles ──────────────────────────────────────────────────
     # The recurring ``needs=`` declarations, one frozen shared instance
     # each (assigned right after the class; safe because the dataclass is
@@ -697,6 +706,22 @@ def detect_gui_apps() -> bool:
     return False
 
 
+def detect_usb_tree(platform: str | None = None) -> bool:
+    """Whether termapy reads this OS's USB tree: the one answer the ``usb_tree`` capability and the reader share.
+
+    Windows (the registry and cfgmgr32) and Linux (sysfs) have a reader in
+    ``termapy.usb_tree``; macOS and the rest have none, so the gate refuses
+    ``/port.usb`` there and ``gather_usb_tree`` raises rather than return an
+    empty tree, which would read as "no devices".
+
+    Args:
+        platform: A ``sys.platform`` value; the running one, read at the
+            call, when ``None``.
+    """
+    system = sys.platform if platform is None else platform
+    return system == "win32" or system.startswith("linux")
+
+
 def _build_environments() -> dict[str, CapabilitySet]:
     """Build each frontend's capability set: what it publishes on ``ctx.capabilities``.
 
@@ -712,6 +737,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
     SSH in and out and reload termapy get fresh detection.
     """
     gui = detect_gui_apps()
+    usb = detect_usb_tree()
     # MCP host confinement is per-class opt-in from the server's shell;
     # mirror it here so /help AVAILABLE reflects the running policy.
     from termapy.env_flags import (
@@ -740,6 +766,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
         filesystem_unconfined=True,
         network_egress=True,
         host_info=True,
+        usb_tree=usb,
     )
     # Whether a --web session's browser is on this machine: served on a
     # loopback address it is, so the viewer is the operator at this desktop;
@@ -776,6 +803,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
             filesystem_unconfined=True,
             network_egress=True,
             host_info=True,
+            usb_tree=usb,
         ),
         # MCP (stdio server): no human, no display.  Each call runs on a
         # worker the asyncio lock serializes, so /expect may block.  Host
@@ -787,6 +815,7 @@ def _build_environments() -> dict[str, CapabilitySet]:
             filesystem_unconfined=MCP_FS_UNCONFINED,
             network_egress=MCP_NET_EGRESS,
             host_info=MCP_HOST_INFO,
+            usb_tree=usb,
         ),
     }
 

@@ -17,8 +17,10 @@ from termapy.defaults import DEFAULT_CFG
 from termapy.idioms import IDIOMS
 from termapy.plugins.capabilities import (
     ATTAINABLE,
+    BASE_ENVIRONMENTS,
     REQUIREMENT_HINTS,
     STATE_MESSAGES,
+    detect_usb_tree,
     provided_by,
 )
 
@@ -206,3 +208,21 @@ class TestTheRows:
         assert cli.repl.link_summary("help tui_mode") == "the TUI (switch with /app.tui)", (
             "with the prefix filled in"
         )
+
+
+@pytest.mark.rule("usb-tree-capability")
+@pytest.mark.parametrize(
+    ("platform", "expected"),
+    [("win32", True), ("linux", True), ("darwin", False), ("sunos5", False)],
+)
+def test_the_usb_tree_is_detected_from_the_os(platform, expected):
+    """termapy reads the USB tree on Windows and Linux only: the one answer the capability and the reader share."""
+    assert detect_usb_tree(platform) is expected
+
+
+@pytest.mark.rule("usb-tree-capability")
+def test_every_frontend_has_the_usb_tree_where_the_os_does():
+    """The capability is the OS's, not the frontend's: every row carries the one detection."""
+    actual = {name: caps.usb_tree for name, caps in BASE_ENVIRONMENTS.items()}
+    expected = dict.fromkeys(BASE_ENVIRONMENTS, detect_usb_tree())
+    assert actual == expected, "no frontend adds or drops what the OS decides"

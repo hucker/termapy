@@ -438,10 +438,12 @@ class TestOneShotHangs:
         )
         assert process.stdout is not None and process.stderr is not None
 
-        # Act -- read one line, then walk away
+        # Act -- read one line, then walk away; stderr is small, so waiting first cannot fill its pipe
         process.stdout.readline()
         process.stdout.close()
-        _, stderr = process.communicate(timeout=30)
+        process.wait(timeout=30)
+        stderr = process.stderr.read()
+        process.stderr.close()
 
         # Assert
         text = stderr.decode("utf-8", errors="replace")

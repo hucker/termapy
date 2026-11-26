@@ -63,6 +63,9 @@ class CLITerminal(TerminalHost):
     """
 
     front_end = "cli"
+    # Whether stdout's reader has gone (``_print``).  A class default as well
+    # as the instance's, so a terminal built without ``__init__`` prints.
+    _stdout_gone = False
 
     def __init__(
         self,
@@ -113,7 +116,6 @@ class CLITerminal(TerminalHost):
         self._wait_label_shown = False
         self._exec_exit_code = 0
         self._run_exit_code = 0
-        self._stdout_gone = False
         # Set by /exit and /app.tui (_request_exit); the prompt loop ends on it.
         self._exit_requested = False
         # -y / --yes: every question this session asks is answered yes.

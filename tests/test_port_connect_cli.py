@@ -178,12 +178,12 @@ class TestPortConnectExtendedArgs:
             cfg_overrides={},
             script_lines=[
                 "/port.connect echo DEMO",
-                "/echo survived",
+                "/print survived",
             ],
         )
 
-        # Assert
-        assert result.returncode == 0, f"stderr: {result.stderr!r}"
+        # Assert -- the refused line makes --run exit 1; an empty stderr says nothing crashed
+        assert (result.returncode, result.stderr) == (1, ""), f"stderr: {result.stderr!r}"
         assert "Unexpected" in result.stdout or "error" in result.stdout.lower(), (
             f"port-not-first should produce an error message; stdout: {result.stdout!r}"
         )

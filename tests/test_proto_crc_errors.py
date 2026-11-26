@@ -82,13 +82,13 @@ class TestCrcCodegenUnknownAlgorithm:
         # Act
         result = _run_cli(tmp_path, [f"/proto.crc.{lang} {fake}"])
 
-        # Assert -- process exits cleanly (the error is caught, not
-        # crashed), the user sees the message, and no literal
-        # ``{prefix}`` leaks through.
-        actual_code = result.returncode
-        expected_code = 0
+        # Assert -- the error is caught, not crashed (--run exits 1 for the
+        # failed line, stderr stays empty), the user sees the message, and no
+        # literal ``{prefix}`` leaks through.
+        actual_code = (result.returncode, result.stderr)
+        expected_code = (1, "")
         assert actual_code == expected_code, (
-            f"/proto.crc.{lang} unknown-name must exit 0, got {actual_code}. "
+            f"/proto.crc.{lang} unknown-name must exit 1, got {actual_code}. "
             f"stderr: {result.stderr!r}"
         )
         assert "Unknown algorithm" in result.stdout, (
@@ -111,8 +111,8 @@ class TestCrcCodegenUnknownAlgorithm:
         result = _run_cli(tmp_path, ["/proto.crc.calc crcDOES_NOT_EXIST 01 02"])
 
         # Assert
-        assert result.returncode == 0, (
-            f"/proto.crc.calc must exit 0, got {result.returncode}. stderr: {result.stderr!r}"
+        assert (result.returncode, result.stderr) == (1, ""), (
+            f"/proto.crc.calc must fail its line (exit 1), got {result.returncode}. stderr: {result.stderr!r}"
         )
         assert "/proto.crc.list" in result.stdout, (
             f"/proto.crc.calc should point the user at /proto.crc.list. stdout: {result.stdout!r}"
@@ -127,8 +127,8 @@ class TestCrcCodegenUnknownAlgorithm:
         result = _run_cli(tmp_path, ["/proto.crc.info crcDOES_NOT_EXIST"])
 
         # Assert
-        assert result.returncode == 0, (
-            f"/proto.crc.info must exit 0, got {result.returncode}. stderr: {result.stderr!r}"
+        assert (result.returncode, result.stderr) == (1, ""), (
+            f"/proto.crc.info must fail its line (exit 1), got {result.returncode}. stderr: {result.stderr!r}"
         )
         assert "/proto.crc.list" in result.stdout, (
             f"/proto.crc.info should point the user at /proto.crc.list. stdout: {result.stdout!r}"

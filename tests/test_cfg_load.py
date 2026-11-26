@@ -173,8 +173,8 @@ class TestCfgLoadFromZeroConfig:
             cwd=tmp_path,
         )
 
-        # Assert -- script continues after the failure.
-        assert result.returncode == 0, f"stderr: {result.stderr!r}"
+        # Assert -- script continues after the failure, and --run exits 1 for it.
+        assert (result.returncode, result.stderr) == (1, ""), f"stderr: {result.stderr!r}"
         assert "No config matching" in result.stdout or "No config matching" in result.stderr, (
             f"unknown-name should produce a clear error. stdout: {result.stdout!r}"
         )
@@ -209,8 +209,8 @@ class TestCfgLoadFromZeroConfig:
             cwd=tmp_path,
         )
 
-        # Assert
-        assert result.returncode == 0, f"stderr: {result.stderr!r}"
+        # Assert -- the failing line makes --run exit 1; an empty stderr says nothing crashed
+        assert (result.returncode, result.stderr) == (1, ""), f"stderr: {result.stderr!r}"
         # Error messages get written via ctx.status / ctx.write to
         # the REPL, which can land on stdout or stderr depending on
         # mode; check both.

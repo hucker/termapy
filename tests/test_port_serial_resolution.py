@@ -104,7 +104,7 @@ class TestCliResolvedFromBanner:
         result = _run_cli(
             tmp_path,
             cfg_overrides={"port": "UNKNOWN_SN|DEMO", "quiet_start": False},
-            script_lines=["/echo done"],
+            script_lines=["/print done"],
         )
 
         # Assert
@@ -121,7 +121,7 @@ class TestCliResolvedFromBanner:
         result = _run_cli(
             tmp_path,
             cfg_overrides={"port": "UNKNOWN_SN|DEMO"},
-            script_lines=["/echo done"],
+            script_lines=["/print done"],
         )
 
         # Assert
@@ -137,7 +137,7 @@ class TestCliResolvedFromBanner:
         result = _run_cli(
             tmp_path,
             cfg_overrides={"port": "DEMO"},
-            script_lines=["/echo done"],
+            script_lines=["/print done"],
         )
 
         # Assert -- no "Resolved" line appears because spec == actual.
@@ -155,7 +155,7 @@ class TestCliResolvedFromBanner:
         result = _run_cli(
             tmp_path,
             cfg_overrides={"port": "UNKNOWN_SN|DEMO"},
-            script_lines=["/echo done"],
+            script_lines=["/print done"],
         )
 
         # Assert -- connection_string uses the actual port when
@@ -215,7 +215,7 @@ class TestPortCommandStatusMessage:
             script_lines=[
                 "/port.disconnect",
                 "/port FAKE_SN|DEMO",
-                "/echo done",
+                "/print done",
             ],
         )
 

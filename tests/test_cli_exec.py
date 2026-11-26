@@ -367,3 +367,86 @@ class TestOneShotAnswers:
         envelope = json.loads(result.stdout)
         assert (result.returncode, envelope["success"]) == (1, False), envelope
         assert envelope["value"] in ("", None), "no value is handed on for a missing port"
+
+
+class TestOneShotHangs:
+    """A one-shot never parks an unattended agent: a blank command, a UI switch, a reader that left."""
+
+    def test_an_empty_exec_is_a_usage_error(self, tmp_path):
+        """-e with an empty command exits 2 and says what -e needs, instead of starting the TUI."""
+        # Act
+        result = _run("-e", "", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 2, result.stderr
+        assert "-e needs a command" in result.stderr, "the usage error names the flag"
+
+    def test_a_blank_exec_is_a_usage_error(self, tmp_path):
+        """-e with only whitespace exits 2 instead of sending the whitespace to the device."""
+        # Act
+        result = _run("-e", "   ", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 2, result.stderr
+
+    @pytest.mark.rule("noop-says-so")
+    def test_a_ui_switch_in_a_one_shot_is_refused(self, tmp_path):
+        """-e /app.tui has no terminal to hand over, so it fails with a sentence instead of starting the TUI."""
+        # Act
+        result = _run("-e", "/app.tui", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 1, result.stdout
+        assert "Not available in a one-shot." in result.stdout, "the refusal says why"
+
+    def test_a_vt100_switch_in_a_one_shot_is_refused(self, tmp_path):
+        """-e /app.vt100 is refused before the CLI sees it: its tui_mode gate answers, exit 1."""
+        # Act
+        result = _run("-e", "/app.vt100", cfg_dir=str(tmp_path))
+
+        # Assert
+        assert (result.returncode, "not available" in result.stdout.lower()) == (1, True), (
+            result.stdout
+        )
+
+    def test_a_run_script_with_a_ui_switch_runs_on_and_exits(self, tmp_path):
+        """A --run script containing /app.tui refuses that line, runs the rest and exits 1."""
+        # Arrange
+        script = tmp_path / "switch.run"
+        script.write_text("# Switch\n/print before\n/app.tui\n/print after\n", encoding="utf-8")
+
+        # Act
+        result = _run("--run", str(script), cfg_dir=str(tmp_path))
+
+        # Assert
+        assert result.returncode == 1, result.stdout
+        assert "after" in result.stdout, "the script ran past the refused switch"
+
+    def test_a_reader_that_closes_stdout_ends_the_run_quietly(self, tmp_path):
+        """A one-shot whose stdout reader leaves (| head) exits with no traceback and no plugin error."""
+        # Arrange -- the same spawn as _run, but with a pipe this test closes early
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "import sys; "
+                f"sys.argv = ['termapy', '--cli', '--demo', '--no-color', '--cfg-dir', {str(tmp_path)!r}, "
+                "'-e', '/help']; from termapy.entry import main; main()",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        assert process.stdout is not None and process.stderr is not None
+
+        # Act -- read one line, then walk away; stderr is small, so waiting first cannot fill its pipe
+        process.stdout.readline()
+        process.stdout.close()
+        process.wait(timeout=30)
+        stderr = process.stderr.read()
+        process.stderr.close()
+
+        # Assert
+        text = stderr.decode("utf-8", errors="replace")
+        assert "Traceback" not in text, text
+        assert "Plugin error" not in text, "a closed pipe is not the command's fault"
+        assert process.returncode == 0, f"exit {process.returncode}; stderr: {text}"

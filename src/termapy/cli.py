@@ -12,6 +12,8 @@ Usage:
 
 from __future__ import annotations
 
+import errno
+import os
 import sys
 import textwrap
 import threading
@@ -61,6 +63,9 @@ class CLITerminal(TerminalHost):
     """
 
     front_end = "cli"
+    # Whether stdout's reader has gone (``_print``).  A class default as well
+    # as the instance's, so a terminal built without ``__init__`` prints.
+    _stdout_gone = False
 
     def __init__(
         self,
@@ -203,14 +208,14 @@ class CLITerminal(TerminalHost):
         """
         self._sync_console_color()
         if color:
-            self.console.print(f"[{color}]{escape_markup(text)}[/]")
+            self._print(f"[{color}]{escape_markup(text)}[/]")
         else:
-            self.console.print(text, markup=False)
+            self._print(text, markup=False)
 
     def write_markup(self, text: str) -> None:
         """Write Rich markup text to stdout."""
         self._sync_console_color()
-        self.console.print(text)
+        self._print(text)
 
     def status(self, text: str, color: str = "") -> None:
         """Write an indented status message.
@@ -229,9 +234,9 @@ class CLITerminal(TerminalHost):
         self._sync_console_color()
         indented = textwrap.indent(text, "  ")
         if color:
-            self.console.print(f"[{color}]{escape_markup(indented)}[/]")
+            self._print(f"[{color}]{escape_markup(indented)}[/]")
         else:
-            self.console.print(indented, markup=False)
+            self._print(indented, markup=False)
 
     def _raw(self, text: str, end: str = "\n") -> None:
         """Write raw text to stdout, bypassing Rich markup."""
@@ -322,6 +327,30 @@ class CLITerminal(TerminalHost):
 
     # -- Hook handlers --------------------------------------------------------
 
+    def _print(self, text: str, *, markup: bool = True) -> None:
+        """Every line the CLI prints to stdout goes through here, so a reader that left is noticed once.
+
+        ``termapy -e /help | head -2``: when the reader closes the pipe the
+        next write raises ``BrokenPipeError`` (POSIX) or ``OSError(EINVAL)``
+        (Windows, from the console file).  That is the consumer gone, not a
+        failure of the command that was printing: the first time it happens
+        stdout is pointed at the null device, the session is asked to leave,
+        and nothing more is said (a traceback and exit 120 blamed the plugin
+        until 2026-11-26).
+        """
+        if self._stdout_gone:
+            return
+        try:
+            self.console.print(text, markup=markup)
+        except (BrokenPipeError, OSError) as e:
+            if not isinstance(e, BrokenPipeError) and e.errno not in (errno.EPIPE, errno.EINVAL):
+                raise
+            self._stdout_gone = True
+            sink = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115 -- lives until exit
+            self.console.file = sink
+            sys.stdout = sink
+            self._request_exit()
+
     def _request_exit(self, switch_to: str | None = None) -> None:
         """End the session once the current command returns (``ctx.ui.exit_app``).
 
@@ -390,6 +419,10 @@ class CLITerminal(TerminalHost):
             # Nothing to do, and the answer says so (registry noop-says-so).
             self.ctx.io.result("Already in the CLI.")
             return CmdResult.ok(value="cli")
+        if self.exec_cmd or self.run_script:
+            # A one-shot has no terminal to hand over: a --run script with
+            # /app.tui started the TUI into a pipe and hung there.
+            return CmdResult.fail(msg="Not available in a one-shot.")
         if mode == "tui":
             # The TUI loads the file, so unsaved settings would go.
             if not self._may_leave("Switch"):

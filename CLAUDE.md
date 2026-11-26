@@ -282,6 +282,9 @@ All other paths relative to `src/termapy/`.
   `bin=` does not) declares `Command(uses_port=True)`: the one license for
   a handler's own `is_connected()` refusal, and what makes a one-shot open
   the port first (registry `uses-port-declared`, `oneshot-connects-on-need`).
+  A command that runs lines it is given and never checks the port itself
+  (`/run`, `/repeat cmd=`) declares `Command(runs_lines=True)` instead, so a
+  one-shot opens the port for the lines the gate cannot see.
   Everything about
   a restrictive capability -- its `/help` hint, its gate answer, whether
   any frontend can reach it -- is declared once on its field with

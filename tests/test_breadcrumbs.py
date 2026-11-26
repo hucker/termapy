@@ -767,7 +767,7 @@ class TestAliveFlag:
 
         # Act
         with pytest.raises(SystemExit) as exit_info:
-            run_alive()
+            run_alive(argparse.Namespace(json=False))
 
         # Assert -- captured output is not a terminal, so the table gets its full width
         expected = [text for text, _color in view.lines(200)]

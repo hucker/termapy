@@ -345,6 +345,7 @@ _FOLDER_SUBS["list"] = Command(
 
 
 COMMAND = Command(
+    runs_lines=True,  # the script's lines; a one-shot opens the port first
     group="terminal",
     name="run",
     args="{filename}",
@@ -390,6 +391,7 @@ COMMAND = Command(
         ),
         "edit": edit_command("run"),
         "last": Command(
+            runs_lines=True,
             help="Replay the last <count> commands typed (bare {prefix}run.last lists them).",
             long_help=(
                 "Bare {prefix}run.last lists the lines typed at the prompt in this\n"
@@ -427,6 +429,7 @@ COMMAND = Command(
             needs=CapabilitySet(interactive=True, script_idle=True),
         ),
         "profile": Command(
+            runs_lines=True,
             args="<filename>",
             help="Run a script with per-line timing (CSV to prof/).",
             intro=(

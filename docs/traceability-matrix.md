@@ -380,6 +380,7 @@ Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections i
 
 ### `failure-is-failure` (assumption, contract)
 
+- `test_cli_exec.py`: `TestOneShotAnswers.test_a_port_field_for_a_missing_port_fails`, `TestOneShotAnswers.test_a_port_page_for_a_missing_port_fails`
 - `test_engine.py`: `TestDispatchCapabilities.test_a_closed_port_answers_not_connected`
 - `test_port_commands.py`: `TestProperties.test_a_non_number_is_refused`
 - `test_proto_commands.py`: `TestRun.test_a_failing_suite_answers_json_with_its_results`
@@ -555,7 +556,8 @@ Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections i
 
 ### `json-flag-reaches-the-command` (guarantee, contract)
 
-- `test_cli_exec.py`: `TestCliExec.test_json_before_exec_is_the_commands_json` **guard**, `TestCliExec.test_json_before_exec_reaches_a_bare_device_line` **guard**
+- `test_cli.py`: `TestJsonOnMachineFlags.test_alive_json_is_the_session_list`, `TestJsonOnMachineFlags.test_info_json_is_the_port_record`, `TestJsonOnMachineFlags.test_info_json_miss_keeps_stdout_empty`, `TestJsonOnMachineFlags.test_version_json_names_the_version`
+- `test_cli_exec.py`: `TestCliExec.test_json_before_exec_is_the_commands_json` **guard**, `TestCliExec.test_json_before_exec_reaches_a_bare_device_line` **guard**, `TestOneShotAnswers.test_json_before_exec_keeps_the_line_as_typed`, `TestOneShotAnswers.test_json_before_exec_stays_out_of_a_cmd_value`
 
 ### `json-is-a-shape` (guarantee, contract)
 
@@ -725,7 +727,7 @@ Ids: 245: 230 registry rows (guarantees 193, assumptions 37), 15 spec sections i
 
 ### `oneshot-connects-on-need` (guarantee, requirement)
 
-- `test_cli_exec.py`: `TestOneShotConnectsOnNeed.test_a_one_shot_command_that_declares_the_port_still_connects` **guard**, `TestOneShotConnectsOnNeed.test_a_one_shot_device_line_still_needs_the_port` **guard**, `TestOneShotConnectsOnNeed.test_a_one_shot_that_needs_no_port_runs_without_the_device` **guard**
+- `test_cli_exec.py`: `TestOneShotAnswers.test_a_command_that_runs_a_device_line_gets_the_port`, `TestOneShotAnswers.test_a_run_one_shot_gets_the_port_for_its_script`, `TestOneShotConnectsOnNeed.test_a_one_shot_command_that_declares_the_port_still_connects` **guard**, `TestOneShotConnectsOnNeed.test_a_one_shot_device_line_still_needs_the_port` **guard**, `TestOneShotConnectsOnNeed.test_a_one_shot_that_needs_no_port_runs_without_the_device` **guard**
 - `test_engine.py`: `TestDispatchCapabilities.test_needs_port_reads_the_declaration` **guard**
 
 ### `os-never-under-mcp` (guarantee, contract)

@@ -98,6 +98,7 @@ def _handler(ctx: PluginContext, args: str) -> CmdResult:
 COMMAND = Command(
     group="terminal",
     name="repeat",
+    runs_lines=True,  # cmd= is usually a device line; a one-shot opens the port first
     help="Repeat a command N times with optional delay (escape to cancel).",
     long_help=(
         "Runs a command count times in sequence, optionally with a delay\n"

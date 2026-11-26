@@ -3254,3 +3254,65 @@ class TestServeDetach:
         assert "Cannot open nosuchport" in started.stderr, "the server's own reason"
         assert "stopped as it started (exit 1)" in started.stderr
         assert [crumb for crumb in breadcrumbs.read_running() if crumb.frontend == "serve"] == []
+
+
+class TestJsonOnMachineFlags:
+    """--json makes every machine flag's answer JSON, as the --help group header says."""
+
+    @staticmethod
+    def _main(monkeypatch, *argv: str) -> int:
+        monkeypatch.setattr("sys.argv", ["termapy", *argv])
+        from termapy.entry import main
+
+        with pytest.raises(SystemExit) as exc:
+            main()
+        return int(exc.value.code or 0)
+
+    @pytest.mark.rule("json-flag-reaches-the-command")
+    def test_info_json_is_the_port_record(self, capsys, monkeypatch):
+        """--info PORT --json prints the page's record, /port.chip --json's data."""
+        # Arrange
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+
+        # Act
+        code = self._main(monkeypatch, "--info", "COM3", "--json")
+
+        # Assert
+        record = json.loads(capsys.readouterr().out)
+        assert (code, record["device"]) == (0, "COM3")
+
+    @pytest.mark.rule("json-flag-reaches-the-command")
+    def test_info_json_miss_keeps_stdout_empty(self, capsys, monkeypatch):
+        """--info of an absent port with --json exits 1 with the problem on stderr, nothing on stdout."""
+        # Arrange
+        monkeypatch.setenv("TERMAPY_DEMO_FLEET", "1")
+
+        # Act
+        code = self._main(monkeypatch, "--info", "COM99", "--json")
+
+        # Assert
+        captured = capsys.readouterr()
+        assert (code, captured.out) == (1, ""), "stdout stays JSON-only"
+        assert "COM99" in captured.err, "the problem names the port"
+
+    @pytest.mark.rule("json-flag-reaches-the-command")
+    def test_alive_json_is_the_session_list(self, capsys, monkeypatch, tmp_path):
+        """--alive --json prints the session records as a list, empty when nothing runs."""
+        # Arrange
+        monkeypatch.setenv("TERMAPY_STATE_DIR", str(tmp_path))
+
+        # Act
+        code = self._main(monkeypatch, "--alive", "--json")
+
+        # Assert
+        assert (code, json.loads(capsys.readouterr().out)) == (0, [])
+
+    @pytest.mark.rule("json-flag-reaches-the-command")
+    def test_version_json_names_the_version(self, capsys, monkeypatch):
+        """--version --json prints one object with the version."""
+        # Act
+        code = self._main(monkeypatch, "--version", "--json")
+
+        # Assert
+        record = json.loads(capsys.readouterr().out)
+        assert (code, bool(record["version"])) == (0, True)

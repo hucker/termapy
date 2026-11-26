@@ -276,11 +276,12 @@ def _strip_json_flag(args: str) -> tuple[str, bool]:
     """
     if not args or "--json" not in args:
         return args, False
-    tokens = args.split()
-    remaining = [token for token in tokens if token != "--json"]
-    if len(remaining) == len(tokens):
+    # One token removed, the rest kept as typed: a re-join on single spaces
+    # changed the spacing inside a device line.
+    match = re.search(r"(^|\s)--json(?=\s|$)", args)
+    if match is None:
         return args, False
-    return " ".join(remaining), True
+    return (args[: match.start()] + args[match.end() :]).strip(), True
 
 
 @dataclass
@@ -1679,13 +1680,37 @@ class ReplEngine:
         name = repl_cmd.split(None, 1)[0].lower() if repl_cmd.strip() else ""
         return self._plugins.get(self.split_suffixes(name)[0])
 
+    def with_json(self, line: str) -> str:
+        """``line`` asking for a JSON answer: ``.json`` on its command name, or ``--json`` on a device line.
+
+        How ``termapy --json -e <line>`` reaches the command: the flag is
+        carried as the suffix every command takes (``split_suffixes``), so
+        the arguments stay as typed.  Pasting ``--json`` onto the line put it
+        inside a ``cmd=`` value and, on ``/term.raw``, on the wire.  A device
+        line has no name to suffix, so it takes the flag the device-line
+        path strips (registry ``json-flag-reaches-the-command``).
+
+        Args:
+            line: The line as typed, prefix and all.
+        """
+        stripped = line.strip()
+        if not stripped.startswith(self.prefix):
+            return f"{stripped} --json"
+        head, _, rest = stripped.partition(" ")
+        _, _, already = self.split_suffixes(head[len(self.prefix) :].lower())
+        if already:
+            return stripped
+        return f"{head}.json {rest}".rstrip()
+
     def needs_port(self, line: str) -> bool:
         """Whether running ``line`` as typed would use the serial port.
 
         A device line (no REPL prefix) sends bytes, and so does a command
         whose declaration says ``serial_connected`` (``/term.send``,
-        ``/term.raw``, ``/expect``), suffixes included, or ``uses_port``
-        (``/proto.crc.find``, which sends for ``cmd=`` and not for ``bin=``).
+        ``/term.raw``), suffixes included, or ``uses_port`` (``/proto.crc.find``,
+        which sends for ``cmd=`` and not for ``bin=``; ``/cap.wire``), or
+        ``runs_lines`` (``/run``, ``/repeat``: the lines they run are usually
+        device lines, and the gate cannot see them).
         The declarations are the truth because missing session state is the
         gate's answer, never a handler's check (registry
         ``state-answered-by-gate``), and a handler that must check it anyway
@@ -1704,7 +1729,9 @@ class ReplEngine:
         if not stripped.startswith(self.prefix):
             return True
         plugin = self.plugin_for(stripped[len(self.prefix) :])
-        return plugin is not None and (plugin.needs.serial_connected or plugin.uses_port)
+        return plugin is not None and (
+            plugin.needs.serial_connected or plugin.uses_port or plugin.runs_lines
+        )
 
     def split_suffixes(self, name: str) -> tuple[str, str | None, bool]:
         """A typed command name, the level it asks for, and whether it asks for JSON.

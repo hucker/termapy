@@ -79,16 +79,17 @@ def _answer(ctx: PluginContext, result: port_control.Result, value: object) -> C
 
 
 def _page(ctx: PluginContext, report: port_control.Report) -> CmdResult:
-    """A port page as a record answer, or its problem line and no value.
+    """A port page as a record answer, or its problem as the failure it is.
 
     ``data`` is the record and ``value`` the port name (registry
     ``record-one-format``): the page itself rides once, as data or as the
     rows dispatch prints.
     """
     if report.problem is not None:
-        text, color = report.problem
-        ctx.io.output(text, color or "")
-        return CmdResult.ok(value=None)
+        # Dispatch prints it once and `error` keeps it for scripts and
+        # agents (registry failure-is-failure); a page that printed its
+        # problem and answered success told --json and MCP the port existed.
+        return CmdResult.fail(msg=report.problem[0])
     return CmdResult.record(report.data, report.items, value=report.value)
 
 
@@ -439,6 +440,11 @@ def _make_chip_field_handler(field: str) -> Callable[[PluginContext, str], CmdRe
             by_device = {str(record["device"]): record[field] for record in records}
             return CmdResult.table(f"Chip {label}", "port", columns, records, data=by_device)
         result = port_control.chip_field(field, args, current, connected)
+        msgs, _ = result
+        if len(msgs) == 1 and msgs[0][1]:
+            # A colored single line is why there is no value (no such port,
+            # no current port): the failure, not a value to hand on.
+            return CmdResult.fail(msg=msgs[0][0])
         _apply(ctx, result)
         # Single-port single-field call: return value via CmdResult.value
         # so silent mode is useful for scripting.

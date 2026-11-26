@@ -796,11 +796,20 @@ def write_config_file(path: str | Path, cfg: Mapping) -> None:
     load's migration write-back, ``create_config`` and the config editor's
     Save, so a file reads group by group whichever of them wrote it.
     ``_`` keys are session state (migration steps, warnings) and are never
-    saved.
+    saved.  The file is written beside itself and renamed into place, so a
+    kill or a full disk mid-write leaves the old config, not a broken one
+    (review 2026-11-26, F5).
     """
     saved = {key: value for key, value in cfg.items() if not key.startswith("_")}
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(ordered_cfg(saved), f, indent=4)
+    target = Path(path)
+    partial = target.with_name(f"{target.name}.tmp")
+    try:
+        with open(partial, "w", encoding="utf-8") as f:
+            json.dump(ordered_cfg(saved), f, indent=4)
+        os.replace(partial, target)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
 
 
 def create_config(config_path: str | Path, cfg: dict, *, overwrite: bool = False) -> Path:
@@ -887,10 +896,15 @@ def rename_config(config_path: str, new_name: str) -> str:
     new_path = new_folder / f"{new_name}.cfg"
     if new_path.exists():
         raise ValueError(f"Config already exists: {new_name}")
-    # Rename the file (and its history sidecar) inside the old folder
-    # first, then the folder: if the folder move fails the config is
-    # still a consistent <folder>/<new>.cfg pair the resolver can find.
-    old.rename(folder / f"{new_name}.cfg")
+    # The file and its sidecars are renamed inside the old folder first,
+    # then the folder.  A folder move can fail after they moved (Windows
+    # refuses it while any file inside is open), and <old>/<new>.cfg is a
+    # config no reader finds, so every rename is undone before the error
+    # is raised (review 2026-11-26, F3).
+    moved: list[tuple[Path, Path]] = []
+    renamed_cfg = folder / f"{new_name}.cfg"
+    old.rename(renamed_cfg)
+    moved.append((renamed_cfg, old))
     # Every stem-named sidecar follows, from the ONE table that lists them
     # (folders.SIDECARS): history, log, info report, profile, and the symbol
     # table in its sym/ folder.  A sidecar left behind keeps the old name
@@ -900,9 +914,16 @@ def rename_config(config_path: str, new_name: str) -> str:
         home = folder / sub if sub else folder
         sidecar = home / f"{old.stem}{suffix}"
         if sidecar.exists():
-            sidecar.rename(home / f"{new_name}{suffix}")
+            target = home / f"{new_name}{suffix}"
+            sidecar.rename(target)
+            moved.append((target, sidecar))
     if standard_layout:
-        folder.rename(new_folder)
+        try:
+            folder.rename(new_folder)
+        except OSError:
+            for target, original in reversed(moved):
+                target.rename(original)
+            raise
     return str(new_path)
 
 

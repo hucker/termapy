@@ -1182,12 +1182,16 @@ class TerminalHost:
         can surface the failure through its frontend without unwinding
         the exception.
         """
+        # The question first: a Save answered there writes the file, and
+        # the load that follows reads what was saved.  Loaded first, the
+        # session switched to the copy read before the save (registry
+        # config-load-deterministic; review 2026-11-26, F1).
+        if not self._may_leave("Load"):
+            return CmdResult.fail(msg="Canceled.")
         try:
             cfg = load_config(config_path)
         except (OSError, ValueError) as e:
             return CmdResult.fail(msg=f"Cannot load config: {e}")
-        if not self._may_leave("Load"):
-            return CmdResult.fail(msg="Canceled.")
 
         if self.capture.active:
             self._stop_capture()

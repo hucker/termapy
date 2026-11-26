@@ -145,8 +145,10 @@ def resolve_config(name: str) -> str | None:
         candidate = p / f"{p.name}.cfg"
         if candidate.exists():
             return str(candidate)
-    # 3. cfg_dir/<name>/<name>.cfg (configured cfg dir).
-    stem = p.stem
+    # 3. cfg_dir/<name>/<name>.cfg (configured cfg dir).  A bare name is the
+    # config's name as typed: `v1.2` is the config v1.2, not v1, and every
+    # quick config for a network port has dots (review 2026-11-26, F6).
+    stem = p.stem if p.suffix.lower() == ".cfg" else p.name
     try:
         candidate = Path(cfg_dir()) / stem / f"{stem}.cfg"
         if candidate.exists():

@@ -400,9 +400,9 @@ def _handler_delete(ctx: PluginContext, args: str) -> CmdResult:
     """Delete a config and its folder, after a yes (``config.delete_config``).
 
     The one delete in every frontend: the config picker's Delete button
-    dispatches this command.  The TUI and CLI ask the shared question; MCP
-    asks through its destructive gate (``confirm=true``) instead, since it
-    has no prompt of its own.
+    dispatches this command.  The TUI and CLI ask the shared question; it
+    needs ``interactive``, so an MCP client never reaches it (registry
+    ``config-deleted-once``).
     """
     arg = args.strip()
     if not arg:
@@ -844,7 +844,7 @@ _CFG_PROSE = """\
 Three modes:
   {prefix}cfg                  - TUI: open Cfg picker.  CLI: list configs.
   {prefix}cfg baud_rate        - show current value of 'baud_rate'
-  {prefix}cfg baud_rate 115200 - change it (the TUI asks first)
+  {prefix}cfg baud_rate 115200 - change it for the session ({prefix}cfg.save keeps it)
 
 The value is read as the key's type: a number, text, a boolean word
 ({prefix}help boolean), or one of a key's fixed values in any case

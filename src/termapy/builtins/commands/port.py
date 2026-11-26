@@ -666,7 +666,7 @@ COMMAND = Command(
                 "               of the line, so it comes last; no quotes.\n"
                 "\n"
                 "Tokens after name are order-independent. Mutations are\n"
-                "session-only -- edit the config file to persist.  A timed\n"
+                "session-only; {prefix}cfg.save keeps them.  A timed\n"
                 "wait shows progress; Escape or Ctrl+C ends it.\n"
                 "\n"
                 "Example: {prefix}port.connect COM3 9600 N81 crlf echo\n"

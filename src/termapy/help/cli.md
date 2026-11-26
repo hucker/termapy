@@ -367,8 +367,8 @@ form, shown first; `-h` prints the same help.
 | `-c`, `--cli`     | Plain-text mode instead of the TUI, an interactive REPL; `--run` and `-e` imply it.  With no config, shows a welcome banner listing available ports -- use `/port.connect <name>` to pick one. |
 | `--vt100`         | Start in VT100 passthrough mode (see [VT100 mode](vt100.md)). |
 | `--web [[HOST:]PORT]` | Serve the TUI in a browser: `http://localhost:8000`, this machine only, unless `9000`, `192.168.1.50` or `192.168.1.50:9000` says otherwise. A network address opens it to other computers, with no login, so files stay inside the config folder as under MCP ([Browser](environment.md#browser-termapy---web)). A browser tab is a WEB session: the TUI without the console. |
-| `--serve PORT[=TCPPORT] ...` | Share serial ports on the network over RFC 2217, with no TUI (see [`--serve`](#--serve-share-a-port-on-the-network)). Each port gets its own TCP port, 2217 and up. |
-| `--listen HOST` | The address `--serve` listens on; this machine only without it. A network address has no login. |
+| `--serve [PORT[=TCPPORT] ...]` | Share serial ports on the network over RFC 2217, with no TUI (see [`--serve`](#--serve-share-a-port-on-the-network)). Each port gets its own TCP port, 2217 and up; with no ports it lists them. |
+| `--listen HOST` | The address `--serve` listens on, required: without it `--serve` lists this machine's addresses and exits. `localhost` keeps it to this machine; a network address has no login. |
 | `--detach` | With `--serve`, run the server in the background with no window; it prints its PID, addresses and output file, and returns. |
 | `--mcp`           | Run as a stdio MCP server for an AI agent (see [MCP server](mcp-server.md)); `--mcp-verbose` tees its log to stderr. |
 

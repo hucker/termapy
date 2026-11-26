@@ -114,7 +114,7 @@ class TestZeroConfigOneShot:
         assert "no config is loaded, so there is no file to save it to." in result.stdout, (
             result.stdout
         )
-        assert "saves it to" not in result.stdout, "no file is named"
+        assert "keeps it in" not in result.stdout, "no file is named"
 
     def test_exec_prints_no_welcome(self):
         """-e with no config runs the command without the welcome banner, as with a config.

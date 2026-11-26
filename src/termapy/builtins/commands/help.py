@@ -220,15 +220,17 @@ def _cfg_json_fragment(path: str, value: object) -> str:
 
 
 def _cfg_scope_text(prefix: str, key: str, file_name: str) -> str:
-    """The one line on where a change lasts: the session by command, the named file by the editor.
+    """The one line on where a change lasts: the session by command, the named file by ``/cfg.save``.
 
     With no config loaded there is no file and the editor would refuse, so
     the line says that instead of naming a file that does not exist.
+    ``/cfg.save`` is named because every frontend has it; the editor needs
+    ``file_editor``, which an MCP client lacks (review 2026-11-26, F8).
     """
     lasts = f"A change by {prefix}cfg {key} <value> lasts the session; "
     if not file_name:
         return lasts + "no config is loaded, so there is no file to save it to."
-    return lasts + f"the config editor ({prefix}cfg.edit) saves it to {file_name}."
+    return lasts + f"{prefix}cfg.save keeps it in {file_name}."
 
 
 def _cfg_scope_markup(prefix: str, key: str, file_name: str) -> str:

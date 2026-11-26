@@ -74,8 +74,9 @@ showing its setting; a click steps it
 ([Custom buttons](custom-buttons.md#showing-a-setting)). The one difference is the Proto button, which is
 off: a session is a terminal, and the rest waits until asked for.
 
-A config wins the name: with a config called `COM3`, `termapy COM3` loads
-it. Settings follow a port only, and flags may go anywhere on the line
+A device name is always the port: no config is named `COM3` (see
+[Config](config.md)), so `termapy COM3` opens COM3. Settings follow a port
+only, and flags may go anywhere on the line
 (`termapy COM3 9600 --quiet 8N1`). A name that is neither a config nor a
 port that is here fails, naming the closest of both. `--cfg-dir` or
 `TERMAPY_CFG_DIR` puts quick configs in that folder instead; `--mcp` takes

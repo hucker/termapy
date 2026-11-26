@@ -210,4 +210,4 @@ class TestAHoverHoldsTheRest:
 
         # Assert
         assert "A change by /cfg hex <value> lasts the session" in tip
-        assert "saves it to c.cfg" in tip
+        assert "/cfg.save keeps it in c.cfg" in tip

@@ -124,15 +124,27 @@ def served() -> Iterator[Callable[..., tuple[Bridge, list[str]]]]:
 
 
 class _Flaky(FakeSerial):
-    """The DEMO simulator as a port that can be unplugged: its reads fail while ``gone`` is set."""
+    """The DEMO simulator as a port that can be unplugged: its reads and status fail while ``gone`` is set."""
 
     gone = False
+    # How often the port's status was asked: an idle server's check counts here.
+    checks = 0
 
     def read(self, size: int = 1) -> bytes:
         """Fail as a vanished USB device does, else read the simulator."""
         if self.gone:
             raise SerialException("device reports readiness to read but returned no data")
         return super().read(size)
+
+    @property
+    def in_waiting(self) -> int:
+        """Fail as a vanished device's status call does (Windows' ClearCommError), else the simulator's."""
+        self.checks += 1
+        if self.gone:
+            raise SerialException(
+                "ClearCommError failed (PermissionError(13, 'Access is denied.'))"
+            )
+        return super().in_waiting
 
 
 class _VanishedPeer:
@@ -466,6 +478,47 @@ class TestBridge:
         with pytest.raises(OSError):
             socket.create_connection((LOCAL, server.tcp_port), timeout=0.5)
         client.close()
+
+    @pytest.mark.rule("serve-pumps-joined")
+    def test_a_port_lost_with_no_client_is_noticed_and_reopened(self, served):
+        """A port that vanishes while no client is connected is dropped from what the server holds, then reopened."""
+        # Arrange
+        opener = _Opener()
+        bridge, events = served("BG03U7VTA", opener=opener)
+        server = bridge.servers[0]
+        opener.refusing = True
+
+        # Act: unplug with nobody connected
+        opener.opened[0].gone = True
+        lost = _until(lambda: not server.connected)
+        held_while_gone = bridge.devices
+        # Act: plug back in
+        opener.refusing = False
+        reopened = _until(lambda: server.connected)
+
+        # Assert
+        assert lost, "the idle check notices the port is gone"
+        assert held_while_gone == [], "the breadcrumb stops claiming the port"
+        assert opener.opened[0].is_open is False, "the dead handle is closed"
+        assert reopened, "the port comes back through the same opener"
+        said = [event.split(": ", 1)[1].split(":")[0] for event in events]
+        assert "port lost" in said and "reopened (COM9)" in said, events
+
+    @pytest.mark.rule("serve-pumps-joined")
+    def test_a_healthy_idle_port_is_checked_and_kept(self, served):
+        """An idle port that answers its status is kept across checks: nothing is reported, nothing reopened."""
+        # Arrange
+        opener = _Opener()
+        bridge, events = served("BG03U7VTA", opener=opener)
+        port = opener.opened[0]
+
+        # Act -- three checks, a second apart
+        checked = _until(lambda: port.checks >= 3)
+
+        # Assert
+        assert checked, "an idle server asks its port's status about once a second"
+        assert (bridge.servers[0].connected, events) == (True, []), "a healthy port stays put"
+        assert len(opener.opened) == 1, "and is never reopened"
 
     @pytest.mark.rule("serve-pumps-joined")
     def test_a_lost_port_drops_its_client_refuses_while_gone_and_is_reopened(self, served):
